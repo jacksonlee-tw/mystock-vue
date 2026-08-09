@@ -1,51 +1,98 @@
 <template>
-  <div class="p-6 max-w-7xl mx-auto space-y-6">
-    <!-- 頂部導覽與控制列 -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
-      <div class="flex flex-col md:flex-row items-start md:items-center gap-4">
+  <div class="chart-detail-root">
+    <!-- ══════════════════════════════════════════════════
+         Sticky 控制條：貼附在 AppTopbar (4rem) 正下方
+         含返回按鈕、圖表 Tab 切換、週期與時間範圍選擇器
+    ═══════════════════════════════════════════════════ -->
+    <div class="chart-control-bar sticky top-16 z-30 bg-surface-0/95 dark:bg-surface-900/95 backdrop-blur-md border-b border-surface-200 dark:border-surface-700 shadow-sm">
+      <div class="max-w-7xl mx-auto px-6 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
         <!-- 返回按鈕群 -->
-        <div class="flex items-center gap-2">
-          <button 
-            @click="router.push('/')" 
-            class="px-3 py-1.5 text-xs font-bold bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+        <div class="flex items-center gap-2 shrink-0">
+          <button
+            @click="router.push('/')"
+            class="px-2.5 py-1 text-xs font-bold bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg flex items-center gap-1 transition-colors"
           >
-            <i class="pi pi-home"></i> 熱力圖
+            <i class="pi pi-home"></i>
           </button>
-          <button 
-            @click="router.push(`/stock/${stockId}`)" 
-            class="px-3 py-1.5 text-xs font-bold bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+          <button
+            @click="router.push(`/stock/${stockId}`)"
+            class="px-2.5 py-1 text-xs font-bold bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg flex items-center gap-1 transition-colors"
           >
-            <i class="pi pi-arrow-left"></i> 返回個股儀表板
+            <i class="pi pi-arrow-left"></i> <span class="hidden sm:inline">返回儀表板</span>
           </button>
         </div>
-        <div>
-          <h1 class="text-xl font-black text-surface-900 dark:text-surface-0 flex flex-wrap items-center gap-2">
-            <span><span class="num">{{ stockId }}</span> <span v-if="stockName" class="text-primary">{{ stockName }}</span> 圖表明細</span>
-            <span v-if="dateRangeText" class="num px-2.5 py-0.5 text-xs font-bold bg-primary-50 dark:bg-primary-900/30 text-primary rounded-md border border-primary/20">
-              <i class="pi pi-calendar mr-1"></i> {{ dateRangeText }}
-            </span>
-          </h1>
-        </div>
-      </div>
 
-      <!-- 切換圖表類型 (Tab) -->
-      <div class="flex flex-wrap items-center gap-1 bg-surface-100 dark:bg-surface-800 p-1 rounded-lg border border-surface-200 dark:border-surface-700">
-        <button 
-          v-for="tab in chartTabs" 
-          :key="tab.value" 
-          @click="switchChartType(tab.value)"
-          :class="[
-            'px-3 py-1.5 text-xs font-bold rounded-md transition-colors',
-            chartType === tab.value 
-              ? 'bg-primary text-primary-contrast shadow-sm' 
-              : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
-          ]"
-        >
-          {{ tab.label }}
-        </button>
+        <!-- 股票名稱 + 日期 -->
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="font-black text-surface-900 dark:text-surface-0">
+            <span class="num">{{ stockId }}</span>
+            <span v-if="stockName" class="text-primary ml-1">{{ stockName }}</span>
+          </span>
+          <span v-if="dateRangeText" class="num text-xs font-bold bg-primary-50 dark:bg-primary-900/30 text-primary px-2 py-0.5 rounded border border-primary/20 hidden md:inline">
+            <i class="pi pi-calendar mr-1"></i>{{ dateRangeText }}
+          </span>
+        </div>
+
+        <!-- 圖表 Tab 切換 -->
+        <div class="flex flex-wrap items-center gap-0.5 bg-surface-100 dark:bg-surface-800 p-0.5 rounded-lg border border-surface-200 dark:border-surface-700">
+          <button
+            v-for="tab in chartTabs"
+            :key="tab.value"
+            @click="switchChartType(tab.value)"
+            :class="[
+              'px-2.5 py-1 text-xs font-bold rounded-md transition-all duration-150 whitespace-nowrap',
+              chartType === tab.value
+                ? 'bg-primary text-primary-contrast shadow-sm'
+                : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
+            ]"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <!-- 右側：週期 + 時間範圍 -->
+        <div class="flex flex-wrap items-center gap-2 ml-auto">
+          <!-- 週期（日/週/月線） -->
+          <div class="flex items-center gap-0.5 bg-surface-100 dark:bg-surface-800 p-0.5 rounded-lg border border-surface-200 dark:border-surface-700">
+            <button
+              v-for="p in periodOptions"
+              :key="p.value"
+              @click="setPeriod(p.value)"
+              :class="[
+                'px-2.5 py-1 text-xs font-bold rounded-md transition-all duration-150',
+                period === p.value
+                  ? 'bg-primary text-primary-contrast shadow-sm'
+                  : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
+              ]"
+            >
+              {{ p.label }}
+            </button>
+          </div>
+
+          <!-- 時間範圍 -->
+          <div class="flex items-center gap-0.5 bg-surface-100 dark:bg-surface-800 p-0.5 rounded-lg border border-surface-200 dark:border-surface-700">
+            <button
+              v-for="m in monthOptions"
+              :key="m.value"
+              @click="setMonths(m.value)"
+              :class="[
+                'px-2.5 py-1 text-xs font-bold rounded-md transition-all duration-150',
+                months === m.value
+                  ? 'bg-primary text-primary-contrast shadow-sm'
+                  : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
+              ]"
+            >
+              {{ m.label }}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
+    <!-- ══════════════════════════════════════════════════
+         主內容區
+    ═══════════════════════════════════════════════════ -->
+    <div class="p-6 max-w-7xl mx-auto space-y-4">
     <!-- 載入中狀態 -->
     <div v-if="loading" class="flex flex-col items-center justify-center p-12 card bg-surface-0 dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700">
       <i class="pi pi-spin pi-spinner text-primary text-4xl mb-3"></i>
@@ -78,7 +125,8 @@
 
       <ChartExplanationBlock :explanation="currentExplanation" />
     </div>
-  </div>
+    </div><!-- /內容區 -->
+  </div><!-- /chart-detail-root -->
 </template>
 
 <script setup>
@@ -153,6 +201,20 @@ const dateRangeText = computed(() => {
   return '';
 });
 
+// 週期選項
+ const periodOptions = [
+  { label: '日線', value: 'daily' },
+  { label: '週線', value: 'weekly' },
+  { label: '月線', value: 'monthly' }
+];
+
+const monthOptions = [
+  { label: '1個月', value: 1 },
+  { label: '3個月', value: 3 },
+  { label: '6個月', value: 6 },
+  { label: '1年',   value: 12 }
+];
+
 onMounted(() => {
   loadStockData();
 });
@@ -164,6 +226,22 @@ watch([() => route.params.id, () => route.params.chartType], ([newId, newType]) 
   }
   if (newType && newType !== chartType.value) {
     chartType.value = newType;
+  }
+});
+
+// URL query 是週期／範圍狀態的唯一來源：可重整、可分享、可上一頁返回。
+watch(() => route.query.period, (v) => {
+  const p = v || 'daily';
+  if (p !== period.value) {
+    period.value = p;
+    loadStockData();
+  }
+});
+watch(() => route.query.months, (v) => {
+  const m = Number(v) || 3;
+  if (m !== months.value) {
+    months.value = m;
+    loadStockData();
   }
 });
 
@@ -185,10 +263,21 @@ async function loadStockData() {
 }
 
 function switchChartType(type) {
-  router.push({
+  // 使用 replace 避免堆疊瞬戒歷史
+  router.replace({
     path: `/stock/${stockId.value}/chart/${type}`,
     query: { period: period.value, months: months.value }
   });
+}
+
+function setPeriod(p) {
+  if (period.value === p) return;
+  router.replace({ query: { ...route.query, period: p } });
+}
+
+function setMonths(m) {
+  if (months.value === m) return;
+  router.replace({ query: { ...route.query, months: m } });
 }
 
 // === Options ===

@@ -1,86 +1,101 @@
 <template>
-  <div class="p-6 max-w-7xl mx-auto space-y-6">
-    <button
-      @click="router.push('/')"
-      class="px-3 py-1.5 text-xs font-bold bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg flex items-center gap-1.5 transition-colors w-fit"
-    >
-      <i class="pi pi-home"></i> 熱力圖
-    </button>
+  <div class="stock-dashboard-root">
+    <!-- ══════════════════════════════════════════════════
+         Sticky 控制條：貼附在 AppTopbar (4rem) 正下方
+         使用 backdrop-blur 玻璃效果，不遮擋閱讀體驗
+    ═══════════════════════════════════════════════════ -->
+    <div class="stock-control-bar sticky top-16 z-30 bg-surface-0/95 dark:bg-surface-900/95 backdrop-blur-md border-b border-surface-200 dark:border-surface-700 shadow-sm">
+      <div class="max-w-7xl mx-auto px-6 py-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <!-- 返回按鈕 -->
+        <button
+          @click="router.push('/')"
+          class="px-3 py-1.5 text-xs font-bold bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg flex items-center gap-1.5 transition-colors shrink-0"
+        >
+          <i class="pi pi-home"></i> 熱力圖
+        </button>
 
-    <!-- 身分列：只回答「看誰、多少錢、看哪一段」；追蹤管理與新增股票收在管理頁 -->
-    <div class="flex flex-wrap items-end gap-x-6 gap-y-4 card p-5 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
-      <div class="flex items-baseline gap-2.5 flex-wrap">
-        <span class="num text-2xl font-black text-surface-900 dark:text-surface-0">{{ selectedStock }}</span>
-        <span class="text-base text-surface-500 font-semibold">{{ currentStockName }}</span>
-      </div>
-
-      <div v-if="summary.close !== undefined" class="flex items-baseline gap-2.5">
-        <span class="num text-2xl font-black" :style="{ color: latestChange ? colorForValue(latestChange.diff) : undefined }">
-          ${{ summary.close }}
-        </span>
-        <span v-if="latestChange" class="num text-sm font-bold" :style="{ color: colorForValue(latestChange.diff) }">
-          {{ latestChange.diff >= 0 ? '+' : '' }}{{ latestChange.diff.toFixed(2) }} ({{ latestChange.pct >= 0 ? '+' : '' }}{{ latestChange.pct.toFixed(2) }}%)
-        </span>
-      </div>
-
-      <span v-if="dateRangeText" class="text-xs font-semibold text-surface-400 self-center">
-        <i class="pi pi-calendar mr-1"></i>{{ dateRangeText }}
-      </span>
-
-      <div class="flex flex-wrap items-center gap-3 ml-auto">
-        <!-- 追蹤狀態切換：新增／管理其他股票請至「股票與爬蟲管理」 -->
-        <div class="flex items-center gap-1 border-r border-surface-200 dark:border-surface-700 pr-3">
-          <button
-            @click="removeCurrentStock"
-            class="px-3 py-1.5 text-xs font-bold bg-primary-50 dark:bg-primary-900/30 text-primary rounded-lg flex items-center gap-1.5 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 transition-colors"
-            title="取消追蹤當前股票"
-          >
-            <i class="pi pi-star-fill"></i> 追蹤中
-          </button>
-          <button
-            @click="router.push('/stocks')"
-            class="p-2 text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg transition-colors"
-            title="新增或管理追蹤股票清單"
-          >
-            <i class="pi pi-cog"></i>
-          </button>
+        <!-- 股票代號 & 名稱 -->
+        <div class="flex items-baseline gap-2 shrink-0">
+          <span class="num text-xl font-black text-surface-900 dark:text-surface-0">{{ selectedStock }}</span>
+          <span class="text-sm text-surface-500 font-semibold">{{ currentStockName }}</span>
         </div>
 
-        <!-- 聚合週期 -->
-        <div class="flex items-center gap-1 bg-surface-100 dark:bg-surface-800 p-1 rounded-lg border border-surface-200 dark:border-surface-700">
-          <button
-            v-for="p in periods"
-            :key="p.value"
-            @click="setPeriod(p.value)"
-            :class="[
-              'px-3 py-1.5 text-xs font-bold rounded-md transition-colors',
-              selectedPeriod === p.value
-                ? 'bg-primary text-primary-contrast shadow-sm'
-                : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
-            ]"
-          >
-            {{ p.label }}
-          </button>
+        <!-- 最新收盤價 & 漲跌 -->
+        <div v-if="summary.close !== undefined" class="flex items-baseline gap-2 shrink-0">
+          <span class="num text-xl font-black" :style="{ color: latestChange ? colorForValue(latestChange.diff) : undefined }">
+            ${{ summary.close }}
+          </span>
+          <span v-if="latestChange" class="num text-xs font-bold" :style="{ color: colorForValue(latestChange.diff) }">
+            {{ latestChange.diff >= 0 ? '+' : '' }}{{ latestChange.diff.toFixed(2) }} ({{ latestChange.pct >= 0 ? '+' : '' }}{{ latestChange.pct.toFixed(2) }}%)
+          </span>
         </div>
 
-        <!-- 時間範圍 -->
-        <div class="flex items-center gap-1 bg-surface-100 dark:bg-surface-800 p-1 rounded-lg border border-surface-200 dark:border-surface-700">
-          <button
-            v-for="m in timeRanges"
-            :key="m.value"
-            @click="setMonths(m.value)"
-            :class="[
-              'px-3 py-1.5 text-xs font-bold rounded-md transition-colors',
-              selectedMonths === m.value
-                ? 'bg-primary text-primary-contrast shadow-sm'
-                : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
-            ]"
-          >
-            {{ m.label }}
-          </button>
+        <!-- 日期區間 -->
+        <span v-if="dateRangeText" class="text-xs font-semibold text-surface-400 hidden sm:inline shrink-0">
+          <i class="pi pi-calendar mr-1"></i>{{ dateRangeText }}
+        </span>
+
+        <!-- 右側控制群 -->
+        <div class="flex flex-wrap items-center gap-2 ml-auto">
+          <!-- 追蹤狀態 -->
+          <div class="flex items-center gap-1 border-r border-surface-200 dark:border-surface-700 pr-2">
+            <button
+              @click="removeCurrentStock"
+              class="px-2.5 py-1 text-xs font-bold bg-primary-50 dark:bg-primary-900/30 text-primary rounded-lg flex items-center gap-1 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 transition-colors"
+              title="取消追蹤當前股票"
+            >
+              <i class="pi pi-star-fill"></i> 追蹤中
+            </button>
+            <button
+              @click="router.push('/stocks')"
+              class="p-1.5 text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg transition-colors"
+              title="新增或管理追蹤股票清單"
+            >
+              <i class="pi pi-cog"></i>
+            </button>
+          </div>
+
+          <!-- 聚合週期 -->
+          <div class="flex items-center gap-0.5 bg-surface-100 dark:bg-surface-800 p-0.5 rounded-lg border border-surface-200 dark:border-surface-700">
+            <button
+              v-for="p in periods"
+              :key="p.value"
+              @click="setPeriod(p.value)"
+              :class="[
+                'px-2.5 py-1 text-xs font-bold rounded-md transition-all duration-150',
+                selectedPeriod === p.value
+                  ? 'bg-primary text-primary-contrast shadow-sm'
+                  : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
+              ]"
+            >
+              {{ p.label }}
+            </button>
+          </div>
+
+          <!-- 時間範圍 -->
+          <div class="flex items-center gap-0.5 bg-surface-100 dark:bg-surface-800 p-0.5 rounded-lg border border-surface-200 dark:border-surface-700">
+            <button
+              v-for="m in timeRanges"
+              :key="m.value"
+              @click="setMonths(m.value)"
+              :class="[
+                'px-2.5 py-1 text-xs font-bold rounded-md transition-all duration-150',
+                selectedMonths === m.value
+                  ? 'bg-primary text-primary-contrast shadow-sm'
+                  : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
+              ]"
+            >
+              {{ m.label }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- ══════════════════════════════════════════════════
+         主頁面內容區（在 sticky bar 下方正常捲動）
+    ═══════════════════════════════════════════════════ -->
+    <div class="p-6 max-w-7xl mx-auto space-y-6">
 
     <!-- 載入中狀態 -->
     <div v-if="loading" class="flex flex-col items-center justify-center p-12 card bg-surface-0 dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700">
@@ -259,7 +274,8 @@
         </div>
       </div>
     </template>
-  </div>
+    </div><!-- /內容區 -->
+  </div><!-- /stock-dashboard-root -->
 </template>
 
 <script setup>
