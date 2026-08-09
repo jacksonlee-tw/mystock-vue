@@ -1,68 +1,61 @@
 <template>
   <div class="p-6 max-w-7xl mx-auto space-y-6">
-    <!-- 頂部標題與核心控制列 -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
-      <div>
-        <div class="flex items-center gap-3 mb-2">
-          <button 
-            @click="router.push('/')" 
-            class="px-3 py-1.5 text-xs font-bold bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
-          >
-            <i class="pi pi-home"></i> 熱力圖
-          </button>
-        </div>
-        <h1 class="text-2xl font-black text-surface-900 dark:text-surface-0 flex flex-wrap items-center gap-3">
-          <i class="pi pi-chart-line text-primary text-2xl"></i>
-          <span>選股與圖表分析</span>
-          <span v-if="currentStockName" class="text-lg font-extrabold text-primary bg-primary-50 dark:bg-primary-900/30 px-3 py-1 rounded-xl border border-primary/20">
-            {{ selectedStock }} {{ currentStockName }}
-          </span>
-        </h1>
-        <p class="text-sm text-surface-500 mt-1 flex flex-wrap items-center gap-2">
-          <span>即時聚合個股三大法人買賣超、K線圖、融資融券籌碼趨勢</span>
-          <span v-if="dateRangeText" class="px-2 py-0.5 text-xs font-bold bg-primary-50 dark:bg-primary-900/30 text-primary rounded-md border border-primary/20">
-            <i class="pi pi-calendar mr-1"></i> 資料區間：{{ dateRangeText }}
-          </span>
-        </p>
+    <button
+      @click="router.push('/')"
+      class="px-3 py-1.5 text-xs font-bold bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg flex items-center gap-1.5 transition-colors w-fit"
+    >
+      <i class="pi pi-home"></i> 熱力圖
+    </button>
+
+    <!-- 身分列：只回答「看誰、多少錢、看哪一段」；追蹤管理與新增股票收在管理頁 -->
+    <div class="flex flex-wrap items-end gap-x-6 gap-y-4 card p-5 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
+      <div class="flex items-baseline gap-2.5 flex-wrap">
+        <span class="num text-2xl font-black text-surface-900 dark:text-surface-0">{{ selectedStock }}</span>
+        <span class="text-base text-surface-500 font-semibold">{{ currentStockName }}</span>
       </div>
 
-      <!-- 個股與週期篩選器 -->
-      <div class="flex flex-wrap items-center gap-3">
-        <!-- 股票選單與管理 -->
-        <div class="flex flex-wrap items-center gap-2 border-r border-surface-200 dark:border-surface-700 pr-3">
-          <label class="text-xs font-bold text-surface-600 dark:text-surface-400">股票:</label>
-          <select 
-            v-model="selectedStock" 
-            @change="onStockChange"
-            class="px-3 py-2 border border-surface-300 dark:border-surface-600 rounded-lg bg-surface-0 dark:bg-surface-800 text-surface-900 dark:text-surface-0 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option v-for="stock in availableStocks" :key="stock.stock_id" :value="stock.stock_id">
-              {{ stock.stock_id }} {{ stock.stock_name }}
-            </option>
-          </select>
-          <button @click="removeCurrentStock" class="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="取消追蹤當前股票">
-             <i class="pi pi-trash"></i>
-          </button>
-        </div>
+      <div v-if="summary.close !== undefined" class="flex items-baseline gap-2.5">
+        <span class="num text-2xl font-black" :style="{ color: latestChange ? colorForValue(latestChange.diff) : undefined }">
+          ${{ summary.close }}
+        </span>
+        <span v-if="latestChange" class="num text-sm font-bold" :style="{ color: colorForValue(latestChange.diff) }">
+          {{ latestChange.diff >= 0 ? '+' : '' }}{{ latestChange.diff.toFixed(2) }} ({{ latestChange.pct >= 0 ? '+' : '' }}{{ latestChange.pct.toFixed(2) }}%)
+        </span>
+      </div>
 
-        <!-- 新增股票 -->
+      <span v-if="dateRangeText" class="text-xs font-semibold text-surface-400 self-center">
+        <i class="pi pi-calendar mr-1"></i>{{ dateRangeText }}
+      </span>
+
+      <div class="flex flex-wrap items-center gap-3 ml-auto">
+        <!-- 追蹤狀態切換：新增／管理其他股票請至「股票與爬蟲管理」 -->
         <div class="flex items-center gap-1 border-r border-surface-200 dark:border-surface-700 pr-3">
-           <input v-model="newStockId" @keyup.enter="addStock" :disabled="isPolling" placeholder="輸入股號" class="px-3 py-1.5 w-24 border border-surface-300 dark:border-surface-600 rounded-lg bg-surface-0 dark:bg-surface-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50" />
-           <button @click="addStock" :disabled="isPolling || !newStockId.trim()" class="px-3 py-1.5 bg-primary text-primary-contrast rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              新增
-           </button>
+          <button
+            @click="removeCurrentStock"
+            class="px-3 py-1.5 text-xs font-bold bg-primary-50 dark:bg-primary-900/30 text-primary rounded-lg flex items-center gap-1.5 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 transition-colors"
+            title="取消追蹤當前股票"
+          >
+            <i class="pi pi-star-fill"></i> 追蹤中
+          </button>
+          <button
+            @click="router.push('/stocks')"
+            class="p-2 text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg transition-colors"
+            title="新增或管理追蹤股票清單"
+          >
+            <i class="pi pi-cog"></i>
+          </button>
         </div>
 
         <!-- 聚合週期 -->
         <div class="flex items-center gap-1 bg-surface-100 dark:bg-surface-800 p-1 rounded-lg border border-surface-200 dark:border-surface-700">
-          <button 
-            v-for="p in periods" 
-            :key="p.value" 
+          <button
+            v-for="p in periods"
+            :key="p.value"
             @click="setPeriod(p.value)"
             :class="[
               'px-3 py-1.5 text-xs font-bold rounded-md transition-colors',
-              selectedPeriod === p.value 
-                ? 'bg-primary text-primary-contrast shadow-sm' 
+              selectedPeriod === p.value
+                ? 'bg-primary text-primary-contrast shadow-sm'
                 : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
             ]"
           >
@@ -72,14 +65,14 @@
 
         <!-- 時間範圍 -->
         <div class="flex items-center gap-1 bg-surface-100 dark:bg-surface-800 p-1 rounded-lg border border-surface-200 dark:border-surface-700">
-          <button 
-            v-for="m in timeRanges" 
-            :key="m.value" 
+          <button
+            v-for="m in timeRanges"
+            :key="m.value"
             @click="setMonths(m.value)"
             :class="[
               'px-3 py-1.5 text-xs font-bold rounded-md transition-colors',
-              selectedMonths === m.value 
-                ? 'bg-primary text-primary-contrast shadow-sm' 
+              selectedMonths === m.value
+                ? 'bg-primary text-primary-contrast shadow-sm'
                 : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
             ]"
           >
@@ -108,70 +101,53 @@
 
     <!-- 主數據視圖 -->
     <template v-else-if="chartData">
-      <!-- 頂部指標 KPI 摘要卡片 -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <!-- 最新收盤價 -->
-        <div class="card p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm flex items-center justify-between">
-          <div>
-            <span class="text-xs font-semibold text-surface-500">最新收盤價 ({{ summary.date }})</span>
-            <div class="text-2xl font-black text-surface-900 dark:text-surface-0 mt-1">
-              ${{ summary.close }}
-            </div>
-            <div class="text-xs mt-1 text-surface-500">
-              最高: ${{ summary.high }} | 最低: ${{ summary.low }}
-            </div>
+      <!-- 指標盤：單一髮絲網格排列的密集數據列，取代原本四張分散的 KPI 卡 -->
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-px bg-surface-200 dark:bg-surface-700 border border-surface-200 dark:border-surface-700 rounded-xl overflow-hidden">
+        <!-- 當日區間 -->
+        <div class="bg-surface-0 dark:bg-surface-900 p-3.5">
+          <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">當日區間 ({{ summary.date }})</span>
+          <div class="num text-lg font-black text-surface-900 dark:text-surface-0 mt-1">
+            ${{ summary.low }} <span class="text-surface-300 dark:text-surface-600 font-normal">–</span> ${{ summary.high }}
           </div>
-          <div class="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-500 font-bold">
-            <i class="pi pi-dollar text-xl"></i>
-          </div>
+          <div class="text-[11px] mt-0.5 text-surface-500">最高 / 最低</div>
         </div>
 
         <!-- 三大法人合計買賣超 -->
-        <div class="card p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm flex items-center justify-between">
-          <div>
-            <span class="text-xs font-semibold text-surface-500">三大法人合計買賣超</span>
-            <div :class="['text-2xl font-black mt-1', summary.total_institutional >= 0 ? 'text-red-500' : 'text-emerald-500']">
-              {{ summary.total_institutional >= 0 ? '+' : '' }}{{ summary.total_institutional }} <span class="text-xs font-normal">張</span>
-            </div>
-            <div class="text-xs mt-1 text-surface-500">
-              外資: {{ summary.foreign >= 0 ? '+' : '' }}{{ summary.foreign }} 張
-            </div>
+        <div class="bg-surface-0 dark:bg-surface-900 p-3.5">
+          <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">三大法人合計</span>
+          <div class="num text-lg font-black mt-1" :style="{ color: colorForValue(summary.total_institutional) }">
+            {{ summary.total_institutional >= 0 ? '+' : '' }}{{ summary.total_institutional }} <span class="text-[11px] font-normal">張</span>
           </div>
-          <div :class="['w-12 h-12 rounded-full flex items-center justify-center font-bold', summary.total_institutional >= 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-500' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-500']">
-            <i :class="['pi text-xl', summary.total_institutional >= 0 ? 'pi-arrow-up-right' : 'pi-arrow-down-right']"></i>
-          </div>
+          <div class="num text-[11px] mt-0.5 text-surface-500">外資 {{ summary.foreign >= 0 ? '+' : '' }}{{ summary.foreign }}</div>
         </div>
 
-        <!-- 融資融券與券資比 -->
-        <div class="card p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm flex items-center justify-between">
-          <div>
-            <span class="text-xs font-semibold text-surface-500">融資 / 融券餘額</span>
-            <div class="text-xl font-black text-surface-900 dark:text-surface-0 mt-1">
-              {{ summary.margin_long }} / {{ summary.margin_short }} <span class="text-xs font-normal text-surface-500">張</span>
-            </div>
-            <div class="text-xs mt-1 text-orange-500 font-bold">
-              券資比: {{ summary.short_ratio !== null ? summary.short_ratio + '%' : '—' }}
-            </div>
+        <!-- 融資餘額 -->
+        <div class="bg-surface-0 dark:bg-surface-900 p-3.5">
+          <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">融資餘額</span>
+          <div class="num text-lg font-black text-surface-900 dark:text-surface-0 mt-1">
+            {{ summary.margin_long }} <span class="text-[11px] font-normal text-surface-500">張</span>
           </div>
-          <div class="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-500 font-bold">
-            <i class="pi pi-percentage text-xl"></i>
+          <div class="text-[11px] mt-0.5 text-surface-500">融資交易</div>
+        </div>
+
+        <!-- 融券餘額 / 券資比 -->
+        <div class="bg-surface-0 dark:bg-surface-900 p-3.5">
+          <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">融券餘額</span>
+          <div class="num text-lg font-black text-surface-900 dark:text-surface-0 mt-1">
+            {{ summary.margin_short }} <span class="text-[11px] font-normal text-surface-500">張</span>
+          </div>
+          <div class="num text-[11px] mt-0.5 text-orange-500 font-bold">
+            券資比 {{ summary.short_ratio !== null ? summary.short_ratio + '%' : '—' }}
           </div>
         </div>
 
         <!-- 估算買賣超金額 -->
-        <div class="card p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm flex items-center justify-between">
-          <div>
-            <span class="text-xs font-semibold text-surface-500">估算買賣超金額</span>
-            <div :class="['text-2xl font-black mt-1', summary.estimated_amount_wan >= 0 ? 'text-red-500' : 'text-emerald-500']">
-              {{ summary.estimated_amount_wan >= 0 ? '+' : '' }}{{ summary.estimated_amount_wan }} <span class="text-xs font-normal">萬元</span>
-            </div>
-            <div class="text-xs mt-1 text-surface-500">
-              投信: {{ summary.trust >= 0 ? '+' : '' }}{{ summary.trust }} 張
-            </div>
+        <div class="bg-surface-0 dark:bg-surface-900 p-3.5">
+          <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">估算買賣超金額</span>
+          <div class="num text-lg font-black mt-1" :style="{ color: colorForValue(summary.estimated_amount_wan) }">
+            {{ summary.estimated_amount_wan >= 0 ? '+' : '' }}{{ summary.estimated_amount_wan }} <span class="text-[11px] font-normal">萬元</span>
           </div>
-          <div class="w-12 h-12 rounded-full bg-cyan-100 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-500 font-bold">
-            <i class="pi pi-chart-pie text-xl"></i>
-          </div>
+          <div class="num text-[11px] mt-0.5 text-surface-500">投信 {{ summary.trust >= 0 ? '+' : '' }}{{ summary.trust }}</div>
         </div>
       </div>
 
@@ -203,15 +179,12 @@
         </div>
 
         <div class="text-xs text-surface-500 flex items-center gap-3">
-          <span v-if="dateRangeText" class="font-semibold text-surface-700 dark:text-surface-300">
-            <i class="pi pi-calendar text-[10px] mr-1 text-primary"></i>起迄: {{ dateRangeText }}
-          </span>
-          <span>資料筆數: <span class="font-bold text-surface-900 dark:text-surface-0">{{ chartData.dates.length }}</span> 筆</span>
+          <span>資料筆數: <span class="num font-bold text-surface-900 dark:text-surface-0">{{ chartData.dates.length }}</span> 筆</span>
         </div>
       </div>
 
       <!-- 圖表視圖 -->
-      <StockCharts v-if="viewMode === 'charts'" :chartData="chartData" :stockId="selectedStock" :period="selectedPeriod" :months="selectedMonths" />
+      <StockCharts v-if="viewMode === 'charts'" :chartData="chartData" :stockId="selectedStock" :period="selectedPeriod" :months="selectedMonths" :market="market" />
 
       <!-- 明細數據表格視圖 -->
       <div v-else-if="viewMode === 'table'" class="card p-4 shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900">
@@ -231,7 +204,7 @@
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full text-xs text-left border-collapse">
+          <table class="num w-full text-xs text-left border-collapse">
             <thead>
               <tr class="bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 font-bold border-b border-surface-200 dark:border-surface-700">
                 <th class="p-2.5">日期</th>
@@ -257,26 +230,26 @@
               >
                 <td class="p-2.5 font-semibold text-surface-900 dark:text-surface-0">{{ row.日期 }}</td>
                 <td class="p-2.5 text-surface-700 dark:text-surface-300">${{ row.開盤價 }}</td>
-                <td class="p-2.5 text-red-500 font-medium">${{ row.最高價 }}</td>
-                <td class="p-2.5 text-emerald-500 font-medium">${{ row.最低價 }}</td>
-                <td class="p-2.5 font-bold text-surface-900 dark:text-surface-0">${{ row.收盤價 }}</td>
-                <td :class="['p-2.5 font-medium', row['外資買賣超(張)'] >= 0 ? 'text-red-500' : 'text-emerald-500']">
+                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">${{ row.最高價 }}</td>
+                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">${{ row.最低價 }}</td>
+                <td class="p-2.5 font-bold" :style="{ color: colorForValue(row.收盤價 - row.開盤價) }">${{ row.收盤價 }}</td>
+                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row['外資買賣超(張)']) }">
                   {{ row['外資買賣超(張)'] >= 0 ? '+' : '' }}{{ row['外資買賣超(張)'] }}
                 </td>
-                <td :class="['p-2.5 font-medium', row['投信買賣超(張)'] >= 0 ? 'text-red-500' : 'text-emerald-500']">
+                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row['投信買賣超(張)']) }">
                   {{ row['投信買賣超(張)'] >= 0 ? '+' : '' }}{{ row['投信買賣超(張)'] }}
                 </td>
-                <td :class="['p-2.5 font-medium', row['自營商買賣超(張)'] >= 0 ? 'text-red-500' : 'text-emerald-500']">
+                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row['自營商買賣超(張)']) }">
                   {{ row['自營商買賣超(張)'] >= 0 ? '+' : '' }}{{ row['自營商買賣超(張)'] }}
                 </td>
-                <td :class="['p-2.5 font-bold', row['合計買賣超(張)'] >= 0 ? 'text-red-500' : 'text-emerald-500']">
+                <td class="p-2.5 font-bold" :style="{ color: colorForValue(row['合計買賣超(張)']) }">
                   {{ row['合計買賣超(張)'] >= 0 ? '+' : '' }}{{ row['合計買賣超(張)'] }}
                 </td>
-                <td :class="['p-2.5 font-medium', row['估算買賣超金額(萬元)'] >= 0 ? 'text-red-500' : 'text-emerald-500']">
+                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row['估算買賣超金額(萬元)']) }">
                   {{ row['估算買賣超金額(萬元)'] >= 0 ? '+' : '' }}{{ row['估算買賣超金額(萬元)'] }}
                 </td>
-                <td class="p-2.5 text-pink-500 font-medium">{{ row['融資餘額(張)'] || '—' }}</td>
-                <td class="p-2.5 text-emerald-500 font-medium">{{ row['融券餘額(張)'] || '—' }}</td>
+                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ row['融資餘額(張)'] || '—' }}</td>
+                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ row['融券餘額(張)'] || '—' }}</td>
                 <td class="p-2.5 text-orange-500 font-bold">
                   {{ row['券資比(%)'] !== null && row['券資比(%)'] !== undefined ? row['券資比(%)'] + '%' : '—' }}
                 </td>
@@ -292,23 +265,26 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useToast } from 'primevue/usetoast';
+import { useConfirm } from 'primevue/useconfirm';
 import { stockApi } from '@/service/stockApi';
+import { colorForValue as colorForValueRaw } from '@/utils/marketColors';
 import StockCharts from '@/components/StockCharts.vue';
 
 const route = useRoute();
 const router = useRouter();
+const toast = useToast();
+const confirm = useConfirm();
 
 const availableStocks = ref([]);
 const selectedStock = ref(route.params.id || '2330');
 const selectedPeriod = ref(route.query.period || 'daily');
-const selectedMonths = ref(3);
+const selectedMonths = ref(Number(route.query.months) || 3);
 
 const loading = ref(true);
 const error = ref(null);
 const chartData = ref(null);
 const viewMode = ref('charts');
-const newStockId = ref('');
-const isPolling = ref(false);
 
 const periods = [
   { label: '日線', value: 'daily' },
@@ -341,6 +317,26 @@ const currentStockName = computed(() => {
 
 const summary = computed(() => chartData.value?.latest_summary || {});
 
+// 身分列的漲跌幅：後端 latest_summary 沒有現成欄位，故用最新兩筆明細自行計算。
+const latestChange = computed(() => {
+  const records = chartData.value?.records;
+  if (!records || records.length < 2) return null;
+  const latest = records[records.length - 1];
+  const prev = records[records.length - 2];
+  if (!latest || !prev || prev.收盤價 == null || latest.收盤價 == null) return null;
+  const diff = latest.收盤價 - prev.收盤價;
+  const pct = prev.收盤價 !== 0 ? (diff / prev.收盤價) * 100 : 0;
+  return { diff, pct };
+});
+
+// 目前後端僅支援台股，chart-data 尚未回傳 market 欄位；
+// 這裡預先讀取（若未來 API 補上）以便漲跌配色自動切換，缺省時退回台股慣例。
+const market = computed(() => chartData.value?.market || 'tw');
+
+function colorForValue(value) {
+  return colorForValueRaw(value, market.value);
+}
+
 const recordsReversed = computed(() => {
   if (!chartData.value?.records) return [];
   return [...chartData.value.records].reverse();
@@ -361,6 +357,19 @@ watch(() => route.params.id, (newId) => {
   }
 });
 
+// URL query 是週期／範圍狀態的唯一來源：可重整、可分享、可上一頁返回。
+watch(() => route.query.period, (v) => {
+  const p = v || 'daily';
+  if (p !== selectedPeriod.value) selectedPeriod.value = p;
+});
+watch(() => route.query.months, (v) => {
+  const m = Number(v) || 3;
+  if (m !== selectedMonths.value) selectedMonths.value = m;
+});
+watch([selectedPeriod, selectedMonths], () => {
+  loadStockData();
+});
+
 async function fetchAvailableStocks() {
   try {
     const res = await stockApi.getAvailableStocks();
@@ -374,10 +383,6 @@ async function fetchAvailableStocks() {
   } catch (err) {
     console.error('獲取股票清單失敗:', err);
   }
-}
-
-function onStockChange() {
-  router.push(`/stock/${selectedStock.value}`);
 }
 
 async function loadStockData() {
@@ -399,78 +404,38 @@ async function loadStockData() {
 
 function setPeriod(p) {
   if (selectedPeriod.value === p) return;
-  selectedPeriod.value = p;
-  loadStockData();
+  router.replace({ query: { ...route.query, period: p } });
 }
 
 function setMonths(m) {
   if (selectedMonths.value === m) return;
-  selectedMonths.value = m;
-  loadStockData();
+  router.replace({ query: { ...route.query, months: m } });
 }
 
-async function addStock() {
-  const stockId = newStockId.value.trim();
-  if (!stockId) return;
-
-  try {
-    await stockApi.addTrackedStock(stockId);
-    newStockId.value = '';
-    
-    // 檢查是否有資料
-    const res = await stockApi.getChartData(stockId, 'daily', 3);
-    if (res.success && res.data && res.data.records && res.data.records.length > 0) {
-      await fetchAvailableStocks();
-      router.push(`/stock/${stockId}`);
-    } else {
-      throw new Error('No data');
+function removeCurrentStock() {
+  const id = selectedStock.value;
+  confirm.require({
+    message: `確定要取消追蹤 ${id} 嗎？已抓取的資料不會被刪除。`,
+    header: '取消追蹤確認',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '取消追蹤',
+    rejectLabel: '保留',
+    acceptProps: { severity: 'danger' },
+    accept: async () => {
+      try {
+        await stockApi.removeTrackedStock(id);
+        toast.add({ severity: 'success', summary: '已取消追蹤', detail: `${id} 已從追蹤清單移除`, life: 3000 });
+        router.push('/');
+      } catch (err) {
+        toast.add({
+          severity: 'error',
+          summary: '取消追蹤失敗',
+          detail: err.response?.data?.detail || err.message,
+          life: 4000
+        });
+      }
     }
-  } catch (err) {
-    // 若後端回報無數據或錯誤，啟動背景抓取
-    triggerFetchStock(stockId);
-  }
-}
-
-async function triggerFetchStock(stockId) {
-  try {
-    isPolling.value = true;
-    loading.value = true;
-    error.value = '正在啟動背景資料抓取...';
-    await stockApi.triggerFetch([stockId], 3);
-    pollFetchStatus(stockId);
-  } catch (err) {
-    error.value = '啟動抓取失敗: ' + (err.response?.data?.detail || err.message);
-    isPolling.value = false;
-    loading.value = false;
-  }
-}
-
-async function pollFetchStatus(stockId) {
-  if (!isPolling.value) return;
-  try {
-    const res = await stockApi.getFetchStatus();
-    if (res.status === 'idle') {
-      isPolling.value = false;
-      error.value = null;
-      await fetchAvailableStocks();
-      router.push(`/stock/${stockId}`);
-    } else {
-      error.value = `資料抓取中，請稍候 (${res.message || '...'})...`;
-      setTimeout(() => pollFetchStatus(stockId), 2000);
-    }
-  } catch (err) {
-    setTimeout(() => pollFetchStatus(stockId), 2000);
-  }
-}
-
-async function removeCurrentStock() {
-  if (!confirm(`確定要取消追蹤 ${selectedStock.value} 嗎？\n(已抓取的資料不會被刪除)`)) return;
-  try {
-    await stockApi.removeTrackedStock(selectedStock.value);
-    router.push('/');
-  } catch (err) {
-    alert('取消追蹤失敗: ' + (err.response?.data?.detail || err.message));
-  }
+  });
 }
 
 function exportCSV() {

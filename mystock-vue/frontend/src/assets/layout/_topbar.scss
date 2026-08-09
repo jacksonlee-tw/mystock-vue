@@ -19,12 +19,15 @@
         align-items: center;
     }
 
+    // 頂列背景固定吃 --p-primary-500（見上方），且不隨淺色/深色模式切換，
+    // 所以文字/圖示顏色也固定用亮色，不要跟著 --text-color 在淺色模式下變成深色──
+    // 深色文字疊在中等亮度的品牌色底上，對比度不到 2.5:1，遠低於 WCAG AA 的 4.5:1。
     .layout-topbar-logo {
         display: inline-flex;
         align-items: center;
         font-size: 1.5rem;
         border-radius: var(--content-border-radius);
-        color: var(--text-color);
+        color: #ffffff;
         font-weight: 500;
         gap: 0.5rem;
 
@@ -44,12 +47,13 @@
         border-radius: 50%;
         width: 2.5rem;
         height: 2.5rem;
-        color: var(--text-color);
+        color: rgba(255, 255, 255, 0.85);
         transition: background-color var(--element-transition-duration);
         cursor: pointer;
 
         &:hover {
-            background-color: var(--surface-hover);
+            background-color: rgba(255, 255, 255, 0.14);
+            color: #ffffff;
         }
 
         &:focus-visible {
@@ -92,7 +96,17 @@
 
     .layout-config-menu {
         display: flex;
+        align-items: center;
         gap: 1rem;
+        color: rgba(255, 255, 255, 0.85);
+
+        a {
+            color: inherit;
+
+            &:hover {
+                color: #ffffff;
+            }
+        }
     }
 }
 

@@ -1,0 +1,72 @@
+// 中性色調（surface）切換。
+// 原本想沿用 PrimeVue 的 updateSurfacePalette() 這個執行期 API（AppTopbar.vue 的
+// 外觀選單本來就是照這個思路寫的），但實測在 Vite dev server 底下會失效：
+// primevue/config 內部用到的 @primeuix/styled 和這裡另外 import 的 @primeuix/styled，
+// 被 esbuild 的 optimizeDeps 分別預先打包成兩份「看起來一樣但其實不同」的模組，
+// 各自持有自己的一份主題設定單例，呼叫其中一份不會反映到畫面實際套用的那一份。
+// 跟前面 brass 主色套用失敗是同一類問題（JS 執行期單例被拆成兩份），
+// 所以這裡改用同一招：純 CSS + data 屬性切換，不依賴任何 JS 執行期主題單例。
+//
+// 只需要提供完整的 0–950 色階，PrimeVue 自己的淺色/深色語意層（--p-content-background 等）
+// 會各自去取這個色階裡對應的端點（淺色拿 0、深色拿 900/950），兩種模式會自動吃到正確的色調，
+// 不需要另外分別寫淺色版跟深色版。
+
+:root[data-surface='slate'] {
+    --p-surface-0: #ffffff !important;
+    --p-surface-50: #f8fafc !important;
+    --p-surface-100: #f1f5f9 !important;
+    --p-surface-200: #e2e8f0 !important;
+    --p-surface-300: #cbd5e1 !important;
+    --p-surface-400: #94a3b8 !important;
+    --p-surface-500: #64748b !important;
+    --p-surface-600: #475569 !important;
+    --p-surface-700: #334155 !important;
+    --p-surface-800: #1e293b !important;
+    --p-surface-900: #0f172a !important;
+    --p-surface-950: #020617 !important;
+}
+
+:root[data-surface='zinc'] {
+    --p-surface-0: #ffffff !important;
+    --p-surface-50: #fafafa !important;
+    --p-surface-100: #f4f4f5 !important;
+    --p-surface-200: #e4e4e7 !important;
+    --p-surface-300: #d4d4d8 !important;
+    --p-surface-400: #a1a1aa !important;
+    --p-surface-500: #71717a !important;
+    --p-surface-600: #52525b !important;
+    --p-surface-700: #3f3f46 !important;
+    --p-surface-800: #27272a !important;
+    --p-surface-900: #18181b !important;
+    --p-surface-950: #09090b !important;
+}
+
+:root[data-surface='stone'] {
+    --p-surface-0: #ffffff !important;
+    --p-surface-50: #fafaf9 !important;
+    --p-surface-100: #f5f5f4 !important;
+    --p-surface-200: #e7e5e4 !important;
+    --p-surface-300: #d6d3d1 !important;
+    --p-surface-400: #a8a29e !important;
+    --p-surface-500: #78716c !important;
+    --p-surface-600: #57534e !important;
+    --p-surface-700: #44403c !important;
+    --p-surface-800: #292524 !important;
+    --p-surface-900: #1c1917 !important;
+    --p-surface-950: #0c0a09 !important;
+}
+
+:root[data-surface='gray'] {
+    --p-surface-0: #ffffff !important;
+    --p-surface-50: #f9fafb !important;
+    --p-surface-100: #f3f4f6 !important;
+    --p-surface-200: #e5e7eb !important;
+    --p-surface-300: #d1d5db !important;
+    --p-surface-400: #9ca3af !important;
+    --p-surface-500: #6b7280 !important;
+    --p-surface-600: #4b5563 !important;
+    --p-surface-700: #374151 !important;
+    --p-surface-800: #1f2937 !important;
+    --p-surface-900: #111827 !important;
+    --p-surface-950: #030712 !important;
+}

@@ -1,4 +1,6 @@
-@use './variables/_common-blue';//主題色系
+@use './variables/_common-brass';//共用底層色階／圓角／元件別名（原 _common-blue，慣例見該檔頭部說明）
+@use './variables/_accent-themes';//主題強調色可切換選項（黃銅金／科技藍／沉穩墨綠／極簡墨），見該檔頭部說明
+@use './variables/_surface-tones';//中性色調可切換選項，見該檔頭部說明
 @use './_mixins';
 @use './_preloading';
 @use './_core';

@@ -76,18 +76,20 @@
 
         <!-- 新增股票輸入框 -->
         <div class="flex items-center gap-2">
-          <input 
-            v-model="newStockId" 
-            type="text" 
+          <input
+            v-model="newStockId"
+            type="text"
             placeholder="請輸入股票代號 (例: 2454)"
+            :disabled="isAdding"
             @keyup.enter="addStock"
-            class="px-3 py-2 border border-surface-300 dark:border-surface-600 rounded-xl bg-surface-0 dark:bg-surface-800 text-surface-900 dark:text-surface-0 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-56"
+            class="px-3 py-2 border border-surface-300 dark:border-surface-600 rounded-xl bg-surface-0 dark:bg-surface-800 text-surface-900 dark:text-surface-0 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-56 disabled:opacity-50"
           />
-          <button 
+          <button
             @click="addStock"
-            class="px-4 py-2 font-bold text-sm bg-primary text-primary-contrast hover:bg-primary-600 rounded-xl flex items-center gap-1.5 transition-colors shadow-sm"
+            :disabled="isAdding || !newStockId.trim()"
+            class="px-4 py-2 font-bold text-sm bg-primary text-primary-contrast hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl flex items-center gap-1.5 transition-colors shadow-sm"
           >
-            <i class="pi pi-plus"></i> 新增
+            <i :class="['pi', isAdding ? 'pi-spin pi-spinner' : 'pi-plus']"></i> 新增
           </button>
         </div>
       </div>
@@ -110,7 +112,10 @@
                   {{ getStockName(code) }}
                 </span>
               </div>
-              <span class="text-xs text-surface-500">已列入自動抓取標的</span>
+              <span v-if="pendingStockId === code" class="text-xs font-bold text-amber-500 flex items-center gap-1">
+                <i class="pi pi-spin pi-spinner"></i> 背景抓取中...
+              </span>
+              <span v-else class="text-xs text-surface-500">已列入自動抓取標的</span>
             </div>
           </div>
 
@@ -128,14 +133,20 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { stockApi } from '@/service/stockApi';
 import { useCrawlerStatus } from '@/composables/useCrawlerStatus';
+import { useToast } from 'primevue/usetoast';
+import { useConfirm } from 'primevue/useconfirm';
 
 const trackedCodes = ref([]);
 const stockNameMap = ref({});
 const newStockId = ref('');
-const { fetchStatus, checkStatus } = useCrawlerStatus();
+const isAdding = ref(false);
+const pendingStockId = ref(null); // 正在等待背景抓取完成的股號
+const { fetchStatus, isRunning, checkStatus } = useCrawlerStatus();
+const toast = useToast();
+const confirm = useConfirm();
 
 const statusLabel = computed(() => {
   if (!fetchStatus.value) return '未執行';
@@ -182,30 +193,65 @@ async function loadTrackedStocks() {
 async function addStock() {
   const code = newStockId.value.trim();
   if (!code) return;
+  isAdding.value = true;
   try {
     const res = await stockApi.addTrackedStock(code);
     if (res.success) {
       trackedCodes.value = res.data;
       newStockId.value = '';
       await loadTrackedStocks();
+      toast.add({ severity: 'success', summary: '已加入追蹤', detail: `${code} 已加入追蹤清單`, life: 3000 });
+
+      // 檢查是否已有歷史資料；若無則自動觸發背景抓取，完成後自動刷新清單
+      let hasData = false;
+      try {
+        const chartRes = await stockApi.getChartData(code, 'daily', 3);
+        hasData = !!(chartRes.success && chartRes.data?.records?.length > 0);
+      } catch (checkErr) {
+        hasData = false;
+      }
+
+      if (!hasData) {
+        pendingStockId.value = code;
+        await stockApi.triggerFetch([code], 3);
+        await checkStatus();
+        toast.add({
+          severity: 'info',
+          summary: '背景抓取中',
+          detail: `${code} 尚無歷史資料，已啟動背景抓取，完成後會自動更新清單`,
+          life: 4000
+        });
+      }
     }
   } catch (err) {
-    alert(err.response?.data?.detail || '新增股票失敗');
+    toast.add({ severity: 'error', summary: '新增失敗', detail: err.response?.data?.detail || '新增股票失敗', life: 4000 });
+  } finally {
+    isAdding.value = false;
   }
 }
 
-async function removeStock(code) {
+function removeStock(code) {
   const name = getStockName(code);
   const displayName = name ? `${code} (${name})` : code;
-  if (!confirm(`確定要將股票 ${displayName} 從追蹤清單中移除嗎？`)) return;
-  try {
-    const res = await stockApi.removeTrackedStock(code);
-    if (res.success) {
-      trackedCodes.value = res.data;
+  confirm.require({
+    message: `確定要將股票 ${displayName} 從追蹤清單中移除嗎？`,
+    header: '取消追蹤確認',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '移除',
+    rejectLabel: '取消',
+    acceptProps: { severity: 'danger' },
+    accept: async () => {
+      try {
+        const res = await stockApi.removeTrackedStock(code);
+        if (res.success) {
+          trackedCodes.value = res.data;
+          toast.add({ severity: 'success', summary: '已移除', detail: `已取消追蹤 ${displayName}`, life: 3000 });
+        }
+      } catch (err) {
+        toast.add({ severity: 'error', summary: '移除失敗', detail: err.response?.data?.detail || '移除股票失敗', life: 4000 });
+      }
     }
-  } catch (err) {
-    alert(err.response?.data?.detail || '移除股票失敗');
-  }
+  });
 }
 
 async function triggerFetch() {
@@ -214,10 +260,20 @@ async function triggerFetch() {
     if (res.success) {
       await checkStatus();
     } else {
-      alert(res.message);
+      toast.add({ severity: 'warn', summary: '無法啟動', detail: res.message, life: 4000 });
     }
   } catch (err) {
-    alert('啟動爬蟲失敗');
+    toast.add({ severity: 'error', summary: '啟動失敗', detail: '啟動爬蟲失敗', life: 4000 });
   }
 }
+
+// 監控全域抓取狀態：等到自己觸發的背景抓取完成，就自動刷新清單並提示
+watch(isRunning, async (running, wasRunning) => {
+  if (wasRunning && !running && pendingStockId.value) {
+    const done = pendingStockId.value;
+    pendingStockId.value = null;
+    await loadTrackedStocks();
+    toast.add({ severity: 'success', summary: '資料抓取完成', detail: `${done} 的歷史資料已就緒`, life: 3000 });
+  }
+});
 </script>

@@ -20,8 +20,8 @@
         </div>
         <div>
           <h1 class="text-xl font-black text-surface-900 dark:text-surface-0 flex flex-wrap items-center gap-2">
-            <span>{{ stockId }} <span v-if="stockName" class="text-primary">{{ stockName }}</span> 圖表明細</span>
-            <span v-if="dateRangeText" class="px-2.5 py-0.5 text-xs font-bold bg-primary-50 dark:bg-primary-900/30 text-primary rounded-md border border-primary/20">
+            <span><span class="num">{{ stockId }}</span> <span v-if="stockName" class="text-primary">{{ stockName }}</span> 圖表明細</span>
+            <span v-if="dateRangeText" class="num px-2.5 py-0.5 text-xs font-bold bg-primary-50 dark:bg-primary-900/30 text-primary rounded-md border border-primary/20">
               <i class="pi pi-calendar mr-1"></i> {{ dateRangeText }}
             </span>
           </h1>
@@ -67,14 +67,16 @@
     <div v-else class="card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
         <h3 class="text-xl font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
-          <i :class="['pi', currentTabInfo?.icon, currentTabInfo?.colorClass]"></i>
+          <i :class="['pi text-primary', currentTabInfo?.icon]"></i>
           {{ currentTabInfo?.label }}
         </h3>
         <span v-if="dateRangeText" class="text-xs font-semibold text-surface-600 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 px-3 py-1 rounded-lg border border-surface-200 dark:border-surface-700">
           <i class="pi pi-calendar text-xs mr-1 text-primary"></i>資料區間：{{ dateRangeText }}
         </span>
       </div>
-      <v-chart class="chart-container-large" :option="currentChartOption" :update-options="{ notMerge: true }" autoforesize />
+      <v-chart class="chart-container-large" :option="currentChartOption" :update-options="{ notMerge: true }" autoresize />
+
+      <ChartExplanationBlock :explanation="currentExplanation" />
     </div>
   </div>
 </template>
@@ -94,6 +96,10 @@ import {
   DataZoomComponent
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+import { getUpDownColor } from '@/utils/marketColors';
+import { buildMovingAverageSeries } from '@/utils/movingAverage';
+import { chartExplanations } from '@/utils/chartExplanations';
+import ChartExplanationBlock from '@/components/ChartExplanationBlock.vue';
 
 use([
   CanvasRenderer,
@@ -120,17 +126,22 @@ const error = ref(null);
 const chartData = ref(null);
 
 const chartTabs = [
-  { value: 'institutional', label: '三大法人', icon: 'pi-users', colorClass: 'text-primary' },
-  { value: 'kline', label: 'K線圖', icon: 'pi-chart-bar', colorClass: 'text-red-500' },
-  { value: 'amount', label: '估算金額', icon: 'pi-dollar', colorClass: 'text-cyan-500' },
-  { value: 'margin-long', label: '融資餘額', icon: 'pi-chart-line', colorClass: 'text-pink-500' },
-  { value: 'margin-short', label: '融券餘額', icon: 'pi-sort-alt', colorClass: 'text-emerald-500' },
-  { value: 'short-ratio', label: '券資比', icon: 'pi-percentage', colorClass: 'text-orange-500' }
+  { value: 'institutional', label: '三大法人', icon: 'pi-users' },
+  { value: 'kline', label: 'K線圖', icon: 'pi-chart-bar' },
+  { value: 'amount', label: '估算金額', icon: 'pi-dollar' },
+  { value: 'margin-long', label: '融資餘額', icon: 'pi-chart-line' },
+  { value: 'margin-short', label: '融券餘額', icon: 'pi-sort-alt' },
+  { value: 'short-ratio', label: '券資比', icon: 'pi-percentage' }
 ];
 
 const currentTabInfo = computed(() => chartTabs.find(t => t.value === chartType.value));
+const currentExplanation = computed(() => chartExplanations[chartType.value] || null);
 const dates = computed(() => chartData.value?.dates || []);
 const stockName = computed(() => chartData.value?.stock_name || '');
+
+// 目前後端僅支援台股，chart-data 尚未回傳 market 欄位；缺省時退回台股慣例。
+const market = computed(() => chartData.value?.market || 'tw');
+const upDown = computed(() => getUpDownColor(market.value));
 
 const dateRangeText = computed(() => {
   if (chartData.value?.start_date && chartData.value?.end_date) {
@@ -207,40 +218,55 @@ const currentChartOption = computed(() => {
           { name: '合計', type: 'line', data: inst.total || [], itemStyle: { color: '#8b5cf6' }, lineStyle: { width: 3 } }
         ]
       };
-    case 'kline':
+    case 'kline': {
       const kline = chartData.value?.kline || [];
+      const ma = buildMovingAverageSeries(kline, period.value);
       return {
         tooltip: {
           trigger: 'axis',
           axisPointer: { type: 'cross' },
           formatter: (params) => {
-            const param = params[0];
-            if (!param || !param.data) return '';
-            const date = param.name;
-            const [open, close, low, high] = param.data;
+            const candle = params.find((p) => p.seriesType === 'candlestick') || params[0];
+            if (!candle || !candle.data) return '';
+            const date = candle.name;
+            const [open, close, low, high] = candle.data;
             const change = close - open;
-            const color = change >= 0 ? '#ef4444' : '#22c55e';
-            return `
+            const color = change >= 0 ? upDown.value.up : upDown.value.down;
+            let html = `
               <div class="font-bold">${date}</div>
               <div>開盤價: <span style="color:${color}">${open}</span></div>
               <div>最高價: <span style="color:${color}">${high}</span></div>
               <div>最低價: <span style="color:${color}">${low}</span></div>
               <div>收盤價: <span style="color:${color}">${close}</span> (${change >= 0 ? '+' : ''}${change.toFixed(2)})</div>
             `;
+            params
+              .filter((p) => p.seriesType === 'line' && p.data != null)
+              .forEach((p) => {
+                html += `<div>${p.marker}${p.seriesName}: ${p.data}</div>`;
+              });
+            return html;
           }
         },
+        legend: { data: ma.names, top: 0, right: 0, itemWidth: 14, itemHeight: 8, textStyle: { fontSize: 11 } },
         dataZoom: dataZoomConfig,
-        grid: { left: '3%', right: '4%', bottom: '15%', top: '5%', containLabel: true },
+        grid: { left: '3%', right: '4%', bottom: '15%', top: '12%', containLabel: true },
         xAxis: { type: 'category', data: d },
         yAxis: { type: 'value', scale: true },
         series: [
           {
             type: 'candlestick',
             data: kline,
-            itemStyle: { color: '#ef4444', color0: '#22c55e', borderColor: '#ef4444', borderColor0: '#22c55e' }
-          }
+            itemStyle: {
+              color: upDown.value.up,
+              color0: upDown.value.down,
+              borderColor: upDown.value.up,
+              borderColor0: upDown.value.down
+            }
+          },
+          ...ma.series
         ]
       };
+    }
     case 'amount':
       const amounts = chartData.value?.institutional?.estimated_amount || [];
       return {

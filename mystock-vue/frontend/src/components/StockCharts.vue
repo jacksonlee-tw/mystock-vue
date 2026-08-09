@@ -1,87 +1,100 @@
 <template>
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <!-- 1. 三大法人買賣超 (張) -->
-    <div @click="goToDetail('institutional')" class="card p-4 shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-4">
-        <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
-          <i class="pi pi-users text-primary"></i> 三大法人買賣超 (張)
-        </h3>
-        <span v-if="dateRangeText" class="text-xs font-semibold text-surface-600 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 px-2 py-0.5 rounded border border-surface-200 dark:border-surface-700">
-          <i class="pi pi-calendar text-[10px] mr-1 text-primary"></i>{{ dateRangeText }}
-        </span>
-      </div>
-      <v-chart class="chart-container" :option="institutionalOption" :update-options="{ notMerge: true }" autoforesize />
+  <div class="space-y-4">
+    <!-- 日期區間只在此顯示一次，不再逐張圖卡重複 -->
+    <div v-if="dateRangeText" class="flex justify-end">
+      <span class="num text-xs font-semibold text-surface-600 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 px-2.5 py-1 rounded-lg border border-surface-200 dark:border-surface-700">
+        <i class="pi pi-calendar text-[10px] mr-1 text-primary"></i>{{ dateRangeText }}
+      </span>
     </div>
 
-    <!-- 2. K線圖 (Candlestick) -->
-    <div @click="goToDetail('kline')" class="card p-4 shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-4">
-        <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
-          <i class="pi pi-chart-bar text-red-500"></i> K 線圖 (蠟燭圖)
+    <!-- 主圖：K 線圖獨佔全寬，是本頁最重要的單一事實 -->
+    <div class="card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 overflow-hidden">
+      <div
+        @click="goToDetail('kline')"
+        class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-surface-100 dark:border-surface-800 cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-800/40 transition-colors"
+      >
+        <h3 class="text-base font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
+          <i class="pi pi-chart-bar text-surface-400"></i> K 線圖 (蠟燭圖)
         </h3>
-        <span v-if="dateRangeText" class="text-xs font-semibold text-surface-600 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 px-2 py-0.5 rounded border border-surface-200 dark:border-surface-700">
-          <i class="pi pi-calendar text-[10px] mr-1 text-red-500"></i>{{ dateRangeText }}
-        </span>
+        <div class="flex items-center gap-3 text-[11px] font-semibold text-surface-500">
+          <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-sm" :style="{ background: upDown.up }"></i>上漲</span>
+          <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-sm" :style="{ background: upDown.down }"></i>下跌</span>
+        </div>
       </div>
-      <v-chart class="chart-container" :option="klineOption" :update-options="{ notMerge: true }" autoforesize />
+      <div class="p-4">
+        <v-chart class="chart-container-primary" :option="klineOption" :update-options="{ notMerge: true }" autoresize />
+        <ChartExplanationBlock :explanation="chartExplanations.kline" />
+      </div>
     </div>
 
-    <!-- 3. 估算買賣超金額 (萬元) -->
-    <div @click="goToDetail('amount')" class="card p-4 shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-4">
-        <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
-          <i class="pi pi-dollar text-cyan-500"></i> 估算買賣超金額 (萬元)
-        </h3>
-        <span v-if="dateRangeText" class="text-xs font-semibold text-surface-600 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 px-2 py-0.5 rounded border border-surface-200 dark:border-surface-700">
-          <i class="pi pi-calendar text-[10px] mr-1 text-cyan-500"></i>{{ dateRangeText }}
-        </span>
+    <!-- 次要籌碼圖表：分頁收納，避免與主圖搶視覺權重 -->
+    <div class="card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 overflow-hidden">
+      <div class="flex items-center gap-1 px-3 pt-2.5 border-b border-surface-100 dark:border-surface-800 bg-surface-50/60 dark:bg-surface-800/30">
+        <button
+          v-for="t in tabs"
+          :key="t.id"
+          @click="activeTab = t.id"
+          :class="[
+            'px-3.5 py-2 text-sm font-bold rounded-t-lg flex items-center gap-1.5 border-b-2 -mb-px transition-colors',
+            activeTab === t.id
+              ? 'text-primary border-primary'
+              : 'text-surface-500 border-transparent hover:text-surface-800 dark:hover:text-surface-200'
+          ]"
+        >
+          <i :class="['pi', t.icon]"></i> {{ t.label }}
+        </button>
       </div>
-      <v-chart class="chart-container" :option="estimatedAmountOption" :update-options="{ notMerge: true }" autoforesize />
-    </div>
 
-    <!-- 4. 融資餘額 (張) -->
-    <div @click="goToDetail('margin-long')" class="card p-4 shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-4">
-        <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
-          <i class="pi pi-chart-line text-pink-500"></i> 融資餘額 (張)
-        </h3>
-        <span v-if="dateRangeText" class="text-xs font-semibold text-surface-600 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 px-2 py-0.5 rounded border border-surface-200 dark:border-surface-700">
-          <i class="pi pi-calendar text-[10px] mr-1 text-pink-500"></i>{{ dateRangeText }}
-        </span>
-      </div>
-      <v-chart class="chart-container" :option="marginLongOption" :update-options="{ notMerge: true }" autoforesize />
-    </div>
+      <div class="p-4">
+        <!-- 法人籌碼 -->
+        <div v-if="activeTab === 'institutional'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div @click="goToDetail('institutional')" class="cursor-pointer group">
+            <h4 class="text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5 group-hover:text-primary transition-colors">
+              <i class="pi pi-users text-surface-400"></i> 三大法人買賣超 (張)
+            </h4>
+            <v-chart class="chart-container-sm" :option="institutionalOption" :update-options="{ notMerge: true }" autoresize />
+            <ChartExplanationBlock :explanation="chartExplanations.institutional" compact @click.stop />
+          </div>
+          <div @click="goToDetail('amount')" class="cursor-pointer group">
+            <h4 class="text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5 group-hover:text-primary transition-colors">
+              <i class="pi pi-dollar text-surface-400"></i> 估算買賣超金額 (萬元)
+            </h4>
+            <v-chart class="chart-container-sm" :option="estimatedAmountOption" :update-options="{ notMerge: true }" autoresize />
+            <ChartExplanationBlock :explanation="chartExplanations.amount" compact @click.stop />
+          </div>
+        </div>
 
-    <!-- 5. 融券餘額 (張) -->
-    <div @click="goToDetail('margin-short')" class="card p-4 shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-4">
-        <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
-          <i class="pi pi-sort-alt text-emerald-500"></i> 融券餘額 (張)
-        </h3>
-        <span v-if="dateRangeText" class="text-xs font-semibold text-surface-600 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 px-2 py-0.5 rounded border border-surface-200 dark:border-surface-700">
-          <i class="pi pi-calendar text-[10px] mr-1 text-emerald-500"></i>{{ dateRangeText }}
-        </span>
+        <!-- 信用交易 -->
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div @click="goToDetail('margin-long')" class="cursor-pointer group">
+            <h4 class="text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5 group-hover:text-primary transition-colors">
+              <i class="pi pi-chart-line text-surface-400"></i> 融資餘額 (張)
+            </h4>
+            <v-chart class="chart-container-sm" :option="marginLongOption" :update-options="{ notMerge: true }" autoresize />
+            <ChartExplanationBlock :explanation="chartExplanations['margin-long']" compact @click.stop />
+          </div>
+          <div @click="goToDetail('margin-short')" class="cursor-pointer group">
+            <h4 class="text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5 group-hover:text-primary transition-colors">
+              <i class="pi pi-sort-alt text-surface-400"></i> 融券餘額 (張)
+            </h4>
+            <v-chart class="chart-container-sm" :option="marginShortOption" :update-options="{ notMerge: true }" autoresize />
+            <ChartExplanationBlock :explanation="chartExplanations['margin-short']" compact @click.stop />
+          </div>
+          <div @click="goToDetail('short-ratio')" class="cursor-pointer group md:col-span-2">
+            <h4 class="text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5 group-hover:text-primary transition-colors">
+              <i class="pi pi-percentage text-surface-400"></i> 券資比 (%)
+            </h4>
+            <v-chart class="chart-container-sm" :option="shortRatioOption" :update-options="{ notMerge: true }" autoresize />
+            <ChartExplanationBlock :explanation="chartExplanations['short-ratio']" compact @click.stop />
+          </div>
+        </div>
       </div>
-      <v-chart class="chart-container" :option="marginShortOption" :update-options="{ notMerge: true }" autoforesize />
-    </div>
-
-    <!-- 6. 券資比 (%) -->
-    <div @click="goToDetail('short-ratio')" class="card p-4 shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-4">
-        <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
-          <i class="pi pi-percentage text-orange-500"></i> 券資比 (%)
-        </h3>
-        <span v-if="dateRangeText" class="text-xs font-semibold text-surface-600 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 px-2 py-0.5 rounded border border-surface-200 dark:border-surface-700">
-          <i class="pi pi-calendar text-[10px] mr-1 text-orange-500"></i>{{ dateRangeText }}
-        </span>
-      </div>
-      <v-chart class="chart-container" :option="shortRatioOption" :update-options="{ notMerge: true }" autoforesize />
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart, LineChart, CandlestickChart } from 'echarts/charts';
@@ -95,6 +108,10 @@ import {
 import VChart from 'vue-echarts';
 
 import { useRouter } from 'vue-router';
+import { getUpDownColor } from '@/utils/marketColors';
+import { buildMovingAverageSeries } from '@/utils/movingAverage';
+import { chartExplanations } from '@/utils/chartExplanations';
+import ChartExplanationBlock from '@/components/ChartExplanationBlock.vue';
 
 use([
   CanvasRenderer,
@@ -117,8 +134,17 @@ const props = defineProps({
   },
   stockId: String,
   period: String,
-  months: Number
+  months: Number,
+  market: String // 'tw' | 'us'；未提供時 getUpDownColor 退回台股慣例
 });
+
+const upDown = computed(() => getUpDownColor(props.market));
+
+const tabs = [
+  { id: 'institutional', label: '法人籌碼', icon: 'pi-users' },
+  { id: 'margin', label: '信用交易', icon: 'pi-wallet' }
+];
+const activeTab = ref('institutional');
 
 function goToDetail(chartType) {
   if (props.stockId) {
@@ -141,7 +167,7 @@ const dateRangeText = computed(() => {
   return '';
 });
 
-// 1. 三大法人買賣超 Option
+// 三大法人買賣超 Option
 const institutionalOption = computed(() => {
   const inst = props.chartData?.institutional || {};
   return {
@@ -159,30 +185,42 @@ const institutionalOption = computed(() => {
   };
 });
 
-// 2. K 線圖 (Candlestick) Option
+// K 線圖 (Candlestick) Option ── 疊加 5/20/60 期均線，標籤依目前聚合週期顯示「日/週/月均線」
 const klineOption = computed(() => {
   const kline = props.chartData?.kline || [];
+  const ma = buildMovingAverageSeries(kline, props.period);
   return {
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'cross' },
       formatter: (params) => {
-        const param = params[0];
-        if (!param || !param.data) return '';
-        const date = param.name;
-        const [open, close, low, high] = param.data;
+        const candle = params.find((p) => p.seriesType === 'candlestick') || params[0];
+        if (!candle || !candle.data) return '';
+        const date = candle.name;
+        const [open, close, low, high] = candle.data;
         const change = close - open;
-        const color = change >= 0 ? '#ef4444' : '#22c55e';
-        return `
+        const color = change >= 0 ? upDown.value.up : upDown.value.down;
+        let html = `
           <div class="font-bold">${date}</div>
           <div>開盤價: <span style="color:${color}">${open}</span></div>
           <div>最高價: <span style="color:${color}">${high}</span></div>
           <div>最低價: <span style="color:${color}">${low}</span></div>
           <div>收盤價: <span style="color:${color}">${close}</span> (${change >= 0 ? '+' : ''}${change.toFixed(2)})</div>
         `;
+        params
+          .filter((p) => p.seriesType === 'line' && p.data != null)
+          .forEach((p) => {
+            html += `<div>${p.marker}${p.seriesName}: ${p.data}</div>`;
+          });
+        return html;
       }
     },
-    grid: { left: '3%', right: '4%', bottom: '10%', top: '5%', containLabel: true },
+    legend: { data: ma.names, top: 0, right: 0, itemWidth: 14, itemHeight: 8, textStyle: { fontSize: 11 } },
+    dataZoom: [
+      { type: 'inside', start: 0, end: 100 },
+      { type: 'slider', start: 0, end: 100, height: 18, bottom: 4 }
+    ],
+    grid: { left: '3%', right: '4%', bottom: '14%', top: '12%', containLabel: true },
     xAxis: { type: 'category', data: dates.value },
     yAxis: { type: 'value', scale: true },
     series: [
@@ -190,17 +228,18 @@ const klineOption = computed(() => {
         type: 'candlestick',
         data: kline,
         itemStyle: {
-          color: '#ef4444',        // 陽線 (漲) - 紅
-          color0: '#22c55e',       // 陰線 (跌) - 綠
-          borderColor: '#ef4444',
-          borderColor0: '#22c55e'
+          color: upDown.value.up, // 陽線 (漲)
+          color0: upDown.value.down, // 陰線 (跌)
+          borderColor: upDown.value.up,
+          borderColor0: upDown.value.down
         }
-      }
+      },
+      ...ma.series
     ]
   };
 });
 
-// 3. 估算買賣超金額 Option
+// 估算買賣超金額 Option
 const estimatedAmountOption = computed(() => {
   const amounts = props.chartData?.institutional?.estimated_amount || [];
   return {
@@ -230,7 +269,7 @@ const estimatedAmountOption = computed(() => {
   };
 });
 
-// 4. 融資餘額 Option
+// 融資餘額 Option
 const marginLongOption = computed(() => {
   const longs = props.chartData?.margin?.long_balance || [];
   return {
@@ -251,7 +290,7 @@ const marginLongOption = computed(() => {
   };
 });
 
-// 5. 融券餘額 Option
+// 融券餘額 Option
 const marginShortOption = computed(() => {
   const shorts = props.chartData?.margin?.short_balance || [];
   return {
@@ -272,7 +311,7 @@ const marginShortOption = computed(() => {
   };
 });
 
-// 6. 券資比 Option
+// 券資比 Option
 const shortRatioOption = computed(() => {
   const ratios = props.chartData?.margin?.short_ratio || [];
   return {
@@ -295,8 +334,12 @@ const shortRatioOption = computed(() => {
 </script>
 
 <style scoped>
-.chart-container {
+.chart-container-primary {
   width: 100%;
-  height: 320px;
+  height: 420px;
+}
+.chart-container-sm {
+  width: 100%;
+  height: 260px;
 }
 </style>

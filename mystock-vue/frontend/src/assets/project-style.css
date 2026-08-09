@@ -1,3 +1,11 @@
+/* 數字專用等寬字體：股價、張數、百分比等直向排列比較的數值一律套用，
+   讓小數點與位數對齊，並與敘述文字（系統預設 CJK 字體）明顯區隔。 */
+.num {
+  font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
 /* 狀態標籤加框，並依狀態變色 */
 .p-tag.status-text {
   border: 1px solid #bfc2c7;

@@ -1,0 +1,907 @@
+<title>MyStock 介面優化雛形</title>
+
+<style>
+/* ─────────────────────────  tokens  ───────────────────────── */
+:root {
+  --bg:        #F6F7F8;
+  --surface:   #FFFFFF;
+  --surface-2: #EDF0F2;
+  --surface-3: #E3E7EA;
+  --line:      #DCE1E5;
+  --line-soft: #E8ECEF;
+  --ink:       #12161A;
+  --ink-2:     #59636E;
+  --ink-3:     #8B949D;
+  --accent:    #8F6413;
+  --accent-2:  #B98A2A;
+  --accent-bg: #F7EFDD;
+  --red:       #C8383C;
+  --green:     #0E7A55;
+  --red-bg:    #FBEDED;
+  --green-bg:  #E8F4EF;
+  --shadow:    0 1px 2px rgba(18,22,26,.06), 0 8px 24px -16px rgba(18,22,26,.28);
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "PingFang TC",
+               "Microsoft JhengHei", "Hiragino Sans", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  --r: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:        #0D1013;
+    --surface:   #15191D;
+    --surface-2: #1D2328;
+    --surface-3: #262D33;
+    --line:      #2A3138;
+    --line-soft: #21272C;
+    --ink:       #E8ECEF;
+    --ink-2:     #98A2AB;
+    --ink-3:     #69737C;
+    --accent:    #D9A441;
+    --accent-2:  #E8BC6B;
+    --accent-bg: #251E10;
+    --red:       #EF6A6A;
+    --green:     #2CB683;
+    --red-bg:    #2A1618;
+    --green-bg:  #10251E;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+}
+
+:root[data-theme="light"] {
+  --bg:#F6F7F8; --surface:#FFFFFF; --surface-2:#EDF0F2; --surface-3:#E3E7EA;
+  --line:#DCE1E5; --line-soft:#E8ECEF; --ink:#12161A; --ink-2:#59636E; --ink-3:#8B949D;
+  --accent:#8F6413; --accent-2:#B98A2A; --accent-bg:#F7EFDD;
+  --red:#C8383C; --green:#0E7A55; --red-bg:#FBEDED; --green-bg:#E8F4EF;
+  --shadow:0 1px 2px rgba(18,22,26,.06), 0 8px 24px -16px rgba(18,22,26,.28);
+}
+:root[data-theme="dark"] {
+  --bg:#0D1013; --surface:#15191D; --surface-2:#1D2328; --surface-3:#262D33;
+  --line:#2A3138; --line-soft:#21272C; --ink:#E8ECEF; --ink-2:#98A2AB; --ink-3:#69737C;
+  --accent:#D9A441; --accent-2:#E8BC6B; --accent-bg:#251E10;
+  --red:#EF6A6A; --green:#2CB683; --red-bg:#2A1618; --green-bg:#10251E;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+}
+
+/* 漲跌配色由市場決定 —— 這是整份設計的核心開關 */
+[data-market="tw"] { --up: var(--red);   --down: var(--green); --up-bg: var(--red-bg);   --down-bg: var(--green-bg); }
+[data-market="us"] { --up: var(--green); --down: var(--red);   --up-bg: var(--green-bg); --down-bg: var(--red-bg); }
+
+/* ─────────────────────────  base  ───────────────────────── */
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+
+/* ─────────────────────────  page intro  ───────────────────────── */
+.intro { padding: 40px 0 28px; border-bottom: 1px solid var(--line); }
+.eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--accent); margin: 0 0 10px;
+}
+.intro h1 { margin: 0 0 8px; font-size: 27px; font-weight: 700; letter-spacing: -.02em; text-wrap: balance; }
+.intro p { margin: 0; color: var(--ink-2); max-width: 62ch; }
+
+.toolbar {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  padding: 16px 0 20px;
+}
+.seg {
+  display: inline-flex; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 3px; gap: 2px;
+}
+.seg button {
+  padding: 5px 12px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  color: var(--ink-2); transition: background .12s, color .12s;
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.seg button:hover:not([aria-pressed="true"]) { color: var(--ink); }
+.toolbar .hint { font-size: 12px; color: var(--ink-3); }
+
+/* ─────────────────────────  mock app chrome  ───────────────────────── */
+.app {
+  margin: 0 0 40px; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--bg); overflow: hidden; box-shadow: var(--shadow);
+}
+
+.topbar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; letter-spacing: -.01em; }
+.brand .mark {
+  width: 22px; height: 22px; border-radius: 6px; background: var(--accent);
+  display: grid; place-items: center; color: var(--bg); font-size: 12px; font-weight: 800;
+}
+
+.omni {
+  flex: 1; max-width: 420px; display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 8px; color: var(--ink-3); font-size: 13px; text-align: left;
+}
+.omni:hover { border-color: var(--accent-2); color: var(--ink-2); }
+.kbd {
+  margin-left: auto; font-family: var(--font-mono); font-size: 11px;
+  padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px;
+  background: var(--surface); color: var(--ink-3);
+}
+.topbar .spacer { flex: 1; }
+.avatar {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--surface-3);
+  display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--ink-2);
+}
+
+/* ─────────────────────────  identity rail  ───────────────────────── */
+.identity {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 18px 22px;
+  padding: 16px; background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.id-main { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.id-symbol { font-family: var(--font-mono); font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.id-name { font-size: 15px; color: var(--ink-2); }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; letter-spacing: .04em;
+  padding: 2px 7px; border-radius: 5px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink-2); white-space: nowrap;
+}
+.chip.market { border-color: var(--accent); background: var(--accent-bg); color: var(--accent); }
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+.id-price { display: flex; align-items: baseline; gap: 10px; }
+.id-price .val { font-family: var(--font-mono); font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.id-price .chg { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--up); }
+.id-price.is-down .chg { color: var(--down); }
+
+.id-controls { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.iconbtn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2);
+  font-size: 12px; font-weight: 600; color: var(--ink-2);
+}
+.iconbtn:hover { color: var(--ink); border-color: var(--ink-3); }
+.iconbtn.on { color: var(--accent); border-color: var(--accent); background: var(--accent-bg); }
+
+/* ─────────────────────────  metric strip  ───────────────────────── */
+.body { padding: 16px; display: grid; gap: 14px; }
+
+.strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.tile { background: var(--surface); padding: 11px 13px; display: grid; gap: 3px; align-content: start; min-width: 0; }
+.tile .label {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-3); display: flex; align-items: center; gap: 5px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.tile .value { font-family: var(--font-mono); font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
+.tile .value .unit { font-family: var(--font-sans); font-size: 11px; font-weight: 600; color: var(--ink-3); margin-left: 2px; }
+.tile .sub { font-size: 11.5px; color: var(--ink-2); font-family: var(--font-mono); }
+.tile .sub .k { font-family: var(--font-sans); color: var(--ink-3); }
+.up { color: var(--up); }
+.down { color: var(--down); }
+.freq {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .05em; padding: 1px 4px;
+  border-radius: 3px; background: var(--surface-2); color: var(--ink-3); border: 1px solid var(--line);
+}
+
+/* ─────────────────────────  panels  ───────────────────────── */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.panel-head {
+  display: flex; align-items: center; gap: 10px; padding: 10px 13px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.panel-head h3 { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: -.01em; }
+.panel-head .meta { margin-left: auto; font-size: 11px; color: var(--ink-3); font-family: var(--font-mono); }
+.panel-body { padding: 6px 6px 10px; overflow-x: auto; }
+.grid2 > div { min-width: 0; overflow-x: auto; }
+
+.legend { display: flex; gap: 12px; flex-wrap: wrap; padding: 0 8px 6px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-2); }
+.legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+.tabs { display: flex; gap: 2px; padding: 0 13px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.tabs button {
+  padding: 9px 12px; font-size: 13px; font-weight: 600; color: var(--ink-3);
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tabs button:hover { color: var(--ink-2); }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.chart { width: 100%; display: block; }
+
+/* table */
+table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12px; }
+th, td { padding: 7px 10px; text-align: right; white-space: nowrap; }
+th {
+  font-family: var(--font-sans); font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3); border-bottom: 1px solid var(--line);
+}
+th:first-child, td:first-child { text-align: left; }
+tbody tr { border-bottom: 1px solid var(--line-soft); }
+tbody tr:hover { background: var(--surface-2); }
+.scroll-x { overflow-x: auto; }
+
+/* ─────────────────────────  design notes  ───────────────────────── */
+.note { display: none; }
+.notes-on .note {
+  display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start;
+  margin: 0; padding: 10px 12px; border-radius: 8px;
+  background: var(--accent-bg); border: 1px dashed var(--accent-2);
+  font-size: 12.5px; line-height: 1.55; color: var(--ink);
+}
+.note .n {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--bg);
+  display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+}
+.note b { color: var(--accent); font-weight: 700; }
+
+/* ─────────────────────────  rationale section  ───────────────────────── */
+.plan { padding: 8px 0 60px; }
+.plan h2 { font-size: 19px; margin: 36px 0 14px; letter-spacing: -.02em; }
+.plan h2:first-child { margin-top: 0; }
+.cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.cmp > div { background: var(--surface); padding: 14px 16px; }
+.cmp h4 { margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.cmp ul { margin: 0; padding-left: 18px; display: grid; gap: 7px; color: var(--ink-2); font-size: 13px; }
+.cmp li b { color: var(--ink); font-weight: 600; }
+.cmp .after h4 { color: var(--accent); }
+.matrix { font-size: 13px; }
+.matrix th, .matrix td { text-align: left; font-family: var(--font-sans); }
+.matrix td.c { text-align: center; font-family: var(--font-mono); }
+.yes { color: var(--green); font-weight: 700; }
+.no { color: var(--ink-3); }
+.footnote { color: var(--ink-3); font-size: 12px; margin-top: 10px; }
+
+@media (max-width: 900px) {
+  .strip { grid-template-columns: repeat(2, 1fr); }
+  .grid2, .cmp { grid-template-columns: 1fr; }
+  .id-controls { margin-left: 0; width: 100%; }
+}
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <p class="eyebrow">MyStock ／ 介面優化提案</p>
+    <h1>把「市場」變成第一級概念的個股分析頁</h1>
+    <p>
+      現行 <code class="num">/stock/0050</code> 把台股專屬欄位、追蹤管理、圖表篩選全部壓在同一張卡片裡。
+      加入美股後，畫面上有五分之四的指標在美股不存在，而紅漲綠跌的配色會在美股情境下直接讀反。
+      下面是重新排過的雛形——切換市場看它整頁如何改變。
+    </p>
+  </header>
+
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="切換市場">
+      <button type="button" data-mkt="tw" aria-pressed="true">台股 · 0050</button>
+      <button type="button" data-mkt="us" aria-pressed="false">美股 · AAPL</button>
+    </div>
+    <div class="seg" role="group" aria-label="切換主題">
+      <button type="button" data-thm="light" aria-pressed="false">淺色</button>
+      <button type="button" data-thm="dark" aria-pressed="false">深色</button>
+      <button type="button" data-thm="auto" aria-pressed="true">跟隨系統</button>
+    </div>
+    <button type="button" class="iconbtn" id="notesBtn" aria-pressed="false">◎ 顯示設計註解</button>
+    <span class="hint">圖表為示意資料，非真實行情</span>
+  </div>
+
+  <section class="app" data-market="tw" id="app">
+    <!-- topbar -->
+    <div class="topbar">
+      <div class="brand"><span class="mark">M</span> MyStock</div>
+      <button type="button" class="omni">
+        搜尋代號或名稱…
+        <span class="kbd">Ctrl K</span>
+      </button>
+      <div class="spacer"></div>
+      <span class="chip" id="sessionChip"><span class="dot"></span> 收盤</span>
+      <div class="avatar">王</div>
+    </div>
+
+    <!-- identity rail -->
+    <div class="identity">
+      <div class="id-main">
+        <span class="id-symbol" id="idSymbol">0050</span>
+        <span class="id-name" id="idName">元大台灣50</span>
+        <span class="chip market" id="idMarket">TWSE · ETF</span>
+      </div>
+      <div class="id-price" id="idPrice">
+        <span class="val num" id="idVal">NT$102.85</span>
+        <span class="chg num" id="idChg">+0.80 (+0.78%)</span>
+      </div>
+      <div class="id-controls">
+        <button type="button" class="iconbtn on">★ 追蹤中</button>
+        <div class="seg" role="group" aria-label="K線週期">
+          <button type="button" aria-pressed="true">日</button>
+          <button type="button" aria-pressed="false">週</button>
+          <button type="button" aria-pressed="false">月</button>
+        </div>
+        <div class="seg" role="group" aria-label="時間範圍">
+          <button type="button" aria-pressed="false">1M</button>
+          <button type="button" aria-pressed="true">3M</button>
+          <button type="button" aria-pressed="false">6M</button>
+          <button type="button" aria-pressed="false">1Y</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="body">
+      <p class="note">
+        <span class="n">1</span>
+        <span><b>身分列取代標題區。</b>頁面標題「選股與圖表分析」在側欄已經有了，重複第三次沒有資訊量。
+        這一列只回答「我在看誰、現在多少錢、看哪一段」。追蹤／取消追蹤縮成一顆星號按鈕，
+        「新增股號」整組移到管理頁——新增一檔股票是一年幾次的事，不該常駐在每天要看的畫面上。
+        個股切換統一由頂部搜尋（Ctrl K）負責，頁內第二個下拉選單移除。</span>
+      </p>
+
+      <!-- metric strip -->
+      <div class="strip" id="strip"></div>
+
+      <p class="note">
+        <span class="n">2</span>
+        <span><b>指標盤依市場組成。</b>現行四張 KPI 卡有三張是台股獨有（三大法人、融資融券、券資比），
+        美股沒有等價的每日資料。改成由 metric registry 決定要渲染哪幾格，
+        美股換上 Short Interest、Days to Cover、13F 機構持股，並用 <span class="freq">雙週</span>
+        <span class="freq">季</span> 標籤誠實標示資料頻率——把「這個數字多久更新一次」畫進介面裡，
+        比事後解釋為什麼圖是平的有效。</span>
+      </p>
+
+      <!-- primary chart -->
+      <div class="panel">
+        <div class="panel-head">
+          <h3 id="mainTitle">價格與成交量</h3>
+          <span class="chip" id="rangeChip">2026-05-11 ~ 2026-08-07 · 63 筆</span>
+          <span class="meta" id="mainMeta"></span>
+        </div>
+        <div class="legend" id="mainLegend"></div>
+        <div class="panel-body"><div id="mainChart"></div></div>
+      </div>
+
+      <p class="note">
+        <span class="n">3</span>
+        <span><b>主圖獨佔全寬，日期區間只出現一次。</b>現行六張圖同尺寸並排，K 線和券資比視覺權重相同；
+        而 <code class="num">2026-05-11 ~ 2026-08-07</code> 這串字在同一畫面重複了八次（標題列、分頁列、六張卡各一）。
+        區間屬於整頁狀態，收進主圖工具列一次講完即可。</span>
+      </p>
+
+      <!-- secondary -->
+      <div class="panel">
+        <div class="tabs" role="tablist" id="tabs"></div>
+        <div class="panel-body" style="padding:14px" id="tabPanel"></div>
+      </div>
+
+      <p class="note">
+        <span class="n">4</span>
+        <span><b>次要圖表收進分頁，並且共用時間軸。</b>籌碼類圖表的價值來自「和價格對照」，
+        所以同一分頁內的圖表游標連動（ECharts <code>connect</code>），滑到 6/18 六張圖同時標記。
+        分頁組成同樣隨市場切換：台股是法人籌碼／信用交易，美股是空方部位／機構持股。</span>
+      </p>
+    </div>
+  </section>
+
+  <section class="plan">
+    <h2>優化方案</h2>
+
+    <div class="cmp">
+      <div>
+        <h4>現況的問題</h4>
+        <ul>
+          <li><b>兩個個股切換器。</b>頂部列一個 <code>select</code>，頁內標題卡再一個，同時出現在同一視窗。</li>
+          <li><b>控制列超載。</b>單一張卡片裡塞了 13 個互動元素，且把「管理追蹤清單」和「調整分析視角」兩種不同性質的動作混在一起。</li>
+          <li><b>日期區間重複八次。</b>同一串字在標題、分頁列與六張圖卡上各印一次。</li>
+          <li><b>顏色不承載資訊。</b>六張圖用六種色（primary／紅／青／粉／綠／橘）＋四顆彩色圓球，純裝飾；紅綠同時被拿去當裝飾色與漲跌語意色。</li>
+          <li><b>紅漲綠跌寫死。</b><code>text-red-500</code> 直接寫在元件裡，美股情境無法反轉。</li>
+          <li><b>單位寫死。</b><code>$</code>／張／萬元 全部硬編碼，美股不適用。</li>
+          <li><b>狀態沒進網址。</b><code>setPeriod()</code>／<code>setMonths()</code> 只改 ref，不寫回 query，重整即掉、連結無法分享。</li>
+          <li><b>方向鍵被全域攔截。</b>頂部列綁 ArrowUp／Down 切股並 <code>preventDefault()</code>，使用者無法用方向鍵捲動頁面。</li>
+        </ul>
+      </div>
+      <div class="after">
+        <h4>調整後</h4>
+        <ul>
+          <li><b>單一切換入口。</b>Ctrl／⌘ K 全域搜尋，結果依市場分組，支援代號與名稱模糊比對；頁內下拉移除。</li>
+          <li><b>動作分層。</b>身分列只放「看什麼／看哪段」；新增與移除追蹤回到 <code>/stocks</code> 管理頁，頁內僅保留一顆 ★ 切換。</li>
+          <li><b>區間單一來源。</b>只在主圖工具列顯示一次。</li>
+          <li><b>色彩配額。</b>強調色（brass）只用於互動與品牌，紅／綠專屬漲跌與買賣超，其餘一律灰階。</li>
+          <li><b>漲跌色由市場決定。</b><code>--up</code>／<code>--down</code> 兩個 CSS 變數，<code>[data-market]</code> 交換角色，可再由使用者偏好覆寫。</li>
+          <li><b>格式化集中。</b><code>formatPrice/formatVolume(value, market)</code> 單一出口，含幣別、量單位與時區。</li>
+          <li><b>狀態即網址。</b><code>/stock/:market/:symbol?period=&range=&tab=</code>，可重整、可分享、可回上一頁。</li>
+          <li><b>快捷鍵讓位。</b>切股改用 <code>[</code> <code>]</code>，方向鍵歸還給頁面捲動。</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>指標支援矩陣</h2>
+    <div class="panel scroll-x">
+      <table class="matrix">
+        <thead>
+          <tr><th>指標</th><th>台股</th><th>美股</th><th>更新頻率</th><th>加入美股後的處理</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>OHLC ／ 成交量</td><td class="c yes">✓</td><td class="c yes">✓</td><td>每日</td><td>共用主圖</td></tr>
+          <tr><td>三大法人買賣超</td><td class="c yes">✓</td><td class="c no">—</td><td>每日</td><td>美股不渲染此分頁</td></tr>
+          <tr><td>融資 ／ 融券餘額</td><td class="c yes">✓</td><td class="c no">—</td><td>每日</td><td>同上</td></tr>
+          <tr><td>券資比</td><td class="c yes">✓</td><td class="c no">—</td><td>每日</td><td>同上</td></tr>
+          <tr><td>Short Interest ／ % of Float</td><td class="c no">—</td><td class="c yes">✓</td><td>雙週</td><td>美股專屬分頁，標記資料延遲</td></tr>
+          <tr><td>Days to Cover</td><td class="c no">—</td><td class="c yes">✓</td><td>雙週</td><td>同上</td></tr>
+          <tr><td>13F 機構持股</td><td class="c no">—</td><td class="c yes">✓</td><td>每季</td><td>季度長條圖，非時間序列</td></tr>
+          <tr><td>盤前 ／ 盤後價</td><td class="c no">—</td><td class="c yes">✓</td><td>即時</td><td>身分列狀態徽章</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footnote">
+      不支援的指標一律不渲染，而不是渲染成空白或 0——空白格會被讀成「這檔沒有法人買賣超」，
+      而不是「這個市場沒有這種資料」。分頁底部保留一行說明，點開才展開。
+    </p>
+
+    <h2>建議落地順序</h2>
+    <div class="cmp">
+      <div>
+        <h4>先做（不需後端配合）</h4>
+        <ul>
+          <li>抽出 <code>--up</code>／<code>--down</code> 變數，清掉元件內的 <code>text-red-500</code>／<code>text-emerald-500</code>。</li>
+          <li>移除頁內第二個個股下拉；追蹤管理搬到 <code>/stocks</code>。</li>
+          <li>period／range／tab 寫回 URL query。</li>
+          <li>刪掉六張圖卡上的重複日期徽章與彩色圓球 icon。</li>
+          <li>解除方向鍵全域攔截；<code>alert/confirm</code> 換成 Toast／Dialog。</li>
+        </ul>
+      </div>
+      <div class="after">
+        <h4>接著做（需後端定義 market）</h4>
+        <ul>
+          <li><code>/stocks</code> 回傳新增 <code>market</code>、<code>currency</code>、<code>exchange</code>、<code>lot_size</code>。</li>
+          <li>路由改 <code>/stock/:market/:symbol</code>，舊網址 301 導向。</li>
+          <li>建立 metric registry，KPI 與分頁由設定驅動而非寫死。</li>
+          <li><code>chart-data</code> 依 market 回傳對應 metric 群組與其 <code>frequency</code>。</li>
+          <li>Ctrl K 搜尋改打後端 <code>/search?q=</code>，跨市場分組。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── 示意資料（非真實行情） ────────────────────────────── */
+  function lcg(seed) {
+    return function () { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+  }
+
+  function makeSeries(seed, start, drift, vol, n) {
+    var r = lcg(seed), out = [], p = start;
+    for (var i = 0; i < n; i++) {
+      var o = p;
+      p = p * (1 + drift + (r() - 0.5) * vol);
+      var c = p;
+      var hi = Math.max(o, c) * (1 + r() * vol * 0.4);
+      var lo = Math.min(o, c) * (1 - r() * vol * 0.4);
+      out.push({ o: o, h: hi, l: lo, c: c, v: 0.6 + r() * 0.8 });
+    }
+    return out;
+  }
+
+  function dates(n) {
+    var out = [], d = new Date(2026, 4, 11);
+    while (out.length < n) {
+      var wd = d.getDay();
+      if (wd !== 0 && wd !== 6) {
+        out.push((d.getMonth() + 1) + '/' + d.getDate());
+      }
+      d = new Date(d.getTime() + 86400000);
+    }
+    return out;
+  }
+
+  var N = 63;
+  var LABELS = dates(N);
+
+  var DATA = {
+    tw: {
+      symbol: '0050', name: '元大台灣50', market: 'TWSE · ETF',
+      price: 'NT$102.85', chg: '+0.80 (+0.78%)', down: false,
+      session: '收盤 · 台北 13:30',
+      range: '2026-05-11 ~ 2026-08-07 · 63 筆',
+      ohlc: makeSeries(7, 96, 0.0011, 0.016, N),
+      inst: (function () { var r = lcg(21), a = []; for (var i = 0; i < N; i++) a.push((r() - 0.45) * 16000); return a; })(),
+      marginLong: (function () { var r = lcg(33), a = [], v = 23000; for (var i = 0; i < N; i++) { v += (r() - 0.48) * 900; a.push(v); } return a; })(),
+      marginShort: (function () { var r = lcg(44), a = [], v = 520; for (var i = 0; i < N; i++) { v += (r() - 0.52) * 40; a.push(Math.max(120, v)); } return a; })(),
+      tiles: [
+        { label: '收盤價', value: 'NT$102.85', sub: '<span class="k">最高</span> 104.00 · <span class="k">最低</span> 102.05', tone: 'up' },
+        { label: '三大法人合計', value: '+8,195', unit: '張', sub: '<span class="k">外資</span> −22,724 · <span class="k">投信</span> +0', tone: 'up' },
+        { label: '融資餘額', value: '24,879', unit: '張', sub: '<span class="k">較前日</span> +312' },
+        { label: '融券餘額', value: '434', unit: '張', sub: '<span class="k">較前日</span> −18' },
+        { label: '券資比', value: '1.74', unit: '%', sub: '<span class="k">近 3 月區間</span> 1.2–2.6' }
+      ],
+      tabs: [
+        { id: 'inst', label: '法人籌碼' },
+        { id: 'margin', label: '信用交易' },
+        { id: 'table', label: '明細資料' }
+      ]
+    },
+    us: {
+      symbol: 'AAPL', name: 'Apple Inc.', market: 'NASDAQ · 普通股',
+      price: '$232.14', chg: '−1.45 (−0.62%)', down: true,
+      session: '盤後 · 紐約 16:00 ET',
+      range: '2026-05-11 ~ 2026-08-07 · 62 sessions',
+      ohlc: makeSeries(91, 214, 0.0013, 0.019, N),
+      si: (function () { var r = lcg(12), a = [], v = 0.82; for (var i = 0; i < N; i++) { v += (r() - 0.5) * 0.03; a.push(Math.max(0.4, v)); } return a; })(),
+      dtc: (function () { var r = lcg(58), a = [], v = 1.3; for (var i = 0; i < N; i++) { v += (r() - 0.5) * 0.08; a.push(Math.max(0.5, v)); } return a; })(),
+      holders: [58.9, 59.6, 60.2, 60.6, 61.4],
+      holderLabels: ['25Q3', '25Q4', '26Q1', '26Q2', '26Q3'],
+      tiles: [
+        { label: 'Close', value: '$232.14', sub: '<span class="k">H</span> 234.80 · <span class="k">L</span> 230.95', tone: 'down' },
+        { label: '成交量', value: '48.2', unit: 'M', sub: '<span class="k">20 日均</span> 52.1M' },
+        { label: 'Short Interest', value: '0.94', unit: '% float', sub: '<span class="k">前期</span> 0.88%', freq: '雙週' },
+        { label: 'Days to Cover', value: '1.31', unit: '天', sub: '<span class="k">前期</span> 1.24', freq: '雙週' },
+        { label: '13F 機構持股', value: '61.4', unit: '%', sub: '<span class="k">季增</span> +0.8pp', freq: '季' }
+      ],
+      tabs: [
+        { id: 'short', label: '空方部位' },
+        { id: 'holders', label: '機構持股' },
+        { id: 'table', label: '明細資料' }
+      ]
+    }
+  };
+
+  /* ── SVG 繪圖工具 ────────────────────────────── */
+  var NS = 'http://www.w3.org/2000/svg';
+  function el(name, attrs) {
+    var n = document.createElementNS(NS, name);
+    for (var k in attrs) if (attrs[k] != null) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+  function css(v) { return getComputedStyle(document.getElementById('app')).getPropertyValue(v).trim(); }
+
+  function frame(host, h) {
+    var w = Math.max(260, host.clientWidth);
+    var svg = el('svg', { width: w, height: h, viewBox: '0 0 ' + w + ' ' + h, class: 'chart' });
+    host.textContent = '';
+    host.appendChild(svg);
+    return { svg: svg, w: w, h: h };
+  }
+
+  function gridlines(f, pad, rows) {
+    var c = css('--line-soft');
+    for (var i = 0; i <= rows; i++) {
+      var y = pad.t + (f.h - pad.t - pad.b) * i / rows;
+      f.svg.appendChild(el('line', { x1: pad.l, x2: f.w - pad.r, y1: y, y2: y, stroke: c, 'stroke-width': 1 }));
+    }
+  }
+
+  function axisLabels(f, pad, labels, every) {
+    var c = css('--ink-3');
+    for (var i = 0; i < labels.length; i += every) {
+      var x = pad.l + (f.w - pad.l - pad.r) * (i + 0.5) / labels.length;
+      var t = el('text', { x: x, y: f.h - 4, fill: c, 'font-size': 10, 'text-anchor': 'middle',
+                           'font-family': 'ui-monospace, monospace' });
+      t.textContent = labels[i];
+      f.svg.appendChild(t);
+    }
+  }
+
+  function yLabels(f, pad, min, max, rows, fmt) {
+    var c = css('--ink-3');
+    for (var i = 0; i <= rows; i++) {
+      var y = pad.t + (f.h - pad.t - pad.b) * i / rows;
+      var v = max - (max - min) * i / rows;
+      var t = el('text', { x: f.w - pad.r + 6, y: y + 3.5, fill: c, 'font-size': 10,
+                           'font-family': 'ui-monospace, monospace' });
+      t.textContent = fmt(v);
+      f.svg.appendChild(t);
+    }
+  }
+
+  /* 主圖：K 線 + 成交量 */
+  function drawCandles(host, ohlc, labels) {
+    var f = frame(host, 280);
+    var pad = { l: 8, r: 54, t: 10, b: 18 };
+    var volH = 58, gap = 14;
+    var priceH = f.h - pad.t - pad.b - volH - gap;
+
+    var his = ohlc.map(function (d) { return d.h; }), los = ohlc.map(function (d) { return d.l; });
+    var max = Math.max.apply(null, his), min = Math.min.apply(null, los);
+    var span = max - min || 1; max += span * 0.06; min -= span * 0.06; span = max - min;
+
+    gridlines({ svg: f.svg, w: f.w, h: pad.t + priceH + pad.b }, { l: pad.l, r: pad.r, t: pad.t, b: pad.b }, 4);
+    yLabels({ svg: f.svg, w: f.w, h: pad.t + priceH + pad.b }, { l: pad.l, r: pad.r, t: pad.t, b: pad.b },
+            min, max, 4, function (v) { return v.toFixed(0); });
+
+    var up = css('--up'), down = css('--down');
+    var bw = (f.w - pad.l - pad.r) / ohlc.length;
+    var cw = Math.max(2, Math.min(7, bw * 0.62));
+
+    var vmax = Math.max.apply(null, ohlc.map(function (d) { return d.v; }));
+    var volTop = pad.t + priceH + gap;
+
+    ohlc.forEach(function (d, i) {
+      var x = pad.l + bw * (i + 0.5);
+      var col = d.c >= d.o ? up : down;
+      var yv = function (v) { return pad.t + priceH * (1 - (v - min) / span); };
+      f.svg.appendChild(el('line', { x1: x, x2: x, y1: yv(d.h), y2: yv(d.l), stroke: col, 'stroke-width': 1 }));
+      var yo = yv(d.o), yc = yv(d.c);
+      f.svg.appendChild(el('rect', {
+        x: x - cw / 2, y: Math.min(yo, yc), width: cw, height: Math.max(1.2, Math.abs(yc - yo)),
+        fill: col, rx: 1
+      }));
+      var vh = (d.v / vmax) * volH;
+      f.svg.appendChild(el('rect', {
+        x: x - cw / 2, y: volTop + volH - vh, width: cw, height: vh, fill: col, opacity: .35, rx: 1
+      }));
+    });
+
+    axisLabels(f, pad, labels, 8);
+  }
+
+  /* 發散長條圖（買賣超） */
+  function drawDiverging(host, values, labels) {
+    var f = frame(host, 170);
+    var pad = { l: 8, r: 52, t: 10, b: 18 };
+    var H = f.h - pad.t - pad.b;
+    var max = Math.max.apply(null, values.map(Math.abs)) || 1;
+    var zero = pad.t + H / 2;
+
+    gridlines(f, pad, 4);
+    yLabels(f, pad, -max, max, 4, function (v) { return (v / 1000).toFixed(0) + 'k'; });
+    f.svg.appendChild(el('line', { x1: pad.l, x2: f.w - pad.r, y1: zero, y2: zero,
+                                   stroke: css('--ink-3'), 'stroke-width': 1 }));
+
+    var up = css('--up'), down = css('--down');
+    var bw = (f.w - pad.l - pad.r) / values.length;
+    var cw = Math.max(2, bw * 0.62);
+    values.forEach(function (v, i) {
+      var x = pad.l + bw * (i + 0.5);
+      var h = Math.abs(v) / max * (H / 2);
+      f.svg.appendChild(el('rect', {
+        x: x - cw / 2, y: v >= 0 ? zero - h : zero, width: cw, height: Math.max(1, h),
+        fill: v >= 0 ? up : down, rx: 1
+      }));
+    });
+    axisLabels(f, pad, labels, 10);
+  }
+
+  /* 面積折線圖 */
+  function drawArea(host, values, labels, color, fmt) {
+    var f = frame(host, 170);
+    var pad = { l: 8, r: 52, t: 10, b: 18 };
+    var H = f.h - pad.t - pad.b, W = f.w - pad.l - pad.r;
+    var max = Math.max.apply(null, values), min = Math.min.apply(null, values);
+    var span = (max - min) || 1; max += span * 0.12; min -= span * 0.12; span = max - min;
+
+    gridlines(f, pad, 4);
+    yLabels(f, pad, min, max, 4, fmt);
+
+    var pts = values.map(function (v, i) {
+      return [pad.l + W * (i + 0.5) / values.length, pad.t + H * (1 - (v - min) / span)];
+    });
+    var d = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
+    var gid = 'g' + Math.random().toString(36).slice(2, 8);
+    var defs = el('defs'); var lg = el('linearGradient', { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 });
+    lg.appendChild(el('stop', { offset: '0%', 'stop-color': color, 'stop-opacity': .28 }));
+    lg.appendChild(el('stop', { offset: '100%', 'stop-color': color, 'stop-opacity': 0 }));
+    defs.appendChild(lg); f.svg.appendChild(defs);
+
+    f.svg.appendChild(el('path', {
+      d: d + ' L' + pts[pts.length - 1][0].toFixed(1) + ' ' + (pad.t + H) + ' L' + pts[0][0].toFixed(1) + ' ' + (pad.t + H) + ' Z',
+      fill: 'url(#' + gid + ')'
+    }));
+    f.svg.appendChild(el('path', { d: d, fill: 'none', stroke: color, 'stroke-width': 1.6,
+                                   'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    var last = pts[pts.length - 1];
+    f.svg.appendChild(el('circle', { cx: last[0], cy: last[1], r: 3, fill: color }));
+    f.svg.appendChild(el('circle', { cx: last[0], cy: last[1], r: 6, fill: color, opacity: .18 }));
+    axisLabels(f, pad, labels, 10);
+  }
+
+  /* 季度長條圖 */
+  function drawBars(host, values, labels, color, fmt) {
+    var f = frame(host, 170);
+    var pad = { l: 8, r: 52, t: 10, b: 18 };
+    var H = f.h - pad.t - pad.b, W = f.w - pad.l - pad.r;
+    var max = Math.max.apply(null, values) * 1.06;
+    var min = Math.min.apply(null, values) * 0.96;
+    gridlines(f, pad, 4);
+    yLabels(f, pad, min, max, 4, fmt);
+    var bw = W / values.length;
+    values.forEach(function (v, i) {
+      var h = H * (v - min) / (max - min);
+      f.svg.appendChild(el('rect', {
+        x: pad.l + bw * i + bw * 0.22, y: pad.t + H - h, width: bw * 0.56, height: Math.max(1, h),
+        fill: color, opacity: i === values.length - 1 ? 1 : .45, rx: 2
+      }));
+    });
+    axisLabels(f, pad, labels, 1);
+  }
+
+  /* ── 渲染 ────────────────────────────── */
+  var app = document.getElementById('app');
+  var state = { market: 'tw', tab: null };
+
+  function tile(t) {
+    var freq = t.freq ? ' <span class="freq">' + t.freq + '</span>' : '';
+    var unit = t.unit ? '<span class="unit">' + t.unit + '</span>' : '';
+    var tone = t.tone ? ' ' + t.tone : '';
+    return '<div class="tile">' +
+      '<div class="label">' + t.label + freq + '</div>' +
+      '<div class="value' + tone + '">' + t.value + unit + '</div>' +
+      '<div class="sub">' + t.sub + '</div>' +
+      '</div>';
+  }
+
+  function legend(items) {
+    return items.map(function (i) {
+      return '<span><i style="background:' + i.c + '"></i>' + i.t + '</span>';
+    }).join('');
+  }
+
+  function renderTab() {
+    var d = DATA[state.market], host = document.getElementById('tabPanel');
+    var up = css('--up'), down = css('--down'), acc = css('--accent-2'), ink = css('--ink-2');
+
+    if (state.tab === 'inst') {
+      host.innerHTML =
+        '<div class="grid2">' +
+        '<div><div class="panel-head" style="padding:0 0 8px;border:0"><h3>三大法人買賣超</h3><span class="meta">張</span></div><div id="c1"></div></div>' +
+        '<div><div class="panel-head" style="padding:0 0 8px;border:0"><h3>估算買賣超金額</h3><span class="meta">萬元</span></div><div id="c2"></div></div>' +
+        '</div>';
+      drawDiverging(document.getElementById('c1'), d.inst, LABELS);
+      drawDiverging(document.getElementById('c2'), d.inst.map(function (v) { return v * 10.3; }), LABELS);
+    } else if (state.tab === 'margin') {
+      host.innerHTML =
+        '<div class="grid2">' +
+        '<div><div class="panel-head" style="padding:0 0 8px;border:0"><h3>融資餘額</h3><span class="meta">張</span></div><div id="c1"></div></div>' +
+        '<div><div class="panel-head" style="padding:0 0 8px;border:0"><h3>融券餘額</h3><span class="meta">張</span></div><div id="c2"></div></div>' +
+        '<div><div class="panel-head" style="padding:0 0 8px;border:0"><h3>券資比</h3><span class="meta">%</span></div><div id="c3"></div></div>' +
+        '<div><div class="panel-head" style="padding:0 0 8px;border:0"><h3>融資使用率</h3><span class="meta">%</span></div><div id="c4"></div></div>' +
+        '</div>';
+      drawArea(document.getElementById('c1'), d.marginLong, LABELS, acc, function (v) { return (v / 1000).toFixed(1) + 'k'; });
+      drawArea(document.getElementById('c2'), d.marginShort, LABELS, ink, function (v) { return v.toFixed(0); });
+      drawArea(document.getElementById('c3'), d.marginShort.map(function (v, i) { return v / d.marginLong[i] * 100; }),
+               LABELS, acc, function (v) { return v.toFixed(1); });
+      drawArea(document.getElementById('c4'), d.marginLong.map(function (v) { return v / 620; }), LABELS, ink,
+               function (v) { return v.toFixed(1); });
+    } else if (state.tab === 'short') {
+      host.innerHTML =
+        '<div class="grid2">' +
+        '<div><div class="panel-head" style="padding:0 0 8px;border:0"><h3>Short Interest</h3><span class="meta">% of float · 雙週</span></div><div id="c1"></div></div>' +
+        '<div><div class="panel-head" style="padding:0 0 8px;border:0"><h3>Days to Cover</h3><span class="meta">天 · 雙週</span></div><div id="c2"></div></div>' +
+        '</div>' +
+        '<p style="margin:14px 0 0;font-size:12px;color:var(--ink-3)">' +
+        '美股無每日三大法人與信用交易資料，此分頁以雙週結算的空方部位取代；折線在兩次結算之間維持水平為正常現象。</p>';
+      drawArea(document.getElementById('c1'), d.si, LABELS, down, function (v) { return v.toFixed(2); });
+      drawArea(document.getElementById('c2'), d.dtc, LABELS, ink, function (v) { return v.toFixed(1); });
+    } else if (state.tab === 'holders') {
+      host.innerHTML =
+        '<div class="grid2">' +
+        '<div><div class="panel-head" style="padding:0 0 8px;border:0"><h3>13F 機構持股比重</h3><span class="meta">% · 每季</span></div><div id="c1"></div></div>' +
+        '<div><div class="panel-head" style="padding:0 0 8px;border:0"><h3>持股機構家數</h3><span class="meta">家 · 每季</span></div><div id="c2"></div></div>' +
+        '</div>' +
+        '<p style="margin:14px 0 0;font-size:12px;color:var(--ink-3)">' +
+        '13F 為季報且有 45 天申報遞延，因此以季度長條而非時間序列呈現，避免被誤讀成每日資料。</p>';
+      drawBars(document.getElementById('c1'), d.holders, d.holderLabels, acc, function (v) { return v.toFixed(0); });
+      drawBars(document.getElementById('c2'), [5120, 5204, 5288, 5341, 5402], d.holderLabels, ink,
+               function (v) { return (v / 1000).toFixed(1) + 'k'; });
+    } else {
+      var rows = '', d2 = DATA[state.market];
+      var isTw = state.market === 'tw';
+      var head = isTw
+        ? ['日期', '開盤', '最高', '最低', '收盤', '外資(張)', '投信(張)', '合計(張)', '融資', '券資比']
+        : ['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'SI %', 'DTC', '13F %', 'Chg %'];
+      for (var i = d2.ohlc.length - 1; i >= d2.ohlc.length - 8; i--) {
+        var r = d2.ohlc[i], chg = (r.c - r.o) / r.o * 100;
+        var cls = chg >= 0 ? 'up' : 'down';
+        rows += '<tr><td>' + LABELS[i] + '</td>' +
+          '<td>' + r.o.toFixed(2) + '</td><td>' + r.h.toFixed(2) + '</td><td>' + r.l.toFixed(2) + '</td>' +
+          '<td class="' + cls + '">' + r.c.toFixed(2) + '</td>';
+        if (isTw) {
+          var iv = d2.inst[i];
+          rows += '<td class="' + (iv >= 0 ? 'up' : 'down') + '">' + (iv >= 0 ? '+' : '') + Math.round(iv * 0.7).toLocaleString() + '</td>' +
+            '<td class="' + (iv >= 0 ? 'up' : 'down') + '">' + (iv >= 0 ? '+' : '') + Math.round(iv * 0.3).toLocaleString() + '</td>' +
+            '<td class="' + (iv >= 0 ? 'up' : 'down') + '">' + (iv >= 0 ? '+' : '') + Math.round(iv).toLocaleString() + '</td>' +
+            '<td>' + Math.round(d2.marginLong[i]).toLocaleString() + '</td>' +
+            '<td>' + (d2.marginShort[i] / d2.marginLong[i] * 100).toFixed(2) + '%</td>';
+        } else {
+          rows += '<td>' + (r.v * 42).toFixed(1) + 'M</td>' +
+            '<td>' + d2.si[i].toFixed(2) + '</td><td>' + d2.dtc[i].toFixed(2) + '</td>' +
+            '<td>61.4</td><td class="' + cls + '">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '</td>';
+        }
+        rows += '</tr>';
+      }
+      host.innerHTML = '<div class="scroll-x"><table><thead><tr>' +
+        head.map(function (h) { return '<th>' + h + '</th>'; }).join('') +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+        '<p style="margin:12px 0 0;font-size:12px;color:var(--ink-3)">欄位組成同樣由市場決定；匯出 CSV 沿用當前欄位。</p>';
+    }
+  }
+
+  function render() {
+    var d = DATA[state.market];
+    app.setAttribute('data-market', state.market);
+
+    document.getElementById('idSymbol').textContent = d.symbol;
+    document.getElementById('idName').textContent = d.name;
+    document.getElementById('idMarket').textContent = d.market;
+    document.getElementById('idVal').textContent = d.price;
+    document.getElementById('idChg').textContent = d.chg;
+    document.getElementById('idPrice').classList.toggle('is-down', d.down);
+    document.getElementById('sessionChip').innerHTML = '<span class="dot"></span> ' + d.session;
+    document.getElementById('rangeChip').textContent = d.range;
+    document.getElementById('strip').innerHTML = d.tiles.map(tile).join('');
+
+    var up = css('--up'), down = css('--down');
+    document.getElementById('mainLegend').innerHTML = legend([
+      { c: up, t: state.market === 'tw' ? '上漲（台股慣例：紅漲）' : '上漲（美股慣例：綠漲）' },
+      { c: down, t: state.market === 'tw' ? '下跌' : '下跌' },
+      { c: css('--ink-3'), t: '成交量（下方）' }
+    ]);
+    document.getElementById('mainMeta').textContent = state.market === 'tw' ? '單位：元 / 千股' : 'USD / shares';
+
+    var tabsEl = document.getElementById('tabs');
+    if (!d.tabs.some(function (t) { return t.id === state.tab; })) state.tab = d.tabs[0].id;
+    tabsEl.innerHTML = d.tabs.map(function (t) {
+      return '<button type="button" role="tab" data-tab="' + t.id + '" aria-selected="' +
+        (t.id === state.tab) + '">' + t.label + '</button>';
+    }).join('');
+
+    drawCandles(document.getElementById('mainChart'), d.ohlc, LABELS);
+    renderTab();
+  }
+
+  document.getElementById('tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-tab]');
+    if (!b) return;
+    state.tab = b.getAttribute('data-tab');
+    render();
+  });
+
+  document.querySelectorAll('[data-mkt]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('[data-mkt]').forEach(function (x) {
+        x.setAttribute('aria-pressed', String(x === b));
+      });
+      state.market = b.getAttribute('data-mkt');
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-thm]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('[data-thm]').forEach(function (x) {
+        x.setAttribute('aria-pressed', String(x === b));
+      });
+      var v = b.getAttribute('data-thm');
+      if (v === 'auto') document.documentElement.removeAttribute('data-theme');
+      else document.documentElement.setAttribute('data-theme', v);
+      render();
+    });
+  });
+
+  var notesBtn = document.getElementById('notesBtn');
+  notesBtn.addEventListener('click', function () {
+    var on = document.body.classList.toggle('notes-on');
+    notesBtn.setAttribute('aria-pressed', String(on));
+    notesBtn.classList.toggle('on', on);
+    notesBtn.textContent = on ? '◎ 隱藏設計註解' : '◎ 顯示設計註解';
+  });
+
+  var t;
+  window.addEventListener('resize', function () { clearTimeout(t); t = setTimeout(render, 120); });
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+  }
+
+  render();
+})();
+</script>
