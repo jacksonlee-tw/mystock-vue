@@ -1,0 +1,26 @@
+{
+  "ENTRY_CONFIRM_SUCCESS":    "入廠過磅確認成功，車號 {car_no}",
+  "EXIT_CONFIRM_SUCCESS":     "出廠過磅確認成功，磅單號 {ticket_no}",
+  "EXIT_RETURN_SUCCESS":      "退貨過磅確認成功，磅單號 {ticket_no}",
+  "PRINT_ENTRY_SUCCESS":       "入廠磅單 {ticket_no} 已送出列印",
+  "PRINT_EXIT_SUCCESS":        "出廠磅單 {ticket_no} 已送出列印",
+  "WARNLOG_SUCCESS":          "警告日誌已記錄",
+  "TRACE_SUCCESS":            "追蹤記錄已寫入",
+  "AUTH_AUTHORIZED":          "主管覆核通過",
+
+  "TICKET_NO_EMPTY":          "磅單號碼不得為空",
+  "TICKET_NOT_FOUND":         "查無磅單「{ticket_no}」",
+  "PO_NOT_FOUND":             "查無採購單「{po_no}」",
+  "AUTH_DENIED":              "帳號或密碼錯誤",
+  "INTERNAL_ERROR":           "伺服器發生內部錯誤",
+
+  "CARD_READ_SUCCESS":        "讀卡成功，卡號 {card_no}",
+  "CARD_NOT_DETECTED":        "未偵測到 IC 卡，請將卡片放置於讀卡機上",
+  "CARD_READER_OPEN_FAILED":  "讀卡機連綫失敗，請確認設備已連接",
+
+  "TELEGRAM_SEND_SUCCESS":       "Telegram 訊息發送成功",
+  "TELEGRAM_NOT_CONFIGURED":    "Telegram Bot Token 或 Chat ID 未設定，請檢查環境變數",
+  "TELEGRAM_TIMEOUT":           "Telegram API 請求逾時，請稍後再試",
+  "TELEGRAM_REQUEST_FAILED":    "Telegram API 連綫失敗，請確認網路狀態",
+  "TELEGRAM_SEND_FAILED":       "Telegram 訊息發送失敗，請確認 Bot Token 與 Chat ID 是否正確"
+}

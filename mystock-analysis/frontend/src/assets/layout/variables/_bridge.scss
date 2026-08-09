@@ -1,0 +1,36 @@
+// PrimeVue 3 Override Bridge（最後載入，覆蓋 _common-blue.scss 的 PrimeVue 4 var 參照）
+// _common-blue.scss 的 bridge section 設定 --primary-color: var(--p-primary-color)
+// 但 --p-primary-color 在 PrimeVue 3 不存在，此檔案在最後載入以修正所有問題。
+:root {
+    // === 主色 ===
+    // --p-primary-500 已由 _common-blue.scss 設定為 #2196F3（TCCI Blue）
+    // 此處讓 PrimeVue 3 的 --primary-color 也對齊
+    --primary-color: var(--p-primary-500);
+    --primary-contrast-color: #ffffff;
+
+    // === 布局幾何 ===
+    --content-border-radius: 0.5rem;
+    --layout-section-transition-duration: 0.2s;
+    --element-transition-duration: 0.12s;
+
+    // === Surface 變數（覆蓋 _common-blue 裡 PrimeVue 4 的 undefined 參照）===
+    --surface-ground: #f4f7fb;
+    --surface-overlay: #ffffff;
+    --surface-card: #ffffff;
+    --surface-hover: #e9ecef;
+    --surface-border: #dee2e6;
+    --maskbg: rgba(0, 0, 0, 0.4);
+    --transition-duration: 0.12s;
+
+    // === Text 變數（PrimeVue 3 lara-light-blue 標準值）===
+    --text-color: #495057;
+    --text-color-secondary: #6c757d;
+    --text-secondary-color: #6c757d;
+
+    // === Focus ring ===
+    --focus-ring-width: 0;
+    --focus-ring-style: none;
+    --focus-ring-color: transparent;
+    --focus-ring-offset: 0;
+    --focus-ring-shadow: none;
+}

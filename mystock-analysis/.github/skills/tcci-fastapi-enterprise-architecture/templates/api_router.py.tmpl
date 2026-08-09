@@ -1,0 +1,45 @@
+# backend/api/v1/endpoints/xxx.py（Controller / Presentation 層）
+"""XXX API 路由（Controller 層）
+
+此路由只負責接收 Request、呼叫 Service 層，以及回傳 Response。
+UnitOfWork 由 Dishka DI 容器自動注入並管理生命週期。
+"""
+from fastapi import APIRouter, Depends
+from dishka import FromDishka
+from dishka.integrations.fastapi import DishkaRoute
+
+from backend.core.i18n import get_locale
+from backend.domain.ports.unit_of_work import UnitOfWork
+from backend.schemas.weighbridge import XxxRequest
+from backend.schemas.responses import XxxResponse, XxxDetailResponse, XxxListResponse
+from backend.services.xxx_service import create_xxx, get_xxx, list_xxx
+
+router = APIRouter(prefix="/api/xxx", tags=["XXX 功能"], route_class=DishkaRoute)
+
+
+@router.post("/", response_model=XxxResponse)
+def api_create_xxx(
+    record: XxxRequest,
+    uow: FromDishka[UnitOfWork],
+    locale: str = Depends(get_locale),
+):
+    """建立 XXX"""
+    return create_xxx(uow, record, locale)
+
+
+@router.get("/{xxx_id}", response_model=XxxDetailResponse)
+def api_get_xxx(
+    xxx_id: str,
+    uow: FromDishka[UnitOfWork],
+    locale: str = Depends(get_locale),
+):
+    """查詢 XXX"""
+    return get_xxx(uow, xxx_id, locale)
+
+
+@router.get("/", response_model=XxxListResponse)
+def api_list_xxx(
+    uow: FromDishka[UnitOfWork],
+):
+    """列出所有 XXX"""
+    return list_xxx(uow)

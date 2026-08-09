@@ -1,0 +1,81 @@
+# backend/services/xxx_service.py（Service / 應用邏輯層）
+"""XXX 業務邏輯層
+
+負責 XXX 的核心商業邏輯。
+透過 UnitOfWork 存取 Repository，並統一控制交易邊界。
+"""
+import logging
+from datetime import datetime
+
+from backend.core.exceptions import AppException
+from backend.core.i18n import DEFAULT_LOCALE, translate
+from backend.domain.ports.unit_of_work import UnitOfWork
+
+log = logging.getLogger(__name__)
+
+
+def create_xxx(uow: UnitOfWork, record, locale: str = DEFAULT_LOCALE) -> dict:
+    """建立 XXX（業務邏輯）。
+
+    透過 Domain Entity 執行業務規則，再委派 Repository 持久化。
+    成功訊息透過 translate() 依語系回傳，不寫死任何語言文字。
+
+    Args:
+        uow:    UnitOfWork 實例（封裝 Repository + 交易控制）。
+        record: Pydantic Request DTO。
+        locale: 語系代碼（來自 Accept-Language Header）。
+
+    Returns:
+        包含 status、message 等欄位的回應 dict。
+
+    Raises:
+        AppException: 業務規則不符時拋出（含 error_code）。
+    """
+    now = datetime.now()
+
+    # 1. 驗證業務規則（可使用 Domain Entity）
+    if not record.name:
+        raise AppException("XXX_NAME_REQUIRED", status_code=400)
+
+    # 2. 透過 Repository 執行資料操作
+    data = {
+        "name": record.name.strip(),
+        "value": int(record.value or 0),
+        "createdAt": now.isoformat(),
+    }
+    uow.xxx.create(data)
+
+    # 3. 提交交易（Service 層統一控制交易邊界）
+    uow.commit()
+
+    log.info("[建立 XXX] name=%s value=%s", record.name, record.value)
+
+    # 4. 回傳結果（dict 結構對應 Response Schema）
+    return {
+        "status": "success",
+        "message": translate("XXX_CREATE_SUCCESS", locale, name=record.name),
+        "timestamp": now.isoformat(),
+        "dbMode": uow.db_mode,
+    }
+
+
+def get_xxx(uow: UnitOfWork, xxx_id: str, locale: str = DEFAULT_LOCALE) -> dict:
+    """查詢 XXX（業務邏輯）。
+
+    查無資料時拋出 AppException(XXX_NOT_FOUND, 404)。
+    """
+    item = uow.xxx.get_by_id(xxx_id)
+    if not item:
+        raise AppException("XXX_NOT_FOUND", status_code=404, xxx_id=xxx_id)
+    return {"status": "found", **item}
+
+
+def list_xxx(uow: UnitOfWork) -> dict:
+    """列出 XXX（業務邏輯）。"""
+    items = uow.xxx.list_all()
+    return {
+        "status": "success",
+        "items": items,
+        "total": len(items),
+        "dbMode": uow.db_mode,
+    }

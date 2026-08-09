@@ -1,0 +1,1709 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>三大法人與籌碼全市場熱力儀表板</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; min-height: 100vh; }
+  html { scroll-behavior: smooth; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang TC", "Microsoft JhengHei", sans-serif; }
+
+  /* Design Tokens - Financial Terminal Palette */
+  :root[data-theme="dark"] {
+    --bg-page: #0b0e14;
+    --bg-header: rgba(15, 21, 32, 0.90);
+    --bg-surface: #131a27;
+    --bg-card: #182232;
+    --bg-card-hover: #1e2a3e;
+    --bg-input: #101622;
+    --text-primary: #f3f4f6;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --border-color: rgba(255, 255, 255, 0.08);
+    --border-glow: rgba(59, 130, 246, 0.35);
+    --gridline: rgba(255, 255, 255, 0.05);
+    --baseline: rgba(255, 255, 255, 0.18);
+    --series-1: #3b82f6; /* 外資 */
+    --series-2: #f97316; /* 投信 */
+    --series-3: #10b981; /* 自營商 */
+    --series-4: #eab308; /* 合計 */
+    --ma5-color: #38bdf8;
+    --ma20-color: #c084fc;
+    --candle-up: #ef4444;   /* 台股紅漲 */
+    --candle-down: #10b981; /* 台股綠跌 */
+    --up-bg: rgba(239, 68, 68, 0.14);
+    --down-bg: rgba(16, 185, 129, 0.14);
+    --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.35);
+    --tooltip-bg: rgba(19, 26, 39, 0.95);
+  }
+
+  :root[data-theme="light"] {
+    --bg-page: #f4f6fa;
+    --bg-header: rgba(255, 255, 255, 0.92);
+    --bg-surface: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f8fafc;
+    --bg-input: #f1f5f9;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --border-color: rgba(0, 0, 0, 0.08);
+    --border-glow: rgba(59, 130, 246, 0.25);
+    --gridline: rgba(0, 0, 0, 0.05);
+    --baseline: rgba(0, 0, 0, 0.25);
+    --series-1: #2563eb;
+    --series-2: #ea580c;
+    --series-3: #059669;
+    --series-4: #ca8a04;
+    --ma5-color: #0284c7;
+    --ma20-color: #9333ea;
+    --candle-up: #dc2626;
+    --candle-down: #059669;
+    --up-bg: rgba(220, 38, 38, 0.08);
+    --down-bg: rgba(5, 150, 105, 0.08);
+    --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.06);
+    --tooltip-bg: rgba(255, 255, 255, 0.96);
+  }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    transition: background-color 0.25s ease, color 0.25s ease;
+    touch-action: manipulation;
+  }
+
+  .dashboard-container {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 0 16px 40px;
+  }
+
+  /* Sticky Top Navigation Bar */
+  .top-navbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg-header);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border-color);
+    padding: 10px 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  }
+
+  .top-navbar-inner {
+    max-width: 1360px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .brand-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .brand-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--series-1);
+    border: 1px solid var(--border-glow);
+    font-weight: 600;
+  }
+
+  /* Stock Chips Bar (Quick Switcher) */
+  .stock-chips-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 2px 0;
+    max-width: 600px;
+    scrollbar-width: thin;
+  }
+
+  .stock-chip {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 5px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    flex: none;
+  }
+  .stock-chip:hover {
+    color: var(--text-primary);
+    border-color: var(--border-glow);
+    transform: translateY(-1px);
+  }
+  .stock-chip.active {
+    background: var(--series-1);
+    color: #ffffff;
+    border-color: var(--series-1);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+  }
+
+  .chip-tag {
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    font-weight: 700;
+  }
+  .chip-tag-up { color: var(--candle-up); background: var(--up-bg); }
+  .chip-tag-down { color: var(--candle-down); background: var(--down-bg); }
+
+  .controls-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .pill-group {
+    display: inline-flex;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 2px;
+  }
+
+  .pill-btn {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+    min-height: 34px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+  .pill-btn:hover { color: var(--text-primary); }
+  .pill-btn[aria-pressed="true"], .pill-btn.active {
+    background: var(--bg-card);
+    color: var(--series-1);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+
+  .theme-btn {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Metadata Banner */
+  .meta-banner {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    padding: 8px 14px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Tier 1: Heatmap Grid Styles */
+  .heatmap-section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .heatmap-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .heatmap-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+  }
+  .heatmap-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-glow);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.3);
+  }
+
+  .heatmap-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .heatmap-stock-name { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+  .heatmap-stock-code { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+
+  .heatmap-price-wrap {
+    text-align: right;
+  }
+
+  .heatmap-price { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .heatmap-change { font-size: 12px; font-weight: 700; margin-top: 2px; }
+
+  .heatmap-sparkline-wrap {
+    width: 100%;
+    height: 60px;
+    margin: 10px 0;
+  }
+
+  .heatmap-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border-color);
+    padding-top: 8px;
+  }
+
+  /* Tier 2: Single Stock KPI & Widget Grid Styles */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: var(--shadow-card);
+  }
+  .kpi-title { font-size: 12px; font-weight: 500; color: var(--text-muted); margin-bottom: 3px; }
+  .kpi-value { font-size: 17px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .kpi-sub { font-size: 11px; margin-top: 3px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+  .badge-up { color: var(--candle-up); background: var(--up-bg); padding: 2px 6px; border-radius: 4px; }
+  .badge-down { color: var(--candle-down); background: var(--down-bg); padding: 2px 6px; border-radius: 4px; }
+
+  .widget-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .widget-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 14px 16px 12px;
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  .widget-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--border-glow);
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
+  }
+
+  .widget-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .widget-title { font-size: 14px; font-weight: 700; color: var(--text-primary); margin: 0; }
+  .widget-action-btn {
+    font-size: 12px; font-weight: 600; color: var(--series-1);
+    background: rgba(59, 130, 246, 0.1); border: 1px solid var(--border-glow);
+    border-radius: 6px; padding: 3px 8px; display: flex; align-items: center; gap: 4px;
+  }
+
+  .widget-svg-wrap { width: 100%; height: 150px; position: relative; }
+
+  /* Tier 3: Detail View Layout */
+  .detail-nav-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .back-btn {
+    font: inherit; font-size: 13px; font-weight: 700;
+    color: var(--text-primary); background: var(--bg-card);
+    border: 1px solid var(--border-glow); border-radius: 8px;
+    padding: 7px 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15); transition: all 0.2s ease;
+  }
+  .back-btn:hover { background: var(--series-1); color: #ffffff; }
+
+  .chart-card {
+    background: var(--bg-card); border: 1px solid var(--border-color);
+    border-radius: 14px; padding: 20px 22px 16px; box-shadow: var(--shadow-card); position: relative;
+  }
+
+  .chart-card-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 14px; }
+  .chart-title { font-size: 16px; font-weight: 700; color: var(--text-primary); margin: 0; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  /* SVG & Tooltip */
+  .chart-svg-wrap { position: relative; width: 100%; }
+  svg.chart-svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+  .axis-label { fill: var(--text-muted); font-size: 11px; font-weight: 500; }
+  .gridline { stroke: var(--gridline); stroke-width: 1; }
+  .baseline { stroke: var(--baseline); stroke-width: 1.5; stroke-dasharray: 4 4; }
+  .crosshair { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0; pointer-events: none; }
+  .hit-rect { fill: transparent; cursor: crosshair; touch-action: pan-y; }
+
+  .tooltip {
+    position: absolute; pointer-events: none; background: var(--tooltip-bg);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border-glow); border-radius: 10px; padding: 10px 14px;
+    font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); opacity: 0;
+    transform: translate(-50%, -115%); transition: opacity 0.1s ease, transform 0.1s ease;
+    white-space: nowrap; z-index: 50; left: 0; top: 0;
+  }
+  .tooltip-date { color: var(--text-primary); font-weight: 700; font-size: 13px; margin-bottom: 2px; }
+  .tooltip-sub { color: var(--text-muted); font-size: 11px; margin-bottom: 6px; }
+  .tooltip-row { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+  .tooltip-key { width: 10px; height: 3px; display: inline-block; border-radius: 2px; flex: none; }
+  .tooltip-name { color: var(--text-secondary); }
+  .tooltip-value { color: var(--text-primary); font-weight: 700; font-variant-numeric: tabular-nums; margin-left: auto; padding-left: 14px; }
+
+  .table-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; gap: 8px; }
+  .btn-sm {
+    font: inherit; font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    background: var(--bg-input); border: 1px solid var(--border-color);
+    border-radius: 6px; padding: 6px 14px; cursor: pointer; transition: all 0.2s ease;
+  }
+  .btn-sm:hover { color: var(--text-primary); border-color: var(--border-glow); }
+
+  .table-responsive-wrap { overflow-x: auto; margin-top: 10px; border-radius: 8px; border: 1px solid var(--border-color); max-height: 400px; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th, .data-table td { padding: 8px 12px; border-bottom: 1px solid var(--gridline); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .data-table th:first-child, .data-table td:first-child { text-align: left; }
+  .data-table thead th { position: sticky; top: 0; background: var(--bg-surface); color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--border-color); z-index: 2; }
+  .data-table tbody tr:hover { background: var(--bg-card-hover); }
+  .num-positive { color: var(--candle-up); font-weight: 600; }
+  .num-negative { color: var(--candle-down); font-weight: 600; }
+
+  /* RWD Media Queries */
+  @media (max-width: 1024px) {
+    .widget-grid { grid-template-columns: repeat(2, 1fr); }
+    .stock-chips-container { max-width: 400px; }
+  }
+
+  @media (max-width: 640px) {
+    .top-navbar-inner { flex-direction: column; align-items: stretch; gap: 10px; }
+    .controls-group { justify-content: space-between; width: 100%; }
+    .stock-chips-container { max-width: 100%; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .widget-grid { grid-template-columns: 1fr; }
+    .detail-nav-bar { flex-direction: column; align-items: stretch; }
+    .chart-card { padding: 14px 12px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top-navbar">
+  <div class="top-navbar-inner">
+    <h1 class="brand-title" id="brand-home-btn" title="返回全市場熱力圖總覽">
+      三大法人與籌碼儀表板
+      <span class="brand-badge">PRO</span>
+    </h1>
+
+    <!-- Stock Chips Quick Switcher Bar -->
+    <div id="stock-chips-bar" class="stock-chips-container"></div>
+
+    <div class="controls-group">
+      <div class="pill-group" role="group" aria-label="週期切換">
+        <button class="pill-btn" type="button" data-tf="day" aria-pressed="true">日線</button>
+        <button class="pill-btn" type="button" data-tf="week" aria-pressed="false">週線</button>
+        <button class="pill-btn" type="button" data-tf="month" aria-pressed="false">月線</button>
+      </div>
+
+      <button id="theme-toggle" class="theme-btn" type="button" aria-label="切換主題" title="切換深色/淺色主題">🌙</button>
+    </div>
+  </div>
+</header>
+
+<div class="dashboard-container">
+  <div class="meta-banner">
+    <div>
+      <strong>資料範圍：</strong>近 3 個月（2026-05-09 ~ 2026-08-09） ・ <strong>產生時間：</strong>2026-08-09 15:35:32
+    </div>
+    <div id="meta-hint">
+      點擊股票卡片可進入個股分析儀表板
+    </div>
+  </div>
+
+  <!-- TIER 1: 全市場股票熱力圖總覽 (#heatmap) -->
+  <div id="heatmap-view">
+    <div class="heatmap-section-title">
+      <span>🔥 全市場個股動態熱力圖</span>
+      <span style="font-size: 13px; font-weight: 500; color: var(--text-muted)">點擊卡片深入檢視個股</span>
+    </div>
+    <main id="heatmap-grid" class="heatmap-grid"></main>
+  </div>
+
+  <!-- TIER 2: 單股 6 WIDGET 儀表板 (#stock/:id) -->
+  <div id="stock-overview-view" hidden>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+      <button id="back-to-heatmap-btn" class="back-btn" type="button">
+        🏠 全市場熱力圖
+      </button>
+      <span id="stock-overview-title" style="font-size: 16px; font-weight: 700; color: var(--text-primary);"></span>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <section id="kpi-summary-container" class="kpi-grid"></section>
+
+    <!-- 6 Widget Grid -->
+    <main id="widget-grid" class="widget-grid"></main>
+  </div>
+
+  <!-- TIER 3: 圖表明細放大頁 (#stock/:id/detail/:chartId) -->
+  <div id="detail-view" hidden>
+    <div class="detail-nav-bar">
+      <div style="display: flex; gap: 8px;">
+        <button id="back-to-heatmap-from-detail" class="back-btn" type="button" title="回到市場熱力圖">
+          🏠 熱力圖
+        </button>
+        <button id="back-to-stock-btn" class="back-btn" type="button">
+          ← 返回個股儀表板
+        </button>
+      </div>
+
+      <div class="pill-group detail-tabs" role="tablist" aria-label="圖表明細切換">
+        <button class="pill-btn detail-tab-btn" type="button" data-chart="flow">三大法人</button>
+        <button class="pill-btn detail-tab-btn" type="button" data-chart="kline">K 線成交量</button>
+        <button class="pill-btn detail-tab-btn" type="button" data-chart="amount">估算金額</button>
+        <button class="pill-btn detail-tab-btn" type="button" data-chart="margin">融資餘額</button>
+        <button class="pill-btn detail-tab-btn" type="button" data-chart="short">融券餘額</button>
+        <button class="pill-btn detail-tab-btn" type="button" data-chart="ratio">券資比</button>
+      </div>
+    </div>
+
+    <main id="detail-chart-container"></main>
+  </div>
+</div>
+
+<script id="chart-data" type="application/json">{"order": ["0050", "006208", "2317", "2330"], "stocks": {"0050": {"name": "元大台灣50", "dates": ["2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05", "2026-06-08", "2026-06-09", "2026-06-10", "2026-06-11", "2026-06-12", "2026-06-15", "2026-06-16", "2026-06-17", "2026-06-18", "2026-06-22", "2026-06-23", "2026-06-24", "2026-06-25", "2026-06-26", "2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09", "2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17", "2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07"], "open": [96.65, 96.85, 94.85, 96.9, 97.65, 94.0, 94.35, 93.0, 94.8, 96.3, 99.55, 101.6, 102.4, 104.0, 103.2, 105.25, 106.3, 107.3, 106.75, 105.0, 98.05, 102.1, 102.6, 100.0, 103.25, 105.1, 106.05, 105.0, 107.0, 109.45, 112.0, 108.0, 108.0, 105.4, 103.35, 106.85, 109.8, 107.2, 106.15, 109.05, 108.55, 106.4, 106.35, 107.0, 105.5, 105.3, 105.35, 102.9, 100.2, 100.0, 104.5, 104.25, 102.55, 101.3, 98.35, 96.95, 93.4, 100.0, 102.0, 100.65, 103.75, 103.25, 103.8], "high": [97.15, 97.35, 95.8, 97.2, 98.25, 95.2, 94.7, 93.5, 96.05, 97.3, 101.0, 101.8, 103.9, 104.25, 105.4, 106.7, 106.3, 107.85, 107.0, 105.35, 101.3, 103.6, 102.95, 100.55, 103.75, 105.5, 106.05, 106.0, 107.45, 111.2, 112.3, 108.1, 108.05, 105.85, 105.35, 108.25, 109.95, 108.95, 108.8, 109.6, 109.05, 106.6, 107.0, 107.55, 105.5, 106.45, 106.75, 103.05, 100.6, 102.5, 104.8, 104.8, 103.05, 101.6, 98.35, 97.0, 96.0, 102.85, 102.7, 102.25, 104.75, 103.7, 104.0], "low": [96.5, 95.5, 94.7, 95.75, 95.2, 93.3, 93.1, 92.45, 94.7, 96.0, 99.55, 100.1, 102.0, 100.1, 102.7, 104.5, 104.2, 107.1, 106.05, 102.8, 98.05, 101.35, 100.2, 97.6, 101.55, 104.3, 104.85, 104.5, 106.65, 109.45, 110.05, 106.15, 106.35, 102.8, 103.3, 106.75, 108.6, 106.9, 106.1, 107.7, 105.85, 105.05, 105.45, 105.7, 102.25, 104.65, 104.55, 100.0, 98.3, 99.85, 103.3, 102.9, 101.3, 100.05, 96.9, 91.8, 92.0, 99.8, 101.0, 99.75, 102.9, 102.55, 102.05], "close": [96.9, 96.85, 95.5, 96.05, 95.4, 94.9, 93.1, 92.5, 95.85, 97.3, 100.8, 100.1, 102.55, 100.5, 105.4, 105.5, 105.7, 107.6, 106.1, 104.15, 100.95, 103.5, 100.25, 99.85, 101.95, 105.25, 105.9, 106.0, 107.3, 111.15, 110.1, 107.15, 107.2, 103.1, 104.45, 107.8, 109.35, 108.8, 108.35, 108.25, 106.2, 106.05, 105.8, 106.0, 104.4, 106.3, 106.4, 100.15, 99.2, 102.5, 103.85, 103.9, 101.7, 101.45, 97.15, 93.7, 93.5, 102.85, 102.0, 100.65, 103.8, 103.3, 102.85], "volume": [96606, 102303, 130654, 57229, 98133, 118571, 135940, 121650, 62216, 64288, 129483, 93560, 94960, 152916, 102356, 135817, 117161, 79592, 236782, 337031, 524952, 246039, 192917, 299040, 76564, 100403, 70825, 100332, 78557, 116042, 130787, 235940, 96346, 291815, 106661, 107704, 76131, 73421, 82436, 75784, 124629, 96508, 56651, 71523, 259928, 110911, 73089, 520546, 373785, 95733, 107935, 54786, 105139, 109613, 469131, 546283, 297963, 345661, 169497, 121774, 168906, 78929, 69374], "foreign": [-26939, -12503, -52954, -6047, -24068, -43214, -46447, -15132, 12025, 7809, 19246, -14393, 3238, -39726, 15009, -22686, -33890, 1761, -38480, -62926, -113326, -21647, -62999, -91841, 5759, 17368, 6189, 3116, 14338, 878, -27631, -126207, -23491, -130306, -21650, 20819, 8681, -17772, -19987, -12553, -40070, -28291, -9035, -19098, -92603, 34254, -22402, -222199, -97369, -4227, 23625, -13976, -37394, -4723, -148154, -104924, -60530, 84169, 55359, 8554, 84036, -8703, -22724], "trust": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "dealer": [2300, 0, 0, 580, -495, 2580, 246, 885, 3770, 85, 1866, 2131, 28, 688, 5310, 2124, -70, 1602, 1150, 6297, 8432, 2450, 1250, 2846, 4830, 5400, 4000, 4700, 2200, 3497, 1000, 1100, 2150, 4900, 6270, 5350, 6383, 1980, 2800, 0, 970, 7420, 2875, 838, 5804, 4925, 3435, 2776, 3000, 3248, 1801, 2514, 1000, 0, 3600, 6350, 5793, 2262, 4604, 8878, 9902, 5800, 50], "total": [-18065, -3422, -15908, -3, 2010, -18252, -42830, -34865, 5150, 16868, 7357, -9331, 7013, -21962, 7410, -36310, -9919, -8740, -29521, -52713, -95591, -13469, -48624, -78744, 5552, 7031, 3912, -17373, -847, 11765, -18222, -37037, -5294, -71339, -2320, 6327, 4240, -7711, -18033, -9703, -13562, -19776, -12709, -6007, -76714, 5787, -1145, -197591, -137270, -2496, -9196, 5712, 119, -32490, -208888, -196852, -66343, 5409, -82997, -42212, -9301, -13609, 8195], "amount": [-175049.85, -33142.07, -151921.4, -28.81, 19175.4, -173211.48, -398747.3, -322501.25, 49362.75, 164125.64, 74158.56, -93403.31, 71918.32, -220718.1, 78101.4, -383070.5, -104843.83, -94042.4, -313217.81, -549005.9, -964991.15, -139404.15, -487455.6, -786258.84, 56602.64, 74001.27, 41428.08, -184153.8, -9088.31, 130767.98, -200624.22, -396851.46, -56751.68, -735505.09, -24232.4, 68205.06, 46364.4, -83895.68, -195387.55, -105034.98, -144028.44, -209724.48, -134461.22, -63674.2, -800894.16, 61515.81, -12182.8, -1978873.87, -1361718.4, -25584.0, -95500.46, 59347.68, 1210.23, -329611.05, -2029346.92, -1844503.24, -620307.05, 55631.57, -846569.4, -424863.78, -96544.38, -140580.97, 84285.57], "marginBalance": [9860, 9569, 9575, 9327, 9073, 9344, 9686, 10097, 9452, 9255, 8827, 9006, 8580, 8629, 9287, 9838, 9177, 9749, 10101, 9573, 11322, 10753, 11182, 12383, 11438, 11091, 11443, 11748, 11486, 11934, 11606, 12613, 13124, 13103, 13117, 12748, 12610, 12985, 13215, 13038, 13075, 13411, 13306, 13013, 15328, 15307, 16048, 18333, 59230, 57630, 48893, 48790, 32467, 19376, 22865, 29290, 33974, 33676, 31491, 29795, 25389, 25191, 24879], "shortBalance": [1400, 1390, 1387, 1383, 1380, 1318, 1212, 1224, 1272, 1292, 1311, 1306, 1519, 1449, 1539, 1303, 1329, 1339, 1324, 1433, 1573, 1400, 1422, 1176, 1112, 1156, 1216, 1210, 1213, 1224, 1221, 1056, 1265, 1229, 1285, 1063, 1085, 1118, 1074, 1077, 1019, 968, 942, 868, 530, 1, 0, 0, 0, 48, 278, 107, 196, 294, 164, 258, 585, 840, 909, 931, 476, 573, 434]}, "006208": {"name": "富邦台50", "dates": ["2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05", "2026-06-08", "2026-06-09", "2026-06-10", "2026-06-11", "2026-06-12", "2026-06-15", "2026-06-16", "2026-06-17", "2026-06-18", "2026-06-22", "2026-06-23", "2026-06-24", "2026-06-25", "2026-06-26", "2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09", "2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17", "2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07"], "open": [223.85, 224.5, 219.8, 224.05, 227.55, 218.2, 218.9, 215.4, 218.95, 222.8, 230.25, 235.0, 237.75, 239.9, 238.75, 241.5, 244.8, 248.5, 247.15, 243.4, 228.5, 236.6, 237.1, 231.0, 238.6, 243.7, 245.0, 243.35, 247.95, 253.0, 258.1, 249.65, 250.0, 244.4, 240.0, 247.9, 254.2, 249.0, 246.05, 252.95, 251.6, 247.05, 246.5, 248.0, 245.1, 243.25, 240.6, 236.65, 228.55, 228.1, 239.1, 238.3, 234.6, 232.2, 225.0, 222.15, 212.95, 229.25, 232.0, 230.25, 237.0, 236.85, 237.15], "high": [224.75, 225.4, 221.85, 225.2, 228.0, 220.0, 219.15, 216.4, 222.0, 225.05, 234.0, 235.45, 240.2, 241.25, 241.4, 247.0, 245.65, 249.85, 248.0, 243.5, 234.75, 239.75, 237.8, 232.95, 238.95, 244.35, 245.75, 246.3, 249.1, 258.2, 260.1, 249.65, 250.0, 245.0, 244.6, 250.7, 254.6, 252.45, 252.2, 254.05, 253.15, 247.75, 248.2, 249.7, 245.1, 246.8, 243.5, 236.9, 228.95, 234.55, 240.1, 239.75, 235.65, 232.9, 225.45, 222.25, 219.45, 235.8, 235.05, 234.0, 239.45, 237.6, 237.9], "low": [223.15, 221.3, 219.0, 221.65, 220.4, 216.1, 215.6, 213.8, 218.95, 222.05, 230.15, 232.5, 236.05, 231.9, 237.95, 241.5, 241.45, 248.05, 245.8, 238.1, 227.35, 234.7, 232.0, 226.45, 235.6, 241.55, 243.45, 242.15, 246.95, 253.0, 254.35, 245.9, 246.3, 238.1, 239.85, 247.55, 252.0, 248.0, 245.95, 250.4, 246.05, 243.85, 245.0, 245.65, 237.6, 242.8, 238.5, 227.6, 224.05, 228.1, 236.35, 235.55, 232.05, 229.15, 222.0, 210.2, 210.7, 229.2, 231.0, 228.4, 235.4, 234.8, 233.7], "close": [224.45, 224.55, 221.2, 222.5, 220.4, 219.4, 215.65, 214.1, 221.55, 225.05, 233.15, 232.55, 237.6, 233.15, 241.25, 243.9, 244.55, 248.8, 245.95, 241.05, 233.85, 239.55, 232.05, 231.0, 236.1, 244.1, 245.35, 246.3, 249.1, 257.45, 254.35, 247.95, 248.1, 238.7, 242.75, 250.2, 253.65, 252.3, 251.35, 251.35, 246.5, 246.15, 245.7, 246.75, 242.8, 246.6, 242.5, 227.75, 226.0, 234.55, 237.4, 237.9, 233.0, 232.75, 222.1, 214.05, 214.4, 235.35, 232.9, 230.15, 238.25, 236.55, 235.35], "volume": [4155, 6517, 7653, 6133, 5274, 7456, 4229, 5292, 2478, 3448, 7505, 2550, 4846, 5184, 4423, 5024, 3255, 3183, 4445, 5354, 10547, 2690, 5620, 6355, 2781, 6855, 3309, 4877, 4100, 5128, 4700, 5338, 2874, 10068, 4193, 3232, 2961, 3147, 3069, 4130, 5087, 3473, 3431, 4180, 9558, 3600, 4543, 12203, 7476, 3104, 2656, 1790, 1940, 3039, 8252, 10500, 4731, 6507, 3789, 2389, 4375, 3757, 1789], "foreign": [805, 2223, 183, 2488, -178, 1174, -351, 1018, 327, 70, 2707, 69, 808, 15, 1042, 50, -376, -19, -213, -580, 81, -359, -834, 20, 5, 2091, 459, -785, 1229, 1263, -370, -144, -35, -2456, 174, 1016, -486, -195, -244, -241, -1073, -296, -140, -268, 141, -34, -18, -664, -1247, -404, 337, -377, -463, -142, -2217, -1214, -427, 387, 333, -198, 1688, -394, 255], "trust": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "dealer": [0, 0, -36, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -30, 0, 461, -30, 0, 0, 0, 0, 250, -20, 0, 166, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 0, 3, 14, 0, 14, 15, 0, 23, 0, 0, 26, 0, 0, 0, 15], "total": [287, 977, 1797, 808, 2030, 590, -1047, 495, 1329, 2094, -693, -175, 1391, -123, 1406, 968, 592, 311, -452, -1425, -3786, 456, -1459, -877, 661, -171, 733, 522, -4, 823, -112, -2198, 46, -1687, 158, 612, 483, -890, -887, -1321, -965, -1527, -942, -1192, -5348, 336, -1945, -8048, -780, 764, 313, 255, -423, -1169, -2737, -2100, -450, 1396, -2097, -213, -294, -331, 129], "amount": [6441.71, 21938.53, 39749.64, 17978.0, 44741.2, 12944.6, -22578.56, 10597.95, 29444.0, 47125.47, -16157.3, -4069.62, 33050.16, -2867.74, 33919.75, 23609.52, 14477.36, 7737.68, -11116.94, -34349.62, -88535.61, 10923.48, -33856.1, -20258.7, 15606.21, -4174.11, 17984.15, 12856.86, -99.64, 21188.13, -2848.72, -54499.41, 1141.26, -40268.69, 3835.45, 15312.24, 12251.3, -22454.7, -22294.74, -33203.33, -23787.25, -37587.1, -23144.94, -29412.6, -129849.44, 8285.76, -47166.25, -183293.2, -17628.0, 17919.62, 7430.62, 6066.45, -9855.9, -27208.47, -60788.77, -44950.5, -9648.0, 32854.86, -48839.13, -4902.2, -7004.55, -7829.81, 3036.01], "marginBalance": [224, 192, 228, 207, 220, 260, 269, 267, 198, 195, 174, 157, 150, 160, 151, 155, 157, 173, 190, 201, 218, 241, 264, 268, 246, 240, 223, 222, 219, 196, 192, 267, 266, 309, 321, 334, 306, 334, 345, 307, 316, 321, 317, 313, 357, 368, 387, 417, 422, 413, 399, 391, 408, 413, 429, 454, 472, 473, 434, 413, 391, 401, 405], "shortBalance": [31, 31, 31, 31, 32, 31, 31, 31, 31, 31, 32, 32, 32, 31, 28, 28, 28, 26, 26, 26, 26, 26, 29, 29, 27, 27, 27, 22, 22, 20, 18, 18, 19, 25, 22, 17, 16, 16, 16, 16, 16, 15, 15, 1, 0, 0, 0, 0, 0, 1, 1, 3, 2, 1, 1, 1, 1, 2, 2, 2, 3, 12, 10]}, "2317": {"name": "鴻海", "dates": ["2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05", "2026-06-08", "2026-06-09", "2026-06-10", "2026-06-11", "2026-06-12", "2026-06-15", "2026-06-16", "2026-06-17", "2026-06-18", "2026-06-22", "2026-06-23", "2026-06-24", "2026-06-25", "2026-06-26", "2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09", "2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17", "2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07"], "open": [256.5, 254.0, 246.5, 255.0, 249.0, 251.0, 251.0, 246.5, 245.0, 249.0, 255.0, 262.5, 263.0, 265.0, 269.0, 302.0, 297.5, 306.0, 309.0, 290.5, 257.5, 270.5, 271.0, 260.0, 266.5, 271.0, 270.0, 266.0, 270.5, 270.0, 270.0, 255.0, 260.5, 255.5, 250.0, 251.5, 255.0, 239.0, 237.0, 243.5, 243.0, 240.0, 238.0, 242.0, 236.0, 236.0, 240.5, 238.0, 235.5, 238.0, 249.0, 256.5, 254.0, 253.0, 246.0, 240.0, 236.0, 245.0, 244.5, 249.0, 257.0, 258.5, 265.5], "high": [258.0, 254.0, 251.0, 255.0, 260.0, 251.0, 254.0, 246.5, 249.0, 251.5, 263.5, 263.5, 269.0, 269.5, 289.0, 304.5, 302.0, 314.0, 309.0, 292.5, 272.0, 277.5, 274.0, 262.5, 269.0, 272.5, 271.0, 272.0, 271.5, 275.5, 270.5, 261.0, 262.5, 255.5, 252.0, 255.5, 255.5, 243.0, 241.0, 247.5, 243.0, 240.5, 240.0, 242.5, 237.0, 241.0, 244.0, 241.5, 238.5, 247.0, 259.0, 259.5, 256.0, 254.5, 247.0, 246.5, 237.5, 252.0, 254.0, 254.5, 260.5, 265.0, 267.0], "low": [251.0, 246.0, 242.5, 244.0, 247.0, 241.0, 244.0, 239.5, 244.0, 245.0, 255.0, 257.0, 261.0, 259.5, 268.0, 293.0, 293.0, 299.0, 293.0, 278.0, 257.5, 268.5, 262.5, 251.5, 260.0, 265.0, 265.5, 264.0, 268.5, 268.5, 259.0, 255.0, 257.5, 248.0, 246.0, 249.0, 248.0, 238.0, 236.0, 240.5, 236.0, 234.0, 234.5, 236.5, 230.0, 235.5, 238.0, 233.0, 230.5, 236.5, 248.0, 253.5, 251.5, 246.0, 238.0, 231.0, 226.5, 242.5, 242.5, 246.0, 256.0, 257.5, 258.0], "close": [252.0, 250.0, 251.0, 244.5, 248.5, 248.5, 245.0, 240.0, 247.5, 250.0, 261.0, 259.0, 264.0, 263.0, 289.0, 293.5, 301.5, 309.0, 293.0, 284.5, 269.5, 277.5, 263.0, 258.5, 260.5, 267.5, 269.0, 272.0, 268.5, 268.5, 259.5, 256.0, 257.5, 248.5, 246.5, 251.0, 248.0, 239.0, 240.5, 242.0, 237.0, 237.5, 237.5, 236.5, 235.5, 239.0, 242.5, 234.0, 234.5, 246.0, 251.5, 257.5, 252.5, 253.0, 238.0, 237.0, 229.5, 250.5, 253.0, 250.0, 258.5, 264.5, 260.0], "volume": [63064, 84325, 72415, 73360, 138413, 63512, 70223, 62650, 51483, 56311, 122990, 55665, 78353, 73792, 289511, 205767, 113076, 149621, 110761, 93159, 117864, 74649, 93369, 97551, 60261, 54689, 56879, 42755, 68997, 67146, 92064, 63691, 43578, 80451, 49210, 52952, 65881, 67897, 51008, 43694, 51779, 37939, 40528, 37505, 48112, 36109, 39075, 69007, 48580, 51471, 67787, 63788, 33695, 35908, 52860, 84937, 77133, 99414, 52666, 41096, 72634, 82179, 38813], "foreign": [9407, 31682, 21568, -21538, 59174, 1667, 4857, -12760, 24043, 20814, 52052, 9279, 19616, 12866, 80338, -6576, 25502, 28019, -28178, -3319, -5184, -10736, -15653, -8584, 1952, 8633, 9643, -7230, -25475, -14848, -32412, -11992, -2632, -30328, -20345, -764, -22391, -25248, 586, -8471, -17934, -692, 5743, -1180, -7039, 6880, 6698, -4269, 60, 22635, 17679, 23754, -5515, 522, -20087, -1316, -33609, 49858, 10136, 2130, 36977, 21743, -5329], "trust": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "dealer": [112, -10781, -4065, -785, 386, -13, -2321, -2327, -163, -85, 1212, -246, 133, 130, 7423, 1808, 2068, 2775, 856, 262, 643, 125, -165, 749, 114, 12, -530, -596, -3496, 464, 151, 146, 1167, 1670, 1866, -833, -1297, 1555, 1103, 2269, 1754, 1152, -38, 92, 1224, -890, -1057, -696, 449, 2099, 660, 559, 75, 737, 1194, 1094, 307, 3505, 213, -521, -1108, 135, -800], "total": [-321, 113, -154, -1143, -180, -478, -309, -4203, 992, 301, 2523, -676, 376, -173, 4618, -377, 1, 997, -2280, -2324, -1462, 166, -2577, 920, 301, 622, 33, -586, -409, 559, -924, -62, 393, -570, 333, 1415, 146, -3625, 912, -271, -417, 69, -121, -513, 1528, 402, 1344, 2133, 3411, 2231, -179, 639, -534, 655, 1853, 2249, 760, 3014, -1209, -1105, 488, 147, -627], "amount": [-8089.2, 2825.0, -3865.4, -27946.35, -4473.0, -11878.3, -7570.5, -100872.0, 24552.0, 7525.0, 65850.3, -17508.4, 9926.4, -4549.9, 133460.2, -11064.95, 30.15, 30807.3, -66804.0, -66117.8, -39400.9, 4606.5, -67775.1, 23782.0, 7841.05, 16638.5, 887.7, -15939.2, -10981.65, 15009.15, -23977.8, -1587.2, 10119.75, -14164.5, 8208.45, 35516.5, 3620.8, -86637.5, 21933.6, -6558.2, -9882.9, 1638.75, -2873.75, -12132.45, 35984.4, 9607.8, 32592.0, 49912.2, 79987.95, 54882.6, -4501.85, 16454.25, -13483.5, 16571.5, 44101.4, 53301.3, 17442.0, 75500.7, -30587.7, -27625.0, 12614.8, 3888.15, -16302.0], "marginBalance": [47208, 46231, 46389, 48647, 46973, 47775, 47271, 48295, 47198, 46734, 50957, 48196, 46900, 45073, 60842, 52563, 52666, 52674, 50089, 48270, 46904, 46782, 45712, 45701, 45795, 45185, 44679, 44732, 45958, 47053, 47210, 48168, 48721, 49037, 52354, 53496, 54911, 57164, 57130, 56410, 57001, 57212, 57028, 57032, 57187, 57181, 57196, 57065, 56794, 55619, 54691, 54448, 53711, 53037, 52024, 51983, 52661, 50864, 50550, 50624, 49879, 51547, 50435], "shortBalance": [1026, 1008, 978, 830, 952, 887, 878, 1292, 848, 826, 871, 852, 943, 990, 1308, 1205, 1275, 1093, 881, 865, 753, 722, 659, 582, 620, 606, 742, 594, 562, 474, 365, 324, 161, 20, 0, 0, 0, 24, 40, 106, 56, 54, 123, 100, 153, 207, 212, 244, 157, 274, 308, 368, 345, 281, 230, 290, 282, 322, 342, 308, 556, 669, 642]}, "2330": {"name": "台積電", "dates": ["2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05", "2026-06-08", "2026-06-09", "2026-06-10", "2026-06-11", "2026-06-12", "2026-06-15", "2026-06-16", "2026-06-17", "2026-06-18", "2026-06-22", "2026-06-23", "2026-06-24", "2026-06-25", "2026-06-26", "2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09", "2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17", "2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07"], "open": [2265.0, 2235.0, 2205.0, 2250.0, 2310.0, 2225.0, 2220.0, 2205.0, 2240.0, 2245.0, 2275.0, 2320.0, 2310.0, 2350.0, 2340.0, 2355.0, 2390.0, 2425.0, 2385.0, 2395.0, 2230.0, 2305.0, 2285.0, 2240.0, 2325.0, 2360.0, 2375.0, 2355.0, 2395.0, 2455.0, 2510.0, 2435.0, 2410.0, 2360.0, 2330.0, 2440.0, 2495.0, 2450.0, 2415.0, 2465.0, 2480.0, 2445.0, 2450.0, 2460.0, 2410.0, 2425.0, 2430.0, 2375.0, 2300.0, 2350.0, 2440.0, 2385.0, 2355.0, 2330.0, 2270.0, 2260.0, 2205.0, 2350.0, 2390.0, 2335.0, 2385.0, 2395.0, 2390.0], "high": [2275.0, 2280.0, 2240.0, 2270.0, 2325.0, 2260.0, 2230.0, 2210.0, 2255.0, 2260.0, 2310.0, 2325.0, 2330.0, 2360.0, 2375.0, 2415.0, 2400.0, 2440.0, 2415.0, 2405.0, 2320.0, 2320.0, 2300.0, 2260.0, 2325.0, 2375.0, 2400.0, 2385.0, 2415.0, 2510.0, 2535.0, 2445.0, 2420.0, 2370.0, 2395.0, 2475.0, 2505.0, 2480.0, 2465.0, 2500.0, 2500.0, 2465.0, 2460.0, 2480.0, 2430.0, 2460.0, 2470.0, 2395.0, 2345.0, 2410.0, 2445.0, 2405.0, 2365.0, 2365.0, 2305.0, 2280.0, 2260.0, 2425.0, 2395.0, 2360.0, 2415.0, 2395.0, 2395.0], "low": [2235.0, 2210.0, 2205.0, 2230.0, 2250.0, 2215.0, 2205.0, 2185.0, 2230.0, 2225.0, 2275.0, 2270.0, 2290.0, 2270.0, 2330.0, 2350.0, 2360.0, 2410.0, 2385.0, 2350.0, 2230.0, 2295.0, 2255.0, 2210.0, 2290.0, 2345.0, 2350.0, 2350.0, 2385.0, 2455.0, 2490.0, 2390.0, 2390.0, 2325.0, 2330.0, 2410.0, 2475.0, 2445.0, 2415.0, 2455.0, 2440.0, 2420.0, 2415.0, 2440.0, 2390.0, 2415.0, 2420.0, 2290.0, 2300.0, 2345.0, 2385.0, 2370.0, 2345.0, 2330.0, 2270.0, 2180.0, 2190.0, 2345.0, 2365.0, 2310.0, 2370.0, 2360.0, 2355.0], "close": [2235.0, 2255.0, 2220.0, 2270.0, 2265.0, 2240.0, 2205.0, 2185.0, 2230.0, 2255.0, 2310.0, 2270.0, 2300.0, 2295.0, 2355.0, 2355.0, 2380.0, 2425.0, 2385.0, 2365.0, 2295.0, 2305.0, 2255.0, 2250.0, 2310.0, 2375.0, 2400.0, 2385.0, 2410.0, 2510.0, 2490.0, 2390.0, 2390.0, 2340.0, 2370.0, 2410.0, 2505.0, 2465.0, 2445.0, 2460.0, 2440.0, 2465.0, 2415.0, 2440.0, 2420.0, 2440.0, 2470.0, 2290.0, 2320.0, 2410.0, 2400.0, 2405.0, 2350.0, 2350.0, 2280.0, 2200.0, 2205.0, 2425.0, 2370.0, 2320.0, 2405.0, 2365.0, 2370.0], "volume": [46173, 54240, 43728, 39565, 34361, 32967, 45586, 38333, 24929, 26823, 28251, 32781, 40272, 42313, 104784, 60943, 41533, 29220, 32543, 43404, 52274, 38848, 54194, 46418, 26307, 30229, 37146, 30059, 49983, 45208, 39538, 67304, 41100, 53800, 38134, 49540, 37544, 35919, 32906, 21042, 31401, 25520, 34681, 35310, 42857, 33666, 30539, 97363, 55790, 31606, 31653, 28001, 24811, 28939, 45333, 68140, 51372, 69478, 35210, 41021, 36782, 25537, 24414], "foreign": [-17754, -9238, -11971, 600, -3399, -9522, -17247, -11032, 1014, 732, 4045, -7749, 8810, -7079, 13284, -3312, 391, -104, -11257, -17840, -20465, -15009, -15543, -4905, 3927, 9646, -383, -6877, 7515, 14361, -2727, -38451, -6104, -14282, -1913, -1426, 7399, -12254, -12537, -242, 83, -4156, -12749, -2045, -12417, -3428, -4215, -44184, -1673, 4975, -3539, -4615, -9637, -2662, -14660, -11211, -3958, 13780, -9717, -12430, 12251, -4012, 641], "trust": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "dealer": [-54, 8879, 5473, 5856, 3385, 6429, 4144, 2188, 167, -465, 4128, -598, 1, 465, 349, 458, -68, 647, 537, 2900, 730, 2660, -4, 612, -150, 85, 3848, -318, -7269, -202, 165, 657, 179, 734, 919, -90, 4742, 1025, 820, 379, 538, 729, 43, 530, 1841, -597, 528, 1488, 1048, 973, 1562, -944, 549, 566, 284, 1652, 939, 7063, 387, 433, -1205, -83, 61], "total": [-8, 424, -589, -1289, -21, 520, 199, -712, 423, 187, 97, 97, 371, 466, 420, 922, 461, 226, 1099, 516, -215, -1254, -731, 2909, -181, 107, -158, 895, 36, 1145, 1192, 1078, -311, 1009, 996, 652, -387, 216, 652, 119, -238, 468, 89, 622, 2569, 455, 1061, 2759, 4625, 213, -1060, 38, 305, 1410, 5123, 4893, 1637, 2724, -1588, -2327, -1100, -584, 1242], "amount": [-1788.0, 95612.0, -130758.0, -292603.0, -4756.5, 116480.0, 43879.5, -155572.0, 94329.0, 42168.5, 22407.0, 22019.0, 85330.0, 106947.0, 98910.0, 217131.0, 109718.0, 54805.0, 262111.5, 122034.0, -49342.5, -289047.0, -164840.5, 654525.0, -41811.0, 25412.5, -37920.0, 213457.5, 8676.0, 287395.0, 296808.0, 257642.0, -74329.0, 236106.0, 236052.0, 157132.0, -96943.5, 53244.0, 159414.0, 29274.0, -58072.0, 115362.0, 21493.5, 151768.0, 621698.0, 111020.0, 262067.0, 631811.0, 1073000.0, 51333.0, -254400.0, 9139.0, 71675.0, 331350.0, 1168044.0, 1076460.0, 360958.5, 660570.0, -376356.0, -539864.0, -264550.0, -138116.0, 294354.0], "marginBalance": [27402, 27075, 27625, 26547, 26173, 26571, 26887, 27034, 26952, 26946, 26172, 27039, 26574, 28245, 28164, 29079, 29135, 28310, 28388, 27964, 27603, 28350, 28168, 27470, 27421, 27593, 27470, 28080, 28033, 28223, 28039, 31148, 31896, 31215, 31486, 33305, 32433, 33513, 34509, 34111, 32542, 32283, 33061, 32875, 33187, 33293, 32918, 33373, 32548, 31823, 31928, 31932, 31915, 31906, 31527, 30832, 30664, 29289, 30003, 30765, 29226, 29949, 29657], "shortBalance": [103, 125, 110, 117, 119, 116, 108, 89, 100, 97, 95, 92, 101, 133, 106, 99, 91, 104, 86, 1, 0, 0, 0, 11, 13, 21, 61, 56, 58, 84, 84, 45, 46, 43, 21, 22, 67, 63, 31, 61, 89, 85, 71, 48, 60, 19, 38, 81, 123, 98, 99, 82, 67, 64, 113, 230, 130, 124, 101, 47, 62, 38, 33]}}}</script>
+<script>
+(function () {
+  "use strict";
+  var PAYLOAD = JSON.parse(document.getElementById("chart-data").textContent);
+  var DATA = PAYLOAD.stocks;
+  var STOCK_ORDER = PAYLOAD.order;
+  var svgNS = "http://www.w3.org/2000/svg";
+
+  // Theme Manager
+  var themeBtn = document.getElementById("theme-toggle");
+  function setTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+    themeBtn.textContent = t === "dark" ? "🌙" : "☀️";
+    try { localStorage.setItem("dashboard_theme", t); } catch (e) {}
+  }
+  var savedTheme = null;
+  try { savedTheme = localStorage.getItem("dashboard_theme"); } catch (e) {}
+  if (!savedTheme) {
+    savedTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  setTheme(savedTheme);
+  themeBtn.addEventListener("click", function () {
+    var current = document.documentElement.getAttribute("data-theme");
+    setTheme(current === "dark" ? "light" : "dark");
+  });
+
+  // Number Formatters
+  function formatSigned(v) {
+    if (!isValidNum(v)) return "—";
+    var n = Math.round(v);
+    return (n > 0 ? "+" : "") + n.toLocaleString("en-US");
+  }
+  function formatPlain(v) {
+    if (!isValidNum(v)) return "—";
+    return Math.round(v).toLocaleString("en-US");
+  }
+  function formatPrice(v) {
+    if (!isValidNum(v)) return "—";
+    return Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function formatPercent(v) {
+    if (!isValidNum(v)) return "—";
+    return v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%";
+  }
+
+  var TIMEFRAMES = {
+    day:   { unit: "日", dateHeader: "日期",  maxXLabels: 8 },
+    week:  { unit: "週", dateHeader: "週別",  maxXLabels: 10 },
+    month: { unit: "月", dateHeader: "月份",  maxXLabels: 12 }
+  };
+  var SUM_FIELDS = ["foreign", "trust", "dealer", "total", "amount", "volume"];
+  var END_FIELDS = ["close", "marginBalance", "shortBalance"];
+  var START_FIELDS = ["open"];
+  var MAX_FIELDS = ["high"];
+  var MIN_FIELDS = ["low"];
+
+  function num(v) { return typeof v === "number" && isFinite(v) ? v : 0; }
+  function isValidNum(v) { return typeof v === "number" && isFinite(v); }
+
+  function periodKey(dateStr, tf) {
+    if (tf === "month") return dateStr.slice(0, 7);
+    if (tf !== "week") return dateStr;
+    var p = dateStr.split("-");
+    var d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2]));
+    var dow = d.getUTCDay();
+    d.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+    return d.toISOString().slice(0, 10);
+  }
+
+  function mmdd(dateStr) { return dateStr.slice(5).replace("-", "/"); }
+
+  function aggregateStock(stock, tf) {
+    var dates = stock.dates;
+    var agg = { keys: [], axisLabels: [], pointLabels: [], subLabels: [], days: [], first: [], last: [] };
+    SUM_FIELDS.forEach(function (f) { agg[f] = []; });
+    END_FIELDS.forEach(function (f) { agg[f] = []; });
+    START_FIELDS.forEach(function (f) { agg[f] = []; });
+    MAX_FIELDS.forEach(function (f) { agg[f] = []; });
+    MIN_FIELDS.forEach(function (f) { agg[f] = []; });
+
+    var lastKey = null;
+    for (var i = 0; i < dates.length; i++) {
+      var key = periodKey(dates[i], tf);
+      if (key !== lastKey) {
+        lastKey = key;
+        agg.keys.push(key);
+        agg.days.push(0);
+        agg.first.push(dates[i]);
+        agg.last.push(dates[i]);
+        SUM_FIELDS.forEach(function (f) { agg[f].push(0); });
+        END_FIELDS.forEach(function (f) { agg[f].push(num(stock[f][i])); });
+        START_FIELDS.forEach(function (f) { agg[f].push(num(stock[f][i])); });
+        MAX_FIELDS.forEach(function (f) { agg[f].push(num(stock[f][i])); });
+        MIN_FIELDS.forEach(function (f) { var v = num(stock[f][i]); agg[f].push(v > 0 ? v : Infinity); });
+      }
+      var j = agg.keys.length - 1;
+      SUM_FIELDS.forEach(function (f) { agg[f][j] += num(stock[f][i]); });
+      END_FIELDS.forEach(function (f) { if (num(stock[f][i])) agg[f][j] = num(stock[f][i]); });
+      START_FIELDS.forEach(function (f) { if (!agg[f][j] && num(stock[f][i])) agg[f][j] = num(stock[f][i]); });
+      MAX_FIELDS.forEach(function (f) { agg[f][j] = Math.max(agg[f][j], num(stock[f][i])); });
+      MIN_FIELDS.forEach(function (f) { var v = num(stock[f][i]); if (v > 0) agg[f][j] = Math.min(agg[f][j], v); });
+      agg.last[j] = dates[i];
+      agg.days[j] += 1;
+    }
+
+    MIN_FIELDS.forEach(function (f) {
+      for (var k = 0; k < agg[f].length; k++) { if (!isFinite(agg[f][k])) agg[f][k] = 0; }
+    });
+
+    agg.shortToMarginRatio = agg.marginBalance.map(function (m, idx) {
+      return m > 0 ? (agg.shortBalance[idx] / m * 100) : null;
+    });
+
+    // MA5 / MA20
+    agg.ma5 = [];
+    agg.ma20 = [];
+    for (var m = 0; m < agg.close.length; m++) {
+      if (m >= 4) {
+        var sum5 = 0; for (var a = m - 4; a <= m; a++) sum5 += agg.close[a];
+        agg.ma5.push(sum5 / 5);
+      } else { agg.ma5.push(null); }
+      if (m >= 19) {
+        var sum20 = 0; for (var b = m - 19; b <= m; b++) sum20 += agg.close[b];
+        agg.ma20.push(sum20 / 20);
+      } else { agg.ma20.push(null); }
+    }
+
+    for (var k = 0; k < agg.keys.length; k++) {
+      if (tf === "day") {
+        agg.axisLabels.push(mmdd(agg.keys[k]));
+        agg.pointLabels.push(agg.keys[k]);
+        agg.subLabels.push(null);
+      } else if (tf === "week") {
+        agg.axisLabels.push(mmdd(agg.first[k]));
+        agg.pointLabels.push(mmdd(agg.first[k]) + " ~ " + mmdd(agg.last[k]));
+        agg.subLabels.push(agg.first[k].slice(0, 4) + " 年・" + agg.days[k] + " 個交易日");
+      } else {
+        agg.axisLabels.push(agg.keys[k]);
+        agg.pointLabels.push(agg.keys[k]);
+        agg.subLabels.push(mmdd(agg.first[k]) + " ~ " + mmdd(agg.last[k]) + "・" + agg.days[k] + " 個交易日");
+      }
+    }
+    return agg;
+  }
+
+  // Nice scale generator
+  function niceNum(range, round) {
+    if (range === 0) return 1;
+    var exponent = Math.floor(Math.log10(range));
+    var fraction = range / Math.pow(10, exponent);
+    var niceFraction;
+    if (round) {
+      if (fraction < 1.5) niceFraction = 1;
+      else if (fraction < 3) niceFraction = 2;
+      else if (fraction < 7) niceFraction = 5;
+      else niceFraction = 10;
+    } else {
+      if (fraction <= 1) niceFraction = 1;
+      else if (fraction <= 2) niceFraction = 2;
+      else if (fraction <= 5) niceFraction = 5;
+      else niceFraction = 10;
+    }
+    return niceFraction * Math.pow(10, exponent);
+  }
+  function niceScale(dataMin, dataMax, maxTicks) {
+    var min = dataMin, max = dataMax;
+    if (min === max) { min -= 1; max += 1; }
+    var range = niceNum(max - min, false);
+    var step = niceNum(range / (maxTicks - 1), true);
+    var niceMin = Math.floor(min / step) * step;
+    var niceMax = Math.ceil(max / step) * step;
+    var ticks = [];
+    for (var v = niceMin; v <= niceMax + step / 1000; v += step) ticks.push(Math.round(v * 1000) / 1000);
+    return { min: niceMin, max: niceMax, step: step, ticks: ticks };
+  }
+
+  function el(tag, attrs) {
+    var e = document.createElementNS(svgNS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  // ---------- KPI Summary Header Stats ----------
+  function renderKPIStats(stockId, stock, agg) {
+    var kpiWrap = document.getElementById("kpi-summary-container");
+    while (kpiWrap.firstChild) kpiWrap.removeChild(kpiWrap.firstChild);
+    if (!agg || agg.keys.length === 0) return;
+
+    var idx = agg.keys.length - 1;
+    var prevIdx = idx > 0 ? idx - 1 : idx;
+
+    var latestClose = agg.close[idx];
+    var prevClose = agg.close[prevIdx];
+    var diff = latestClose - prevClose;
+    var pct = prevClose ? (diff / prevClose * 100) : 0;
+
+    var cards = [
+      {
+        title: stockId + " " + stock.name,
+        val: formatPrice(latestClose),
+        sub: idx > 0 ? (
+          '<span class="' + (diff >= 0 ? "badge-up" : "badge-down") + '">' +
+          (diff >= 0 ? "▲ +" : "▼ ") + diff.toFixed(2) + " (" + (diff >= 0 ? "+" : "") + pct.toFixed(2) + "%)</span>"
+        ) : '<span style="color:var(--text-muted)">最新收盤價</span>'
+      },
+      {
+        title: "外資買賣超",
+        val: formatSigned(agg.foreign[idx]) + " 張",
+        sub: '<span style="color:var(--text-muted)">期末累積/流量</span>'
+      },
+      {
+        title: "投信買賣超",
+        val: formatSigned(agg.trust[idx]) + " 張",
+        sub: '<span style="color:var(--text-muted)">期末累積/流量</span>'
+      },
+      {
+        title: "自營商買賣超",
+        val: formatSigned(agg.dealer[idx]) + " 張",
+        sub: '<span style="color:var(--text-muted)">期末累積/流量</span>'
+      },
+      {
+        title: "三大法人合計",
+        val: formatSigned(agg.total[idx]) + " 張",
+        sub: '<span style="color:var(--text-muted)">合計買賣超</span>'
+      },
+      {
+        title: "融資餘額 / 券資比",
+        val: formatPlain(agg.marginBalance[idx]) + " 張",
+        sub: '<span style="color:var(--text-muted)">券資比 ' + formatPercent(agg.shortToMarginRatio[idx]) + '</span>'
+      }
+    ];
+
+    cards.forEach(function (c) {
+      var card = document.createElement("div");
+      card.className = "kpi-card";
+      card.innerHTML = '<div class="kpi-title">' + c.title + '</div>' +
+                       '<div class="kpi-value">' + c.val + '</div>' +
+                       '<div class="kpi-sub">' + c.sub + '</div>';
+      kpiWrap.appendChild(card);
+    });
+  }
+
+  // ---------- Mini Sparkline Renderers ----------
+  function renderMiniSparkline(container, chartType, agg, customHeight) {
+    var width = 360, height = customHeight || 150;
+    var margin = { top: 8, right: 8, bottom: 16, left: 32 };
+    var plotW = width - margin.left - margin.right;
+    var plotH = height - margin.top - margin.bottom;
+    var n = agg.axisLabels.length;
+    if (n === 0) return;
+
+    function xAt(i) { return n <= 1 ? margin.left + plotW / 2 : margin.left + (i / (n - 1)) * plotW; }
+
+    var svg = el("svg", { "class": "chart-svg", viewBox: "0 0 " + width + " " + height });
+
+    if (chartType === "flow") {
+      var allVals = [0];
+      for (var v = 0; v < n; v++) allVals.push(agg.foreign[v], agg.trust[v], agg.dealer[v], agg.total[v]);
+      var scale = niceScale(Math.min.apply(null, allVals), Math.max.apply(null, allVals), 4);
+      function yAt(val) { return margin.top + plotH - ((val - scale.min) / (scale.max - scale.min)) * plotH; }
+
+      scale.ticks.forEach(function (t) {
+        var y = yAt(t);
+        svg.appendChild(el("line", { "class": t === 0 ? "baseline" : "gridline", x1: margin.left, x2: width - margin.right, y1: y, y2: y }));
+      });
+
+      var slot = n > 1 ? plotW / (n - 1) : plotW;
+      var barW = Math.max(1, Math.min(slot * 0.25, 4));
+      var yZero = yAt(0);
+
+      for (var bi = 0; bi < n; bi++) {
+        var cx = xAt(bi);
+        if (agg.foreign[bi] !== 0) {
+          var fY = yAt(Math.max(0, agg.foreign[bi]));
+          var fH = Math.max(1, Math.abs(yAt(agg.foreign[bi]) - yZero));
+          svg.appendChild(el("rect", { x: cx - barW * 1.5, y: fY, width: barW, height: fH, fill: "var(--series-1)" }));
+        }
+        if (agg.trust[bi] !== 0) {
+          var tY = yAt(Math.max(0, agg.trust[bi]));
+          var tH = Math.max(1, Math.abs(yAt(agg.trust[bi]) - yZero));
+          svg.appendChild(el("rect", { x: cx - barW * 0.5, y: tY, width: barW, height: tH, fill: "var(--series-2)" }));
+        }
+        if (agg.dealer[bi] !== 0) {
+          var dY = yAt(Math.max(0, agg.dealer[bi]));
+          var dH = Math.max(1, Math.abs(yAt(agg.dealer[bi]) - yZero));
+          svg.appendChild(el("rect", { x: cx + barW * 0.5, y: dY, width: barW, height: dH, fill: "var(--series-3)" }));
+        }
+      }
+      var dPath = "";
+      agg.total.forEach(function (tv, idx) { dPath += (idx === 0 ? "M" : "L") + xAt(idx).toFixed(2) + " " + yAt(tv).toFixed(2) + " "; });
+      svg.appendChild(el("path", { d: dPath, fill: "none", stroke: "var(--series-4)", "stroke-width": 2 }));
+
+    } else if (chartType === "kline" || chartType === "price_line") {
+      var pVals = [];
+      for (var ki = 0; ki < n; ki++) { if (agg.high[ki] > 0) pVals.push(agg.high[ki], agg.low[ki]); }
+      if (pVals.length === 0) pVals.push(0, 1);
+      var scaleK = niceScale(Math.min.apply(null, pVals), Math.max.apply(null, pVals), 4);
+      function yK(val) { return margin.top + plotH - ((val - scaleK.min) / (scaleK.max - scaleK.min)) * plotH; }
+
+      if (chartType === "price_line") {
+        var dP = "";
+        agg.close.forEach(function (cv, idx) {
+          if (isValidNum(cv) && cv > 0) dP += (dP === "" ? "M" : "L") + xAt(idx).toFixed(2) + " " + yK(cv).toFixed(2) + " ";
+        });
+        svg.appendChild(el("path", { d: dP, fill: "none", stroke: "var(--series-1)", "stroke-width": 2.2 }));
+      } else {
+        scaleK.ticks.forEach(function (t) {
+          var y = yK(t);
+          svg.appendChild(el("line", { "class": "gridline", x1: margin.left, x2: width - margin.right, y1: y, y2: y }));
+        });
+
+        var candleW = Math.max(1, Math.min((plotW / (n > 1 ? n - 1 : 1)) * 0.6, 6));
+        for (var ci = 0; ci < n; ci++) {
+          if (!(agg.high[ci] > 0)) continue;
+          var cxK = xAt(ci);
+          var isUp = agg.close[ci] >= agg.open[ci];
+          var cColor = isUp ? "--candle-up" : "--candle-down";
+          svg.appendChild(el("line", { x1: cxK, x2: cxK, y1: yK(agg.high[ci]), y2: yK(agg.low[ci]), stroke: "var(" + cColor + ")" }));
+          var bodyTop = yK(Math.max(agg.open[ci], agg.close[ci]));
+          var bodyH = Math.max(1, yK(Math.min(agg.open[ci], agg.close[ci])) - bodyTop);
+          svg.appendChild(el("rect", { x: cxK - candleW / 2, y: bodyTop, width: candleW, height: bodyH, fill: "var(" + cColor + ")" }));
+        }
+      }
+
+    } else {
+      var seriesData = [];
+      if (chartType === "amount") seriesData = agg.amount;
+      else if (chartType === "margin") seriesData = agg.marginBalance;
+      else if (chartType === "short") seriesData = agg.shortBalance;
+      else if (chartType === "ratio") seriesData = agg.shortToMarginRatio;
+
+      var validVals = [];
+      seriesData.forEach(function (v) { if (isValidNum(v)) validVals.push(v); });
+      if (chartType === "amount" || chartType === "ratio") validVals.push(0);
+      if (validVals.length === 0) validVals.push(0, 1);
+
+      var scaleL = niceScale(Math.min.apply(null, validVals), Math.max.apply(null, validVals), 4);
+      function yL(val) { return margin.top + plotH - ((val - scaleL.min) / (scaleL.max - scaleL.min)) * plotH; }
+
+      scaleL.ticks.forEach(function (t) {
+        var y = yL(t);
+        svg.appendChild(el("line", { "class": (t === 0 && (chartType === "amount" || chartType === "ratio")) ? "baseline" : "gridline", x1: margin.left, x2: width - margin.right, y1: y, y2: y }));
+      });
+
+      var lineD = "", areaD = "";
+      var drawing = false, lastX = 0;
+      var zeroY = yL(chartType === "amount" || chartType === "ratio" ? 0 : scaleL.min);
+
+      seriesData.forEach(function (v, idx) {
+        if (!isValidNum(v)) { drawing = false; return; }
+        var x = xAt(idx), y = yL(v);
+        if (!drawing) {
+          lineD += "M" + x.toFixed(2) + " " + y.toFixed(2) + " ";
+          areaD += "M" + x.toFixed(2) + " " + zeroY.toFixed(2) + " L" + x.toFixed(2) + " " + y.toFixed(2) + " ";
+          drawing = true;
+        } else {
+          lineD += "L" + x.toFixed(2) + " " + y.toFixed(2) + " ";
+          areaD += "L" + x.toFixed(2) + " " + y.toFixed(2) + " ";
+        }
+        lastX = x;
+      });
+
+      if (drawing) {
+        areaD += "L" + lastX.toFixed(2) + " " + zeroY.toFixed(2) + " Z";
+        svg.appendChild(el("path", { d: areaD, fill: "rgba(59, 130, 246, 0.15)" }));
+        svg.appendChild(el("path", { d: lineD, fill: "none", stroke: "var(--series-1)", "stroke-width": 2 }));
+      }
+    }
+
+    container.appendChild(svg);
+  }
+
+  // ---------- Full Detail Chart Renderers ----------
+  function renderInstitutionalChart(container, opts) {
+    var width = 880, height = opts.height || 340;
+    var margin = { top: 20, right: 24, bottom: 30, left: 68 };
+    var plotW = width - margin.left - margin.right;
+    var plotH = height - margin.top - margin.bottom;
+
+    var axisLabels = opts.axisLabels;
+    var n = axisLabels.length;
+    if (n === 0) return;
+
+    var foreign = opts.foreign, trust = opts.trust, dealer = opts.dealer, total = opts.total;
+    var allVals = [0];
+    for (var v = 0; v < n; v++) allVals.push(foreign[v], trust[v], dealer[v], total[v]);
+    var scale = niceScale(Math.min.apply(null, allVals), Math.max.apply(null, allVals), 5);
+
+    function xAt(i) { return n <= 1 ? margin.left + plotW / 2 : margin.left + (i / (n - 1)) * plotW; }
+    function yAt(v) { return margin.top + plotH - ((v - scale.min) / (scale.max - scale.min)) * plotH; }
+
+    var svg = el("svg", { "class": "chart-svg", viewBox: "0 0 " + width + " " + height });
+
+    scale.ticks.forEach(function (t) {
+      var y = yAt(t);
+      svg.appendChild(el("line", { "class": t === 0 ? "baseline" : "gridline", x1: margin.left, x2: width - margin.right, y1: y, y2: y }));
+      var label = el("text", { "class": "axis-label", x: margin.left - 8, y: y + 4, "text-anchor": "end" });
+      label.textContent = formatSigned(t);
+      svg.appendChild(label);
+    });
+
+    var maxXLabels = opts.maxXLabels || 8;
+    var xStep = Math.max(1, Math.ceil(n / maxXLabels));
+    for (var i = 0; i < n; i += xStep) {
+      var lbl = el("text", { "class": "axis-label", x: xAt(i), y: height - margin.bottom + 18, "text-anchor": "middle" });
+      lbl.textContent = axisLabels[i];
+      svg.appendChild(lbl);
+    }
+
+    var slot = n > 1 ? plotW / (n - 1) : plotW;
+    var barW = Math.max(1, Math.min(slot * 0.22, 8));
+    var yZero = yAt(0);
+
+    for (var bi = 0; bi < n; bi++) {
+      var cx = xAt(bi);
+      if (foreign[bi] !== 0) {
+        var fY = yAt(Math.max(0, foreign[bi]));
+        var fH = Math.max(1, Math.abs(yAt(foreign[bi]) - yZero));
+        svg.appendChild(el("rect", { x: cx - barW * 1.5, y: fY, width: barW, height: fH, fill: "var(--series-1)", rx: 1 }));
+      }
+      if (trust[bi] !== 0) {
+        var tY = yAt(Math.max(0, trust[bi]));
+        var tH = Math.max(1, Math.abs(yAt(trust[bi]) - yZero));
+        svg.appendChild(el("rect", { x: cx - barW * 0.5, y: tY, width: barW, height: tH, fill: "var(--series-2)", rx: 1 }));
+      }
+      if (dealer[bi] !== 0) {
+        var dY = yAt(Math.max(0, dealer[bi]));
+        var dH = Math.max(1, Math.abs(yAt(dealer[bi]) - yZero));
+        svg.appendChild(el("rect", { x: cx + barW * 0.5, y: dY, width: barW, height: dH, fill: "var(--series-3)", rx: 1 }));
+      }
+    }
+
+    var dPath = "";
+    total.forEach(function (tv, idx) {
+      var x = xAt(idx), y = yAt(tv);
+      dPath += (idx === 0 ? "M" : "L") + x.toFixed(2) + " " + y.toFixed(2) + " ";
+    });
+    svg.appendChild(el("path", { d: dPath, fill: "none", stroke: "var(--series-4)", "stroke-width": 2.5, "stroke-linejoin": "round" }));
+
+    var crosshair = el("line", { "class": "crosshair", x1: margin.left, x2: margin.left, y1: margin.top, y2: height - margin.bottom });
+    svg.appendChild(crosshair);
+    var hit = el("rect", { "class": "hit-rect", x: margin.left, y: margin.top, width: plotW, height: plotH, tabindex: "0" });
+    svg.appendChild(hit);
+    container.appendChild(svg);
+
+    var tooltip = document.createElement("div");
+    tooltip.className = "tooltip";
+    container.appendChild(tooltip);
+
+    function showTooltip(idx) {
+      crosshair.setAttribute("x1", xAt(idx)); crosshair.setAttribute("x2", xAt(idx)); crosshair.style.opacity = 1;
+      while (tooltip.firstChild) tooltip.removeChild(tooltip.firstChild);
+
+      var d = document.createElement("div"); d.className = "tooltip-date"; d.textContent = opts.pointLabels[idx]; tooltip.appendChild(d);
+      if (opts.subLabels && opts.subLabels[idx]) {
+        var sub = document.createElement("div"); sub.className = "tooltip-sub"; sub.textContent = opts.subLabels[idx]; tooltip.appendChild(sub);
+      }
+
+      var seriesInfo = [
+        { label: "外資", color: "--series-1", val: foreign[idx] },
+        { label: "投信", color: "--series-2", val: trust[idx] },
+        { label: "自營商", color: "--series-3", val: dealer[idx] },
+        { label: "合計", color: "--series-4", val: total[idx] }
+      ];
+      seriesInfo.forEach(function (s) {
+        var r = document.createElement("div"); r.className = "tooltip-row";
+        r.innerHTML = '<span class="tooltip-key" style="background:var(' + s.color + ')"></span>' +
+                      '<span class="tooltip-name">' + s.label + '</span>' +
+                      '<span class="tooltip-value">' + formatSigned(s.val) + ' 張</span>';
+        tooltip.appendChild(r);
+      });
+
+      var svgRect = svg.getBoundingClientRect();
+      var wrapRect = container.getBoundingClientRect();
+      var scaleX = svgRect.width / width;
+      var posX = (svgRect.left - wrapRect.left) + xAt(idx) * scaleX;
+      var posY = (svgRect.top - wrapRect.top) + margin.top * scaleX;
+
+      tooltip.style.left = posX + "px"; tooltip.style.top = posY + "px"; tooltip.style.opacity = 1;
+    }
+
+    function hideTooltip() { tooltip.style.opacity = 0; crosshair.style.opacity = 0; }
+    function ptToIdx(evt) {
+      var rect = svg.getBoundingClientRect();
+      var rx = ((evt.clientX - rect.left) / rect.width) * width;
+      var i = Math.round(((rx - margin.left) / plotW) * (n - 1));
+      return Math.min(n - 1, Math.max(0, i));
+    }
+
+    hit.addEventListener("pointermove", function (e) { showTooltip(ptToIdx(e)); });
+    hit.addEventListener("pointerleave", hideTooltip);
+  }
+
+  function renderCandlestickChart(container, opts) {
+    var width = 880, height = opts.height || 380;
+    var margin = { top: 20, right: 24, bottom: 30, left: 68 };
+    var plotW = width - margin.left - margin.right;
+    var priceH = 220; var volH = 80; var volTop = margin.top + priceH + 20;
+
+    var axisLabels = opts.axisLabels;
+    var n = axisLabels.length;
+    if (n === 0) return;
+
+    var open = opts.open, high = opts.high, low = opts.low, close = opts.close, volume = opts.volume;
+    var ma5 = opts.ma5, ma20 = opts.ma20;
+
+    var priceVals = [], volVals = [0];
+    var maxHiIdx = 0, minLoIdx = 0, maxHi = -Infinity, minLo = Infinity;
+
+    for (var i = 0; i < n; i++) {
+      if (high[i] > 0 && low[i] > 0) {
+        priceVals.push(high[i], low[i]);
+        if (high[i] > maxHi) { maxHi = high[i]; maxHiIdx = i; }
+        if (low[i] < minLo) { minLo = low[i]; minLoIdx = i; }
+      }
+      if (volume && volume[i] > 0) volVals.push(volume[i]);
+    }
+    if (priceVals.length === 0) priceVals.push(0, 1);
+
+    var priceScale = niceScale(Math.min.apply(null, priceVals), Math.max.apply(null, priceVals), 5);
+    var volMax = Math.max.apply(null, volVals) || 1;
+
+    function xAt(i) { return n <= 1 ? margin.left + plotW / 2 : margin.left + (i / (n - 1)) * plotW; }
+    function yPriceAt(v) { return margin.top + priceH - ((v - priceScale.min) / (priceScale.max - priceScale.min)) * priceH; }
+    function yVolAt(v) { return volTop + volH - (v / volMax) * volH; }
+
+    var svg = el("svg", { "class": "chart-svg", viewBox: "0 0 " + width + " " + height });
+
+    priceScale.ticks.forEach(function (t) {
+      var y = yPriceAt(t);
+      svg.appendChild(el("line", { "class": "gridline", x1: margin.left, x2: width - margin.right, y1: y, y2: y }));
+      var label = el("text", { "class": "axis-label", x: margin.left - 8, y: y + 4, "text-anchor": "end" });
+      label.textContent = formatPrice(t);
+      svg.appendChild(label);
+    });
+
+    svg.appendChild(el("line", { "class": "gridline", x1: margin.left, x2: width - margin.right, y1: volTop, y2: volTop }));
+    var volLbl = el("text", { "class": "axis-label", x: margin.left - 8, y: volTop + 12, "text-anchor": "end" });
+    volLbl.textContent = "成交(張)"; svg.appendChild(volLbl);
+
+    var maxXLabels = opts.maxXLabels || 8;
+    var xStep = Math.max(1, Math.ceil(n / maxXLabels));
+    for (var xi = 0; xi < n; xi += xStep) {
+      var lbl = el("text", { "class": "axis-label", x: xAt(xi), y: height - margin.bottom + 18, "text-anchor": "middle" });
+      lbl.textContent = axisLabels[xi]; svg.appendChild(lbl);
+    }
+
+    var slot = n > 1 ? plotW / (n - 1) : plotW;
+    var candleW = Math.max(1.5, Math.min(slot * 0.6, 12));
+
+    for (var ci = 0; ci < n; ci++) {
+      var o = open[ci], h = high[ci], l = low[ci], c = close[ci], v = volume ? volume[ci] : 0;
+      if (!(h > 0 && l > 0)) continue;
+      var cx = xAt(ci); var isUp = c >= o; var colorVar = isUp ? "--candle-up" : "--candle-down";
+
+      svg.appendChild(el("line", { x1: cx, x2: cx, y1: yPriceAt(h), y2: yPriceAt(l), "stroke-width": 1, stroke: "var(" + colorVar + ")" }));
+      var bodyTop = yPriceAt(Math.max(o, c));
+      var bodyH = Math.max(1, yPriceAt(Math.min(o, c)) - bodyTop);
+      svg.appendChild(el("rect", { x: cx - candleW / 2, y: bodyTop, width: candleW, height: bodyH, fill: "var(" + colorVar + ")" }));
+
+      if (v > 0) {
+        var vY = yVolAt(v); var vH = Math.max(1, volTop + volH - vY);
+        svg.appendChild(el("rect", { x: cx - candleW / 2, y: vY, width: candleW, height: vH, fill: "var(" + colorVar + ")", opacity: 0.65 }));
+      }
+    }
+
+    function drawMA(maArr, colorVar) {
+      var p = "";
+      maArr.forEach(function (mv, idx) {
+        if (isValidNum(mv)) p += (p === "" ? "M" : "L") + xAt(idx).toFixed(2) + " " + yPriceAt(mv).toFixed(2) + " ";
+      });
+      if (p !== "") svg.appendChild(el("path", { d: p, fill: "none", stroke: "var(" + colorVar + ")", "stroke-width": 1.5 }));
+    }
+    if (ma5) drawMA(ma5, "--ma5-color");
+    if (ma20) drawMA(ma20, "--ma20-color");
+
+    if (isFinite(maxHi)) {
+      var hX = xAt(maxHiIdx), hY = yPriceAt(maxHi);
+      var hTxt = el("text", { x: hX, y: hY - 6, "class": "axis-label", "text-anchor": "middle", fill: "var(--candle-up)", "font-weight": "700" });
+      hTxt.textContent = "高 " + formatPrice(maxHi); svg.appendChild(hTxt);
+    }
+    if (isFinite(minLo)) {
+      var lX = xAt(minLoIdx), lY = yPriceAt(minLo);
+      var lTxt = el("text", { x: lX, y: lY + 14, "class": "axis-label", "text-anchor": "middle", fill: "var(--candle-down)", "font-weight": "700" });
+      lTxt.textContent = "低 " + formatPrice(minLo); svg.appendChild(lTxt);
+    }
+
+    var crosshair = el("line", { "class": "crosshair", x1: margin.left, x2: margin.left, y1: margin.top, y2: height - margin.bottom });
+    svg.appendChild(crosshair);
+    var hit = el("rect", { "class": "hit-rect", x: margin.left, y: margin.top, width: plotW, height: height - margin.top - margin.bottom, tabindex: "0" });
+    svg.appendChild(hit);
+    container.appendChild(svg);
+
+    var tooltip = document.createElement("div");
+    tooltip.className = "tooltip";
+    container.appendChild(tooltip);
+
+    function showTooltip(idx) {
+      crosshair.setAttribute("x1", xAt(idx)); crosshair.setAttribute("x2", xAt(idx)); crosshair.style.opacity = 1;
+      while (tooltip.firstChild) tooltip.removeChild(tooltip.firstChild);
+
+      var d = document.createElement("div"); d.className = "tooltip-date"; d.textContent = opts.pointLabels[idx]; tooltip.appendChild(d);
+      if (opts.subLabels && opts.subLabels[idx]) {
+        var sub = document.createElement("div"); sub.className = "tooltip-sub"; sub.textContent = opts.subLabels[idx]; tooltip.appendChild(sub);
+      }
+
+      var isUp = close[idx] >= open[idx];
+      var cColor = isUp ? "--candle-up" : "--candle-down";
+
+      var rows = [
+        ["開盤", formatPrice(open[idx])],
+        ["最高", formatPrice(high[idx])],
+        ["最低", formatPrice(low[idx])],
+        ["收盤", formatPrice(close[idx])],
+        ["成交張數", formatPlain(volume ? volume[idx] : 0) + " 張"]
+      ];
+      if (isValidNum(ma5[idx])) rows.push(["MA5", formatPrice(ma5[idx])]);
+      if (isValidNum(ma20[idx])) rows.push(["MA20", formatPrice(ma20[idx])]);
+
+      rows.forEach(function (r) {
+        var tr = document.createElement("div"); tr.className = "tooltip-row";
+        tr.innerHTML = '<span class="tooltip-key" style="background:var(' + cColor + ')"></span>' +
+                       '<span class="tooltip-name">' + r[0] + '</span>' +
+                       '<span class="tooltip-value">' + r[1] + '</span>';
+        tooltip.appendChild(tr);
+      });
+
+      var svgRect = svg.getBoundingClientRect();
+      var wrapRect = container.getBoundingClientRect();
+      var scaleX = svgRect.width / width;
+      var posX = (svgRect.left - wrapRect.left) + xAt(idx) * scaleX;
+      var posY = (svgRect.top - wrapRect.top) + margin.top * scaleX;
+
+      tooltip.style.left = posX + "px"; tooltip.style.top = posY + "px"; tooltip.style.opacity = 1;
+    }
+
+    function hideTooltip() { tooltip.style.opacity = 0; crosshair.style.opacity = 0; }
+    function ptToIdx(evt) {
+      var rect = svg.getBoundingClientRect();
+      var rx = ((evt.clientX - rect.left) / rect.width) * width;
+      var i = Math.round(((rx - margin.left) / plotW) * (n - 1));
+      return Math.min(n - 1, Math.max(0, i));
+    }
+
+    hit.addEventListener("pointermove", function (e) { showTooltip(ptToIdx(e)); });
+    hit.addEventListener("pointerleave", hideTooltip);
+  }
+
+  function renderLineChart(container, opts) {
+    var width = 880, height = opts.height || 300;
+    var margin = { top: 20, right: 24, bottom: 30, left: 68 };
+    var plotW = width - margin.left - margin.right;
+    var plotH = height - margin.top - margin.bottom;
+
+    var axisLabels = opts.axisLabels;
+    var n = axisLabels.length;
+    if (n === 0) return;
+
+    var allVals = [];
+    opts.series.forEach(function (s) { s.values.forEach(function (v) { if (isValidNum(v)) allVals.push(v); }); });
+    if (opts.zeroBaseline) allVals.push(0);
+    if (allVals.length === 0) allVals.push(0, 1);
+
+    var scale = niceScale(Math.min.apply(null, allVals), Math.max.apply(null, allVals), 5);
+
+    function xAt(i) { return n <= 1 ? margin.left + plotW / 2 : margin.left + (i / (n - 1)) * plotW; }
+    function yAt(v) { return margin.top + plotH - ((v - scale.min) / (scale.max - scale.min)) * plotH; }
+
+    var svg = el("svg", { "class": "chart-svg", viewBox: "0 0 " + width + " " + height });
+
+    var defs = el("defs");
+    opts.series.forEach(function (s, sIdx) {
+      var gradId = "grad-" + (opts.cardId || "line") + "-" + sIdx;
+      var grad = el("linearGradient", { id: gradId, x1: "0%", y1: "0%", x2: "0%", y2: "100%" });
+      grad.appendChild(el("stop", { offset: "0%", "stop-color": "var(" + s.colorVar + ")", "stop-opacity": "0.3" }));
+      grad.appendChild(el("stop", { offset: "100%", "stop-color": "var(" + s.colorVar + ")", "stop-opacity": "0.0" }));
+      defs.appendChild(grad);
+    });
+    svg.appendChild(defs);
+
+    scale.ticks.forEach(function (t) {
+      var y = yAt(t);
+      svg.appendChild(el("line", { "class": (t === 0 && opts.zeroBaseline) ? "baseline" : "gridline", x1: margin.left, x2: width - margin.right, y1: y, y2: y }));
+      var label = el("text", { "class": "axis-label", x: margin.left - 8, y: y + 4, "text-anchor": "end" });
+      label.textContent = opts.formatTick(t);
+      svg.appendChild(label);
+    });
+
+    var maxXLabels = opts.maxXLabels || 8;
+    var xStep = Math.max(1, Math.ceil(n / maxXLabels));
+    for (var i = 0; i < n; i += xStep) {
+      var lbl = el("text", { "class": "axis-label", x: xAt(i), y: height - margin.bottom + 18, "text-anchor": "middle" });
+      lbl.textContent = axisLabels[i];
+      svg.appendChild(lbl);
+    }
+
+    opts.series.forEach(function (s, sIdx) {
+      var gradId = "grad-" + (opts.cardId || "line") + "-" + sIdx;
+      var dLine = "", dArea = "";
+      var drawing = false, lastX = 0;
+      var zeroY = yAt(opts.zeroBaseline ? 0 : scale.min);
+
+      s.values.forEach(function (v, idx) {
+        if (!isValidNum(v)) { drawing = false; return; }
+        var x = xAt(idx), y = yAt(v);
+        if (!drawing) {
+          dLine += "M" + x.toFixed(2) + " " + y.toFixed(2) + " ";
+          dArea += "M" + x.toFixed(2) + " " + zeroY.toFixed(2) + " L" + x.toFixed(2) + " " + y.toFixed(2) + " ";
+          drawing = true;
+        } else {
+          dLine += "L" + x.toFixed(2) + " " + y.toFixed(2) + " ";
+          dArea += "L" + x.toFixed(2) + " " + y.toFixed(2) + " ";
+        }
+        lastX = x;
+      });
+
+      if (drawing) {
+        dArea += "L" + lastX.toFixed(2) + " " + zeroY.toFixed(2) + " Z";
+        svg.appendChild(el("path", { d: dArea, fill: "url(#" + gradId + ")" }));
+        svg.appendChild(el("path", { d: dLine, fill: "none", stroke: "var(" + s.colorVar + ")", "stroke-width": 2.2, "stroke-linejoin": "round" }));
+      }
+    });
+
+    var crosshair = el("line", { "class": "crosshair", x1: margin.left, x2: margin.left, y1: margin.top, y2: height - margin.bottom });
+    svg.appendChild(crosshair);
+    var hit = el("rect", { "class": "hit-rect", x: margin.left, y: margin.top, width: plotW, height: plotH, tabindex: "0" });
+    svg.appendChild(hit);
+    container.appendChild(svg);
+
+    var tooltip = document.createElement("div");
+    tooltip.className = "tooltip";
+    container.appendChild(tooltip);
+
+    function showTooltip(idx) {
+      crosshair.setAttribute("x1", xAt(idx)); crosshair.setAttribute("x2", xAt(idx)); crosshair.style.opacity = 1;
+      while (tooltip.firstChild) tooltip.removeChild(tooltip.firstChild);
+
+      var d = document.createElement("div"); d.className = "tooltip-date"; d.textContent = opts.pointLabels[idx]; tooltip.appendChild(d);
+      if (opts.subLabels && opts.subLabels[idx]) {
+        var sub = document.createElement("div"); sub.className = "tooltip-sub"; sub.textContent = opts.subLabels[idx]; tooltip.appendChild(sub);
+      }
+
+      opts.series.forEach(function (s) {
+        var tr = document.createElement("div"); tr.className = "tooltip-row";
+        tr.innerHTML = '<span class="tooltip-key" style="background:var(' + s.colorVar + ')"></span>' +
+                       '<span class="tooltip-name">' + s.label + '</span>' +
+                       '<span class="tooltip-value">' + opts.formatTick(s.values[idx]) + '</span>';
+        tooltip.appendChild(tr);
+      });
+
+      var svgRect = svg.getBoundingClientRect();
+      var wrapRect = container.getBoundingClientRect();
+      var scaleX = svgRect.width / width;
+      var posX = (svgRect.left - wrapRect.left) + xAt(idx) * scaleX;
+      var posY = (svgRect.top - wrapRect.top) + margin.top * scaleX;
+
+      tooltip.style.left = posX + "px"; tooltip.style.top = posY + "px"; tooltip.style.opacity = 1;
+    }
+
+    function hideTooltip() { tooltip.style.opacity = 0; crosshair.style.opacity = 0; }
+    function ptToIdx(evt) {
+      var rect = svg.getBoundingClientRect();
+      var rx = ((evt.clientX - rect.left) / rect.width) * width;
+      var i = Math.round(((rx - margin.left) / plotW) * (n - 1));
+      return Math.min(n - 1, Math.max(0, i));
+    }
+
+    hit.addEventListener("pointermove", function (e) { showTooltip(ptToIdx(e)); });
+    hit.addEventListener("pointerleave", hideTooltip);
+  }
+
+  // ---------- 資料表與 CSV 匯出 ----------
+  function renderTable(container, stockId, rowLabels, series, formatVal, title, rowHeader) {
+    var actions = document.createElement("div");
+    actions.className = "table-actions";
+
+    var toggleBtn = document.createElement("button");
+    toggleBtn.type = "button"; toggleBtn.className = "btn-sm"; toggleBtn.textContent = "顯示數據資料表";
+
+    var exportBtn = document.createElement("button");
+    exportBtn.type = "button"; exportBtn.className = "btn-sm"; exportBtn.textContent = "匯出 CSV";
+
+    actions.appendChild(toggleBtn);
+    actions.appendChild(exportBtn);
+
+    var tableWrap = document.createElement("div");
+    tableWrap.className = "table-responsive-wrap";
+    tableWrap.hidden = true;
+
+    var table = document.createElement("table");
+    table.className = "data-table";
+
+    var thead = document.createElement("thead");
+    var trH = document.createElement("tr");
+    trH.innerHTML = '<th>' + (rowHeader || "日期") + '</th>' +
+                    series.map(function (s) { return '<th>' + s.label + '</th>'; }).join("");
+    thead.appendChild(trH); table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    for (var i = rowLabels.length - 1; i >= 0; i--) {
+      var tr = document.createElement("tr");
+      var html = '<td>' + rowLabels[i] + '</td>';
+      series.forEach(function (s) {
+        var val = s.values[i];
+        var cls = "";
+        if (typeof val === "number") {
+          if (val > 0) cls = "num-positive";
+          else if (val < 0) cls = "num-negative";
+        }
+        html += '<td class="' + cls + '">' + formatVal(val) + '</td>';
+      });
+      tr.innerHTML = html;
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
+
+    toggleBtn.addEventListener("click", function () {
+      tableWrap.hidden = !tableWrap.hidden;
+      toggleBtn.textContent = tableWrap.hidden ? "顯示數據資料表" : "隱藏數據資料表";
+    });
+
+    exportBtn.addEventListener("click", function () {
+      var csv = [(rowHeader || "日期")].concat(series.map(function(s){return s.label;})).join(",") + "\n";
+      for (var k = rowLabels.length - 1; k >= 0; k--) {
+        var row = [rowLabels[k]];
+        series.forEach(function (s) { row.push(s.values[k] != null ? s.values[k] : ""); });
+        csv += row.join(",") + "\n";
+      }
+      var blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = stockId + "_" + title + ".csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    container.appendChild(actions);
+    container.appendChild(tableWrap);
+  }
+
+  // ---------- 3-TIER SPA ENGINE ----------
+  var stockChipsBar = document.getElementById("stock-chips-bar");
+  var tfButtons = document.querySelectorAll('.pill-btn[data-tf]');
+  var brandHomeBtn = document.getElementById("brand-home-btn");
+
+  var heatmapView = document.getElementById("heatmap-view");
+  var stockOverviewView = document.getElementById("stock-overview-view");
+  var detailView = document.getElementById("detail-view");
+
+  var heatmapGrid = document.getElementById("heatmap-grid");
+  var widgetGrid = document.getElementById("widget-grid");
+  var detailContainer = document.getElementById("detail-chart-container");
+  var metaHint = document.getElementById("meta-hint");
+
+  var backToHeatmapBtn = document.getElementById("back-to-heatmap-btn");
+  var backToHeatmapFromDetail = document.getElementById("back-to-heatmap-from-detail");
+  var backToStockBtn = document.getElementById("back-to-stock-btn");
+  var stockOverviewTitle = document.getElementById("stock-overview-title");
+  var detailTabBtns = document.querySelectorAll(".detail-tab-btn");
+
+  var stockIds = STOCK_ORDER;
+  var currentStockId = stockIds[0] || "";
+  var currentTf = "day";
+  var currentView = "heatmap"; // "heatmap" | "stock" | "detail"
+  var currentDetailChart = "flow";
+
+  var CHART_CONFIGS = {
+    flow:   { title: "三大法人買賣超 (張)" },
+    kline:  { title: "K 線圖與成交量" },
+    amount: { title: "估算買賣超金額 (萬元)" },
+    margin: { title: "融資餘額 (張)" },
+    short:  { title: "融券餘額 (張)" },
+    ratio:  { title: "券資比 (%)" }
+  };
+
+  // 渲染 Stock Quick Switcher Chips
+  function renderStockChipsBar() {
+    while (stockChipsBar.firstChild) stockChipsBar.removeChild(stockChipsBar.firstChild);
+
+    stockIds.forEach(function (sId) {
+      var stock = DATA[sId];
+      var agg = aggregateStock(stock, currentTf);
+      var idx = agg.close.length - 1;
+      var prevIdx = idx > 0 ? idx - 1 : idx;
+      var diff = agg.close[idx] - agg.close[prevIdx];
+      var pct = agg.close[prevIdx] ? (diff / agg.close[prevIdx] * 100) : 0;
+
+      var chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "stock-chip" + (currentView !== "heatmap" && sId === currentStockId ? " active" : "");
+      chip.innerHTML = sId + ' ' + (stock.name || '') +
+                       ' <span class="chip-tag ' + (diff >= 0 ? "chip-tag-up" : "chip-tag-down") + '">' +
+                       (diff >= 0 ? "▲+" : "▼") + pct.toFixed(2) + '%</span>';
+
+      chip.addEventListener("click", function () {
+        currentStockId = sId;
+        location.hash = "#stock/" + sId;
+      });
+      stockChipsBar.appendChild(chip);
+    });
+  }
+
+  // TIER 1: 全市場股票熱力圖 (Heatmap Overview)
+  function renderHeatmapView() {
+    while (heatmapGrid.firstChild) heatmapGrid.removeChild(heatmapGrid.firstChild);
+
+    stockIds.forEach(function (sId) {
+      var stock = DATA[sId];
+      var agg = aggregateStock(stock, currentTf);
+      var idx = agg.close.length - 1;
+      var prevIdx = idx > 0 ? idx - 1 : idx;
+
+      var latestClose = agg.close[idx];
+      var prevClose = agg.close[prevIdx];
+      var diff = latestClose - prevClose;
+      var pct = prevClose ? (diff / prevClose * 100) : 0;
+      var totalNet = agg.total[idx];
+
+      var isUp = diff >= 0;
+      var intensity = Math.min(0.5, 0.12 + Math.abs(pct) * 0.12);
+      var bgStyle = isUp ? ("rgba(239, 68, 68, " + intensity + ")") : ("rgba(16, 185, 129, " + intensity + ")");
+
+      var card = document.createElement("div");
+      card.className = "heatmap-card";
+      card.style.background = bgStyle;
+
+      card.innerHTML = '<div class="heatmap-card-header">' +
+                         '<div>' +
+                           '<div class="heatmap-stock-name">' + sId + ' ' + stock.name + '</div>' +
+                           '<div class="heatmap-stock-code">TWSE / OTC</div>' +
+                         '</div>' +
+                         '<div class="heatmap-price-wrap">' +
+                           '<div class="heatmap-price">' + formatPrice(latestClose) + '</div>' +
+                           '<div class="heatmap-change ' + (isUp ? "num-positive" : "num-negative") + '">' +
+                             (isUp ? "▲ +" : "▼ ") + diff.toFixed(2) + ' (' + (isUp ? "+" : "") + pct.toFixed(2) + '%)' +
+                           '</div>' +
+                         '</div>' +
+                       '</div>' +
+                       '<div class="heatmap-sparkline-wrap"></div>' +
+                       '<div class="heatmap-card-footer">' +
+                         '<span>三大法人合計：<strong>' + formatSigned(totalNet) + ' 張</strong></span>' +
+                         '<span style="color:var(--series-1); font-weight:700">點擊查看 ➔</span>' +
+                       '</div>';
+
+      var sparkWrap = card.querySelector(".heatmap-sparkline-wrap");
+      renderMiniSparkline(sparkWrap, "price_line", agg, 60);
+
+      card.addEventListener("click", function () {
+        currentStockId = sId;
+        location.hash = "#stock/" + sId;
+      });
+
+      heatmapGrid.appendChild(card);
+    });
+  }
+
+  // TIER 2: 單股 6 Widget 儀表板
+  function renderStockOverviewGrid() {
+    while (widgetGrid.firstChild) widgetGrid.removeChild(widgetGrid.firstChild);
+    var stock = DATA[currentStockId];
+    if (!stock || stock.dates.length === 0) return;
+
+    stockOverviewTitle.textContent = currentStockId + " " + stock.name + " 籌碼分析儀表板";
+
+    var tf = TIMEFRAMES[currentTf];
+    var agg = aggregateStock(stock, currentTf);
+    renderKPIStats(currentStockId, stock, agg);
+
+    var widgetTypes = ["flow", "kline", "amount", "margin", "short", "ratio"];
+    widgetTypes.forEach(function (cType) {
+      var card = document.createElement("div");
+      card.className = "widget-card";
+
+      var header = document.createElement("div");
+      header.className = "widget-header";
+      header.innerHTML = '<h3 class="widget-title">' + CHART_CONFIGS[cType].title + '</h3>' +
+                         '<span class="widget-action-btn">檢視明細 🔍</span>';
+      card.appendChild(header);
+
+      var svgWrap = document.createElement("div");
+      svgWrap.className = "widget-svg-wrap";
+      renderMiniSparkline(svgWrap, cType, agg, 150);
+      card.appendChild(svgWrap);
+
+      card.addEventListener("click", function () {
+        location.hash = "#stock/" + currentStockId + "/detail/" + cType;
+      });
+      widgetGrid.appendChild(card);
+    });
+  }
+
+  // TIER 3: 圖表明細大圖頁
+  function renderDetailView() {
+    while (detailContainer.firstChild) detailContainer.removeChild(detailContainer.firstChild);
+    var stock = DATA[currentStockId];
+    if (!stock || stock.dates.length === 0) return;
+
+    var tf = TIMEFRAMES[currentTf];
+    var agg = aggregateStock(stock, currentTf);
+    renderKPIStats(currentStockId, stock, agg);
+
+    detailTabBtns.forEach(function (btn) {
+      var active = btn.getAttribute("data-chart") === currentDetailChart;
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+      btn.classList.toggle("active", active);
+    });
+
+    var card = document.createElement("div");
+    card.className = "chart-card";
+
+    if (currentDetailChart === "flow") {
+      card.innerHTML = '<div class="chart-card-header"><h3 class="chart-title">' + currentStockId + ' ' + stock.name + ' 三大法人買賣超 (張)' + (currentTf === "day" ? "" : "・" + tf.unit + "合計") + '</h3>' +
+                       '<div class="legend"><span class="legend-item"><span class="legend-swatch" style="background:var(--series-1)"></span>外資</span>' +
+                       '<span class="legend-item"><span class="legend-swatch" style="background:var(--series-2)"></span>投信</span>' +
+                       '<span class="legend-item"><span class="legend-swatch" style="background:var(--series-3)"></span>自營商</span>' +
+                       '<span class="legend-item"><span class="legend-swatch" style="background:var(--series-4)"></span>合計</span></div></div>';
+      var cWrap = document.createElement("div"); cWrap.className = "chart-svg-wrap"; card.appendChild(cWrap);
+      renderInstitutionalChart(cWrap, {
+        axisLabels: agg.axisLabels, pointLabels: agg.pointLabels, subLabels: agg.subLabels,
+        foreign: agg.foreign, trust: agg.trust, dealer: agg.dealer, total: agg.total, maxXLabels: tf.maxXLabels
+      });
+      renderTable(card, currentStockId, agg.pointLabels, [
+        { label: "外資(張)", values: agg.foreign }, { label: "投信(張)", values: agg.trust },
+        { label: "自營商(張)", values: agg.dealer }, { label: "合計(張)", values: agg.total }
+      ], formatSigned, "三大法人買賣超", tf.dateHeader);
+
+    } else if (currentDetailChart === "kline") {
+      card.innerHTML = '<div class="chart-card-header"><h3 class="chart-title">' + currentStockId + ' ' + stock.name + ' K 線圖與成交量 (' + tf.unit + '線)</h3>' +
+                       '<div class="legend"><span class="legend-item"><span class="legend-swatch" style="background:var(--ma5-color)"></span>MA5</span>' +
+                       '<span class="legend-item"><span class="legend-swatch" style="background:var(--ma20-color)"></span>MA20</span></div></div>';
+      var cWrap2 = document.createElement("div"); cWrap2.className = "chart-svg-wrap"; card.appendChild(cWrap2);
+      renderCandlestickChart(cWrap2, {
+        axisLabels: agg.axisLabels, pointLabels: agg.pointLabels, subLabels: agg.subLabels,
+        open: agg.open, high: agg.high, low: agg.low, close: agg.close, volume: agg.volume,
+        ma5: agg.ma5, ma20: agg.ma20, maxXLabels: tf.maxXLabels
+      });
+      renderTable(card, currentStockId, agg.pointLabels, [
+        { label: "開盤", values: agg.open }, { label: "最高", values: agg.high },
+        { label: "最低", values: agg.low }, { label: "收盤", values: agg.close },
+        { label: "成交張數", values: agg.volume }
+      ], formatPrice, "K線行情數據", tf.dateHeader);
+
+    } else if (currentDetailChart === "amount") {
+      card.innerHTML = '<div class="chart-card-header"><h3 class="chart-title">' + currentStockId + ' ' + stock.name + ' 估算買賣超金額 (萬元)' + (currentTf === "day" ? "" : "・" + tf.unit + "合計") + '</h3>' +
+                       '<div class="legend"><span class="legend-item"><span class="legend-swatch" style="background:var(--series-1)"></span>估算金額</span></div></div>';
+      var cWrap3 = document.createElement("div"); cWrap3.className = "chart-svg-wrap"; card.appendChild(cWrap3);
+      renderLineChart(cWrap3, {
+        cardId: "amount", axisLabels: agg.axisLabels, pointLabels: agg.pointLabels, subLabels: agg.subLabels,
+        series: [{ label: "估算金額(萬元)", colorVar: "--series-1", values: agg.amount }], formatTick: formatSigned, zeroBaseline: true, maxXLabels: tf.maxXLabels
+      });
+      renderTable(card, currentStockId, agg.pointLabels, [{ label: "估算金額(萬元)", values: agg.amount }], formatSigned, "估算金額", tf.dateHeader);
+
+    } else if (currentDetailChart === "margin") {
+      card.innerHTML = '<div class="chart-card-header"><h3 class="chart-title">' + currentStockId + ' ' + stock.name + ' 融資餘額 (張)' + (currentTf === "day" ? "" : "・" + tf.unit + "底") + '</h3>' +
+                       '<div class="legend"><span class="legend-item"><span class="legend-swatch" style="background:var(--series-1)"></span>融資餘額</span></div></div>';
+      var cWrap4 = document.createElement("div"); cWrap4.className = "chart-svg-wrap"; card.appendChild(cWrap4);
+      renderLineChart(cWrap4, {
+        cardId: "margin", axisLabels: agg.axisLabels, pointLabels: agg.pointLabels, subLabels: agg.subLabels,
+        series: [{ label: "融資餘額(張)", colorVar: "--series-1", values: agg.marginBalance }], formatTick: formatPlain, zeroBaseline: false, maxXLabels: tf.maxXLabels
+      });
+      renderTable(card, currentStockId, agg.pointLabels, [{ label: "融資餘額(張)", values: agg.marginBalance }], formatPlain, "融資餘額", tf.dateHeader);
+
+    } else if (currentDetailChart === "short") {
+      card.innerHTML = '<div class="chart-card-header"><h3 class="chart-title">' + currentStockId + ' ' + stock.name + ' 融券餘額 (張)' + (currentTf === "day" ? "" : "・" + tf.unit + "底") + '</h3>' +
+                       '<div class="legend"><span class="legend-item"><span class="legend-swatch" style="background:var(--series-1)"></span>融券餘額</span></div></div>';
+      var cWrap5 = document.createElement("div"); cWrap5.className = "chart-svg-wrap"; card.appendChild(cWrap5);
+      renderLineChart(cWrap5, {
+        cardId: "short", axisLabels: agg.axisLabels, pointLabels: agg.pointLabels, subLabels: agg.subLabels,
+        series: [{ label: "融券餘額(張)", colorVar: "--series-1", values: agg.shortBalance }], formatTick: formatPlain, zeroBaseline: false, maxXLabels: tf.maxXLabels
+      });
+      renderTable(card, currentStockId, agg.pointLabels, [{ label: "融券餘額(張)", values: agg.shortBalance }], formatPlain, "融券餘額", tf.dateHeader);
+
+    } else if (currentDetailChart === "ratio") {
+      card.innerHTML = '<div class="chart-card-header"><h3 class="chart-title">' + currentStockId + ' ' + stock.name + ' 券資比 (%)' + (currentTf === "day" ? "" : "・" + tf.unit + "底") + '</h3>' +
+                       '<div class="legend"><span class="legend-item"><span class="legend-swatch" style="background:var(--series-1)"></span>券資比</span></div></div>';
+      var cWrap6 = document.createElement("div"); cWrap6.className = "chart-svg-wrap"; card.appendChild(cWrap6);
+      renderLineChart(cWrap6, {
+        cardId: "ratio", axisLabels: agg.axisLabels, pointLabels: agg.pointLabels, subLabels: agg.subLabels,
+        series: [{ label: "券資比(%)", colorVar: "--series-1", values: agg.shortToMarginRatio }], formatTick: formatPercent, zeroBaseline: true, maxXLabels: tf.maxXLabels
+      });
+      renderTable(card, currentStockId, agg.pointLabels, [{ label: "券資比(%)", values: agg.shortToMarginRatio }], formatPercent, "券資比", tf.dateHeader);
+    }
+
+    detailContainer.appendChild(card);
+  }
+
+  // SPA Route Resolver (#heatmap | #stock/:id | #stock/:id/detail/:type)
+  function handleRoute() {
+    var hash = location.hash || "#heatmap";
+    renderStockChipsBar();
+
+    if (hash.indexOf("#stock/") === 0) {
+      var parts = hash.replace("#stock/", "").split("/detail/");
+      currentStockId = parts[0] || stockIds[0];
+
+      if (parts.length > 1) {
+        // TIER 3: 明細頁
+        currentView = "detail";
+        currentDetailChart = parts[1] || "flow";
+        heatmapView.hidden = true;
+        stockOverviewView.hidden = true;
+        detailView.hidden = false;
+        metaHint.textContent = "檢視 " + currentStockId + " 圖表明細數據";
+        renderDetailView();
+      } else {
+        // TIER 2: 單股 6 Widget 儀表板
+        currentView = "stock";
+        heatmapView.hidden = true;
+        stockOverviewView.hidden = false;
+        detailView.hidden = true;
+        metaHint.textContent = "點擊 Widget 可放大檢視單一圖表明細";
+        renderStockOverviewGrid();
+      }
+    } else {
+      // TIER 1: 全市場股票熱力圖
+      currentView = "heatmap";
+      heatmapView.hidden = false;
+      stockOverviewView.hidden = true;
+      detailView.hidden = true;
+      metaHint.textContent = "點擊個股卡片進入該股票的分析儀表板";
+      renderHeatmapView();
+    }
+
+    window.scrollTo(0, 0);
+  }
+
+  // Controls & Event Listeners
+  tfButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var tf = btn.getAttribute("data-tf");
+      if (tf === currentTf) return;
+      currentTf = tf;
+      tfButtons.forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-tf") === tf ? "true" : "false"); });
+      handleRoute();
+    });
+  });
+
+  brandHomeBtn.addEventListener("click", function () { location.hash = "#heatmap"; });
+  backToHeatmapBtn.addEventListener("click", function () { location.hash = "#heatmap"; });
+  backToHeatmapFromDetail.addEventListener("click", function () { location.hash = "#heatmap"; });
+
+  backToStockBtn.addEventListener("click", function () {
+    location.hash = "#stock/" + currentStockId;
+  });
+
+  detailTabBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var cType = btn.getAttribute("data-chart");
+      location.hash = "#stock/" + currentStockId + "/detail/" + cType;
+    });
+  });
+
+  window.addEventListener("hashchange", handleRoute);
+  handleRoute();
+})();
+</script>
+</body>
+</html>

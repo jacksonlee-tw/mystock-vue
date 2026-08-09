@@ -1,0 +1,570 @@
+/* 狀態標籤加框，並依狀態變色 */
+.p-tag.status-text {
+  border: 1px solid #bfc2c7;
+}
+.p-tag.status-text.p-tag-info {
+  border-color: #2563eb;
+}
+.p-tag.status-text.p-tag-success {
+  border-color: #16a34a;
+}
+.p-tag.status-text.p-tag-danger {
+  border-color: #dc2626;
+}
+.p-tag.status-text.p-tag-warning {
+  border-color: #f59e42;
+}
+.p-tag.status-text.p-tag-secondary {
+  border-color: #64748b;
+}
+/* PrimeVue 標籤尺寸擴充 */
+.p-tag-sm {
+  font-size: 0.85rem !important;
+  padding: var(--p-button-sm-padding-y) var(--p-button-sm-padding-x)!important;
+}
+.p-tag-lg {
+  font-size: 1.2rem !important;
+  padding: var(--p-button-lg-padding-y) var(--p-button-lg-padding-x)!important;
+}
+.p-tag-warning {
+  background: #fff4e5 !important;
+  color: #f59e42 !important;
+  border-color: #f59e42 !important;
+}
+/* 狀態文字底色樣式 */
+.status-text.p-tag {
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+/* 狀態文字樣式 */
+.status-text {
+  color: #2563eb; /* 預設藍色，可依狀態變化 */
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+.status-text.success { color: #16a34a; }
+.status-text.danger { color: #dc2626; }
+.status-text.warning { color: #f59e42; }
+.status-text.info { color: #2563eb; }
+/* 全域 Icon 穩定性修復 - 解決縮放時 icon 消失問題 */
+.pi, [class^="pi-"], [class*=" pi-"] {
+  /* 強制硬體加速 */
+  transform: translateZ(0);
+  /* 改善字體渲染 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* 確保在縮放時保持清晰 */
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+/* PrimeVue 按鈕 icon 與 label 對齊優化（修正版） */
+.p-button .p-button-icon,
+.p-button .p-button-icon-left,
+.p-button .p-button-icon-right {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25em;
+  min-height: 1.25em;
+  font-size: 1.2em;
+  line-height: 1;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.p-button .p-button-label {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* 多顆按鈕間距統一 */
+.p-button-group, .flex .p-button {
+  gap: 0.5rem;
+}
+
+*:focus {
+  outline: 0;
+}
+* {
+  box-sizing: border-box
+}
+
+/* 全域 body 背景色自訂 */
+body {
+  background:var(--p-primary-30) !important; /* 可依需求自訂色碼 */
+}
+
+.section-bg {
+  background: #fff;
+}
+.section-header {
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
+.section-action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.section-control-panel {
+  display: flex;
+  align-items: center;
+  /*gap: 8px;*/
+}
+.card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+select {
+  min-width: 120px;
+}
+/* layout-topbar 樣式 */
+.layout-topbar {
+  position: fixed;
+  height: 4rem;
+  z-index: 997;
+  left: 0;
+  top: 0;
+  width: 100%;
+  padding: 0 2rem;
+  background-color: var(--p-primary-500);
+  transition: left var(--layout-section-transition-duration);
+  display: flex;
+  align-items: center;
+  box-shadow: 0 2px 8px 0 rgba(0,0,0,0.08);
+  z-index: 10;
+
+  .layout-topbar-logo-container {
+    width: 20rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .layout-topbar-logo {
+    display: inline-flex;
+    align-items: center;
+    font-size: 1.5rem;
+    border-radius: var(--content-border-radius);
+    color: var(--text-color);
+    font-weight: 500;
+    gap: 0.5rem;
+
+    svg {
+      width: 3rem;
+    }
+  }
+
+  .layout-topbar-action {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    width: 2.5rem;
+    height: 2.5rem;
+    color: var(--text-color);
+    transition: background-color var(--element-transition-duration);
+    cursor: pointer;
+  }
+
+  .layout-topbar-logo,
+  .layout-topbar-logo span,
+  .layout-topbar-actions,
+  .layout-config-menu,
+  .layout-config-menu-mobile,
+  .username,
+  .user-menu,
+  .layout-topbar-action,
+  .layout-topbar-action span,
+  .layout-topbar-menu-content span {
+    color: #fff;
+  }
+  .layout-menu-button:hover .pi {
+    color: var(--p-primary-500) !important;
+  }
+
+  .layout-menu-button {
+    margin-right: 0.5rem;
+  }
+
+  .layout-topbar-menu-button {
+    display: none;
+  }
+
+  .layout-topbar-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 1rem;
+  }
+
+  .layout-topbar-menu-content {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .layout-config-menu {
+    display: flex;
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 991px) {
+  .layout-topbar {
+    padding: 0 1rem;
+    height: 4rem;
+    min-height: 4rem;
+    display: flex;
+    align-items: center;
+
+    .layout-topbar-logo-container {
+      width: auto;
+    }
+
+    .layout-menu-button {
+      margin-left: 0;
+      margin-right: 0.5rem;
+    }
+
+    .layout-topbar-actions {
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .layout-topbar-menu-button {
+      display: inline-flex;
+    }
+
+    .layout-topbar-menu {
+      position: absolute;
+      background-color: var(--surface-overlay);
+      transform-origin: top;
+      box-shadow:
+        0px 3px 5px rgba(0, 0, 0, 0.02),
+        0px 0px 2px rgba(0, 0, 0, 0.05),
+        0px 1px 4px rgba(0, 0, 0, 0.08);
+      border-radius: var(--content-border-radius);
+      padding: 1rem;
+      right: 2rem;
+      top: 4rem;
+      min-width: 15rem;
+      border: 1px solid var(--surface-border);
+
+      .layout-topbar-menu-content {
+        gap: 0.5rem;
+      }
+
+      .layout-topbar-action {
+        display: flex;
+        width: 100%;
+        height: auto;
+        justify-content: flex-start;
+        border-radius: var(--content-border-radius);
+        padding: 0.5rem 1rem;
+
+        i {
+          font-size: 1rem;
+          margin-right: 0.5rem;
+        }
+
+        span {
+          font-weight: medium;
+          display: block;
+        }
+      }
+    }
+
+    .layout-topbar-menu-content {
+      flex-direction: column;
+    }
+  }
+}
+
+
+/* 基本排版樣式 */
+html {
+  font-size: 18px;
+}
+
+body {
+  font-size: 1.125rem; /* 18px，讓主要內容更大 */
+}
+
+@media (max-width: 600px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+
+/* 手機板樣式調整 */
+.layout-config-menu-mobile {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+.user-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.5rem;
+  position: absolute;
+  top: 2.5rem;
+  right: 1rem;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.user-menu .username {
+  margin-bottom: 0.5rem;
+}
+
+.layout-config-menu {
+  display: flex;
+  align-items: center;
+}
+
+.username {
+  margin-right: 0.5rem;
+}
+
+@media (max-width: 991px) {
+  .layout-topbar {
+    padding: 0 1rem!important;
+  }
+}
+@media (max-width: 768px) {
+  .layout-config-menu {
+    display: none;
+  }
+  .username{color:#333!important}
+  .layout-topbar-actions a{color:#333!important}
+  .layout-topbar-logo img{ display: none;}
+  .layout-config-menu-mobile {
+    font-size: 0.8rem;
+  }
+}
+
+/* PrimeVue Dialog 主題自訂 */
+.p-dialog {
+  border-radius: 10px;
+  border: 2px solid var(--p-primary-500);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+}
+.p-dialog .p-dialog-header {
+  border-radius: 12px 12px 0 0;
+  background: var(--p-primary-500);
+  color: #fff;
+  font-weight: 500;
+  border-bottom: 1px solid var(--p-primary-300);
+  padding: 0.5rem 1rem;
+}
+.p-dialog .p-dialog-header .pi {
+  color: #fff !important;
+}
+.p-dialog .p-dialog-header .p-button-secondary {
+  background: transparent !important;
+  color: #fff !important;
+  border: none !important;
+}
+.p-dialog .p-dialog-header .p-button-secondary .pi {
+  color: #fff !important;
+}
+
+.p-dialog {
+  display: flex;
+  flex-direction: column;
+}
+.p-dialog .p-dialog-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.p-dialog .p-dialog-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+.p-dialog .p-dialog-content {
+ /* background: #fff;*/
+  color: #333;
+  padding: 1.5rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.p-dialog .p-button {
+  border-radius: 6px;
+}
+/* PrimeVue DataTable 表格樣式自訂 */
+.p-datatable-table-container th {
+  background-color: var(--p-primary-500);
+  color: #fff !important;
+  padding: 0.6rem ;
+
+}
+.p-datatable-tbody tr:nth-child(even) td {
+  background: var(--p-primary-50);
+  transition: background 0.2s;
+}
+.p-datatable-tbody tr:nth-child(odd) td {
+  transition: background 0.2s;
+}
+.p-datatable-tbody tr:hover td {
+  background: var(--p-gray-100);
+}
+.p-datatable-sort-icon {
+  color: #fff !important;
+}
+.p-datatable-tbody > tr > td {
+  text-align: start;
+  border-color: var(--p-gray-300)!important;
+  border-style: solid;
+  border-width: 0 0 1px 0;
+  padding: 0.75rem;
+}
+.p-datatable-column-sorted {
+  background: var(--p-primary-700)!important; 
+  color: #fff!important; 
+}
+.p-datatable-sortable-column:not(.p-datatable-column-sorted):hover {
+  background: var(--p-primary-700)!important; 
+  color: #fff !important; 
+}
+.p-datatable-tbody > tr > td {
+  text-align: start;
+  border-color: var(--p-gray-300);
+  border-style: solid;
+  border-width: 0 0 1px 0;
+  padding: 0.75rem 1rem;
+}
+.p-datatable-scrollable th.p-datatable-frozen-column  {
+    position: sticky;
+    background: var(--p-primary-500)!important; 
+}
+/* PrimeVue TabView 表格樣式自訂 */
+.p-tab-active {
+    background: var(--p-tabs-tab-active-background);
+    border-color: var(--p-tabs-tab-active-border-color); 
+    color: #ffffff!important; 
+}
+
+.layout-topbar-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.layout-topbar-logo img {
+  display: block;
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+/* 多個 PrimeVue 按鈕自動間距（同一父層下） */
+.p-button + .p-button {
+  margin-left: 0.5rem;
+}
+/* 按鈕與輸入欄位、下拉選單等自動間距 */
+input + .p-button,
+select + .p-button,
+.p-inputtext + .p-button,
+.p-dropdown + .p-button,
+.p-inputgroup + .p-button,
+.p-inputswitch + .p-button {
+  margin-left: 0.5rem;
+}
+
+/* 覆蓋 PrimeVue TabView 樣式，讓 tab header 看起來像 DataTable header */
+.p-tabview .p-tabview-nav {
+    border-bottom: 1px solid #e5e7eb !important;
+    background: none !important;
+    margin-bottom: 0.5rem !important;
+}
+
+.p-tabview-tablist-item {
+    margin-right: 0 !important;
+    border: none !important;
+}
+
+.p-tabview-tablist-item .p-tabview-nav-link {
+    color: #4b5563 !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    padding: 0.5rem 1.5rem !important;
+    transition: all 0.2s !important;
+    box-shadow: none !important;
+}
+
+.p-tabview-tablist-item:not(.p-tabview-tablist-item-active) .p-tabview-nav-link:hover {
+    color: var(--p-primary-800) !important;
+    background: #f3f4f6 !important;
+}
+
+.p-tabview-tablist-item-active,
+.p-tabview-tablist-item-active .p-tabview-nav-link,
+.p-tabview-tablist-item-active .p-tabview-tab-title {
+    color: #fff !important;
+    background-color: var(--p-primary-500)!important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.p-tabview-tablist-item-active .p-tabview-nav-link:focus,
+.p-tabview-tablist-item-active .p-tabview-nav-link:hover,
+.p-tabview-tablist-item-active .p-tabview-tab-title:focus,
+.p-tabview-tablist-item-active .p-tabview-tab-title:hover {
+    background-color: var(--p-primary-500)!important;
+    color: #fff !important;
+}
+
+.p-tabview .p-tabview-panels {
+    padding: 0.5rem 0 0 0 !important;
+    background: none !important;
+    border: none !important;
+}
+
+.p-select-fluid{width: auto !important;}
+
+.flex {
+    display: flex;
+    align-items: center;
+}
+
+.module-content{padding: 0!important;}
+
+.p-datatable-paginator-bottom{border: none !important;}
+
+.form-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1.2rem;
+    gap: 1rem;
+}
+.form-label {
+    min-width: 60px;
+    margin-right: 0.5rem;
+    font-weight: 500;
+}
+.form-input {
+    flex: 1 1 0%;
+}
+
+button:focus {
+  outline: none !important;
+}

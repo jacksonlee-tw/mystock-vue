@@ -1,0 +1,36 @@
+# backend/domain/ports/xxx_repository.py（Domain Port 層）
+"""XXX Repository 介面（Port）
+
+定義 XXX 資料存取的抽象合約，Service 層依賴此介面而非具體實作。
+"""
+from abc import ABC, abstractmethod
+from typing import Optional
+
+
+class XxxRepository(ABC):
+    """XXX Repository 抽象介面"""
+
+    @abstractmethod
+    def create(self, data: dict) -> dict:
+        """新增一筆 XXX 記錄"""
+        ...
+
+    @abstractmethod
+    def get_by_id(self, xxx_id: str) -> Optional[dict]:
+        """依 ID 查詢單筆 XXX 記錄"""
+        ...
+
+    @abstractmethod
+    def list_all(self, limit: int = 100) -> list[dict]:
+        """查詢所有 XXX 記錄"""
+        ...
+
+    @abstractmethod
+    def update(self, xxx_id: str, data: dict) -> None:
+        """更新單筆 XXX 記錄"""
+        ...
+
+    @abstractmethod
+    def delete(self, xxx_id: str) -> None:
+        """刪除單筆 XXX 記錄"""
+        ...

@@ -1,0 +1,66 @@
+{
+  "skill_name": "usecase-to-design",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "幫我把 UC-arrivePlant-廠門地磅作業 生成系統設計文件，存到 docs/02_Design",
+      "expected_output": "生成 SD-arrivePlant-廠門地磅作業-系統設計.md，包含 15 張資料表明細、ER Diagram、17 個 Delphi 程式清單、完整 SQL 語句",
+      "files": [
+        "docs/01_Requirements/use-cases/A.arrivePlant/UC-arrivePlant-廠門地磅作業.md",
+        "docs/02_Design/db/mmsystem-db規格書.md",
+        "MM_D10/Source/uarrivePlant.pas",
+        "MM_D10/Source/uarrivePlant.dfm"
+      ],
+      "assertions": [
+        { "type": "file_exists", "path": "docs/02_Design/SD-arrivePlant-廠門地磅作業-系統設計.md" },
+        { "type": "contains", "text": "CMM_SCALE", "description": "核心資料表 CMM_SCALE 必須出現" },
+        { "type": "contains", "text": "MM_POWO_SCALE", "description": "採購單主檔必須出現" },
+        { "type": "contains", "text": "erDiagram", "description": "必須包含 Mermaid ER Diagram" },
+        { "type": "contains", "text": "flowchart", "description": "必須包含業務流程圖" },
+        { "type": "contains", "text": "uarrivePlant.pas", "description": "主程式必須列出" },
+        { "type": "contains", "text": "INSERT INTO CMM_SCALE", "description": "進廠 INSERT SQL 必須出現" },
+        { "type": "contains", "text": "IsWarningMessage", "description": "關鍵函式必須列出" }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "根據 UC-outstore-出庫作業.md 產生 SD 設計文件",
+      "expected_output": "生成 SD-outstore-出庫作業-系統設計.md，包含 Form Stub 架構說明、指出 uInOutStore.pas 為實際實作、5 張資料表、ER Diagram",
+      "files": [
+        "docs/01_Requirements/use-cases/D.outStore/UC-outstore-出庫作業.md",
+        "docs/02_Design/db/mmsystem-db規格書.md",
+        "MM_D10/Source/uOutStore.pas",
+        "MM_D10/Source/uInOutStore.pas"
+      ],
+      "assertions": [
+        { "type": "file_exists", "path": "docs/02_Design/SD-outstore-出庫作業-系統設計.md" },
+        { "type": "contains", "text": "uInOutStore.pas", "description": "必須標示實際實作檔案" },
+        { "type": "contains", "text": "Form Stub", "description": "必須說明 uOutStore.pas 為 Stub" },
+        { "type": "contains", "text": "erDiagram", "description": "必須包含 ER Diagram" },
+        { "type": "contains", "text": "trace_mstr", "description": "追蹤表必須出現" },
+        { "type": "contains", "text": "MMPARAS", "description": "參數表必須出現" },
+        { "type": "contains", "text": "getamstore", "description": "AMStore 參數函式必須列出" }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "一次把 UC-instore-入庫作業 和 UC-flishwork-完工出廠作業 都生成系統設計文件到 02_Design",
+      "expected_output": "生成兩份文件：SD-instore-入庫作業-系統設計.md 與 SD-flishwork-完工出廠作業-系統設計.md",
+      "files": [
+        "docs/01_Requirements/use-cases/B.instore/UC-instore-入庫作業.md",
+        "docs/01_Requirements/use-cases/C.flishwork/UC-flishwork-完工出廠作業.md",
+        "docs/02_Design/db/mmsystem-db規格書.md",
+        "MM_D10/Source/uInstore.pas",
+        "MM_D10/Source/uflishwork.pas",
+        "MM_D10/Source/uflishworknew.pas"
+      ],
+      "assertions": [
+        { "type": "file_exists", "path": "docs/02_Design/SD-instore-入庫作業-系統設計.md" },
+        { "type": "file_exists", "path": "docs/02_Design/SD-flishwork-完工出廠作業-系統設計.md" },
+        { "type": "contains", "file": "SD-instore-入庫作業-系統設計.md", "text": "erDiagram", "description": "instore 必須包含 ER Diagram" },
+        { "type": "contains", "file": "SD-flishwork-完工出廠作業-系統設計.md", "text": "ALTER VIEW", "description": "flishwork 必須說明動態 VIEW" },
+        { "type": "contains", "file": "SD-flishwork-完工出廠作業-系統設計.md", "text": "uflishworknew.pas", "description": "必須列出新版程式" }
+      ]
+    }
+  ]
+}

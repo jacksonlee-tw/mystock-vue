@@ -1,0 +1,62 @@
+# backend/tests/unit/test_xxx_service.py（Service 單元測試）
+"""XXX Service 單元測試
+
+使用 MemoryUnitOfWork — 不需要 DB 連線。
+conftest.py 提供的 uow fixture 每個測試獨立（MemoryStore 隔離）。
+"""
+import pytest
+
+from backend.core.exceptions import AppException
+from backend.schemas.weighbridge import XxxRequest
+from backend.services.xxx_service import create_xxx, get_xxx, list_xxx
+
+
+def _make_request(**overrides) -> XxxRequest:
+    """建立 XXX Request DTO（預設值填好，可覆寫）"""
+    defaults = {
+        "name": "測試項目",
+        "value": 100,
+        "description": "測試用",
+    }
+    defaults.update(overrides)
+    return XxxRequest(**defaults)
+
+
+class TestCreateXxx:
+    """建立 XXX 功能測試"""
+
+    def test_success_returns_status(self, uow):
+        """成功建立應回傳 status='success'"""
+        result = create_xxx(uow, _make_request(), "zh-TW")
+        assert result["status"] == "success"
+        assert result["dbMode"] == "memory"
+
+    def test_data_stored_in_repository(self, uow):
+        """建立後可透過 Repository 查詢到資料"""
+        create_xxx(uow, _make_request(name="ABC"), "zh-TW")
+        items = uow.xxx.list_all()
+        assert len(items) >= 1
+
+    def test_empty_name_raises(self, uow):
+        """空名稱應拋出 AppException"""
+        with pytest.raises(AppException):
+            create_xxx(uow, _make_request(name=""), "zh-TW")
+
+
+class TestGetXxx:
+    """查詢 XXX 功能測試"""
+
+    def test_not_found_raises(self, uow):
+        """查詢不存在的記錄應拋出 AppException"""
+        with pytest.raises(AppException):
+            get_xxx(uow, "nonexistent", "zh-TW")
+
+
+class TestListXxx:
+    """列出 XXX 功能測試"""
+
+    def test_empty_when_no_data(self, uow):
+        """無資料時回傳空列表"""
+        result = list_xxx(uow)
+        assert result["status"] == "success"
+        assert result["total"] == 0

@@ -1,0 +1,44 @@
+# backend/infrastructure/memory/xxx_repository.py（Memory Repository 實作）
+"""XXX 記憶體 Repository 實作
+
+實作 XxxRepository 介面，以 MemoryStore 實例取代全域 dict。
+用於測試隔離與 DB 不可用時的自動降轉。
+"""
+import logging
+from typing import Optional
+
+from backend.domain.ports.xxx_repository import XxxRepository
+from backend.infrastructure.memory import MemoryStore
+
+log = logging.getLogger(__name__)
+
+
+class MemoryXxxRepository(XxxRepository):
+    """XXX 記憶體 Repository — 使用 MemoryStore 實例儲存"""
+
+    def __init__(self, store: MemoryStore):
+        self._store = store
+
+    def create(self, data: dict) -> dict:
+        key = data.get("id", "")
+        self._store.xxx_store[key] = data
+        log.info("[MEM_CREATE] id=%s", key)
+        return data
+
+    def get_by_id(self, xxx_id: str) -> Optional[dict]:
+        return self._store.xxx_store.get(xxx_id.strip())
+
+    def list_all(self, limit: int = 100) -> list[dict]:
+        items = list(self._store.xxx_store.values())
+        return items[:limit]
+
+    def update(self, xxx_id: str, data: dict) -> None:
+        xxx_id = xxx_id.strip()
+        if xxx_id in self._store.xxx_store:
+            self._store.xxx_store[xxx_id].update(data)
+            log.info("[MEM_UPDATE] id=%s", xxx_id)
+
+    def delete(self, xxx_id: str) -> None:
+        xxx_id = xxx_id.strip()
+        self._store.xxx_store.pop(xxx_id, None)
+        log.info("[MEM_DELETE] id=%s", xxx_id)

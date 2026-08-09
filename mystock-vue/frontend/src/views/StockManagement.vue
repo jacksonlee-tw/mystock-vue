@@ -1,0 +1,223 @@
+<template>
+  <div class="p-6 max-w-7xl mx-auto space-y-6">
+    <!-- 頂部標題 -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
+      <div>
+        <h1 class="text-2xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-3">
+          <i class="pi pi-cog text-primary text-2xl"></i>
+          股票與爬蟲管理
+        </h1>
+        <p class="text-sm text-surface-500 mt-1">
+          管理追蹤個股清單、手動觸發 TWSE 法人與籌碼資料同步任務
+        </p>
+      </div>
+
+      <!-- 觸發抓取按鈕 -->
+      <button 
+        @click="triggerFetch"
+        :disabled="fetchStatus?.is_running"
+        class="px-5 py-2.5 font-bold text-white bg-primary hover:bg-primary-600 disabled:opacity-50 rounded-xl flex items-center gap-2 transition-all shadow-md"
+      >
+        <i :class="['pi text-lg', fetchStatus?.is_running ? 'pi-spin pi-spinner' : 'pi-cloud-download']"></i>
+        {{ fetchStatus?.is_running ? '同步資料執行中...' : '立即同步 TWSE 資料' }}
+      </button>
+    </div>
+
+    <!-- 抓取狀態與實時進度面板 -->
+    <div v-if="fetchStatus" class="card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
+          <i class="pi pi-sync text-primary"></i> 爬蟲任務執行狀態
+        </h3>
+        <span 
+          :class="[
+            'px-3 py-1 text-xs font-bold rounded-full',
+            fetchStatus.status === 'running' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+            fetchStatus.status === 'completed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' :
+            fetchStatus.status === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' :
+            'bg-surface-100 text-surface-600 dark:bg-surface-800 dark:text-surface-400'
+          ]"
+        >
+          {{ statusLabel }}
+        </span>
+      </div>
+
+      <!-- 進度條 -->
+      <div class="space-y-1.5">
+        <div class="flex justify-between text-xs font-semibold text-surface-600 dark:text-surface-400">
+          <span>{{ fetchStatus.message || '準備就緒' }}</span>
+          <span>{{ fetchStatus.progress_percent }}%</span>
+        </div>
+        <div class="w-full h-3 bg-surface-100 dark:bg-surface-800 rounded-full overflow-hidden">
+          <div 
+            class="h-full bg-primary transition-all duration-300 rounded-full"
+            :style="{ width: `${fetchStatus.progress_percent}%` }"
+          ></div>
+        </div>
+      </div>
+
+      <!-- 執行日誌控制框 -->
+      <div class="bg-surface-950 text-surface-200 p-4 rounded-xl font-mono text-xs max-h-48 overflow-y-auto space-y-1">
+        <div v-if="!fetchStatus.logs || fetchStatus.logs.length === 0" class="text-surface-500 italic">
+          目前無運行中的日誌記錄...
+        </div>
+        <div v-for="(log, idx) in fetchStatus.logs" :key="idx" class="leading-relaxed">
+          {{ log }}
+        </div>
+      </div>
+    </div>
+
+    <!-- 追蹤股票清單管理 -->
+    <div class="card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
+          <i class="pi pi-list text-primary"></i> 追蹤股票號碼設定 (.env)
+        </h3>
+
+        <!-- 新增股票輸入框 -->
+        <div class="flex items-center gap-2">
+          <input 
+            v-model="newStockId" 
+            type="text" 
+            placeholder="請輸入股票代號 (例: 2454)"
+            @keyup.enter="addStock"
+            class="px-3 py-2 border border-surface-300 dark:border-surface-600 rounded-xl bg-surface-0 dark:bg-surface-800 text-surface-900 dark:text-surface-0 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-56"
+          />
+          <button 
+            @click="addStock"
+            class="px-4 py-2 font-bold text-sm bg-primary text-primary-contrast hover:bg-primary-600 rounded-xl flex items-center gap-1.5 transition-colors shadow-sm"
+          >
+            <i class="pi pi-plus"></i> 新增
+          </button>
+        </div>
+      </div>
+
+      <!-- 股票清單網格卡片 -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+        <div 
+          v-for="code in trackedCodes" 
+          :key="code"
+          class="card p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/40 flex items-center justify-between hover:shadow-md transition-shadow"
+        >
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900/40 text-primary font-black flex items-center justify-center text-sm">
+              {{ code }}
+            </div>
+            <div>
+              <div class="font-bold text-surface-900 dark:text-surface-0 flex items-center gap-1.5">
+                <span>{{ code }}</span>
+                <span v-if="getStockName(code)" class="text-sm font-bold text-primary">
+                  {{ getStockName(code) }}
+                </span>
+              </div>
+              <span class="text-xs text-surface-500">已列入自動抓取標的</span>
+            </div>
+          </div>
+
+          <button 
+            @click="removeStock(code)"
+            :title="`移除股票 ${code} ${getStockName(code)}`"
+            class="text-surface-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          >
+            <i class="pi pi-trash text-lg"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue';
+import { stockApi } from '@/service/stockApi';
+import { useCrawlerStatus } from '@/composables/useCrawlerStatus';
+
+const trackedCodes = ref([]);
+const stockNameMap = ref({});
+const newStockId = ref('');
+const { fetchStatus, checkStatus } = useCrawlerStatus();
+
+const statusLabel = computed(() => {
+  if (!fetchStatus.value) return '未執行';
+  switch (fetchStatus.value.status) {
+    case 'running': return '🔄 正在同步中';
+    case 'completed': return '✅ 同步完畢';
+    case 'error': return '❌ 發生錯誤';
+    default: return '靜止中';
+  }
+});
+
+onMounted(async () => {
+  await loadTrackedStocks();
+  await checkStatus();
+});
+
+function getStockName(code) {
+  return stockNameMap.value[code] || '';
+}
+
+async function loadTrackedStocks() {
+  try {
+    const [trackedRes, availRes] = await Promise.allSettled([
+      stockApi.getTrackedStocks(),
+      stockApi.getAvailableStocks()
+    ]);
+
+    if (availRes.status === 'fulfilled' && availRes.value.success) {
+      const map = {};
+      availRes.value.data.forEach(s => {
+        map[s.stock_id] = s.stock_name;
+      });
+      stockNameMap.value = map;
+    }
+
+    if (trackedRes.status === 'fulfilled' && trackedRes.value.success) {
+      trackedCodes.value = trackedRes.value.data;
+    }
+  } catch (err) {
+    console.error('取得追蹤清單失敗:', err);
+  }
+}
+
+async function addStock() {
+  const code = newStockId.value.trim();
+  if (!code) return;
+  try {
+    const res = await stockApi.addTrackedStock(code);
+    if (res.success) {
+      trackedCodes.value = res.data;
+      newStockId.value = '';
+      await loadTrackedStocks();
+    }
+  } catch (err) {
+    alert(err.response?.data?.detail || '新增股票失敗');
+  }
+}
+
+async function removeStock(code) {
+  const name = getStockName(code);
+  const displayName = name ? `${code} (${name})` : code;
+  if (!confirm(`確定要將股票 ${displayName} 從追蹤清單中移除嗎？`)) return;
+  try {
+    const res = await stockApi.removeTrackedStock(code);
+    if (res.success) {
+      trackedCodes.value = res.data;
+    }
+  } catch (err) {
+    alert(err.response?.data?.detail || '移除股票失敗');
+  }
+}
+
+async function triggerFetch() {
+  try {
+    const res = await stockApi.triggerFetch();
+    if (res.success) {
+      await checkStatus();
+    } else {
+      alert(res.message);
+    }
+  } catch (err) {
+    alert('啟動爬蟲失敗');
+  }
+}
+</script>

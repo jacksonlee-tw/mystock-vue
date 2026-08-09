@@ -1,0 +1,43 @@
+# backend/schemas/responses.py（Response DTO 層）— 新增部分
+"""XXX 相關 Pydantic 回應模型 (Response DTOs)
+
+所有 Response 繼承 BaseResponse（含 status: str）。
+新增功能時，在此檔案中新增 Response Schema。
+宣告於 @router 的 response_model 參數，用於 Swagger 自動文件。
+"""
+from typing import List, Optional
+from pydantic import BaseModel
+
+
+# ── 共用基底（已存在，無需重複定義）──────────────────────────────────────
+
+class BaseResponse(BaseModel):
+    """所有回應共用的基底欄位"""
+    status: str
+
+
+class SuccessMessageResponse(BaseResponse):
+    """僅含 status + message 的通用成功回應"""
+    message: str
+
+
+# ── XXX 功能的 Response Schema ───────────────────────────────────────────
+
+class XxxResponse(BaseResponse):
+    """POST /api/xxx/ 回應"""
+    message: str
+    timestamp: str
+    dbMode: str
+
+
+class XxxDetailResponse(BaseResponse):
+    """GET /api/xxx/{xxx_id} 回應"""
+    name: str
+    value: Optional[int] = None
+
+
+class XxxListResponse(BaseResponse):
+    """GET /api/xxx/ 回應"""
+    items: List[dict]
+    total: int
+    dbMode: str

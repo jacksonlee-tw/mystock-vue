@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mystock-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-mystock_db}
+      MYSQL_USER: ${MYSQL_USER:-mystock_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-mystock_password}
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d
+    networks:
+      - mystock-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    restart: unless-stopped
+
+  # FastAPI 後端服務（可選）
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mystock-backend
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-mystock_db}
+      MYSQL_USER: ${MYSQL_USER:-mystock_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-mystock_password}
+      DATABASE_URL: "mysql+pymysql://${MYSQL_USER:-mystock_user}:${MYSQL_PASSWORD:-mystock_password}@mysql:3306/${MYSQL_DATABASE:-mystock_db}"
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend
+      - ./main.py:/app/main.py
+    networks:
+      - mystock-network
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+    name: mystock-mysql-data
+
+networks:
+  mystock-network:
+    name: mystock-network
+    driver: bridge

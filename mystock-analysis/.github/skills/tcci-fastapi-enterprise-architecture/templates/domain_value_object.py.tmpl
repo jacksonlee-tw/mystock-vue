@@ -1,0 +1,45 @@
+# backend/domain/value_objects/xxx.py（Domain Value Object 層）
+"""XXX 值物件（XXX Value Object）
+
+不可變（frozen dataclass），以值相等比較。
+封裝 XXX 相關業務規則：不允許無效值。
+"""
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True, slots=True)
+class Xxx:
+    """XXX 值物件 — 不可變、以值相等
+
+    Attributes:
+        value: 數值，不可為負。
+        unit:  單位，預設 "unit"。
+    """
+    value: int
+    unit: str = "unit"
+
+    def __post_init__(self):
+        if self.value < 0:
+            raise ValueError(f"數值不可為負: {self.value}")
+
+    def subtract(self, other: "Xxx") -> "Xxx":
+        """相減，結果不小於 0。
+
+        Args:
+            other: 被減的值物件。
+
+        Returns:
+            相減後的 Xxx（最小為 0）。
+
+        Raises:
+            ValueError: 單位不同時。
+        """
+        if self.unit != other.unit:
+            raise ValueError(f"單位不同無法相減: {self.unit} vs {other.unit}")
+        return Xxx(value=max(self.value - other.value, 0), unit=self.unit)
+
+    def __int__(self) -> int:
+        return self.value
+
+    def __repr__(self) -> str:
+        return f"Xxx({self.value} {self.unit})"

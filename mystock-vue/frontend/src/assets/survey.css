@@ -1,0 +1,929 @@
+/* 強制問卷頁 DataTable 所有表頭欄位最小寬度，完全覆蓋其他全域設定 */
+.table-module th,
+.table-module .p-datatable .p-datatable-thead > tr > th,
+.table-module .p-datatable-scrollable-header-table th,
+.table-module .p-datatable-scrollable-header th,
+.table-module th.p-frozen-column {
+  min-width: 100px !important;
+  width: auto !important;
+  white-space: nowrap !important;
+}
+.table-module .p-datatable-table-container th {
+  background-color: var(--p-primary-500);
+  color: #fff !important;
+  padding: 0.6rem ;
+
+}
+/* 強制 DataTable 所有表頭欄位最小寬度，覆蓋所有常見結構 */
+.table-module th,
+.table-module .p-datatable .p-datatable-thead > tr > th,
+.table-module .p-datatable-scrollable-header-table th,
+.table-module .p-datatable-scrollable-header th,
+.table-module th.p-frozen-column {
+  min-width: 100px !important;
+}
+th.p-datatable-header-cell {
+  min-width: 100px !important;
+}
+/* DataTable 表頭欄位最小寬度設定（PrimeVue 標準結構） */
+.table-module .p-datatable .p-datatable-thead > tr > th {
+  min-width: 100px !important;
+}
+.survey-fill-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--p-primary-50) 0%, var(--p-surface-50) 100%);
+  padding: 2rem
+}
+.loading-container, .error-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh
+}
+.loading-content, .error-content {
+  text-align: center;
+  background: #fff;
+  padding: 3rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px #0000001a
+}
+.survey-container {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0 2rem
+}
+.survey-header-card {
+  margin-bottom: 2rem;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px #00000014;
+  overflow: hidden
+}
+.survey-header-title {
+  background: var(--p-primary-color);
+  color: #fff;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  transition: background .2s
+}
+.survey-header-title:hover {
+  background: var(--p-primary-600)
+}
+.header-title-content {
+  display: flex;
+  align-items: center;
+  font-size: 1.1rem;
+  font-weight: 600
+}
+.toggle-icon {
+  font-size: 1rem;
+  transition: transform .3s
+}
+.survey-header-content {
+  padding: 2.5rem
+}
+.survey-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--p-primary-color);
+  margin: 0 0 1rem;
+  line-height: 1.2
+}
+.survey-description {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: var(--p-text-muted-color);
+  margin-bottom: 1.5rem
+}
+.survey-meta {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap
+}
+.survey-form, .main-titles-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem
+}
+.main-title-section {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px #0000001a;
+  overflow: hidden
+}
+.main-title-header {
+  background: linear-gradient(135deg, var(--p-primary-color) 0%, var(--p-primary-600) 100%) !important;
+  color: #fff !important;
+  padding: 1.5rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  transition: all .3s
+}
+.main-title-header:hover {
+  background: linear-gradient(135deg, var(--p-primary-600) 0%, var(--p-primary-700) 100%) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px #00000026
+}
+.main-title-number {
+  width: 3rem;
+  height: 3rem;
+  background: #fff3 !important;
+  color: #fff !important;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, .3)
+}
+.main-title-text {
+  font-size: 1.8rem !important;
+  font-weight: 700 !important;
+  color: #fff !important;
+  margin: 0 !important;
+  line-height: 1.3 !important
+}
+.main-title-description {
+  font-size: 1rem !important;
+  color: #ffffffe6 !important;
+  margin-top: .5rem;
+  line-height: 1.5
+}
+.main-title-header .toggle-icon {
+  font-size: 1.5rem !important;
+  color: #fff !important;
+  transition: transform .3s;
+  flex-shrink: 0
+}
+.main-title-content {
+  padding: 2rem;
+  background: var(--p-surface-50);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem
+}
+.modules-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem
+}
+.module-section {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px #00000014;
+  overflow: hidden
+}
+.module-header {
+  background: var(--p-primary-50);
+  padding: 1.5rem 2rem;
+  border-bottom: 2px solid var(--p-primary-100)
+}
+.module-toggle-icon {
+  font-size: 1.25rem;
+  color: var(--p-primary-color);
+  transition: transform .3s;
+  flex-shrink: 0
+}
+.module-number {
+  width: 2.5rem;
+  height: 2.5rem;
+  background: var(--p-primary-color);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  flex-shrink: 0
+}
+.module-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--p-text-color);
+  margin: 0 0 .5rem
+}
+.module-description {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--p-text-muted-color);
+  margin: 0
+}
+.module-content {
+  padding: 2rem;
+  overflow: visible
+}
+.table-module {
+  width: 100%;
+  position: relative;
+  margin-top: 1rem
+}
+.table-wrapper {
+  width: 100%;
+  position: relative;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  overflow: hidden
+}
+.table-headers-container {
+  display: flex;
+  width: 100%;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #fff;
+  border-bottom: 2px solid var(--p-primary-500) !important;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.frozen-header-section {
+  flex-shrink: 0;
+  background: #dbeafe;
+  border-right: 3px solid var(--p-primary-500) !important;
+  overflow: visible
+}
+.frozen-header-table {
+  border-collapse: collapse;
+  background: #dbeafe;
+  table-layout: fixed
+}
+.frozen-header-table th {
+  background: #dbeafe;
+  font-weight: 600;
+  padding: .75rem 1rem;
+  border: 1px solid #dee2e6;
+  text-align: left;
+  white-space: normal;
+  word-wrap: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box
+}
+.scrollable-header-section {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  /* 動態調整padding，不預設預留空間 */
+  padding-right: 0;
+  background: var(--p-primary-500) !important;
+}
+
+/* 簡化表格佈局，讓瀏覽器自動處理對齊 */
+.scrollable-header-table, .scrollable-body-table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.scrollable-header-table th, .scrollable-body-table td {
+  padding: .75rem 1rem;
+  border: 1px solid var(--p-gray-300);
+  box-sizing: border-box;
+  text-align: left;
+  vertical-align: middle;
+  white-space: normal;
+  overflow: visible;
+  /* 寬度將由 JavaScript 動態設定 */
+}
+
+/* 表頭特別設定：移除上下邊框 */
+.scrollable-header-table th {
+  border-top: none;
+  border-bottom: none;
+  background: var(--p-primary-500)!important;
+  color: #fff !important;
+  padding: 0.6rem;
+}
+/* 表格滾動區域的整體樣式調整 */
+.scrollable-section {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  height: 100%;
+}
+/* 優化hover效果 */
+.scrollable-body-table tr:hover,
+.frozen-body-table tr:hover {
+  background-color: #e3f2fd !important;
+}
+.scrollable-body-table tr:hover td,
+.frozen-body-table tr:hover td {
+  background-color: #e3f2fd !important;
+}
+
+/* 滾動容器設定 - 確保表頭和內容寬度一致 */
+.scrollable-header-wrapper {
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  box-sizing: border-box;
+}
+.scrollable-content-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-sizing: border-box;
+}
+
+/* 確保表頭和表體寬度一致 */
+.scrollable-header-table,
+.scrollable-body-table {
+  width: 100%;
+  min-width: max-content;
+}
+
+/*.scrollable-header-wrapper::-webkit-scrollbar,
+.scrollable-content-wrapper::-webkit-scrollbar {
+   顯示系統預設滾動條 
+}*/
+.scrollable-header-table {
+  background: #fff;
+}
+.scrollable-header-table th {
+  background: var(--p-primary-150); 
+  font-weight: 600;
+}
+
+/* 移除第一欄的左邊框 */
+.scrollable-header-table th:first-child {
+  border-left: none;
+}
+.scrollable-body-table td:first-child{
+  border-left: none;
+}
+/* 移除最後一欄的右邊框 */
+.scrollable-header-table th:last-child {
+  border-right: none;
+}
+.table-body-container {
+  display: flex;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 400px!important;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* 使用系統預設滾動條樣式 */
+.table-body-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.table-body-container::-webkit-scrollbar-track {
+  background: #f8f9fa;
+}
+
+.table-body-container::-webkit-scrollbar-thumb {
+  background: #dee2e6;
+  border-radius: 4px;
+}
+
+.table-body-container::-webkit-scrollbar-thumb:hover {
+  background: #adb5bd;
+}
+.frozen-section {
+  flex-shrink: 0;
+  background: #f0f9ff;
+  border-right: 3px solid var(--p-primary-500) !important;;
+  overflow: visible
+}
+
+
+.frozen-body-table {
+  border-collapse: collapse;
+  background: #fff;
+  table-layout: fixed
+}
+.frozen-body-table td {
+  padding: .75rem 1rem;
+  border: 1px solid #dee2e6;
+  vertical-align: middle;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  background: #f0f9ff;
+}
+.frozen-body-table td > div {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important
+}
+.scrollable-section {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  height: 100%;
+}
+
+.scrollable-body-table {
+  background: #fff;
+  height: 100%
+}
+.scrollable-body-table td {
+  overflow: visible !important;
+}
+
+/* 移除最後一欄的右邊框 */
+.scrollable-body-table td:last-child {
+  border-right: none;
+}
+/* 斑馬紋設定 */
+ .scrollable-body-table tr:nth-child(even) {
+  background-color: var(--p-primary-50) !important;
+}
+.scrollable-body-table tr:nth-child(even) td {
+  background-color: var(--p-primary-50) !important;
+}
+.scrollable-body-table tr:nth-child(odd) {
+  background-color: #ffffff !important;
+}
+.scrollable-body-table tr:nth-child(odd) td {
+  background-color: #ffffff !important;
+} 
+.scrollable-body-table tr:hover td {
+  background: var(--p-gray-100) !important;
+}
+
+/* frozen表格的斑馬紋 */
+.frozen-body-table tr:nth-child(even) {
+  background-color: var(--p-primary-50) !important;
+}
+.frozen-body-table tr:nth-child(even) td {
+  background-color: var(--p-primary-50) !important;
+}
+.frozen-body-table tr:nth-child(odd) {
+  background-color: #ffffff !important;
+}
+.frozen-body-table tr:nth-child(odd) td {
+  background-color: #ffffff !important;
+}
+.frozen-body-table tr:hover td {
+  background: var(--p-gray-100) !important;
+}
+.scrollable-body-table td > div {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.table-horizontal-scroll {
+  display: flex;
+  width: 100%;
+  border-top: 1px solid #dee2e6;
+  background: #f8f9fa;
+  position: sticky;
+  bottom: 0;
+  z-index: 50;
+  height: 17px
+}
+.frozen-spacer {
+  flex-shrink: 0;
+  border-right: 3px solid var(--p-primary-500) !important;;
+  background: #dbeafe
+}
+.scrollable-scroll-wrapper {
+  flex: 1;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  height: 100%
+}
+.scroll-spacer {
+  height: 1px
+}
+.custom-table {
+  border-collapse: collapse;
+  width: auto;
+  background: #fff;
+  table-layout: fixed
+}
+.custom-table thead {
+  background: #fff
+}
+.custom-table th {
+  background: var(--p-primary-50);
+  font-weight: 600;
+  padding: .75rem 1rem;
+  border: 1px solid #dee2e6;
+  text-align: left;
+  white-space: normal;
+  word-wrap: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
+.frozen-table th {
+  background: #dbeafe;
+  z-index: 11
+}
+.custom-table td {
+  padding: .5rem;
+  border: 1px solid #dee2e6;
+  vertical-align: middle;
+  overflow: hidden;
+  box-sizing: border-box
+}
+.custom-table .p-inputtext, .custom-table .p-inputnumber, .custom-table .p-inputnumber-input, .custom-table .p-select {
+  max-width: 100% !important;
+  box-sizing: border-box
+}
+.custom-table .p-inputnumber, .custom-table .p-inputnumber-input, .table-module td .p-inputnumber, .table-module td .p-inputnumber-input {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important
+}
+.table-module td > div {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important
+}
+.frozen-body-table td > div, .scrollable-body-table td > div {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important
+}
+.frozen-table td {
+  background: #f0f9ff
+}
+.custom-table .header-content {
+  word-wrap: break-word;
+  word-break: break-word;
+  line-height: 1.4
+}
+.table-module .p-datatable {
+  border: 1px solid #dee2e6;
+  border-radius: 6px
+}
+.table-module .p-datatable-wrapper {
+  overflow: auto;
+  position: relative
+}
+.table-module .p-datatable-scrollable-wrapper {
+  position: relative
+}
+.table-module .p-datatable-scrollable-header, .table-module .p-datatable-scrollable-body {
+  overflow-x: auto !important;
+  position: relative
+}
+.table-module .p-datatable-scrollable-header-table, .table-module .p-datatable-scrollable-body-table {
+  position: relative
+}
+.table-module .p-datatable-scrollable-header th.p-frozen-column {
+  position: sticky !important;
+  left: 0 !important;
+  background: #dbeafe !important;
+  z-index: 100 !important;
+  font-weight: 700 !important;
+  box-shadow: 2px 0 8px #00000026 !important;
+  border-right: 2px solid var(--p-primary-500) !important; 
+}
+.table-module .p-datatable-scrollable-body td.p-frozen-column {
+  position: sticky !important;
+  left: 0 !important;
+  background: #f0f9ff !important;
+  z-index: 10 !important;
+  box-shadow: 2px 0 8px #0000001a !important;
+  border-right: 2px solid var(--p-primary-500) !important;
+}
+.table-module .p-datatable-scrollable-header th:not(.p-frozen-column) {
+  position: relative !important;
+  z-index: 1 !important;
+  background: var(--p-primary-50) !important
+}
+.table-module .p-datatable-scrollable-body td:not(.p-frozen-column) {
+  position: relative !important;
+  z-index: 0 !important;
+  background: #fff !important
+}
+.table-module .p-frozen-column {
+  position: sticky !important;
+  left: 0 !important;
+  background: #f0f9ff !important;
+  z-index: 10 !important;
+  box-shadow: 2px 0 4px #0000001a !important
+}
+.table-module th.p-frozen-column {
+  background: #dbeafe !important;
+  font-weight: 700 !important;
+  z-index: 100 !important;
+  box-shadow: 2px 0 4px #00000026 !important
+}
+.table-module .p-datatable .p-datatable-thead > tr > th {
+  background: var(--p-primary-50) !important;
+  font-weight: 600 !important;
+  padding: .75rem 1rem !important;
+  min-height: 40px !important;
+  height: auto !important;
+  white-space: normal !important;
+  vertical-align: middle !important;
+  color: #000 !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  border: 1px solid #dee2e6 !important;
+  overflow-wrap: break-word !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
+  min-width: 100px !important;
+}
+.table-module .p-datatable .p-datatable-thead {
+  display: table-header-group !important;
+  visibility: visible !important;
+  opacity: 1 !important
+}
+.table-module .p-datatable-thead > tr {
+  display: table-row !important;
+  visibility: visible !important
+}
+.table-module .p-datatable .p-datatable-thead > tr > th > * {
+  display: inline !important;
+  visibility: visible !important;
+  color: #000 !important
+}
+.table-module .p-datatable-tbody > tr > td {
+  overflow-wrap: break-word !important;
+  word-wrap: break-word !important;
+  padding: .5rem !important;
+  vertical-align: middle !important;
+  min-width: 150px !important;
+}
+.table-module .p-inputtext, .table-module .p-inputnumber, .table-module .p-inputnumber-input, .table-module .p-dropdown, .table-module .p-select {
+  /* padding: .5rem; */
+  /* min-width: 150px !important; */
+  /* width: 100% !important;min-width: 120px !important; */
+  /* max-width: 100% !important; */
+  box-sizing: border-box !important
+}
+.table-module .p-inputnumber {
+  display: flex !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+.table-module .p-inputnumber > .p-inputnumber-input {
+  flex: 1 !important;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  border: 1px solid var(--p-gray-300) !important;
+  padding: 0.5rem !important;
+  font-size: 1rem !important;
+  height: auto !important;
+}
+.frozen-body-table td .p-inputnumber, .scrollable-body-table td .p-inputnumber, 
+.frozen-body-table td .p-inputnumber-input, .scrollable-body-table td .p-inputnumber-input {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+/* 確保 InputNumber 的按鈕不會破壞佈局 */
+.table-module .p-inputnumber .p-inputnumber-buttons-stacked {
+  width: 2rem !important;
+  flex-shrink: 0 !important;
+}
+.table-module .p-inputnumber .p-inputnumber-buttons-stacked .p-button {
+  width: 100% !important;
+  height: 1rem !important;
+  padding: 0.2rem !important;
+  min-width: 0 !important;
+}
+.table-module .p-inputnumber .p-inputnumber-buttons-horizontal {
+  width: 2rem !important;
+  flex-shrink: 0 !important;
+}
+.table-module .p-inputnumber .p-inputnumber-buttons-horizontal .p-button {
+  width: 1rem !important;
+  height: 100% !important;
+  padding: 0.2rem !important;
+  min-width: 0 !important;
+}
+/* InputNumber 容器佈局已在上方統一設定 */
+
+/* 確保 TD 中的 div 不會讓 InputNumber 超出邊界 */
+.scrollable-body-table td div,
+.frozen-body-table td div {
+  /* width: 100% !important;
+  max-width: 100% !important; */
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+.scrollable-body-table td div .p-inputnumber,
+.frozen-body-table td div .p-inputnumber {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+.table-actions {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 1rem 0;
+  border-top: 1px solid var(--p-surface-200)
+}
+.qa-module {
+  width: 100% !important;
+  display: block !important
+}
+.qa-module .form-label {
+  display: flex;
+  align-items: center;
+  margin-bottom: .75rem
+}
+.qa-module .form-label label {
+  font-weight: 600;
+  font-size: .95rem;
+  color: var(--p-text-color)
+}
+.qa-module .length-info {
+  text-align: right;
+  color: var(--p-text-muted-color)
+}
+.qa-module .qa-textarea, .qa-module .p-inputtextarea, .qa-module textarea {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
+  border-radius: 6px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+  display: block !important
+}
+.qa-module .p-inputtextarea:focus {
+  border-color: var(--p-primary-color);
+  box-shadow: 0 0 0 .2rem var(--p-primary-50)
+}
+.placeholder-module {
+  padding: 1rem
+}
+.submit-section {
+  background: #fff;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px #00000014;
+  text-align: center
+}
+.submit-hint {
+  margin-top: 1rem;
+  color: var(--p-text-muted-color);
+  font-size: .9rem
+}
+.success-content {
+  text-align: center;
+  padding: 2rem
+}
+.question-card {
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-200);
+  border-radius: 8px;
+  overflow: hidden
+}
+.question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: var(--p-surface-50);
+  border-bottom: 1px solid var(--p-surface-200)
+}
+.question-body {
+  padding: 1.5rem
+}
+.options-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem
+}
+.option-item {
+  display: flex;
+  align-items: flex-start
+}
+.option-number {
+  width: 2rem;
+  height: 2rem;
+  background: var(--p-primary-color);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  flex-shrink: 0;
+  font-size: .9rem
+}
+.option-item.other-option .option-number {
+  width: auto;
+  min-width: 2rem;
+  padding: 0 .75rem;
+  border-radius: 1rem;
+  font-size: .85rem
+}
+.option-label {
+  margin: 0;
+  cursor: pointer;
+  line-height: 2rem;
+  flex: 1
+}
+.assign-button:hover {
+  background: #ffffff4d !important
+}
+.assign-dialog-content {
+  padding: 1rem 0
+}
+.respondents-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--p-surface-200);
+  border-radius: 8px;
+  padding: .5rem
+}
+.respondent-item {
+  display: flex;
+  align-items: center;
+  padding: .75rem;
+  border-radius: 6px;
+  margin-bottom: .5rem;
+  transition: background-color .2s;
+  cursor: pointer
+}
+.respondent-item:hover {
+  background-color: var(--p-surface-50)
+}
+.respondent-label {
+  margin-left: .75rem;
+  cursor: pointer;
+  flex: 1
+}
+.respondent-name {
+  font-weight: 600;
+  color: var(--p-text-color);
+  margin-bottom: .25rem
+}
+.respondent-info {
+  display: flex;
+  align-items: center
+}
+@media (max-width: 768px) {
+  .survey-fill-page {
+    padding: 1rem
+  }
+  .survey-container {
+    padding: 0 1rem
+  }
+  .survey-header-content {
+    padding: 1.5rem
+  }
+  .survey-title {
+    font-size: 1.8rem
+  }
+  .module-header {
+    padding: 1rem
+  }
+  .module-title {
+    font-size: 1.2rem
+  }
+  .module-content {
+    padding: 1rem
+  }
+}
+
+/* Input 和 Select 欄位設定 - 確保寬度一致 */
+input, select, 
+.p-inputtext, .p-inputnumber-input, .p-select {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.table-module input, .table-module select,
+.table-module .p-inputtext, .table-module .p-inputnumber-input, .table-module .p-select {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+
+
+

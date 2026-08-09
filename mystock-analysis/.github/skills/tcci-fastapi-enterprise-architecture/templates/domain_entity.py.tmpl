@@ -1,0 +1,62 @@
+# backend/domain/entities/xxx.py（Domain Entity 層）
+"""XXX 領域實體（XXX Entity）
+
+封裝 XXX 的核心業務規則，不依賴任何外部框架或基礎設施。
+業務規則包含：
+  - OOO 計算
+  - OOO 驗證
+"""
+
+
+class Xxx:
+    """XXX 領域實體
+
+    具有唯一識別碼（xxx_id）的生命週期物件，
+    承載 XXX 完整流程中的業務規則。
+    """
+
+    def __init__(
+        self,
+        xxx_id: str,
+        name: str = "",
+        value: int = 0,
+    ):
+        self._xxx_id = xxx_id
+        self.name = name
+        self.value = value
+
+    @property
+    def xxx_id(self) -> str:
+        """唯一識別碼（設定後不可變更）"""
+        return self._xxx_id
+
+    # ── 業務規則 ──────────────────────────────────────────────────────────
+
+    def calculate_something(self, param: int) -> int:
+        """計算 OOO（Domain Rule）
+
+        說明此業務規則的意義與邊界條件。
+
+        Args:
+            param: 輸入參數說明。
+
+        Returns:
+            計算結果說明。
+        """
+        return max(self.value - param, 0)
+
+    @staticmethod
+    def resolve_type(type_code: str) -> str:
+        """類型代碼對應（Domain Rule）
+
+        Args:
+            type_code: 輸入代碼。
+
+        Returns:
+            對應的業務代碼。
+        """
+        mapping = {
+            "type_a": "1",
+            "type_b": "2",
+        }
+        return mapping.get(type_code, "1")

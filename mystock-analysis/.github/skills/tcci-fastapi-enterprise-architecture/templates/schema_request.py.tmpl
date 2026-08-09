@@ -1,0 +1,14 @@
+# backend/schemas/weighbridge.py（Request DTO 層）— 新增部分
+"""XXX 相關 Pydantic 請求模型 (Request DTOs)
+
+新增功能時，在此檔案中新增 Request Schema。
+"""
+from typing import Optional
+from pydantic import BaseModel
+
+
+class XxxRequest(BaseModel):
+    """XXX 建立/更新請求 DTO"""
+    name: str                              # 必填欄位
+    value: Optional[int] = 0               # 選填欄位（有預設值）
+    description: Optional[str] = ""        # 選填欄位
