@@ -18,13 +18,46 @@ const currentStockId = ref(route.params.id || '2330');
 onMounted(async () => {
     window.addEventListener('resize', handleResize);
     document.addEventListener('click', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
     await loadAvailableStocks();
 });
 
 onUnmounted(() => {
     window.removeEventListener('resize', handleResize);
     document.removeEventListener('click', handleClickOutside);
+    window.removeEventListener('keydown', handleKeyDown);
 });
+
+function handleKeyDown(event) {
+    // 若使用者目前在文字輸入框內打字，不觸發快捷鍵
+    const activeEl = document.activeElement;
+    if (activeEl) {
+        const tagName = activeEl.tagName.toLowerCase();
+        if ((tagName === 'input' || tagName === 'textarea' || activeEl.isContentEditable) && tagName !== 'select') {
+            return;
+        }
+    }
+
+    if (!availableStocks.value || availableStocks.value.length === 0) return;
+
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault();
+
+        const currentIndex = availableStocks.value.findIndex(s => s.stock_id === currentStockId.value);
+        let nextIndex = currentIndex;
+
+        if (event.key === 'ArrowDown') {
+            nextIndex = (currentIndex + 1) % availableStocks.value.length;
+        } else if (event.key === 'ArrowUp') {
+            nextIndex = (currentIndex - 1 + availableStocks.value.length) % availableStocks.value.length;
+        }
+
+        if (nextIndex !== currentIndex && nextIndex >= 0 && nextIndex < availableStocks.value.length) {
+            currentStockId.value = availableStocks.value[nextIndex].stock_id;
+            handleStockChange();
+        }
+    }
+}
 
 async function loadAvailableStocks() {
     try {
@@ -48,10 +81,17 @@ watch(() => route.params.id, (newId) => {
 
 function handleStockChange() {
     if (!currentStockId.value) return;
-    const period = route.query.period || 'daily';
+    const newStockId = currentStockId.value;
+
+    // 保留目前所處的子功能視圖（例如在 /chart/kline 則保持在 /chart/kline）
+    let targetPath = `/stock/${newStockId}`;
+    if (route.params.chartType) {
+        targetPath = `/stock/${newStockId}/chart/${route.params.chartType}`;
+    }
+
     router.push({
-        path: `/stock/${currentStockId.value}`,
-        query: { period }
+        path: targetPath,
+        query: { ...route.query }
     });
 }
 
@@ -89,28 +129,28 @@ function handleResize() {
             </router-link>
         </div>
 
-        <!-- 頂部列全局個股切換工具 (Header Stock Selector Tool) -->
-        <div class="flex items-center gap-2 bg-surface-100 dark:bg-surface-800 px-3 py-1.5 rounded-xl border border-surface-200 dark:border-surface-700 shadow-sm ml-2 md:ml-4">
-            <i class="pi pi-search text-primary text-xs"></i>
-            <span class="text-xs font-bold text-surface-600 dark:text-surface-400 hidden sm:inline">個股切換:</span>
-            <select 
-                v-model="currentStockId" 
-                @change="handleStockChange"
-                class="bg-transparent text-xs font-bold text-surface-900 dark:text-surface-0 focus:outline-none cursor-pointer pr-1"
-                title="選擇欲切換分析的股票"
-            >
-                <option 
-                    v-for="s in availableStocks" 
-                    :key="s.stock_id" 
-                    :value="s.stock_id" 
-                    class="bg-surface-0 dark:bg-surface-900 text-surface-900 dark:text-surface-0 font-medium"
+        <div class="layout-topbar-actions flex items-center gap-3">
+            <!-- 頂部列靠右個股切換工具 (Header Stock Selector Tool - Right Aligned) -->
+            <div class="flex items-center gap-2 bg-surface-100 dark:bg-surface-800 px-3 py-1.5 rounded-xl border border-surface-200 dark:border-surface-700 shadow-sm">
+                <i class="pi pi-search text-primary text-xs"></i>
+                <span class="text-xs font-bold text-surface-600 dark:text-surface-400 hidden sm:inline">個股切換:</span>
+                <select 
+                    v-model="currentStockId" 
+                    @change="handleStockChange"
+                    class="bg-transparent text-xs font-bold text-surface-900 dark:text-surface-0 focus:outline-none cursor-pointer pr-1"
+                    title="選擇欲切換分析的股票"
                 >
-                    {{ s.stock_id }} {{ s.stock_name }}
-                </option>
-            </select>
-        </div>
+                    <option 
+                        v-for="s in availableStocks" 
+                        :key="s.stock_id" 
+                        :value="s.stock_id" 
+                        class="bg-surface-0 dark:bg-surface-900 text-surface-900 dark:text-surface-0 font-medium"
+                    >
+                        {{ s.stock_id }} {{ s.stock_name }}
+                    </option>
+                </select>
+            </div>
 
-        <div class="layout-topbar-actions">
             <!-- 版本標籤，桌機/手機都顯示在右側 -->
             <span style="font-size: 0.8em; color: #333; background: #f4f4f4; border-radius: 4px; padding: 2px 8px; vertical-align: middle">V.01</span>
             <div class="layout-config-menu" v-if="!isMobile">
