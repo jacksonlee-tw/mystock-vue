@@ -18,10 +18,17 @@ const COLORS = ['#f59e0b', '#0ea5e9', '#8b5cf6'];
 function sma(values, window) {
     const out = new Array(values.length).fill(null);
     let sum = 0;
+    let validCount = 0; // 窗口內「非 null」（有實際收盤價）的筆數
     for (let i = 0; i < values.length; i++) {
-        sum += values[i];
-        if (i >= window) sum -= values[i - window];
-        if (i >= window - 1) {
+        const v = values[i];
+        if (v != null) { sum += v; validCount++; }
+        if (i >= window) {
+            const old = values[i - window];
+            if (old != null) { sum -= old; validCount--; }
+        }
+        // 窗口內若有任何一天缺行情（null，例如法人資料先到、股價尚未回補),
+        // 均線在該點留空，避免把缺值當 0 計入，把均線拉歪。
+        if (i >= window - 1 && validCount === window) {
             out[i] = +(sum / window).toFixed(2);
         }
     }

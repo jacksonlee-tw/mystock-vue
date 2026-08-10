@@ -2,9 +2,9 @@ import { computed, reactive } from 'vue';
 
 const layoutConfig = reactive({
     preset: 'Aura',
-    primary: 'brass', // 對應 assets/layout/variables/_accent-themes.scss 的預設主題色
+    primary: 'tech-blue', // 對應 assets/layout/variables/_accent-themes.scss 的預設主題色（深藍色系）
     surface: null,
-    darkTheme: false,
+    darkTheme: true, // 預設深色模式，搭配 tech-blue 呈現深藍色系
     menuMode: 'static'
 });
 

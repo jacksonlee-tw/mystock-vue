@@ -12,7 +12,8 @@ SUM_FIELDS = [
     "institutional_amount_est", "volume", "amount", "trades"
 ]
 
-END_FIELDS = ["close", "margin_balance", "short_balance"]
+END_FIELDS = ["margin_balance", "short_balance"]  # 餘額類欄位，0 是合法值，直接採最後一筆
+PRICE_END_FIELDS = ["close"]  # 收盤價 0 代表當天未回補到行情，須排除，改採最後一筆「有效」值
 START_FIELDS = ["open"]
 MAX_FIELDS = ["high"]
 MIN_FIELDS = ["low"]
@@ -190,6 +191,10 @@ def aggregate_stock_data(data: Dict[str, Any], period: str = "daily", months: in
             valid_vals = [r[f] for r in records if f in r and r[f] is not None]
             aggregated[f] = valid_vals[-1] if valid_vals else 0
 
+        for f in PRICE_END_FIELDS:
+            valid_vals = [r[f] for r in records if f in r and r[f] is not None and r[f] > 0]
+            aggregated[f] = valid_vals[-1] if valid_vals else 0
+
         for f in START_FIELDS:
             valid_vals = [r[f] for r in records if f in r and r[f] is not None and r[f] > 0]
             aggregated[f] = valid_vals[0] if valid_vals else (records[0].get("close", 0))
@@ -222,8 +227,14 @@ def get_stock_chart_payload(stock_id: str, period: str = "daily", months: int = 
     dates = [r["date"] for r in aggregated_records]
     stock_name = aggregated_records[0].get("name", stock_id)
 
+    # 部分交易日可能只抓到三大法人/融資融券資料、行情尚未回補（或該來源當日查無資料），
+    # 此時 open/close 會是預設值 0 ── 若原樣塞進 K 棒，會把 Y 軸座標硬拉到 0，
+    # 導致真實價格區間被壓縮成一條線（K 線圖跑掉），tooltip 也會顯示開盤價 0 這種假資料。
+    # 改為 None，讓 ECharts 該天直接跳過（留空），不參與座標軸範圍計算。
     kline_data = [
         [r.get("open", 0), r.get("close", 0), r.get("low", 0), r.get("high", 0)]
+        if r.get("open", 0) and r.get("close", 0)
+        else None
         for r in aggregated_records
     ]
 

@@ -1,61 +1,69 @@
 <template>
-  <div class="space-y-4">
-    <!-- 日期區間只在此顯示一次，不再逐張圖卡重複 -->
+  <div class="space-y-3">
+    <!-- 日期區間只在此顯示一次 -->
     <div v-if="dateRangeText" class="flex justify-end">
       <span class="num text-xs font-semibold text-surface-600 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 px-2.5 py-1 rounded-lg border border-surface-200 dark:border-surface-700">
         <i class="pi pi-calendar text-[10px] mr-1 text-primary"></i>{{ dateRangeText }}
       </span>
     </div>
 
-    <!-- 儀表板拖曳網格 -->
-    <draggable
-      v-model="widgets"
-      item-key="id"
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4"
-      handle=".drag-handle"
-      animation="200"
-    >
-      <template #item="{ element }">
-        <div 
-          :id="'widget-' + element.id"
-          :class="['card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 overflow-hidden flex flex-col', element.colSpan || 'col-span-1']"
+    <!-- 單一圖表舞台：一次只顯示一張圖，用上方頁籤切換或點選 KPI 卡（見 StockDashboard.vue）。
+         所有圖表共用同一個固定高度容器，大小格式統一，不再逐張堆疊成長頁。 -->
+    <div class="card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 overflow-hidden">
+      <div class="flex flex-wrap items-center gap-0.5 px-3 pt-2.5 pb-2 border-b border-surface-100 dark:border-surface-800 bg-surface-50/60 dark:bg-surface-800/30">
+        <button
+          v-for="w in availableWidgets"
+          :key="w.id"
+          :id="'widget-' + w.id"
+          type="button"
+          @click="activeId = w.id"
+          :class="[
+            'px-3 py-1.5 text-xs font-bold rounded-md flex items-center gap-1.5 transition-all duration-150',
+            activeId === w.id
+              ? 'bg-primary text-primary-contrast shadow-sm'
+              : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
+          ]"
         >
-          <div
-            class="flex items-center justify-between gap-2 px-4 py-3 border-b border-surface-100 dark:border-surface-800 bg-surface-50/60 dark:bg-surface-800/30"
-          >
-            <div class="flex items-center gap-2">
-              <i class="pi pi-bars drag-handle cursor-move text-surface-400 hover:text-surface-600 transition-colors p-1 -ml-1"></i>
-              <h3 
-                class="text-sm font-bold text-surface-900 dark:text-surface-0 flex items-center gap-1.5 transition-colors"
-                :class="{'cursor-pointer hover:text-primary': element.route}"
-                @click="element.route ? goToDetail(element.route) : null"
-              >
-                <i :class="['pi', element.icon, 'text-surface-400']"></i> {{ element.title }}
-              </h3>
-            </div>
-            
-            <div v-if="element.id === 'kline'" class="flex items-center gap-3 text-[11px] font-semibold text-surface-500">
-              <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-sm" :style="{ background: upDown.up }"></i>上漲</span>
-              <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-sm" :style="{ background: upDown.down }"></i>下跌</span>
-            </div>
-          </div>
-          
-          <div class="p-4 flex-1 w-full min-w-0 overflow-hidden">
-            <v-chart v-if="!element.emptyPlaceholder" :class="element.id === 'kline' ? 'chart-container-primary' : 'chart-container-sm'" :option="getOption(element.id)" :update-options="{ notMerge: true }" autoresize />
-            <ChartExplanationBlock v-if="!element.emptyPlaceholder && chartExplanations[element.id]" :explanation="chartExplanations[element.id]" :compact="element.id !== 'kline'" />
-            <div v-if="element.emptyPlaceholder" class="h-full flex items-center justify-center p-6 text-center text-surface-500">
-              {{ element.emptyPlaceholder }}
-            </div>
-          </div>
+          <i :class="['pi', w.icon]"></i> {{ w.title }}
+        </button>
+
+        <!-- 放大：導去獨立的圖表明細頁（仍保留大圖檢視能力，只是不再是預設呈現方式） -->
+        <button
+          v-if="activeWidget?.route"
+          type="button"
+          @click="goToDetail(activeWidget.route)"
+          class="ml-auto p-1.5 text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800 rounded-md transition-colors"
+          title="放大檢視此圖表"
+        >
+          <i class="pi pi-window-maximize text-xs"></i>
+        </button>
+      </div>
+
+      <div class="p-4">
+        <div v-if="activeId === 'kline'" class="flex items-center justify-end gap-3 text-[11px] font-semibold text-surface-500 mb-2">
+          <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-sm" :style="{ background: upDown.up }"></i>上漲</span>
+          <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-sm" :style="{ background: upDown.down }"></i>下跌</span>
         </div>
-      </template>
-    </draggable>
+
+        <v-chart
+          v-if="activeWidget && !activeWidget.emptyPlaceholder"
+          class="chart-container-stage"
+          :option="getOption(activeId)"
+          :update-options="{ notMerge: true }"
+          autoresize
+        />
+        <div v-else-if="activeWidget?.emptyPlaceholder" class="chart-container-stage flex items-center justify-center text-center text-surface-500 px-6">
+          {{ activeWidget.emptyPlaceholder }}
+        </div>
+
+        <ChartExplanationBlock v-if="activeWidget && chartExplanations[activeId]" :explanation="chartExplanations[activeId]" />
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
-import draggable from 'vuedraggable';
+import { computed } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart, LineChart, CandlestickChart } from 'echarts/charts';
@@ -96,58 +104,46 @@ const props = defineProps({
   stockId: String,
   period: String,
   months: Number,
-  market: String // 'tw' | 'us'；未提供時 getUpDownColor 退回台股慣例
+  market: String, // 'tw' | 'us'；未提供時 getUpDownColor 退回台股慣例
+  modelValue: { type: String, default: null } // 目前顯示中的圖表 id（v-model，供父層 KPI 卡點選切換）
 });
+
+const emit = defineEmits(['update:modelValue']);
 
 const upDown = computed(() => getUpDownColor(props.market));
 
+// id 對應到 chartExplanations.js 的 key，兩邊要一致。panel 對應後端 meta.panels，
+// 用來依市場（台股／美股）決定要顯示哪些頁籤——'always' 一律顯示。
 const widgetDefinitions = [
-  { id: 'kline', title: 'K 線圖 (蠟燭圖)', icon: 'pi-chart-bar', colSpan: 'md:col-span-2 lg:col-span-2', route: 'kline', panel: 'always' },
-  { id: 'institutional', title: '三大法人買賣超 (張)', icon: 'pi-users', route: 'institutional', panel: 'institutional' },
-  { id: 'amount', title: '估算買賣超金額 (萬元)', icon: 'pi-dollar', route: 'amount', panel: 'institutional' },
-  { id: 'margin-long', title: '融資餘額 (張)', icon: 'pi-chart-line', route: 'margin-long', panel: 'margin' },
-  { id: 'margin-short', title: '融券餘額 (張)', icon: 'pi-sort-alt', route: 'margin-short', panel: 'margin' },
-  { id: 'short-ratio', title: '券資比 (%)', icon: 'pi-percentage', route: 'short-ratio', colSpan: 'md:col-span-2 lg:col-span-2', panel: 'margin' },
-  { id: 'short-us', title: '空頭持倉', icon: 'pi-sort-alt', panel: 'short', emptyPlaceholder: '歷史空頭趨勢圖表即將支援', colSpan: 'md:col-span-2 lg:col-span-2' },
-  { id: 'holders-us', title: '機構持股', icon: 'pi-users', panel: 'holders', emptyPlaceholder: '歷史機構持股趨勢圖表即將支援', colSpan: 'md:col-span-2 lg:col-span-2' }
+  { id: 'kline', title: 'K 線圖 (蠟燭圖)', icon: 'pi-chart-bar', route: 'kline', panel: 'always' },
+  { id: 'institutional', title: '三大法人買賣超', icon: 'pi-users', route: 'institutional', panel: 'institutional' },
+  { id: 'amount', title: '估算買賣超金額', icon: 'pi-dollar', route: 'amount', panel: 'institutional' },
+  { id: 'margin-long', title: '融資餘額', icon: 'pi-chart-line', route: 'margin-long', panel: 'margin' },
+  { id: 'margin-short', title: '融券餘額', icon: 'pi-sort-alt', route: 'margin-short', panel: 'margin' },
+  { id: 'short-ratio', title: '券資比', icon: 'pi-percentage', route: 'short-ratio', panel: 'margin' },
+  { id: 'short', title: '空頭持倉', icon: 'pi-sort-alt', panel: 'short', emptyPlaceholder: '歷史空頭趨勢圖表即將支援' },
+  { id: 'holders', title: '機構持股', icon: 'pi-users', panel: 'holders', emptyPlaceholder: '歷史機構持股趨勢圖表即將支援' }
 ];
 
-const widgets = ref([]);
-const LOCAL_STORAGE_KEY = 'mystock_dashboard_layout';
-
-function initWidgets() {
+const availableWidgets = computed(() => {
   const activePanels = props.chartData?.meta?.panels || ['institutional', 'margin'];
-  const allowedWidgets = widgetDefinitions.filter(w => w.panel === 'always' || activePanels.includes(w.panel));
-  
-  const savedOrder = localStorage.getItem(LOCAL_STORAGE_KEY);
-  let orderIds = [];
-  try {
-    if (savedOrder) orderIds = JSON.parse(savedOrder);
-  } catch (e) {}
+  return widgetDefinitions.filter((w) => w.panel === 'always' || activePanels.includes(w.panel));
+});
 
-  let ordered = [];
-  if (orderIds && orderIds.length > 0) {
-    orderIds.forEach(id => {
-      const w = allowedWidgets.find(x => x.id === id);
-      if (w) ordered.push(w);
-    });
-    allowedWidgets.forEach(w => {
-      if (!ordered.find(x => x.id === w.id)) ordered.push(w);
-    });
-  } else {
-    ordered = [...allowedWidgets];
+// 目前顯示中的圖表：優先吃 v-model，若父層沒傳或傳了目前市場沒有的 id，退回第一個可用頁籤。
+const activeId = computed({
+  get() {
+    if (props.modelValue && availableWidgets.value.some((w) => w.id === props.modelValue)) {
+      return props.modelValue;
+    }
+    return availableWidgets.value[0]?.id || 'kline';
+  },
+  set(id) {
+    emit('update:modelValue', id);
   }
-  widgets.value = ordered;
-}
+});
 
-watch(() => props.chartData?.meta?.panels, () => {
-  initWidgets();
-}, { immediate: true });
-
-watch(widgets, (newVal) => {
-  const orderIds = newVal.map(w => w.id);
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(orderIds));
-}, { deep: true });
+const activeWidget = computed(() => availableWidgets.value.find((w) => w.id === activeId.value) || null);
 
 function getOption(id) {
   switch (id) {
@@ -162,9 +158,9 @@ function getOption(id) {
 }
 
 function goToDetail(chartType) {
-  if (props.stockId) {
+  if (props.stockId && props.market) {
     router.push({
-      path: `/stock/${props.stockId}/chart/${chartType}`,
+      path: `/stock/${props.market}/${props.stockId}/chart/${chartType}`,
       query: { period: props.period, months: props.months }
     });
   }
@@ -212,9 +208,14 @@ const klineOption = computed(() => {
         const candle = params.find((p) => p.seriesType === 'candlestick') || params[0];
         if (!candle || !candle.data) return '';
         const date = candle.name;
-        const [open, close, low, high] = candle.data;
-        const change = close - open;
+        const [openRaw, closeRaw, lowRaw, highRaw] = candle.data;
+        const change = closeRaw - openRaw;
         const color = change >= 0 ? upDown.value.up : upDown.value.down;
+        // 美股價格是原始浮點數（可能十幾位小數），統一只顯示到小數 2 位，避免撐爆 tooltip。
+        const open = Number(openRaw).toFixed(2);
+        const close = Number(closeRaw).toFixed(2);
+        const low = Number(lowRaw).toFixed(2);
+        const high = Number(highRaw).toFixed(2);
         let html = `
           <div class="font-bold">${date}</div>
           <div>開盤價: <span style="color:${color}">${open}</span></div>
@@ -349,12 +350,8 @@ const shortRatioOption = computed(() => {
 </script>
 
 <style scoped>
-.chart-container-primary {
+.chart-container-stage {
   width: 100%;
-  height: 320px;
-}
-.chart-container-sm {
-  width: 100%;
-  height: 260px;
+  height: 440px;
 }
 </style>

@@ -15,7 +15,7 @@
             <i class="pi pi-home"></i>
           </button>
           <button
-            @click="router.push(`/stock/${stockId}`)"
+            @click="router.push(`/stock/${market}/${stockId}`)"
             class="px-2.5 py-1 text-xs font-bold bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg flex items-center gap-1 transition-colors"
           >
             <i class="pi pi-arrow-left"></i> <span class="hidden sm:inline">返回儀表板</span>
@@ -165,6 +165,7 @@ const route = useRoute();
 const router = useRouter();
 
 const stockId = ref(route.params.id || '2330');
+const market = ref(route.params.market || 'tw');
 const chartType = ref(route.params.chartType || 'institutional');
 const period = ref(route.query.period || 'daily');
 const months = ref(Number(route.query.months) || 3);
@@ -187,8 +188,6 @@ const currentExplanation = computed(() => chartExplanations[chartType.value] || 
 const dates = computed(() => chartData.value?.dates || []);
 const stockName = computed(() => chartData.value?.stock_name || '');
 
-// 目前後端僅支援台股，chart-data 尚未回傳 market 欄位；缺省時退回台股慣例。
-const market = computed(() => chartData.value?.market || 'tw');
 const upDown = computed(() => getUpDownColor(market.value));
 
 const dateRangeText = computed(() => {
@@ -219,11 +218,17 @@ onMounted(() => {
   loadStockData();
 });
 
-watch([() => route.params.id, () => route.params.chartType], ([newId, newType]) => {
+watch([() => route.params.id, () => route.params.market, () => route.params.chartType], ([newId, newMarket, newType]) => {
+  let shouldReload = false;
   if (newId && newId !== stockId.value) {
     stockId.value = newId;
-    loadStockData();
+    shouldReload = true;
   }
+  if (newMarket && newMarket !== market.value) {
+    market.value = newMarket;
+    shouldReload = true;
+  }
+  if (shouldReload) loadStockData();
   if (newType && newType !== chartType.value) {
     chartType.value = newType;
   }
@@ -249,7 +254,7 @@ async function loadStockData() {
   loading.value = true;
   error.value = null;
   try {
-    const res = await stockApi.getChartData(stockId.value, period.value, months.value);
+    const res = await stockApi.getChartData(stockId.value, period.value, months.value, market.value);
     if (res.success) {
       chartData.value = res.data;
     } else {
@@ -265,7 +270,7 @@ async function loadStockData() {
 function switchChartType(type) {
   // 使用 replace 避免堆疊瞬戒歷史
   router.replace({
-    path: `/stock/${stockId.value}/chart/${type}`,
+    path: `/stock/${market.value}/${stockId.value}/chart/${type}`,
     query: { period: period.value, months: months.value }
   });
 }
@@ -318,9 +323,14 @@ const currentChartOption = computed(() => {
             const candle = params.find((p) => p.seriesType === 'candlestick') || params[0];
             if (!candle || !candle.data) return '';
             const date = candle.name;
-            const [open, close, low, high] = candle.data;
-            const change = close - open;
+            const [openRaw, closeRaw, lowRaw, highRaw] = candle.data;
+            const change = closeRaw - openRaw;
             const color = change >= 0 ? upDown.value.up : upDown.value.down;
+            // 美股價格是原始浮點數，統一只顯示到小數 2 位，避免撐爆 tooltip。
+            const open = Number(openRaw).toFixed(2);
+            const close = Number(closeRaw).toFixed(2);
+            const low = Number(lowRaw).toFixed(2);
+            const high = Number(highRaw).toFixed(2);
             let html = `
               <div class="font-bold">${date}</div>
               <div>開盤價: <span style="color:${color}">${open}</span></div>
