@@ -99,7 +99,8 @@
         <div 
           v-for="stock in trackedCodes" 
           :key="stock.code"
-          class="card h-full p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/40 flex flex-col justify-between hover:shadow-md transition-shadow"
+          @click="goToStock(stock.code)"
+          class="card h-full p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/40 flex flex-col justify-between hover:shadow-md transition-all cursor-pointer hover:-translate-y-1 hover:border-primary/50"
         >
           <div class="flex items-start justify-between gap-2 mb-3">
             <div class="flex items-center gap-3 w-full">
@@ -117,7 +118,7 @@
             </div>
             
             <button 
-              @click="removeStock(stock.code)"
+              @click.stop="removeStock(stock.code)"
               :title="`移除股票 ${stock.code} ${getStockName(stock.code)}`"
               class="shrink-0 text-surface-400 hover:text-red-500 p-2 -mr-2 -mt-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             >
@@ -145,6 +146,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { stockApi } from '@/service/stockApi';
 import { useCrawlerStatus } from '@/composables/useCrawlerStatus';
 import { useMarket } from '@/composables/useMarket';
@@ -160,6 +162,7 @@ const { fetchStatus, isRunning, checkStatus } = useCrawlerStatus();
 const { currentMarket, marketMeta } = useMarket();
 const toast = useToast();
 const confirm = useConfirm();
+const router = useRouter();
 
 const statusLabel = computed(() => {
   if (!fetchStatus.value) return '未執行';
@@ -182,6 +185,10 @@ watch(currentMarket, () => {
 
 function getStockName(code) {
   return stockNameMap.value[code] || '';
+}
+
+function goToStock(code) {
+  router.push(`/stock/${currentMarket.value}/${code}`);
 }
 
 async function loadTrackedStocks() {

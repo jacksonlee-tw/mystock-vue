@@ -53,6 +53,7 @@ class TaiwanMarketAdapter(MarketAdapter):
             Metric(key="trust_buy_sell", label="投信買賣超", unit="張", frequency="daily", markets=["tw"]),
             Metric(key="dealer_buy_sell", label="自營商買賣超", unit="張", frequency="daily", markets=["tw"]),
             Metric(key="institutional_total", label="三大法人合計", unit="張", frequency="daily", markets=["tw"], tile=True, panel="institutional"),
+            Metric(key="institutional_amount_est", label="估算買賣超金額", unit="萬元", frequency="daily", markets=["tw"]),
             Metric(key="margin_balance", label="融資餘額", unit="張", frequency="daily", markets=["tw"], tile=True, panel="margin"),
             Metric(key="short_balance", label="融券餘額", unit="張", frequency="daily", markets=["tw"], tile=True, panel="margin")
         ]

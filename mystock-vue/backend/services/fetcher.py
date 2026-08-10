@@ -190,9 +190,9 @@ def fetch_daily_quotes(target_stocks: list, days_by_stock: dict) -> dict:
     for stock_id in target_stocks:
         for year, month in months_by_stock[stock_id]:
             n += 1
-            fetch_status.update(n, total * 2, f"行情抓取 [{n}/{total}]: {stock_id} {year}-{month:02d}")
             date_param = f"{year}{month:02d}01"
             url = f"https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date={date_param}&stockNo={stock_id}&response=json"
+            fetch_status.update(n, total * 2, f"行情抓取 [{n}/{total}]: {stock_id} {year}-{month:02d} | URL: {url}")
             try:
                 res = requests.get(url, headers=headers, timeout=10).json()
                 if res.get("stat") == "OK":
@@ -221,26 +221,32 @@ def fetch_daily_quotes(target_stocks: list, days_by_stock: dict) -> dict:
 def backfill_daily_quotes(target_stocks: list, quote_lookup: dict) -> int:
     patched = 0
     for stock_id in target_stocks:
-        stock_data = load_stock_json(stock_id)
-        if not stock_data:
-            continue
-
+        stock_data = load_stock_json(stock_id) or {}
         changed = False
-        for date_key, record in stock_data.items():
-            if record.get("收盤價", 0) != 0 and "開盤價" in record:
-                continue
-            quote = quote_lookup.get(stock_id, {}).get(date_key)
-            if not quote:
-                continue
-            record.update(quote)
-            total_lots = record.get("合計買賣超(張)", 0)
-            record["估算買賣超金額(萬元)"] = round(total_lots * quote["收盤價"] / 10, 2)
-            changed = True
-            patched += 1
+
+        quotes_for_stock = quote_lookup.get(stock_id, {})
+        for date_key, quote in quotes_for_stock.items():
+            if date_key not in stock_data:
+                # Add entirely new entry for today's price (even if no institutional data yet)
+                stock_data[date_key] = quote.copy()
+                changed = True
+                patched += 1
+            else:
+                record = stock_data[date_key]
+                if record.get("收盤價", 0) != 0 and "開盤價" in record:
+                    continue
+                record.update(quote)
+                total_lots = record.get("合計買賣超(張)", 0)
+                if total_lots and quote.get("收盤價"):
+                    record["估算買賣超金額(萬元)"] = round(total_lots * quote["收盤價"] / 10, 2)
+                changed = True
+                patched += 1
 
         if changed:
             with open(stock_json_path(stock_id), "w", encoding="utf-8") as f:
-                json.dump(stock_data, f, ensure_ascii=False, indent=2)
+                # Sort by date before dumping
+                sorted_data = dict(sorted(stock_data.items()))
+                json.dump(sorted_data, f, ensure_ascii=False, indent=2)
 
     return patched
 
@@ -289,10 +295,11 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
             continue
 
         date_str = target_date.strftime("%Y%m%d")
-        fetch_status.update(current_step, total_steps, f"抓取三大法人及融資融券: {date_key}")
+        margn_url = f"https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date_str}&selectType=ALL&response=json"
+        t86_url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={date_str}&selectType=ALL&response=json"
+        fetch_status.update(current_step, total_steps, f"抓取三大法人及融資融券 [{date_key}] | URL: {t86_url}")
 
         margin_by_stock = {}
-        margn_url = f"https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date_str}&selectType=ALL&response=json"
         try:
             res_margn = requests.get(margn_url, headers=headers, timeout=10).json()
             if res_margn.get("stat") == "OK":
@@ -309,7 +316,6 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
 
         time.sleep(3)
 
-        t86_url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={date_str}&selectType=ALL&response=json"
         try:
             res_t86 = requests.get(t86_url, headers=headers, timeout=10).json()
             if res_t86.get("stat") == "OK":

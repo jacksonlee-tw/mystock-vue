@@ -137,33 +137,51 @@
 
     <!-- 主數據視圖 -->
     <template v-else-if="chartData">
-      <!-- 指標盤：由後端回傳的 metrics 驅動動態渲染 -->
-      <div v-if="chartData.metrics && chartData.metrics.length > 0" class="grid grid-cols-2 lg:grid-cols-5 gap-px bg-surface-200 dark:bg-surface-700 border border-surface-200 dark:border-surface-700 rounded-xl overflow-hidden">
+      <!-- 指標盤：由後端回傳的 metrics 驅動動態渲染 (4欄卡片矩陣) -->
+      <div v-if="chartData.metrics && chartData.metrics.length > 0" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <!-- 當日區間 (固定顯示) -->
-        <div class="bg-surface-0 dark:bg-surface-900 p-3.5">
-          <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">當日區間 ({{ summary.date }})</span>
-          <div class="num text-lg font-black text-surface-900 dark:text-surface-0 mt-1">
-            {{ chartData.meta.currency_symbol }}{{ summary.low }} <span class="text-surface-300 dark:text-surface-600 font-normal">–</span> {{ chartData.meta.currency_symbol }}{{ summary.high }}
+        <div 
+          @click="scrollToChart('price')"
+          class="card bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm hover:shadow-md hover:border-primary/60 hover:-translate-y-0.5 cursor-pointer transition-all duration-200 flex flex-col justify-between"
+        >
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold tracking-wide uppercase text-surface-400">當日區間 ({{ summary.date }})</span>
+            <i class="pi pi-arrows-alt text-surface-400"></i>
           </div>
-          <div class="text-[11px] mt-0.5 text-surface-500">最高 / 最低</div>
+          <div class="num text-2xl font-black text-surface-900 dark:text-surface-0 mb-1.5">
+            {{ chartData.meta.currency_symbol }}{{ summary.low }} <span class="text-surface-300 dark:text-surface-600 font-normal mx-1">–</span> {{ chartData.meta.currency_symbol }}{{ summary.high }}
+          </div>
+          <div class="text-xs font-medium text-surface-500">當日最低 / 最高價</div>
         </div>
 
         <!-- 動態指標 (依照 metrics 定義) -->
-        <div v-for="metric in chartData.metrics" :key="metric.key" class="bg-surface-0 dark:bg-surface-900 p-3.5">
-          <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">{{ metric.label }}</span>
-          <div class="num text-lg font-black mt-1 text-surface-900 dark:text-surface-0" :style="{ color: metric.format === 'number_colored' || metric.format === 'currency_colored' ? colorForValue(summary[metric.key]) : undefined }">
-            {{ formatMetricValue(summary[metric.key], metric, chartData.meta) }} <span class="text-[11px] font-normal text-surface-500" v-if="metric.unit">{{ metric.unit }}</span>
+        <div 
+          v-for="metric in chartData.metrics" 
+          :key="metric.key" 
+          @click="scrollToChart(metric.key)"
+          class="card bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm hover:shadow-md hover:border-primary/60 hover:-translate-y-0.5 cursor-pointer transition-all duration-200 flex flex-col justify-between"
+        >
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold tracking-wide uppercase text-surface-400">{{ metric.label }}</span>
+            <i class="pi text-surface-400" :class="{
+              'pi-users': metric.key.includes('buy_sell') || metric.key.includes('institutional'),
+              'pi-dollar': metric.key.includes('amount'),
+              'pi-chart-line': metric.key.includes('margin') || metric.key.includes('short')
+            }"></i>
           </div>
-          <div v-if="metric.key === 'short_balance' && summary.short_ratio !== undefined" class="num text-[11px] mt-0.5 text-orange-500 font-bold">
-            券資比 {{ summary.short_ratio !== null ? summary.short_ratio + '%' : '—' }}
+          <div class="num text-2xl font-black mb-1.5 text-surface-900 dark:text-surface-0" :style="{ color: metric.format === 'number_colored' || metric.format === 'currency_colored' ? colorForValue(summary[metric.key]) : undefined }">
+            {{ formatMetricValue(summary[metric.key], metric, chartData.meta) }} <span class="text-xs font-normal text-surface-500 ml-1" v-if="metric.unit">{{ metric.unit }}</span>
           </div>
-          <div v-else-if="metric.key === 'institutional_total' && summary.foreign_buy_sell !== undefined" class="num text-[11px] mt-0.5 text-surface-500">
-            外資 {{ summary.foreign_buy_sell >= 0 ? '+' : '' }}{{ summary.foreign_buy_sell }}
+          <div v-if="metric.key === 'short_balance' && summary.short_ratio !== undefined" class="num text-xs text-orange-500 font-bold">
+            券資比 {{ summary.short_ratio !== null && summary.short_ratio !== undefined ? summary.short_ratio + '%' : '—' }}
           </div>
-          <div v-else-if="metric.key === 'institutional_amount_est' && summary.trust_buy_sell !== undefined" class="num text-[11px] mt-0.5 text-surface-500">
-            投信 {{ summary.trust_buy_sell >= 0 ? '+' : '' }}{{ summary.trust_buy_sell }}
+          <div v-else-if="metric.key === 'institutional_total' && summary.foreign_buy_sell !== undefined" class="num text-xs text-surface-500">
+            外資 {{ summary.foreign_buy_sell >= 0 ? '+' : '' }}{{ summary.foreign_buy_sell }} 張
           </div>
-          <div v-else class="text-[11px] mt-0.5 text-surface-500">{{ metric.label }}</div>
+          <div v-else-if="metric.key === 'institutional_amount_est' && summary.trust_buy_sell !== undefined" class="num text-xs text-surface-500">
+            投信 {{ summary.trust_buy_sell >= 0 ? '+' : '' }}{{ summary.trust_buy_sell }} 張
+          </div>
+          <div v-else class="text-xs font-medium text-surface-500">{{ metric.label }}</div>
         </div>
       </div>
 
@@ -241,33 +259,33 @@
             <tbody>
               <tr 
                 v-for="row in recordsReversed" 
-                :key="row.日期"
+                :key="row.date"
                 class="border-b border-surface-100 dark:border-surface-800/60 hover:bg-surface-50 dark:hover:bg-surface-800/40 transition-colors"
               >
-                <td class="p-2.5 font-semibold text-surface-900 dark:text-surface-0">{{ row.日期 }}</td>
-                <td class="p-2.5 text-surface-700 dark:text-surface-300">${{ row.開盤價 }}</td>
-                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">${{ row.最高價 }}</td>
-                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">${{ row.最低價 }}</td>
-                <td class="p-2.5 font-bold" :style="{ color: colorForValue(row.收盤價 - row.開盤價) }">${{ row.收盤價 }}</td>
-                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row['外資買賣超(張)']) }">
-                  {{ row['外資買賣超(張)'] >= 0 ? '+' : '' }}{{ row['外資買賣超(張)'] }}
+                <td class="p-2.5 font-semibold text-surface-900 dark:text-surface-0">{{ row.date }}</td>
+                <td class="p-2.5 text-surface-700 dark:text-surface-300">${{ row.open }}</td>
+                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">${{ row.high }}</td>
+                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">${{ row.low }}</td>
+                <td class="p-2.5 font-bold" :style="{ color: colorForValue(row.close - row.open) }">${{ row.close }}</td>
+                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row.foreign_buy_sell) }">
+                  {{ (row.foreign_buy_sell !== undefined && row.foreign_buy_sell !== null) ? (row.foreign_buy_sell >= 0 ? '+' : '') + row.foreign_buy_sell : '—' }}
                 </td>
-                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row['投信買賣超(張)']) }">
-                  {{ row['投信買賣超(張)'] >= 0 ? '+' : '' }}{{ row['投信買賣超(張)'] }}
+                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row.trust_buy_sell) }">
+                  {{ (row.trust_buy_sell !== undefined && row.trust_buy_sell !== null) ? (row.trust_buy_sell >= 0 ? '+' : '') + row.trust_buy_sell : '—' }}
                 </td>
-                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row['自營商買賣超(張)']) }">
-                  {{ row['自營商買賣超(張)'] >= 0 ? '+' : '' }}{{ row['自營商買賣超(張)'] }}
+                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row.dealer_buy_sell) }">
+                  {{ (row.dealer_buy_sell !== undefined && row.dealer_buy_sell !== null) ? (row.dealer_buy_sell >= 0 ? '+' : '') + row.dealer_buy_sell : '—' }}
                 </td>
-                <td class="p-2.5 font-bold" :style="{ color: colorForValue(row['合計買賣超(張)']) }">
-                  {{ row['合計買賣超(張)'] >= 0 ? '+' : '' }}{{ row['合計買賣超(張)'] }}
+                <td class="p-2.5 font-bold" :style="{ color: colorForValue(row.institutional_total) }">
+                  {{ (row.institutional_total !== undefined && row.institutional_total !== null) ? (row.institutional_total >= 0 ? '+' : '') + row.institutional_total : '—' }}
                 </td>
-                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row['估算買賣超金額(萬元)']) }">
-                  {{ row['估算買賣超金額(萬元)'] >= 0 ? '+' : '' }}{{ row['估算買賣超金額(萬元)'] }}
+                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row.institutional_amount_est) }">
+                  {{ (row.institutional_amount_est !== undefined && row.institutional_amount_est !== null) ? (row.institutional_amount_est >= 0 ? '+' : '') + row.institutional_amount_est : '—' }}
                 </td>
-                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ row['融資餘額(張)'] || '—' }}</td>
-                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ row['融券餘額(張)'] || '—' }}</td>
+                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ row.margin_balance !== undefined && row.margin_balance !== null ? row.margin_balance : '—' }}</td>
+                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ row.short_balance !== undefined && row.short_balance !== null ? row.short_balance : '—' }}</td>
                 <td class="p-2.5 text-orange-500 font-bold">
-                  {{ row['券資比(%)'] !== null && row['券資比(%)'] !== undefined ? row['券資比(%)'] + '%' : '—' }}
+                  {{ row.short_ratio !== null && row.short_ratio !== undefined ? row.short_ratio + '%' : '—' }}
                 </td>
               </tr>
             </tbody>
@@ -360,6 +378,35 @@ const recordsReversed = computed(() => {
   if (!chartData.value?.records) return [];
   return [...chartData.value.records].reverse();
 });
+
+function scrollToChart(metricKey) {
+  if (viewMode.value !== 'charts') {
+    viewMode.value = 'charts';
+    setTimeout(() => performScroll(metricKey), 100);
+  } else {
+    performScroll(metricKey);
+  }
+}
+
+function performScroll(metricKey) {
+  let widgetId = 'kline';
+  if (['foreign_buy_sell', 'trust_buy_sell', 'dealer_buy_sell', 'institutional_total'].includes(metricKey)) widgetId = 'institutional';
+  else if (metricKey === 'institutional_amount_est') widgetId = 'amount';
+  else if (metricKey === 'margin_balance') widgetId = 'margin-long';
+  else if (metricKey === 'short_balance') widgetId = 'margin-short';
+  else if (metricKey === 'short_ratio') widgetId = 'short-ratio';
+  else if (metricKey === 'short_interest') widgetId = 'short-us';
+  else if (metricKey === 'institutional_holders') widgetId = 'holders-us';
+
+  const el = document.getElementById('widget-' + widgetId);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('ring-4', 'ring-primary', 'transition-all');
+    setTimeout(() => {
+      el.classList.remove('ring-4', 'ring-primary');
+    }, 1500);
+  }
+}
 
 onMounted(async () => {
   await fetchAvailableStocks();

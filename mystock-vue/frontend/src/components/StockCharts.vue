@@ -16,7 +16,10 @@
       animation="200"
     >
       <template #item="{ element }">
-        <div :class="['card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 overflow-hidden flex flex-col', element.colSpan || 'col-span-1']">
+        <div 
+          :id="'widget-' + element.id"
+          :class="['card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 overflow-hidden flex flex-col', element.colSpan || 'col-span-1']"
+        >
           <div
             class="flex items-center justify-between gap-2 px-4 py-3 border-b border-surface-100 dark:border-surface-800 bg-surface-50/60 dark:bg-surface-800/30"
           >
