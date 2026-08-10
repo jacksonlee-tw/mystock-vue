@@ -86,6 +86,8 @@ fetch_status = FetchStatusManager()
 
 # ── 輔助函式 ──────────────────────────────────────────────────
 
+from markets.tw import FIELD_MAP
+
 def stock_json_path(stock_id: str, market: str = "tw") -> str:
     market_dir = os.path.join(DATA_DIR, market)
     os.makedirs(market_dir, exist_ok=True)
@@ -97,7 +99,20 @@ def load_stock_json(stock_id: str, market: str = "tw") -> dict:
         return {}
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            
+        # Normalize Chinese keys to English keys
+        if market == "tw":
+            for date_key, record in data.items():
+                new_record = {}
+                for k, v in record.items():
+                    if k in FIELD_MAP:
+                        new_record[FIELD_MAP[k]] = v
+                    else:
+                        new_record[k] = v
+                data[date_key] = new_record
+                
+        return data
     except Exception:
         return {}
 
@@ -158,15 +173,22 @@ def _parse_quote_field(row: list, index: int, cast):
     except (ValueError, IndexError, TypeError):
         return None
 
-def fetch_daily_quotes(target_stocks: list, days: int) -> dict:
-    months = _months_in_range(days)
+def fetch_daily_quotes(target_stocks: list, days_by_stock: dict) -> dict:
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     quote_lookup = {stock_id: {} for stock_id in target_stocks}
-    total = len(target_stocks) * len(months)
+    
+    months_by_stock = {}
+    total = 0
+    for stock_id in target_stocks:
+        stock_days = days_by_stock.get(stock_id, 90)
+        m = _months_in_range(stock_days)
+        months_by_stock[stock_id] = m
+        total += len(m)
+        
     n = 0
 
     for stock_id in target_stocks:
-        for year, month in months:
+        for year, month in months_by_stock[stock_id]:
             n += 1
             fetch_status.update(n, total * 2, f"行情抓取 [{n}/{total}]: {stock_id} {year}-{month:02d}")
             date_param = f"{year}{month:02d}01"
@@ -375,14 +397,26 @@ def run_fetch_process(target_stocks: Optional[list] = None, months: Optional[int
 
         fetch_status.start(f"開始抓取 TWSE 資料 - 股票: {stocks}, 範圍: 近 {m_range} 個月")
 
-        start_date = months_ago(m_range)
-        days = (datetime.now() - start_date).days + 1
+        global_days = m_range * 30
+        days_by_stock = {}
+        for stock_id in stocks:
+            stock_data = load_stock_json(stock_id)
+            existing_dates = sorted(stock_data.keys())
+            if existing_dates:
+                latest_date_str = existing_dates[-1]
+                latest_date = datetime.strptime(latest_date_str, "%Y-%m-%d")
+                gap_days = (datetime.now() - latest_date).days + 1
+                days_by_stock[stock_id] = min(gap_days, global_days)
+            else:
+                days_by_stock[stock_id] = global_days
+                
+        max_days = max(days_by_stock.values()) if days_by_stock else global_days
 
         fetch_status.update(1, 100, f"預先抓取每日行情 (STOCK_DAY)...")
-        quote_lookup = fetch_daily_quotes(stocks, days)
+        quote_lookup = fetch_daily_quotes(stocks, days_by_stock)
 
         fetch_status.update(50, 100, f"抓取三大法人與融資融券 (T86 + MI_MARGN)...")
-        df = fetch_stock_institutional_data(target_stocks=stocks, days=days, quote_lookup=quote_lookup)
+        df = fetch_stock_institutional_data(target_stocks=stocks, days=max_days, quote_lookup=quote_lookup)
 
         if not df.empty:
             json_paths = save_data_to_json(df)

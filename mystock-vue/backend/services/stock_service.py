@@ -43,26 +43,25 @@ def discover_available_stocks() -> List[Dict[str, Any]]:
             file_path = os.path.join(market_dir, filename)
             
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if not isinstance(data, dict) or not data:
-                        continue
-                        
-                    sorted_dates = sorted(data.keys())
-                    latest_date = sorted_dates[-1]
-                    latest_record = data[latest_date]
-                    stock_name = latest_record.get("name", stock_id)
-                    close_price = latest_record.get("close", 0.0)
+                data = load_stock_json(stock_id, market)
+                if not data:
+                    continue
+                    
+                sorted_dates = sorted(data.keys())
+                latest_date = sorted_dates[-1]
+                latest_record = data[latest_date]
+                stock_name = latest_record.get("name", stock_id)
+                close_price = latest_record.get("close", 0.0)
 
-                    stocks.append({
-                        "stock_id": stock_id,
-                        "stock_name": stock_name,
-                        "market": market,
-                        "latest_date": latest_date,
-                        "latest_close": close_price,
-                        "total_records": len(sorted_dates),
-                        "is_tracked": stock_id in tracked_codes
-                    })
+                stocks.append({
+                    "stock_id": stock_id,
+                    "stock_name": stock_name,
+                    "market": market,
+                    "latest_date": latest_date,
+                    "latest_close": close_price,
+                    "total_records": len(sorted_dates),
+                    "is_tracked": stock_id in tracked_codes
+                })
             except Exception:
                 continue
                 
@@ -90,46 +89,46 @@ def get_heatmap_data(period: str = "daily", market: Optional[str] = None) -> Lis
             file_path = os.path.join(market_dir, filename)
             
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if not isinstance(data, dict) or not data:
-                        continue
-                    
-                    aggregated = aggregate_stock_data(data, period=period, months=6)
-                    if not aggregated:
-                        continue
-                    
-                    latest_record = aggregated[-1]
-                    stock_name = latest_record.get("name", stock_id)
-                    close_price = latest_record.get("close", 0.0)
-                    latest_date = latest_record.get("date", "")
-                    
-                    if len(aggregated) >= 2:
-                        prev_record = aggregated[-2]
-                        prev_close = prev_record.get("close", 0.0)
-                    else:
-                        prev_close = latest_record.get("open", close_price)
-                    
-                    change = close_price - prev_close
-                    change_percent = (change / prev_close * 100) if prev_close > 0 else 0
-                    
-                    sparkline_records = aggregated[-10:]
-                    sparkline = [r.get("close", 0.0) for r in sparkline_records]
-                    start_date = sparkline_records[0].get("date", "") if sparkline_records else ""
-                    end_date = sparkline_records[-1].get("date", "") if sparkline_records else ""
+                data = load_stock_json(stock_id, m)
+                if not data:
+                    continue
+                
+                aggregated = aggregate_stock_data(data, period=period, months=6)
+                if not aggregated:
+                    continue
+                
+                latest_record = aggregated[-1]
+                stock_name = latest_record.get("name", stock_id)
+                close_price = latest_record.get("close", 0.0)
+                latest_date = latest_record.get("date", "")
+                
+                if len(aggregated) >= 2:
+                    prev_record = aggregated[-2]
+                    prev_close = prev_record.get("close", 0.0)
+                else:
+                    prev_close = latest_record.get("open", close_price)
+                
+                change = close_price - prev_close
+                change_percent = (change / prev_close * 100) if prev_close > 0 else 0
+                
+                sparkline_records = aggregated[-10:]
+                sparkline = [r.get("close", 0.0) for r in sparkline_records]
+                start_date = sparkline_records[0].get("date", "") if sparkline_records else ""
+                end_date = sparkline_records[-1].get("date", "") if sparkline_records else ""
 
-                    stocks.append({
-                        "stock_id": stock_id,
-                        "stock_name": stock_name,
-                        "market": m,
-                        "start_date": start_date,
-                        "end_date": end_date,
-                        "latest_date": latest_date,
-                        "latest_close": close_price,
-                        "change": round(change, 2),
-                        "change_percent": round(change_percent, 2),
-                        "sparkline": sparkline
-                    })
+                stocks.append({
+                    "stock_id": stock_id,
+                    "stock_name": stock_name,
+                    "market": m,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "latest_date": latest_date,
+                    "latest_close": close_price,
+                    "change": round(change, 2),
+                    "change_percent": round(change_percent, 2),
+                    "sparkline": sparkline
+                })
+
             except Exception:
                 continue
                 

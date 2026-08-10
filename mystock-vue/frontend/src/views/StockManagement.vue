@@ -97,35 +97,46 @@
       <!-- 股票清單網格卡片 -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
         <div 
-          v-for="code in trackedCodes" 
-          :key="code"
-          class="card p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/40 flex items-center justify-between hover:shadow-md transition-shadow"
+          v-for="stock in trackedCodes" 
+          :key="stock.code"
+          class="card h-full p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/40 flex flex-col justify-between hover:shadow-md transition-shadow"
         >
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900/40 text-primary font-black flex items-center justify-center text-sm">
-              {{ code }}
-            </div>
-            <div>
-              <div class="font-bold text-surface-900 dark:text-surface-0 flex items-center gap-1.5">
-                <span>{{ code }}</span>
-                <span v-if="getStockName(code)" class="text-sm font-bold text-primary">
-                  {{ getStockName(code) }}
-                </span>
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <div class="flex items-center gap-3 w-full">
+              <div class="w-12 h-12 shrink-0 rounded-lg bg-primary-100 dark:bg-primary-900/40 text-primary font-black flex items-center justify-center text-sm">
+                {{ stock.code }}
               </div>
-              <span v-if="pendingStockId === code" class="text-xs font-bold text-amber-500 flex items-center gap-1">
-                <i class="pi pi-spin pi-spinner"></i> 背景抓取中...
-              </span>
-              <span v-else class="text-xs text-surface-500">已列入自動抓取標的</span>
+              <div class="flex-1 min-w-0">
+                <div class="font-black text-surface-900 dark:text-surface-0 text-lg">
+                  {{ stock.code }}
+                </div>
+                <div v-if="getStockName(stock.code)" class="text-sm font-bold text-primary leading-snug break-words">
+                  {{ getStockName(stock.code) }}
+                </div>
+              </div>
             </div>
+            
+            <button 
+              @click="removeStock(stock.code)"
+              :title="`移除股票 ${stock.code} ${getStockName(stock.code)}`"
+              class="shrink-0 text-surface-400 hover:text-red-500 p-2 -mr-2 -mt-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              <i class="pi pi-trash text-lg"></i>
+            </button>
           </div>
 
-          <button 
-            @click="removeStock(code)"
-            :title="`移除股票 ${code} ${getStockName(code)}`"
-            class="text-surface-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-          >
-            <i class="pi pi-trash text-lg"></i>
-          </button>
+          <div class="mt-auto pt-2 border-t border-surface-200 dark:border-surface-700/50">
+            <span v-if="pendingStockId === stock.code" class="text-xs font-bold text-amber-500 flex items-center gap-1.5">
+              <i class="pi pi-spin pi-spinner"></i> 背景抓取中...
+            </span>
+            <span v-else-if="stock.start_date" class="text-xs text-surface-500 flex items-center gap-1.5">
+              <i class="pi pi-calendar"></i>
+              {{ stock.start_date }} ~ {{ stock.end_date }}
+            </span>
+            <span v-else class="text-xs text-surface-400 flex items-center gap-1.5">
+              <i class="pi pi-info-circle"></i> 尚無抓取資料
+            </span>
+          </div>
         </div>
       </div>
     </div>

@@ -28,7 +28,24 @@ def list_stocks(market: Optional[str] = Query(None, description="市場代碼過
 @router.get("/tracked", summary="取得目前追蹤的股票清單")
 def get_tracked_stocks(market: str = Query("tw", description="市場代碼")):
     codes = get_target_stocks(market=market)
-    return {"success": True, "data": codes}
+    details = []
+    for code in codes:
+        stock_data = load_stock_json(code, market)
+        start_date = None
+        end_date = None
+        if stock_data:
+            dates = sorted(stock_data.keys())
+            if dates:
+                start_date = dates[0]
+                end_date = dates[-1]
+                
+        details.append({
+            "code": code,
+            "start_date": start_date,
+            "end_date": end_date,
+            "count": len(stock_data) if stock_data else 0
+        })
+    return {"success": True, "data": details}
 
 @router.get("/heatmap", summary="取得全市場熱力圖資料")
 def get_heatmap(
@@ -52,7 +69,26 @@ def add_tracked_stock(req: TrackedStockAddRequest, market: str = Query("tw")):
         
     current.append(stock_id)
     save_target_stocks(current, market=market)
-    return {"success": True, "message": f"已新增追蹤股票 {stock_id}", "data": current}
+    
+    # Return the new list with dates so frontend can update correctly
+    details = []
+    for code in current:
+        stock_data = load_stock_json(code, market)
+        start_date = None
+        end_date = None
+        if stock_data:
+            dates = sorted(stock_data.keys())
+            if dates:
+                start_date = dates[0]
+                end_date = dates[-1]
+                
+        details.append({
+            "code": code,
+            "start_date": start_date,
+            "end_date": end_date,
+            "count": len(stock_data) if stock_data else 0
+        })
+    return {"success": True, "message": f"已新增追蹤股票 {stock_id}", "data": details}
 
 @router.delete("/tracked/{stock_id}", summary="移除追蹤股票代號")
 def remove_tracked_stock(stock_id: str, market: str = Query("tw")):
@@ -63,7 +99,26 @@ def remove_tracked_stock(stock_id: str, market: str = Query("tw")):
         
     updated = [s for s in current if s != stock_id]
     save_target_stocks(updated, market=market)
-    return {"success": True, "message": f"已移除追蹤股票 {stock_id}", "data": updated}
+    
+    # Return the new list with dates so frontend can update correctly
+    details = []
+    for code in updated:
+        stock_data = load_stock_json(code, market)
+        start_date = None
+        end_date = None
+        if stock_data:
+            dates = sorted(stock_data.keys())
+            if dates:
+                start_date = dates[0]
+                end_date = dates[-1]
+                
+        details.append({
+            "code": code,
+            "start_date": start_date,
+            "end_date": end_date,
+            "count": len(stock_data) if stock_data else 0
+        })
+    return {"success": True, "message": f"已移除追蹤股票 {stock_id}", "data": details}
 
 @router.get("/{stock_id}/chart-data", summary="取得單一股票的圖表專用格式資料")
 def get_chart_data(

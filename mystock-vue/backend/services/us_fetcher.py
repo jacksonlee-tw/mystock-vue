@@ -44,11 +44,18 @@ def run_us_fetch_process(target_stocks: Optional[List[str]] = None, months: Opti
                 continue
 
             try:
-                hist = ticker.history(period=period)
+                stock_data = load_stock_json(symbol, market="us")
+                existing_dates = sorted(stock_data.keys())
+                
+                if existing_dates:
+                    start_date_str = existing_dates[-1]
+                    hist = ticker.history(start=start_date_str)
+                else:
+                    hist = ticker.history(period=period)
+                    
                 if hist.empty:
                     continue
 
-                stock_data = load_stock_json(symbol, market="us")
                 
                 # Fetch metadata & short interest
                 info = ticker.info
