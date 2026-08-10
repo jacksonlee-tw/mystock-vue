@@ -66,11 +66,14 @@
               <span class="px-1.5 py-0.5 text-[10px] font-bold bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 rounded border border-surface-200 dark:border-surface-700">
                 {{ selectedPeriodLabel }}
               </span>
+              <span class="px-1.5 py-0.5 text-[10px] font-bold bg-primary text-primary-contrast rounded border border-primary">
+                {{ marketMeta.exchange }}
+              </span>
             </div>
             <div class="text-xs text-surface-500 font-medium">{{ stock.stock_id }}</div>
           </div>
           <div class="text-right">
-            <div class="text-lg font-black" :class="getPriceColorClass(stock)">${{ stock.latest_close.toFixed(2) }}</div>
+            <div class="text-lg font-black" :class="getPriceColorClass(stock)">{{ marketMeta.currency_symbol }}{{ stock.latest_close.toFixed(2) }}</div>
             <div class="text-xs font-bold" :class="getPriceColorClass(stock)">
               {{ stock.change > 0 ? '+' : '' }}{{ stock.change.toFixed(2) }} 
               ({{ stock.change > 0 ? '+' : '' }}{{ stock.change_percent.toFixed(2) }}%)
@@ -95,9 +98,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { stockApi } from '@/service/stockApi';
+import { useMarket } from '@/composables/useMarket';
+import { getUpDownColorFromCSS } from '@/utils/marketColors';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { LineChart } from 'echarts/charts';
@@ -137,11 +142,17 @@ onMounted(() => {
   loadHeatmapData();
 });
 
+const { currentMarket, marketMeta } = useMarket();
+
+watch(currentMarket, () => {
+  loadHeatmapData();
+});
+
 async function loadHeatmapData() {
   loading.value = true;
   error.value = null;
   try {
-    const res = await stockApi.getHeatmapData(selectedPeriod.value);
+    const res = await stockApi.getHeatmapData(selectedPeriod.value, currentMarket.value);
     if (res.success) {
       stocks.value = res.data;
     }
@@ -160,26 +171,44 @@ function setPeriod(p) {
 
 function goToStock(id) {
   router.push({
-    path: `/stock/${id}`,
+    path: `/stock/${currentMarket.value}/${id}`,
     query: { period: selectedPeriod.value }
   });
 }
 
 function getPriceColorClass(stock) {
-  if (stock.change > 0) return 'text-red-500';
-  if (stock.change < 0) return 'text-emerald-500';
+  if (stock.change > 0) return 'text-up';
+  if (stock.change < 0) return 'text-down';
   return 'text-surface-500';
 }
 
 function getCardBorderClass(stock) {
-  if (stock.change > 0) return 'border-red-200 dark:border-red-900/50 hover:border-red-500';
-  if (stock.change < 0) return 'border-emerald-200 dark:border-emerald-900/50 hover:border-emerald-500';
+  if (stock.change > 0) return 'border-up hover:border-up';
+  if (stock.change < 0) return 'border-down hover:border-down';
   return 'border-surface-200 dark:border-surface-700 hover:border-primary/50';
 }
 
 function getSparklineOption(stock) {
   const isUp = stock.change >= 0;
-  const color = isUp ? '#ef4444' : '#10b981';
+  const { up, down } = getUpDownColorFromCSS();
+  const color = isUp ? up : down;
+  
+  // ECharts 支援 rgba() 語法，但如果 up/down 變數是 HEX 色碼，
+  // 我們可以簡單用 echarts 漸層，或者需要 HEX 轉 RGBA。
+  // 為簡化，使用 color 加上 ECharts 內建 opacity 處理，
+  // 或是自己寫個 hex to rgba，這裡偷懶直接用 colorStops 0.4 和 0。
+  
+  // 簡易 hexToRgba
+  const hexToRgba = (hex, alpha) => {
+    const r = parseInt(hex.slice(1, 3), 16) || 0;
+    const g = parseInt(hex.slice(3, 5), 16) || 0;
+    const b = parseInt(hex.slice(5, 7), 16) || 0;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  const color04 = color.startsWith('#') ? hexToRgba(color, 0.4) : color;
+  const color00 = color.startsWith('#') ? hexToRgba(color, 0.0) : 'transparent';
+
   
   return {
     grid: { left: 0, right: 0, top: 5, bottom: 5 },
@@ -196,8 +225,8 @@ function getSparklineOption(stock) {
           color: {
             type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: isUp ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)' },
-              { offset: 1, color: isUp ? 'rgba(239, 68, 68, 0.0)' : 'rgba(16, 185, 129, 0.0)' }
+              { offset: 0, color: color04 },
+              { offset: 1, color: color00 }
             ]
           }
         }

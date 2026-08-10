@@ -1,3 +1,21 @@
+/* 市場顏色變數 (Phase 0) */
+[data-market="tw"] {
+  --up: #dc2626;
+  --down: #16a34a;
+}
+[data-market="us"] {
+  --up: #16a34a;
+  --down: #dc2626;
+}
+
+/* 漲跌色通用 Utility Classes */
+.text-up { color: var(--up); }
+.text-down { color: var(--down); }
+.border-up { border-color: var(--up); }
+.border-down { border-color: var(--down); }
+.hover\:border-up:hover { border-color: var(--up); }
+.hover\:border-down:hover { border-color: var(--down); }
+
 /* 數字專用等寬字體：股價、張數、百分比等直向排列比較的數值一律套用，
    讓小數點與位數對齊，並與敘述文字（系統預設 CJK 字體）明顯區隔。 */
 .num {

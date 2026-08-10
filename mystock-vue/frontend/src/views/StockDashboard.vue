@@ -116,53 +116,33 @@
 
     <!-- 主數據視圖 -->
     <template v-else-if="chartData">
-      <!-- 指標盤：單一髮絲網格排列的密集數據列，取代原本四張分散的 KPI 卡 -->
-      <div class="grid grid-cols-2 lg:grid-cols-5 gap-px bg-surface-200 dark:bg-surface-700 border border-surface-200 dark:border-surface-700 rounded-xl overflow-hidden">
-        <!-- 當日區間 -->
+      <!-- 指標盤：由後端回傳的 metrics 驅動動態渲染 -->
+      <div v-if="chartData.metrics && chartData.metrics.length > 0" class="grid grid-cols-2 lg:grid-cols-5 gap-px bg-surface-200 dark:bg-surface-700 border border-surface-200 dark:border-surface-700 rounded-xl overflow-hidden">
+        <!-- 當日區間 (固定顯示) -->
         <div class="bg-surface-0 dark:bg-surface-900 p-3.5">
           <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">當日區間 ({{ summary.date }})</span>
           <div class="num text-lg font-black text-surface-900 dark:text-surface-0 mt-1">
-            ${{ summary.low }} <span class="text-surface-300 dark:text-surface-600 font-normal">–</span> ${{ summary.high }}
+            {{ chartData.meta.currency_symbol }}{{ summary.low }} <span class="text-surface-300 dark:text-surface-600 font-normal">–</span> {{ chartData.meta.currency_symbol }}{{ summary.high }}
           </div>
           <div class="text-[11px] mt-0.5 text-surface-500">最高 / 最低</div>
         </div>
 
-        <!-- 三大法人合計買賣超 -->
-        <div class="bg-surface-0 dark:bg-surface-900 p-3.5">
-          <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">三大法人合計</span>
-          <div class="num text-lg font-black mt-1" :style="{ color: colorForValue(summary.total_institutional) }">
-            {{ summary.total_institutional >= 0 ? '+' : '' }}{{ summary.total_institutional }} <span class="text-[11px] font-normal">張</span>
+        <!-- 動態指標 (依照 metrics 定義) -->
+        <div v-for="metric in chartData.metrics" :key="metric.id" class="bg-surface-0 dark:bg-surface-900 p-3.5">
+          <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">{{ metric.label }}</span>
+          <div class="num text-lg font-black mt-1 text-surface-900 dark:text-surface-0" :style="{ color: metric.format === 'number_colored' || metric.format === 'currency_colored' ? colorForValue(summary[metric.id]) : undefined }">
+            {{ formatMetricValue(summary[metric.id], metric, chartData.meta) }} <span class="text-[11px] font-normal text-surface-500" v-if="metric.unit">{{ metric.unit }}</span>
           </div>
-          <div class="num text-[11px] mt-0.5 text-surface-500">外資 {{ summary.foreign >= 0 ? '+' : '' }}{{ summary.foreign }}</div>
-        </div>
-
-        <!-- 融資餘額 -->
-        <div class="bg-surface-0 dark:bg-surface-900 p-3.5">
-          <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">融資餘額</span>
-          <div class="num text-lg font-black text-surface-900 dark:text-surface-0 mt-1">
-            {{ summary.margin_long }} <span class="text-[11px] font-normal text-surface-500">張</span>
-          </div>
-          <div class="text-[11px] mt-0.5 text-surface-500">融資交易</div>
-        </div>
-
-        <!-- 融券餘額 / 券資比 -->
-        <div class="bg-surface-0 dark:bg-surface-900 p-3.5">
-          <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">融券餘額</span>
-          <div class="num text-lg font-black text-surface-900 dark:text-surface-0 mt-1">
-            {{ summary.margin_short }} <span class="text-[11px] font-normal text-surface-500">張</span>
-          </div>
-          <div class="num text-[11px] mt-0.5 text-orange-500 font-bold">
+          <div v-if="metric.id === 'margin_short' && summary.short_ratio !== undefined" class="num text-[11px] mt-0.5 text-orange-500 font-bold">
             券資比 {{ summary.short_ratio !== null ? summary.short_ratio + '%' : '—' }}
           </div>
-        </div>
-
-        <!-- 估算買賣超金額 -->
-        <div class="bg-surface-0 dark:bg-surface-900 p-3.5">
-          <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">估算買賣超金額</span>
-          <div class="num text-lg font-black mt-1" :style="{ color: colorForValue(summary.estimated_amount_wan) }">
-            {{ summary.estimated_amount_wan >= 0 ? '+' : '' }}{{ summary.estimated_amount_wan }} <span class="text-[11px] font-normal">萬元</span>
+          <div v-else-if="metric.id === 'total_institutional' && summary.foreign !== undefined" class="num text-[11px] mt-0.5 text-surface-500">
+            外資 {{ summary.foreign >= 0 ? '+' : '' }}{{ summary.foreign }}
           </div>
-          <div class="num text-[11px] mt-0.5 text-surface-500">投信 {{ summary.trust >= 0 ? '+' : '' }}{{ summary.trust }}</div>
+          <div v-else-if="metric.id === 'estimated_amount_wan' && summary.trust !== undefined" class="num text-[11px] mt-0.5 text-surface-500">
+            投信 {{ summary.trust >= 0 ? '+' : '' }}{{ summary.trust }}
+          </div>
+          <div v-else class="text-[11px] mt-0.5 text-surface-500">{{ metric.label }}</div>
         </div>
       </div>
 
@@ -286,11 +266,13 @@ import { useConfirm } from 'primevue/useconfirm';
 import { stockApi } from '@/service/stockApi';
 import { colorForValue as colorForValueRaw } from '@/utils/marketColors';
 import StockCharts from '@/components/StockCharts.vue';
+import { useMarket } from '@/composables/useMarket';
 
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const confirm = useConfirm();
+const { currentMarket } = useMarket();
 
 const availableStocks = ref([]);
 const selectedStock = ref(route.params.id || '2330');
@@ -373,6 +355,10 @@ watch(() => route.params.id, (newId) => {
   }
 });
 
+watch(currentMarket, () => {
+  fetchAvailableStocks();
+});
+
 // URL query 是週期／範圍狀態的唯一來源：可重整、可分享、可上一頁返回。
 watch(() => route.query.period, (v) => {
   const p = v || 'daily';
@@ -388,7 +374,7 @@ watch([selectedPeriod, selectedMonths], () => {
 
 async function fetchAvailableStocks() {
   try {
-    const res = await stockApi.getAvailableStocks();
+    const res = await stockApi.getAvailableStocks(currentMarket.value);
     if (res.success && res.data.length > 0) {
       availableStocks.value = res.data;
       // 若當前選擇的股票不在清單中，且無路由參數，預設取第一檔
@@ -405,17 +391,32 @@ async function loadStockData() {
   loading.value = true;
   error.value = null;
   try {
-    const res = await stockApi.getChartData(selectedStock.value, selectedPeriod.value, selectedMonths.value);
+    const res = await stockApi.getChartData(selectedStock.value, selectedPeriod.value, selectedMonths.value, currentMarket.value);
     if (res.success) {
       chartData.value = res.data;
     } else {
       error.value = '載入資料時發生未知錯誤';
     }
   } catch (err) {
-    error.value = err.response?.data?.detail || err.message || '連線後端 API 失敗';
+    error.value = err.response?.data?.error?.message || err.response?.data?.detail || err.message || '連線後端 API 失敗';
   } finally {
     loading.value = false;
   }
+}
+
+function formatMetricValue(value, metric, meta) {
+  if (value === undefined || value === null) return '—';
+  let formatted = Number(value).toFixed(2).replace(/\.00$/, ''); // simple formatting
+  if (metric.format === 'number_colored' || metric.format === 'currency_colored') {
+    formatted = (value >= 0 ? '+' : '') + formatted;
+  }
+  if (metric.format === 'currency' || metric.format === 'currency_colored') {
+    formatted = (meta.currency_symbol || '$') + formatted;
+  }
+  if (metric.format === 'percent' || metric.format === 'percent_colored') {
+    formatted = formatted + '%';
+  }
+  return formatted;
 }
 
 function setPeriod(p) {
@@ -439,14 +440,14 @@ function removeCurrentStock() {
     acceptProps: { severity: 'danger' },
     accept: async () => {
       try {
-        await stockApi.removeTrackedStock(id);
+        await stockApi.removeTrackedStock(id, currentMarket.value);
         toast.add({ severity: 'success', summary: '已取消追蹤', detail: `${id} 已從追蹤清單移除`, life: 3000 });
         router.push('/');
       } catch (err) {
         toast.add({
           severity: 'error',
           summary: '取消追蹤失敗',
-          detail: err.response?.data?.detail || err.message,
+          detail: err.response?.data?.error?.message || err.response?.data?.detail || err.message,
           life: 4000
         });
       }

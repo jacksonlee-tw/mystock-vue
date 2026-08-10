@@ -8,7 +8,7 @@
           股票與爬蟲管理
         </h1>
         <p class="text-sm text-surface-500 mt-1">
-          管理追蹤個股清單、手動觸發 TWSE 法人與籌碼資料同步任務
+          管理追蹤個股清單、手動觸發 {{ marketMeta.exchange }} 法人與籌碼資料同步任務
         </p>
       </div>
 
@@ -19,7 +19,7 @@
         class="px-5 py-2.5 font-bold text-white bg-primary hover:bg-primary-600 disabled:opacity-50 rounded-xl flex items-center gap-2 transition-all shadow-md"
       >
         <i :class="['pi text-lg', fetchStatus?.is_running ? 'pi-spin pi-spinner' : 'pi-cloud-download']"></i>
-        {{ fetchStatus?.is_running ? '同步資料執行中...' : '立即同步 TWSE 資料' }}
+        {{ fetchStatus?.is_running ? '同步資料執行中...' : `立即同步 ${marketMeta.exchange} 資料` }}
       </button>
     </div>
 
@@ -79,7 +79,7 @@
           <input
             v-model="newStockId"
             type="text"
-            placeholder="請輸入股票代號 (例: 2454)"
+            :placeholder="`請輸入股票代號 (例: ${currentMarket === 'tw' ? '2330' : 'AAPL'})`"
             :disabled="isAdding"
             @keyup.enter="addStock"
             class="px-3 py-2 border border-surface-300 dark:border-surface-600 rounded-xl bg-surface-0 dark:bg-surface-800 text-surface-900 dark:text-surface-0 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-56 disabled:opacity-50"
@@ -136,6 +136,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { stockApi } from '@/service/stockApi';
 import { useCrawlerStatus } from '@/composables/useCrawlerStatus';
+import { useMarket } from '@/composables/useMarket';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 
@@ -145,6 +146,7 @@ const newStockId = ref('');
 const isAdding = ref(false);
 const pendingStockId = ref(null); // 正在等待背景抓取完成的股號
 const { fetchStatus, isRunning, checkStatus } = useCrawlerStatus();
+const { currentMarket, marketMeta } = useMarket();
 const toast = useToast();
 const confirm = useConfirm();
 
@@ -163,6 +165,10 @@ onMounted(async () => {
   await checkStatus();
 });
 
+watch(currentMarket, () => {
+  loadTrackedStocks();
+});
+
 function getStockName(code) {
   return stockNameMap.value[code] || '';
 }
@@ -170,8 +176,8 @@ function getStockName(code) {
 async function loadTrackedStocks() {
   try {
     const [trackedRes, availRes] = await Promise.allSettled([
-      stockApi.getTrackedStocks(),
-      stockApi.getAvailableStocks()
+      stockApi.getTrackedStocks(currentMarket.value),
+      stockApi.getAvailableStocks(currentMarket.value)
     ]);
 
     if (availRes.status === 'fulfilled' && availRes.value.success) {
@@ -195,7 +201,7 @@ async function addStock() {
   if (!code) return;
   isAdding.value = true;
   try {
-    const res = await stockApi.addTrackedStock(code);
+    const res = await stockApi.addTrackedStock(code, currentMarket.value);
     if (res.success) {
       trackedCodes.value = res.data;
       newStockId.value = '';
@@ -205,7 +211,7 @@ async function addStock() {
       // 檢查是否已有歷史資料；若無則自動觸發背景抓取，完成後自動刷新清單
       let hasData = false;
       try {
-        const chartRes = await stockApi.getChartData(code, 'daily', 3);
+        const chartRes = await stockApi.getChartData(code, 'daily', 3, currentMarket.value);
         hasData = !!(chartRes.success && chartRes.data?.records?.length > 0);
       } catch (checkErr) {
         hasData = false;
@@ -213,7 +219,7 @@ async function addStock() {
 
       if (!hasData) {
         pendingStockId.value = code;
-        await stockApi.triggerFetch([code], 3);
+        await stockApi.triggerFetch([code], 3, currentMarket.value);
         await checkStatus();
         toast.add({
           severity: 'info',
@@ -242,7 +248,7 @@ function removeStock(code) {
     acceptProps: { severity: 'danger' },
     accept: async () => {
       try {
-        const res = await stockApi.removeTrackedStock(code);
+        const res = await stockApi.removeTrackedStock(code, currentMarket.value);
         if (res.success) {
           trackedCodes.value = res.data;
           toast.add({ severity: 'success', summary: '已移除', detail: `已取消追蹤 ${displayName}`, life: 3000 });
@@ -256,7 +262,7 @@ function removeStock(code) {
 
 async function triggerFetch() {
   try {
-    const res = await stockApi.triggerFetch();
+    const res = await stockApi.triggerFetch(null, null, currentMarket.value);
     if (res.success) {
       await checkStatus();
     } else {

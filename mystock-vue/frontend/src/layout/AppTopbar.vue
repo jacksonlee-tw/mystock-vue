@@ -4,11 +4,16 @@ import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { stockApi } from '@/service/stockApi';
 import { useToast } from 'primevue/usetoast';
+import { useMarket } from '@/composables/useMarket';
+import Omnibox from '@/components/Omnibox.vue';
 
 const route = useRoute();
 const router = useRouter();
 const { toggleMenu, toggleDarkMode, isDarkTheme, layoutConfig, setAccent, setSurface } = useLayout();
+const { currentMarket, setMarket, marketMeta, enabledMarkets, setMarketsFromApi } = useMarket();
 const toast = useToast();
+
+const omniboxRef = ref(null);
 
 const userName = ref('傑克森');
 const isMobile = ref(window.innerWidth <= 768);
@@ -54,6 +59,14 @@ onMounted(async () => {
     window.addEventListener('resize', handleResize);
     document.addEventListener('click', handleClickOutside);
     window.addEventListener('keydown', handleKeyDown);
+    try {
+        const marketsRes = await stockApi.getMarkets();
+        if (marketsRes.success) {
+            setMarketsFromApi(marketsRes.data);
+        }
+    } catch (e) {
+        console.error('Failed to load markets', e);
+    }
     await loadAvailableStocks();
 });
 
@@ -64,7 +77,7 @@ onUnmounted(() => {
 });
 
 function handleKeyDown(event) {
-    // 若使用者目前在文字輸入框內打字，不觸發快捷鍵
+    // 若使用者目前在文字輸入框內打字（如 Omnibox 搜尋框、input、textarea），不觸發快捷鍵
     const activeEl = document.activeElement;
     if (activeEl) {
         const tagName = activeEl.tagName.toLowerCase();
@@ -75,21 +88,24 @@ function handleKeyDown(event) {
 
     if (!availableStocks.value || availableStocks.value.length === 0) return;
 
-    // 方向鍵歸還給頁面捲動／原生操作；切換個股改用 [ 上一檔 / ] 下一檔，
-    // 不會與瀏覽器或頁面內容的既有捲動行為衝突。
-    if (event.key === '[' || event.key === ']') {
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === '[' || event.key === ']') {
         event.preventDefault();
+
+        // 確保 currentStockId 與當前路由 id 同步
+        if (route.params.id && currentStockId.value !== route.params.id) {
+            currentStockId.value = route.params.id;
+        }
 
         const currentIndex = availableStocks.value.findIndex(s => s.stock_id === currentStockId.value);
         let nextIndex = currentIndex;
 
-        if (event.key === ']') {
-            nextIndex = (currentIndex + 1) % availableStocks.value.length;
-        } else if (event.key === '[') {
-            nextIndex = (currentIndex - 1 + availableStocks.value.length) % availableStocks.value.length;
+        if (event.key === 'ArrowDown' || event.key === ']') {
+            nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % availableStocks.value.length;
+        } else if (event.key === 'ArrowUp' || event.key === '[') {
+            nextIndex = currentIndex < 0 ? availableStocks.value.length - 1 : (currentIndex - 1 + availableStocks.value.length) % availableStocks.value.length;
         }
 
-        if (nextIndex !== currentIndex && nextIndex >= 0 && nextIndex < availableStocks.value.length) {
+        if (nextIndex >= 0 && nextIndex < availableStocks.value.length) {
             currentStockId.value = availableStocks.value[nextIndex].stock_id;
             handleStockChange();
         }
@@ -98,10 +114,13 @@ function handleKeyDown(event) {
 
 async function loadAvailableStocks() {
     try {
-        const res = await stockApi.getAvailableStocks();
+        const activeMarket = route.params.market || currentMarket.value || 'tw';
+        const res = await stockApi.getAvailableStocks(activeMarket);
         if (res.success && res.data.length > 0) {
             availableStocks.value = res.data;
-            if (!route.params.id && !availableStocks.value.some(s => s.stock_id === currentStockId.value)) {
+            if (route.params.id) {
+                currentStockId.value = route.params.id;
+            } else if (!availableStocks.value.some(s => s.stock_id === currentStockId.value)) {
                 currentStockId.value = res.data[0].stock_id;
             }
         }
@@ -109,6 +128,10 @@ async function loadAvailableStocks() {
         console.error('頂部列獲取股票清單失敗:', err);
     }
 }
+
+watch([() => route.params.market, currentMarket], () => {
+    loadAvailableStocks();
+});
 
 watch(() => route.params.id, (newId) => {
     if (newId) {
@@ -119,11 +142,12 @@ watch(() => route.params.id, (newId) => {
 function handleStockChange() {
     if (!currentStockId.value) return;
     const newStockId = currentStockId.value;
+    const activeMarket = route.params.market || currentMarket.value || 'tw';
 
-    // 保留目前所處的子功能視圖（例如在 /chart/kline 則保持在 /chart/kline）
-    let targetPath = `/stock/${newStockId}`;
+    // 保留目前所處的子功能視圖（例如在 /stock/tw/2330/chart/kline 則保持在 /stock/tw/${newStockId}/chart/kline）
+    let targetPath = `/stock/${activeMarket}/${newStockId}`;
     if (route.params.chartType) {
-        targetPath = `/stock/${newStockId}/chart/${route.params.chartType}`;
+        targetPath = `/stock/${activeMarket}/${newStockId}/chart/${route.params.chartType}`;
     }
 
     router.push({
@@ -178,26 +202,41 @@ function handleResize() {
         </div>
 
         <div class="layout-topbar-actions flex items-center gap-3">
-            <!-- 頂部列靠右個股切換工具 (Header Stock Selector Tool - Right Aligned) -->
-            <div class="flex items-center gap-2 bg-surface-100 dark:bg-surface-800 px-3 py-1.5 rounded-lg border border-surface-200 dark:border-surface-700">
+            <!-- 頂部列靠右個股切換工具 (Omnibox) -->
+            <button 
+                @click="omniboxRef?.open()"
+                class="flex items-center gap-2 bg-surface-100 dark:bg-surface-800 px-3 py-1.5 rounded-lg border border-surface-200 dark:border-surface-700 hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors text-left sm:w-64"
+                title="搜尋股票代號或名稱 (Ctrl+K)"
+            >
                 <i class="pi pi-search text-primary text-xs"></i>
-                <span class="text-xs font-bold text-surface-600 dark:text-surface-400 hidden sm:inline">個股切換:</span>
-                <select 
-                    v-model="currentStockId" 
-                    @change="handleStockChange"
-                    class="bg-transparent text-xs font-bold text-surface-900 dark:text-surface-0 focus:outline-none cursor-pointer pr-1"
-                    title="選擇欲切換分析的股票（快捷鍵：[ 上一檔 / ] 下一檔）"
-                >
-                    <option 
-                        v-for="s in availableStocks" 
-                        :key="s.stock_id" 
-                        :value="s.stock_id" 
-                        class="bg-surface-0 dark:bg-surface-900 text-surface-900 dark:text-surface-0 font-medium"
-                    >
-                        {{ s.stock_id }} {{ s.stock_name }}
-                    </option>
-                </select>
+                <span class="text-xs font-bold text-surface-500 flex-1 truncate">搜尋代號或名稱...</span>
+                <span class="text-[10px] font-bold bg-surface-200 dark:bg-surface-700 text-surface-500 px-1.5 py-0.5 rounded hidden sm:inline">Ctrl K</span>
+            </button>
+
+            <!-- 市場切換 -->
+            <div class="flex items-center gap-0.5 bg-surface-100 dark:bg-surface-800 p-0.5 rounded-lg border border-surface-200 dark:border-surface-700">
+                <button
+                    v-for="m in enabledMarkets"
+                    :key="m.code"
+                    @click="() => {
+                        setMarket(m.code);
+                        if (route.path.startsWith('/stock/')) {
+                            // Automatically go to first stock in that market if available
+                            currentStockId.value = '';
+                            router.push('/');
+                        }
+                    }"
+                    :class="[
+                        'px-3 py-1 text-xs font-bold rounded-md transition-all duration-150',
+                        currentMarket === m.code ? 'bg-primary text-primary-contrast shadow-sm' : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
+                    ]"
+                >{{ m.label }}</button>
             </div>
+            
+            <span v-if="marketMeta.session_state === 'open'" class="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] rounded font-bold">盤中</span>
+            <span v-else-if="marketMeta.session_state === 'pre_market'" class="px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] rounded font-bold">盤前</span>
+            <span v-else-if="marketMeta.session_state === 'after_hours'" class="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] rounded font-bold">盤後</span>
+            <span v-else-if="marketMeta.session_state === 'closed'" class="px-2 py-0.5 bg-surface-200 text-surface-600 text-[10px] rounded font-bold">收盤</span>
 
             <!-- 外觀：淺色/深色即時切換，即時生效 -->
             <button
@@ -282,5 +321,7 @@ function handleResize() {
             </div>
         </div>
     </div>
+    
+    <Omnibox ref="omniboxRef" />
 </template>
 <style scoped></style>

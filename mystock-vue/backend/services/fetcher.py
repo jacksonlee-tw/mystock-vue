@@ -86,11 +86,13 @@ fetch_status = FetchStatusManager()
 
 # ── 輔助函式 ──────────────────────────────────────────────────
 
-def stock_json_path(stock_id: str) -> str:
-    return os.path.join(DATA_DIR, f"{stock_id}.json")
+def stock_json_path(stock_id: str, market: str = "tw") -> str:
+    market_dir = os.path.join(DATA_DIR, market)
+    os.makedirs(market_dir, exist_ok=True)
+    return os.path.join(market_dir, f"{stock_id}.json")
 
-def load_stock_json(stock_id: str) -> dict:
-    path = stock_json_path(stock_id)
+def load_stock_json(stock_id: str, market: str = "tw") -> dict:
+    path = stock_json_path(stock_id, market)
     if not os.path.exists(path):
         return {}
     try:

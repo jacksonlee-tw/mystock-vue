@@ -7,6 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import CORS_ORIGINS
 from api.v1.endpoints.stocks import router as stocks_router
 from api.v1.endpoints.fetch import router as fetch_router
+from api.v1.endpoints.markets import router as markets_router
+from core.exceptions import SymbolNotFoundException
+from fastapi.responses import JSONResponse
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("mystock-backend")
@@ -29,6 +32,14 @@ app.add_middleware(
 # ── 註冊路由 ──────────────────────────────────────────────────────────────
 app.include_router(stocks_router)
 app.include_router(fetch_router)
+app.include_router(markets_router)
+
+@app.exception_handler(SymbolNotFoundException)
+async def symbol_not_found_handler(request, exc):
+    return JSONResponse(status_code=404, content={
+        "success": False,
+        "error": {"code": "SYMBOL_NOT_FOUND", "message": str(exc)}
+    })
 
 @app.get("/health", summary="健康檢查端點", tags=["Health"])
 def health_check():

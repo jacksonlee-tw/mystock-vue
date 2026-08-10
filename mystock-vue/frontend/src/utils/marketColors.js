@@ -33,3 +33,17 @@ export function colorForValue(value, market, neutral = 'inherit') {
     const { up, down } = getUpDownColor(market);
     return Number(value) >= 0 ? up : down;
 }
+
+/**
+ * 從 CSS 變數 `--up` 和 `--down` 讀取動態色碼 (Phase 0 新增)
+ * 供 ECharts 或 JS 邏輯使用。
+ * @param {HTMLElement} [el] - 供 getComputedStyle 讀取的 DOM，預設 document.documentElement
+ */
+export function getUpDownColorFromCSS(el) {
+    if (typeof window === 'undefined') return MARKET_COLORS[DEFAULT_MARKET];
+    const target = el || document.documentElement;
+    const style = getComputedStyle(target);
+    const up = style.getPropertyValue('--up').trim() || MARKET_COLORS[DEFAULT_MARKET].up;
+    const down = style.getPropertyValue('--down').trim() || MARKET_COLORS[DEFAULT_MARKET].down;
+    return { up, down };
+}

@@ -301,10 +301,10 @@ const currentChartOption = computed(() => {
         xAxis: { type: 'category', data: d },
         yAxis: { type: 'value', name: '張' },
         series: [
-          { name: '外資', type: 'bar', data: inst.foreign || [], itemStyle: { color: '#ef4444' } },
-          { name: '投信', type: 'bar', data: inst.trust || [], itemStyle: { color: '#3b82f6' } },
-          { name: '自營商', type: 'bar', data: inst.dealer || [], itemStyle: { color: '#f59e0b' } },
-          { name: '合計', type: 'line', data: inst.total || [], itemStyle: { color: '#8b5cf6' }, lineStyle: { width: 3 } }
+          { name: '外資', type: 'bar', data: inst.foreign || [], itemStyle: { color: '#94a3b8' } },
+          { name: '投信', type: 'bar', data: inst.trust || [], itemStyle: { color: '#64748b' } },
+          { name: '自營商', type: 'bar', data: inst.dealer || [], itemStyle: { color: '#cbd5e1' } },
+          { name: '合計', type: 'line', data: inst.total || [], itemStyle: { color: '#334155' }, lineStyle: { width: 3 } }
         ]
       };
     case 'kline': {
@@ -366,8 +366,8 @@ const currentChartOption = computed(() => {
         yAxis: { type: 'value', name: '萬元' },
         series: [
           {
-            name: '估算買賣超金額', type: 'line', data: amounts, smooth: true, itemStyle: { color: '#06b6d4' },
-            areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(6, 182, 212, 0.4)' }, { offset: 1, color: 'rgba(6, 182, 212, 0.0)' }] } }
+            name: '估算買賣超金額', type: 'line', data: amounts, smooth: true, itemStyle: { color: '#64748b' },
+            areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(100, 116, 139, 0.4)' }, { offset: 1, color: 'rgba(100, 116, 139, 0.0)' }] } }
           }
         ]
       };
@@ -379,7 +379,7 @@ const currentChartOption = computed(() => {
         grid: { left: '3%', right: '4%', bottom: '15%', top: '5%', containLabel: true },
         xAxis: { type: 'category', data: d },
         yAxis: { type: 'value', name: '張', scale: true },
-        series: [{ name: '融資餘額', type: 'line', data: longs, smooth: true, itemStyle: { color: '#ec4899' }, lineStyle: { width: 3 } }]
+        series: [{ name: '融資餘額', type: 'line', data: longs, smooth: true, itemStyle: { color: '#64748b' }, lineStyle: { width: 3 } }]
       };
     case 'margin-short':
       const shorts = chartData.value?.margin?.short_balance || [];
@@ -389,7 +389,7 @@ const currentChartOption = computed(() => {
         grid: { left: '3%', right: '4%', bottom: '15%', top: '5%', containLabel: true },
         xAxis: { type: 'category', data: d },
         yAxis: { type: 'value', name: '張', scale: true },
-        series: [{ name: '融券餘額', type: 'line', data: shorts, smooth: true, itemStyle: { color: '#10b981' }, lineStyle: { width: 3 } }]
+        series: [{ name: '融券餘額', type: 'line', data: shorts, smooth: true, itemStyle: { color: '#64748b' }, lineStyle: { width: 3 } }]
       };
     case 'short-ratio':
       const ratios = chartData.value?.margin?.short_ratio || [];
@@ -399,7 +399,7 @@ const currentChartOption = computed(() => {
         grid: { left: '3%', right: '4%', bottom: '15%', top: '5%', containLabel: true },
         xAxis: { type: 'category', data: d },
         yAxis: { type: 'value', name: '%', scale: true },
-        series: [{ name: '券資比', type: 'line', data: ratios, smooth: true, itemStyle: { color: '#f97316' }, lineStyle: { width: 3 } }]
+        series: [{ name: '券資比', type: 'line', data: ratios, smooth: true, itemStyle: { color: '#64748b' }, lineStyle: { width: 3 } }]
       };
     default:
       return {};

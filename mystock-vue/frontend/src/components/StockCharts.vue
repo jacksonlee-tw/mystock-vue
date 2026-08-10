@@ -65,7 +65,7 @@
         </div>
 
         <!-- 信用交易 -->
-        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div v-else-if="activeTab === 'margin'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div @click="goToDetail('margin-long')" class="cursor-pointer group">
             <h4 class="text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5 group-hover:text-primary transition-colors">
               <i class="pi pi-chart-line text-surface-400"></i> 融資餘額 (張)
@@ -88,13 +88,28 @@
             <ChartExplanationBlock :explanation="chartExplanations['short-ratio']" compact @click.stop />
           </div>
         </div>
+
+        <!-- 空頭持倉 (美股) -->
+        <div v-else-if="activeTab === 'short'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- TODO: Empty placeholder since we only have latest summary for US right now, or we can just chart the flat line -->
+          <div class="col-span-1 md:col-span-2 p-6 text-center text-surface-500">
+            歷史空頭趨勢圖表即將支援
+          </div>
+        </div>
+
+        <!-- 機構持股 (美股) -->
+        <div v-else-if="activeTab === 'holders'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="col-span-1 md:col-span-2 p-6 text-center text-surface-500">
+            歷史機構持股趨勢圖表即將支援
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart, LineChart, CandlestickChart } from 'echarts/charts';
@@ -140,11 +155,30 @@ const props = defineProps({
 
 const upDown = computed(() => getUpDownColor(props.market));
 
-const tabs = [
-  { id: 'institutional', label: '法人籌碼', icon: 'pi-users' },
-  { id: 'margin', label: '信用交易', icon: 'pi-wallet' }
-];
-const activeTab = ref('institutional');
+const panelLabels = {
+  'institutional': { label: '法人籌碼', icon: 'pi-users' },
+  'margin': { label: '信用交易', icon: 'pi-wallet' },
+  'short': { label: '空頭持倉', icon: 'pi-sort-alt' },
+  'holders': { label: '機構持股', icon: 'pi-users' }
+};
+
+const tabs = computed(() => {
+  const panels = props.chartData?.meta?.panels || ['institutional', 'margin'];
+  return panels
+    .filter(p => p !== 'table' && panelLabels[p])
+    .map(p => ({
+      id: p,
+      ...panelLabels[p]
+    }));
+});
+
+const activeTab = ref(tabs.value.length > 0 ? tabs.value[0].id : 'institutional');
+
+watch(tabs, (newTabs) => {
+  if (newTabs.length > 0 && !newTabs.find(t => t.id === activeTab.value)) {
+    activeTab.value = newTabs[0].id;
+  }
+});
 
 function goToDetail(chartType) {
   if (props.stockId) {
