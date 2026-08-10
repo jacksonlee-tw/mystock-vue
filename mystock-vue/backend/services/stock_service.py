@@ -257,16 +257,20 @@ def get_stock_chart_payload(stock_id: str, period: str = "daily", months: int = 
             "open": latest.get("open", 0),
             "high": latest.get("high", 0),
             "low": latest.get("low", 0),
-            "foreign": latest.get("foreign_buy_sell", 0),
-            "trust": latest.get("trust_buy_sell", 0),
-            "dealer": latest.get("dealer_buy_sell", 0),
-            "total_institutional": latest.get("institutional_total", 0),
-            "estimated_amount_wan": latest.get("institutional_amount_est", 0),
-            "margin_long": latest.get("margin_balance", 0),
-            "margin_short": latest.get("short_balance", 0),
+            "foreign_buy_sell": latest.get("foreign_buy_sell", 0),
+            "trust_buy_sell": latest.get("trust_buy_sell", 0),
+            "dealer_buy_sell": latest.get("dealer_buy_sell", 0),
+            "institutional_total": latest.get("institutional_total", 0),
+            "institutional_amount_est": latest.get("institutional_amount_est", 0),
+            "margin_balance": latest.get("margin_balance", 0),
+            "short_balance": latest.get("short_balance", 0),
             "short_ratio": latest.get("short_ratio"),
             "short_interest": latest.get("short_interest", 0),
-            "institutional_holders": latest.get("institutional_holders", 0)
+            "institutional_holders": latest.get("institutional_holders", 0),
+            # backward compatibility for old frontend code expecting these exact keys
+            "foreign": latest.get("foreign_buy_sell", 0),
+            "trust": latest.get("trust_buy_sell", 0),
+            "dealer": latest.get("dealer_buy_sell", 0)
         },
         "kline": kline_data,
         "institutional": {

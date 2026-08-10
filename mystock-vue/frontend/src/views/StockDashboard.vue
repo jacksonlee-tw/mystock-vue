@@ -15,9 +15,30 @@
         </button>
 
         <!-- 股票代號 & 名稱 -->
-        <div class="flex items-baseline gap-2 shrink-0">
-          <span class="num text-xl font-black text-surface-900 dark:text-surface-0">{{ selectedStock }}</span>
-          <span class="text-sm text-surface-500 font-semibold">{{ currentStockName }}</span>
+        <div class="flex items-center gap-2 shrink-0">
+          <Select 
+            :modelValue="selectedStock" 
+            @update:modelValue="handleStockChange"
+            :options="availableStocks" 
+            optionLabel="stock_name"
+            optionValue="stock_id"
+            placeholder="切換股票..." 
+            class="w-48 sm:w-64 !bg-transparent !border-transparent hover:!bg-surface-100 dark:hover:!bg-surface-800 transition-colors"
+          >
+            <template #value="slotProps">
+              <div v-if="slotProps.value" class="flex items-baseline gap-2">
+                <span class="num text-xl font-black text-surface-900 dark:text-surface-0">{{ slotProps.value }}</span>
+                <span class="text-sm text-surface-500 font-semibold">{{ currentStockName }}</span>
+              </div>
+              <span v-else>{{ slotProps.placeholder }}</span>
+            </template>
+            <template #option="slotProps">
+              <div class="flex items-baseline gap-2">
+                <span class="font-bold">{{ slotProps.option.stock_id }}</span>
+                <span class="text-sm text-surface-500">{{ slotProps.option.stock_name }}</span>
+              </div>
+            </template>
+          </Select>
         </div>
 
         <!-- 最新收盤價 & 漲跌 -->
@@ -128,19 +149,19 @@
         </div>
 
         <!-- 動態指標 (依照 metrics 定義) -->
-        <div v-for="metric in chartData.metrics" :key="metric.id" class="bg-surface-0 dark:bg-surface-900 p-3.5">
+        <div v-for="metric in chartData.metrics" :key="metric.key" class="bg-surface-0 dark:bg-surface-900 p-3.5">
           <span class="text-[10.5px] font-bold tracking-wide uppercase text-surface-400">{{ metric.label }}</span>
-          <div class="num text-lg font-black mt-1 text-surface-900 dark:text-surface-0" :style="{ color: metric.format === 'number_colored' || metric.format === 'currency_colored' ? colorForValue(summary[metric.id]) : undefined }">
-            {{ formatMetricValue(summary[metric.id], metric, chartData.meta) }} <span class="text-[11px] font-normal text-surface-500" v-if="metric.unit">{{ metric.unit }}</span>
+          <div class="num text-lg font-black mt-1 text-surface-900 dark:text-surface-0" :style="{ color: metric.format === 'number_colored' || metric.format === 'currency_colored' ? colorForValue(summary[metric.key]) : undefined }">
+            {{ formatMetricValue(summary[metric.key], metric, chartData.meta) }} <span class="text-[11px] font-normal text-surface-500" v-if="metric.unit">{{ metric.unit }}</span>
           </div>
-          <div v-if="metric.id === 'margin_short' && summary.short_ratio !== undefined" class="num text-[11px] mt-0.5 text-orange-500 font-bold">
+          <div v-if="metric.key === 'short_balance' && summary.short_ratio !== undefined" class="num text-[11px] mt-0.5 text-orange-500 font-bold">
             券資比 {{ summary.short_ratio !== null ? summary.short_ratio + '%' : '—' }}
           </div>
-          <div v-else-if="metric.id === 'total_institutional' && summary.foreign !== undefined" class="num text-[11px] mt-0.5 text-surface-500">
-            外資 {{ summary.foreign >= 0 ? '+' : '' }}{{ summary.foreign }}
+          <div v-else-if="metric.key === 'institutional_total' && summary.foreign_buy_sell !== undefined" class="num text-[11px] mt-0.5 text-surface-500">
+            外資 {{ summary.foreign_buy_sell >= 0 ? '+' : '' }}{{ summary.foreign_buy_sell }}
           </div>
-          <div v-else-if="metric.id === 'estimated_amount_wan' && summary.trust !== undefined" class="num text-[11px] mt-0.5 text-surface-500">
-            投信 {{ summary.trust >= 0 ? '+' : '' }}{{ summary.trust }}
+          <div v-else-if="metric.key === 'institutional_amount_est' && summary.trust_buy_sell !== undefined" class="num text-[11px] mt-0.5 text-surface-500">
+            投信 {{ summary.trust_buy_sell >= 0 ? '+' : '' }}{{ summary.trust_buy_sell }}
           </div>
           <div v-else class="text-[11px] mt-0.5 text-surface-500">{{ metric.label }}</div>
         </div>
@@ -427,6 +448,15 @@ function setPeriod(p) {
 function setMonths(m) {
   if (selectedMonths.value === m) return;
   router.replace({ query: { ...route.query, months: m } });
+}
+
+function handleStockChange(newStockId) {
+  if (newStockId && newStockId !== selectedStock.value) {
+    router.push({
+      path: `/stock/${market.value}/${newStockId}`,
+      query: { ...route.query }
+    });
+  }
 }
 
 function removeCurrentStock() {

@@ -7,109 +7,52 @@
       </span>
     </div>
 
-    <!-- 主圖：K 線圖獨佔全寬，是本頁最重要的單一事實 -->
-    <div class="card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 overflow-hidden">
-      <div
-        @click="goToDetail('kline')"
-        class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-surface-100 dark:border-surface-800 cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-800/40 transition-colors"
-      >
-        <h3 class="text-base font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
-          <i class="pi pi-chart-bar text-surface-400"></i> K 線圖 (蠟燭圖)
-        </h3>
-        <div class="flex items-center gap-3 text-[11px] font-semibold text-surface-500">
-          <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-sm" :style="{ background: upDown.up }"></i>上漲</span>
-          <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-sm" :style="{ background: upDown.down }"></i>下跌</span>
-        </div>
-      </div>
-      <div class="p-4">
-        <v-chart class="chart-container-primary" :option="klineOption" :update-options="{ notMerge: true }" autoresize />
-        <ChartExplanationBlock :explanation="chartExplanations.kline" />
-      </div>
-    </div>
-
-    <!-- 次要籌碼圖表：分頁收納，避免與主圖搶視覺權重 -->
-    <div class="card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 overflow-hidden">
-      <div class="flex items-center gap-1 px-3 pt-2.5 border-b border-surface-100 dark:border-surface-800 bg-surface-50/60 dark:bg-surface-800/30">
-        <button
-          v-for="t in tabs"
-          :key="t.id"
-          @click="activeTab = t.id"
-          :class="[
-            'px-3.5 py-2 text-sm font-bold rounded-t-lg flex items-center gap-1.5 border-b-2 -mb-px transition-colors',
-            activeTab === t.id
-              ? 'text-primary border-primary'
-              : 'text-surface-500 border-transparent hover:text-surface-800 dark:hover:text-surface-200'
-          ]"
-        >
-          <i :class="['pi', t.icon]"></i> {{ t.label }}
-        </button>
-      </div>
-
-      <div class="p-4">
-        <!-- 法人籌碼 -->
-        <div v-if="activeTab === 'institutional'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div @click="goToDetail('institutional')" class="cursor-pointer group">
-            <h4 class="text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5 group-hover:text-primary transition-colors">
-              <i class="pi pi-users text-surface-400"></i> 三大法人買賣超 (張)
-            </h4>
-            <v-chart class="chart-container-sm" :option="institutionalOption" :update-options="{ notMerge: true }" autoresize />
-            <ChartExplanationBlock :explanation="chartExplanations.institutional" compact @click.stop />
+    <!-- 儀表板拖曳網格 -->
+    <draggable
+      v-model="widgets"
+      item-key="id"
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4"
+      handle=".drag-handle"
+      animation="200"
+    >
+      <template #item="{ element }">
+        <div :class="['card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 overflow-hidden flex flex-col', element.colSpan || 'col-span-1']">
+          <div
+            class="flex items-center justify-between gap-2 px-4 py-3 border-b border-surface-100 dark:border-surface-800 bg-surface-50/60 dark:bg-surface-800/30"
+          >
+            <div class="flex items-center gap-2">
+              <i class="pi pi-bars drag-handle cursor-move text-surface-400 hover:text-surface-600 transition-colors p-1 -ml-1"></i>
+              <h3 
+                class="text-sm font-bold text-surface-900 dark:text-surface-0 flex items-center gap-1.5 transition-colors"
+                :class="{'cursor-pointer hover:text-primary': element.route}"
+                @click="element.route ? goToDetail(element.route) : null"
+              >
+                <i :class="['pi', element.icon, 'text-surface-400']"></i> {{ element.title }}
+              </h3>
+            </div>
+            
+            <div v-if="element.id === 'kline'" class="flex items-center gap-3 text-[11px] font-semibold text-surface-500">
+              <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-sm" :style="{ background: upDown.up }"></i>上漲</span>
+              <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-sm" :style="{ background: upDown.down }"></i>下跌</span>
+            </div>
           </div>
-          <div @click="goToDetail('amount')" class="cursor-pointer group">
-            <h4 class="text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5 group-hover:text-primary transition-colors">
-              <i class="pi pi-dollar text-surface-400"></i> 估算買賣超金額 (萬元)
-            </h4>
-            <v-chart class="chart-container-sm" :option="estimatedAmountOption" :update-options="{ notMerge: true }" autoresize />
-            <ChartExplanationBlock :explanation="chartExplanations.amount" compact @click.stop />
+          
+          <div class="p-4 flex-1 w-full min-w-0 overflow-hidden">
+            <v-chart v-if="!element.emptyPlaceholder" :class="element.id === 'kline' ? 'chart-container-primary' : 'chart-container-sm'" :option="getOption(element.id)" :update-options="{ notMerge: true }" autoresize />
+            <ChartExplanationBlock v-if="!element.emptyPlaceholder && chartExplanations[element.id]" :explanation="chartExplanations[element.id]" :compact="element.id !== 'kline'" />
+            <div v-if="element.emptyPlaceholder" class="h-full flex items-center justify-center p-6 text-center text-surface-500">
+              {{ element.emptyPlaceholder }}
+            </div>
           </div>
         </div>
-
-        <!-- 信用交易 -->
-        <div v-else-if="activeTab === 'margin'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div @click="goToDetail('margin-long')" class="cursor-pointer group">
-            <h4 class="text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5 group-hover:text-primary transition-colors">
-              <i class="pi pi-chart-line text-surface-400"></i> 融資餘額 (張)
-            </h4>
-            <v-chart class="chart-container-sm" :option="marginLongOption" :update-options="{ notMerge: true }" autoresize />
-            <ChartExplanationBlock :explanation="chartExplanations['margin-long']" compact @click.stop />
-          </div>
-          <div @click="goToDetail('margin-short')" class="cursor-pointer group">
-            <h4 class="text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5 group-hover:text-primary transition-colors">
-              <i class="pi pi-sort-alt text-surface-400"></i> 融券餘額 (張)
-            </h4>
-            <v-chart class="chart-container-sm" :option="marginShortOption" :update-options="{ notMerge: true }" autoresize />
-            <ChartExplanationBlock :explanation="chartExplanations['margin-short']" compact @click.stop />
-          </div>
-          <div @click="goToDetail('short-ratio')" class="cursor-pointer group md:col-span-2">
-            <h4 class="text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 flex items-center gap-1.5 group-hover:text-primary transition-colors">
-              <i class="pi pi-percentage text-surface-400"></i> 券資比 (%)
-            </h4>
-            <v-chart class="chart-container-sm" :option="shortRatioOption" :update-options="{ notMerge: true }" autoresize />
-            <ChartExplanationBlock :explanation="chartExplanations['short-ratio']" compact @click.stop />
-          </div>
-        </div>
-
-        <!-- 空頭持倉 (美股) -->
-        <div v-else-if="activeTab === 'short'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- TODO: Empty placeholder since we only have latest summary for US right now, or we can just chart the flat line -->
-          <div class="col-span-1 md:col-span-2 p-6 text-center text-surface-500">
-            歷史空頭趨勢圖表即將支援
-          </div>
-        </div>
-
-        <!-- 機構持股 (美股) -->
-        <div v-else-if="activeTab === 'holders'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="col-span-1 md:col-span-2 p-6 text-center text-surface-500">
-            歷史機構持股趨勢圖表即將支援
-          </div>
-        </div>
-      </div>
-    </div>
+      </template>
+    </draggable>
   </div>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue';
+import draggable from 'vuedraggable';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart, LineChart, CandlestickChart } from 'echarts/charts';
@@ -155,30 +98,65 @@ const props = defineProps({
 
 const upDown = computed(() => getUpDownColor(props.market));
 
-const panelLabels = {
-  'institutional': { label: '法人籌碼', icon: 'pi-users' },
-  'margin': { label: '信用交易', icon: 'pi-wallet' },
-  'short': { label: '空頭持倉', icon: 'pi-sort-alt' },
-  'holders': { label: '機構持股', icon: 'pi-users' }
-};
+const widgetDefinitions = [
+  { id: 'kline', title: 'K 線圖 (蠟燭圖)', icon: 'pi-chart-bar', colSpan: 'md:col-span-2 lg:col-span-2', route: 'kline', panel: 'always' },
+  { id: 'institutional', title: '三大法人買賣超 (張)', icon: 'pi-users', route: 'institutional', panel: 'institutional' },
+  { id: 'amount', title: '估算買賣超金額 (萬元)', icon: 'pi-dollar', route: 'amount', panel: 'institutional' },
+  { id: 'margin-long', title: '融資餘額 (張)', icon: 'pi-chart-line', route: 'margin-long', panel: 'margin' },
+  { id: 'margin-short', title: '融券餘額 (張)', icon: 'pi-sort-alt', route: 'margin-short', panel: 'margin' },
+  { id: 'short-ratio', title: '券資比 (%)', icon: 'pi-percentage', route: 'short-ratio', colSpan: 'md:col-span-2 lg:col-span-2', panel: 'margin' },
+  { id: 'short-us', title: '空頭持倉', icon: 'pi-sort-alt', panel: 'short', emptyPlaceholder: '歷史空頭趨勢圖表即將支援', colSpan: 'md:col-span-2 lg:col-span-2' },
+  { id: 'holders-us', title: '機構持股', icon: 'pi-users', panel: 'holders', emptyPlaceholder: '歷史機構持股趨勢圖表即將支援', colSpan: 'md:col-span-2 lg:col-span-2' }
+];
 
-const tabs = computed(() => {
-  const panels = props.chartData?.meta?.panels || ['institutional', 'margin'];
-  return panels
-    .filter(p => p !== 'table' && panelLabels[p])
-    .map(p => ({
-      id: p,
-      ...panelLabels[p]
-    }));
-});
+const widgets = ref([]);
+const LOCAL_STORAGE_KEY = 'mystock_dashboard_layout';
 
-const activeTab = ref(tabs.value.length > 0 ? tabs.value[0].id : 'institutional');
+function initWidgets() {
+  const activePanels = props.chartData?.meta?.panels || ['institutional', 'margin'];
+  const allowedWidgets = widgetDefinitions.filter(w => w.panel === 'always' || activePanels.includes(w.panel));
+  
+  const savedOrder = localStorage.getItem(LOCAL_STORAGE_KEY);
+  let orderIds = [];
+  try {
+    if (savedOrder) orderIds = JSON.parse(savedOrder);
+  } catch (e) {}
 
-watch(tabs, (newTabs) => {
-  if (newTabs.length > 0 && !newTabs.find(t => t.id === activeTab.value)) {
-    activeTab.value = newTabs[0].id;
+  let ordered = [];
+  if (orderIds && orderIds.length > 0) {
+    orderIds.forEach(id => {
+      const w = allowedWidgets.find(x => x.id === id);
+      if (w) ordered.push(w);
+    });
+    allowedWidgets.forEach(w => {
+      if (!ordered.find(x => x.id === w.id)) ordered.push(w);
+    });
+  } else {
+    ordered = [...allowedWidgets];
   }
-});
+  widgets.value = ordered;
+}
+
+watch(() => props.chartData?.meta?.panels, () => {
+  initWidgets();
+}, { immediate: true });
+
+watch(widgets, (newVal) => {
+  const orderIds = newVal.map(w => w.id);
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(orderIds));
+}, { deep: true });
+
+function getOption(id) {
+  switch (id) {
+    case 'kline': return klineOption.value;
+    case 'institutional': return institutionalOption.value;
+    case 'amount': return estimatedAmountOption.value;
+    case 'margin-long': return marginLongOption.value;
+    case 'margin-short': return marginShortOption.value;
+    case 'short-ratio': return shortRatioOption.value;
+    default: return null;
+  }
+}
 
 function goToDetail(chartType) {
   if (props.stockId) {
@@ -370,7 +348,7 @@ const shortRatioOption = computed(() => {
 <style scoped>
 .chart-container-primary {
   width: 100%;
-  height: 420px;
+  height: 320px;
 }
 .chart-container-sm {
   width: 100%;

@@ -51,46 +51,54 @@
     </div>
 
     <!-- 熱力圖網格 -->
-    <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      <div 
-        v-for="stock in stocks" 
-        :key="stock.stock_id + '-' + selectedPeriod"
-        @click="goToStock(stock.stock_id)"
-        class="card p-4 rounded-xl border bg-surface-0 dark:bg-surface-900 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-lg transition-all"
-        :class="getCardBorderClass(stock)"
-      >
-        <div class="flex justify-between items-start mb-2">
-          <div>
-            <div class="flex items-center gap-1.5">
-              <span class="text-lg font-bold text-surface-900 dark:text-surface-0">{{ stock.stock_name }}</span>
-              <span class="px-1.5 py-0.5 text-[10px] font-bold bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 rounded border border-surface-200 dark:border-surface-700">
-                {{ selectedPeriodLabel }}
-              </span>
-              <span class="px-1.5 py-0.5 text-[10px] font-bold bg-primary text-primary-contrast rounded border border-primary">
-                {{ marketMeta.exchange }}
-              </span>
+    <div v-else class="space-y-8">
+      <div v-for="category in categories" :key="category.name" v-show="category.stocks.length > 0">
+        <h2 class="text-xl font-bold text-surface-900 dark:text-surface-0 mb-4 flex items-center gap-2">
+          <i :class="['pi text-primary', category.icon]"></i>
+          {{ category.name }}
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div 
+            v-for="stock in category.stocks" 
+            :key="stock.stock_id + '-' + selectedPeriod"
+            @click="goToStock(stock.stock_id)"
+            class="card p-4 rounded-xl border bg-surface-0 dark:bg-surface-900 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-lg transition-all"
+            :class="getCardBorderClass(stock)"
+          >
+            <div class="flex justify-between items-start mb-2">
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-lg font-bold text-surface-900 dark:text-surface-0">{{ stock.stock_name }}</span>
+                  <span class="px-1.5 py-0.5 text-[10px] font-bold bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 rounded border border-surface-200 dark:border-surface-700">
+                    {{ selectedPeriodLabel }}
+                  </span>
+                  <span class="px-1.5 py-0.5 text-[10px] font-bold bg-primary text-primary-contrast rounded border border-primary">
+                    {{ marketMeta.exchange }}
+                  </span>
+                </div>
+                <div class="text-xs text-surface-500 font-medium">{{ stock.stock_id }}</div>
+              </div>
+              <div class="text-right">
+                <div class="text-lg font-black" :class="getPriceColorClass(stock)">{{ marketMeta.currency_symbol }}{{ stock.latest_close.toFixed(2) }}</div>
+                <div class="text-xs font-bold" :class="getPriceColorClass(stock)">
+                  {{ stock.change > 0 ? '+' : '' }}{{ stock.change.toFixed(2) }} 
+                  ({{ stock.change > 0 ? '+' : '' }}{{ stock.change_percent.toFixed(2) }}%)
+                </div>
+              </div>
             </div>
-            <div class="text-xs text-surface-500 font-medium">{{ stock.stock_id }}</div>
-          </div>
-          <div class="text-right">
-            <div class="text-lg font-black" :class="getPriceColorClass(stock)">{{ marketMeta.currency_symbol }}{{ stock.latest_close.toFixed(2) }}</div>
-            <div class="text-xs font-bold" :class="getPriceColorClass(stock)">
-              {{ stock.change > 0 ? '+' : '' }}{{ stock.change.toFixed(2) }} 
-              ({{ stock.change > 0 ? '+' : '' }}{{ stock.change_percent.toFixed(2) }}%)
+            
+            <div class="h-16 mb-2">
+              <v-chart :key="stock.stock_id + '-' + selectedPeriod" :option="getSparklineOption(stock)" :update-options="{ notMerge: true }" autoforesize />
+            </div>
+            
+            <div class="flex items-center justify-between text-xs text-surface-500 border-t border-surface-100 dark:border-surface-800 pt-2">
+              <span class="font-medium" title="資料起迄日期">
+                <i class="pi pi-calendar text-[10px] mr-1 text-primary"></i>
+                {{ stock.start_date ? stock.start_date + ' ~ ' + stock.end_date : stock.latest_date }}
+              </span>
+              <i class="pi pi-arrow-right" :class="getPriceColorClass(stock)"></i>
             </div>
           </div>
-        </div>
-        
-        <div class="h-16 mb-2">
-          <v-chart :key="stock.stock_id + '-' + selectedPeriod" :option="getSparklineOption(stock)" :update-options="{ notMerge: true }" autoforesize />
-        </div>
-        
-        <div class="flex items-center justify-between text-xs text-surface-500 border-t border-surface-100 dark:border-surface-800 pt-2">
-          <span class="font-medium" title="資料起迄日期">
-            <i class="pi pi-calendar text-[10px] mr-1 text-primary"></i>
-            {{ stock.start_date ? stock.start_date + ' ~ ' + stock.end_date : stock.latest_date }}
-          </span>
-          <i class="pi pi-arrow-right" :class="getPriceColorClass(stock)"></i>
         </div>
       </div>
     </div>
@@ -116,6 +124,26 @@ const stocks = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const selectedPeriod = ref('daily');
+
+const etfStocks = computed(() => stocks.value.filter(isEtf));
+const generalStocks = computed(() => stocks.value.filter(s => !isEtf(s)));
+
+const categories = computed(() => [
+  { name: 'ETF', icon: 'pi-chart-pie', stocks: etfStocks.value },
+  { name: '一般個股', icon: 'pi-building', stocks: generalStocks.value }
+]);
+
+function isEtf(stock) {
+  if (stock.market === 'tw') {
+    // 台股 ETF 通常以 00 開頭
+    return stock.stock_id.startsWith('00');
+  } else if (stock.market === 'us') {
+    // 美股常見 ETF 列表
+    const usEtfs = ['SPY', 'QQQ', 'DIA', 'IWM', 'VOO', 'VTI', 'IVV', 'SOXX', 'ARKK', 'VT', 'VEA', 'VWO', 'BND', 'TQQQ', 'SQQQ'];
+    return usEtfs.includes(stock.stock_id.toUpperCase());
+  }
+  return false;
+}
 
 const periods = [
   { label: '日線', value: 'daily' },

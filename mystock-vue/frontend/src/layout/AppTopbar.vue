@@ -156,6 +156,24 @@ function handleStockChange() {
     });
 }
 
+async function handleMarketSwitch(newMarket) {
+    if (currentMarket.value === newMarket) return;
+    setMarket(newMarket);
+    if (route.path.startsWith('/stock/')) {
+        try {
+            const res = await stockApi.getAvailableStocks(newMarket);
+            if (res.success && res.data.length > 0) {
+                currentStockId.value = res.data[0].stock_id;
+                router.push(`/stock/${newMarket}/${res.data[0].stock_id}`);
+            } else {
+                router.push('/');
+            }
+        } catch (e) {
+            router.push('/');
+        }
+    }
+}
+
 function toggleUserMenu() {
     showUserMenu.value = !showUserMenu.value;
 }
@@ -219,12 +237,7 @@ function handleResize() {
                     v-for="m in enabledMarkets"
                     :key="m.code"
                     @click="() => {
-                        setMarket(m.code);
-                        if (route.path.startsWith('/stock/')) {
-                            // Automatically go to first stock in that market if available
-                            currentStockId.value = '';
-                            router.push('/');
-                        }
+                        handleMarketSwitch(m.code);
                     }"
                     :class="[
                         'px-3 py-1 text-xs font-bold rounded-md transition-all duration-150',
