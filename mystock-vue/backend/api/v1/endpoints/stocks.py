@@ -18,6 +18,21 @@ router = APIRouter(prefix="/api/v1/stocks", tags=["Stocks"])
 class TrackedStockAddRequest(BaseModel):
     stock_id: str
 
+def _build_tracked_details(codes: List[str], market: str) -> List[Dict[str, Any]]:
+    """組出追蹤清單的資料涵蓋範圍，並統計缺少價格的天數（供前端顯示缺漏警示）。"""
+    details = []
+    for code in codes:
+        stock_data = load_stock_json(code, market)
+        dates = sorted(stock_data.keys()) if stock_data else []
+        details.append({
+            "code": code,
+            "start_date": dates[0] if dates else None,
+            "end_date": dates[-1] if dates else None,
+            "count": len(dates),
+            "missing_price_days": sum(1 for d in dates if not stock_data[d].get("close")),
+        })
+    return details
+
 @router.get("", summary="取得目前系統中所有可用的股票資料庫與其元資料")
 def list_stocks(market: Optional[str] = Query(None, description="市場代碼過濾")):
     stocks = discover_available_stocks()
@@ -28,24 +43,7 @@ def list_stocks(market: Optional[str] = Query(None, description="市場代碼過
 @router.get("/tracked", summary="取得目前追蹤的股票清單")
 def get_tracked_stocks(market: str = Query("tw", description="市場代碼")):
     codes = get_target_stocks(market=market)
-    details = []
-    for code in codes:
-        stock_data = load_stock_json(code, market)
-        start_date = None
-        end_date = None
-        if stock_data:
-            dates = sorted(stock_data.keys())
-            if dates:
-                start_date = dates[0]
-                end_date = dates[-1]
-                
-        details.append({
-            "code": code,
-            "start_date": start_date,
-            "end_date": end_date,
-            "count": len(stock_data) if stock_data else 0
-        })
-    return {"success": True, "data": details}
+    return {"success": True, "data": _build_tracked_details(codes, market)}
 
 @router.get("/heatmap", summary="取得全市場熱力圖資料")
 def get_heatmap(
@@ -62,33 +60,20 @@ def add_tracked_stock(req: TrackedStockAddRequest, market: str = Query("tw")):
     stock_id = req.stock_id.strip()
     if not stock_id:
         raise HTTPException(status_code=400, detail="股票代號不可為空")
-        
+
     current = get_target_stocks(market=market)
     if stock_id in current:
         return {"success": True, "message": "此股票已在追蹤清單中", "data": current}
-        
+
     current.append(stock_id)
     save_target_stocks(current, market=market)
-    
+
     # Return the new list with dates so frontend can update correctly
-    details = []
-    for code in current:
-        stock_data = load_stock_json(code, market)
-        start_date = None
-        end_date = None
-        if stock_data:
-            dates = sorted(stock_data.keys())
-            if dates:
-                start_date = dates[0]
-                end_date = dates[-1]
-                
-        details.append({
-            "code": code,
-            "start_date": start_date,
-            "end_date": end_date,
-            "count": len(stock_data) if stock_data else 0
-        })
-    return {"success": True, "message": f"已新增追蹤股票 {stock_id}", "data": details}
+    return {
+        "success": True,
+        "message": f"已新增追蹤股票 {stock_id}",
+        "data": _build_tracked_details(current, market)
+    }
 
 @router.delete("/tracked/{stock_id}", summary="移除追蹤股票代號")
 def remove_tracked_stock(stock_id: str, market: str = Query("tw")):
@@ -96,29 +81,16 @@ def remove_tracked_stock(stock_id: str, market: str = Query("tw")):
     current = get_target_stocks(market=market)
     if stock_id not in current:
         raise SymbolNotFoundException("追蹤清單中找不到此股票代號")
-        
+
     updated = [s for s in current if s != stock_id]
     save_target_stocks(updated, market=market)
-    
+
     # Return the new list with dates so frontend can update correctly
-    details = []
-    for code in updated:
-        stock_data = load_stock_json(code, market)
-        start_date = None
-        end_date = None
-        if stock_data:
-            dates = sorted(stock_data.keys())
-            if dates:
-                start_date = dates[0]
-                end_date = dates[-1]
-                
-        details.append({
-            "code": code,
-            "start_date": start_date,
-            "end_date": end_date,
-            "count": len(stock_data) if stock_data else 0
-        })
-    return {"success": True, "message": f"已移除追蹤股票 {stock_id}", "data": details}
+    return {
+        "success": True,
+        "message": f"已移除追蹤股票 {stock_id}",
+        "data": _build_tracked_details(updated, market)
+    }
 
 @router.get("/{stock_id}/chart-data", summary="取得單一股票的圖表專用格式資料")
 def get_chart_data(
@@ -129,18 +101,18 @@ def get_chart_data(
 ):
     if period not in ("daily", "weekly", "monthly"):
         raise HTTPException(status_code=400, detail="period 必須為 daily, weekly, 或 monthly")
-        
+
     payload = get_stock_chart_payload(stock_id, period=period, months=months, market=market)
     if "error" in payload:
         raise SymbolNotFoundException(payload["error"])
-        
+
     try:
         adapter = get_adapter(market)
         payload["meta"] = adapter.meta.__dict__
         payload["metrics"] = [m.__dict__ for m in adapter.metrics]
     except ValueError:
         pass
-        
+
     return {"success": True, "data": payload}
 
 @router.get("/{stock_id}", summary="取得單一股票詳細歷史交易明細記錄")
@@ -153,7 +125,7 @@ def get_stock_detail(
     raw_data = load_stock_json(stock_id, market)
     if not raw_data:
         raise SymbolNotFoundException(f"找不到股票 {stock_id} 的數據資料")
-        
+
     aggregated = aggregate_stock_data(raw_data, period=period, months=months)
     return {
         "success": True,

@@ -12,6 +12,9 @@ class FetchTriggerRequest(BaseModel):
     market: str = "tw"
     stocks: Optional[List[str]] = None
     months: Optional[int] = None
+    # incremental: 只補最後一筆之後的缺口（全域同步用）
+    # repair: 忽略既有資料，以完整區間重抓（單股重抓／補缺漏用）
+    mode: str = "incremental"
 
 @router.post("/trigger", summary="觸發資料抓取任務（背景執行）")
 def trigger_fetch_task(req: FetchTriggerRequest, background_tasks: BackgroundTasks):
@@ -26,14 +29,19 @@ def trigger_fetch_task(req: FetchTriggerRequest, background_tasks: BackgroundTas
     target_stocks = req.stocks if req.stocks else get_target_stocks(market=req.market)
     months = req.months if req.months else get_months_range()
 
-    if req.market == "us":
-        background_tasks.add_task(run_us_fetch_process, target_stocks=target_stocks, months=months)
-    else:
-        background_tasks.add_task(run_fetch_process, target_stocks=target_stocks, months=months)
+    mode = req.mode if req.mode in ("incremental", "repair") else "incremental"
 
+    if req.market == "us":
+        background_tasks.add_task(run_us_fetch_process, target_stocks=target_stocks,
+                                  months=months, mode=mode)
+    else:
+        background_tasks.add_task(run_fetch_process, target_stocks=target_stocks,
+                                  months=months, mode=mode)
+
+    mode_label = "重新抓取" if mode == "repair" else "增量更新"
     return {
         "success": True,
-        "message": f"已在背景啟動抓取任務 - 目標股票: {target_stocks}, 範圍: 近 {months} 個月",
+        "message": f"已在背景啟動{mode_label}任務 - 目標股票: {target_stocks}, 範圍: 近 {months} 個月",
         "data": fetch_status.get_snapshot()
     }
 

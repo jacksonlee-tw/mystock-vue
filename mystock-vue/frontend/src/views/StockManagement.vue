@@ -117,16 +117,26 @@
               </div>
             </div>
             
-            <button 
-              @click.stop="removeStock(stock.code)"
-              :title="`移除股票 ${stock.code} ${getStockName(stock.code)}`"
-              class="shrink-0 text-surface-400 hover:text-red-500 p-2 -mr-2 -mt-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-            >
-              <i class="pi pi-trash text-lg"></i>
-            </button>
+            <div class="shrink-0 flex items-center -mr-2 -mt-2">
+              <button
+                @click.stop="openRefetch(stock)"
+                :disabled="fetchStatus?.is_running"
+                :title="`重新抓取 ${stock.code} ${getStockName(stock.code)} 的歷史資料`"
+                class="text-surface-400 hover:text-primary p-2 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-surface-400 transition-colors"
+              >
+                <i class="pi pi-refresh text-lg"></i>
+              </button>
+              <button
+                @click.stop="removeStock(stock.code)"
+                :title="`移除股票 ${stock.code} ${getStockName(stock.code)}`"
+                class="text-surface-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                <i class="pi pi-trash text-lg"></i>
+              </button>
+            </div>
           </div>
 
-          <div class="mt-auto pt-2 border-t border-surface-200 dark:border-surface-700/50">
+          <div class="mt-auto pt-2 border-t border-surface-200 dark:border-surface-700/50 flex flex-wrap items-center gap-x-3 gap-y-1">
             <span v-if="pendingStockId === stock.code" class="text-xs font-bold text-amber-500 flex items-center gap-1.5">
               <i class="pi pi-spin pi-spinner"></i> 背景抓取中...
             </span>
@@ -137,16 +147,37 @@
             <span v-else class="text-xs text-surface-400 flex items-center gap-1.5">
               <i class="pi pi-info-circle"></i> 尚無抓取資料
             </span>
+
+            <span
+              v-if="stock.missing_price_days > 0"
+              :title="`有 ${stock.missing_price_days} 天沒有開盤/收盤價，請執行重新抓取補齊`"
+              class="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1"
+            >
+              <i class="pi pi-exclamation-triangle"></i>
+              資料缺漏 {{ stock.missing_price_days }} 天
+            </span>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- 單股重新抓取彈窗 -->
+    <RefetchStockDialog
+      v-model:visible="refetchVisible"
+      :stock-id="refetchTarget?.code || ''"
+      :stock-name="refetchTarget ? getStockName(refetchTarget.code) : ''"
+      :market="currentMarket"
+      :missing-days="refetchTarget?.missing_price_days || 0"
+      :busy="isRefetching"
+      @confirm="doRefetch"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import RefetchStockDialog from '@/components/RefetchStockDialog.vue';
 import { stockApi } from '@/service/stockApi';
 import { useCrawlerStatus } from '@/composables/useCrawlerStatus';
 import { useMarket } from '@/composables/useMarket';
@@ -158,6 +189,9 @@ const stockNameMap = ref({});
 const newStockId = ref('');
 const isAdding = ref(false);
 const pendingStockId = ref(null); // 正在等待背景抓取完成的股號
+const refetchVisible = ref(false);
+const refetchTarget = ref(null);
+const isRefetching = ref(false);
 const { fetchStatus, isRunning, checkStatus } = useCrawlerStatus();
 const { currentMarket, marketMeta } = useMarket();
 const toast = useToast();
@@ -276,6 +310,41 @@ function removeStock(code) {
       }
     }
   });
+}
+
+function openRefetch(stock) {
+  refetchTarget.value = stock;
+  refetchVisible.value = true;
+}
+
+// 單股重抓：以 repair 模式送出，後端會忽略增量邏輯改用完整區間，才補得到中間的缺漏
+async function doRefetch({ stockId, months }) {
+  isRefetching.value = true;
+  try {
+    const res = await stockApi.triggerFetch([stockId], months, currentMarket.value, 'repair');
+    if (res.success) {
+      pendingStockId.value = stockId;
+      refetchVisible.value = false;
+      await checkStatus();
+      toast.add({
+        severity: 'info',
+        summary: '背景抓取中',
+        detail: `已開始重新抓取 ${stockId} 近 ${months} 個月的資料`,
+        life: 4000
+      });
+    } else {
+      toast.add({
+        severity: 'warn',
+        summary: '無法啟動',
+        detail: res.error?.message || res.message || '已有抓取任務執行中',
+        life: 4000
+      });
+    }
+  } catch (err) {
+    toast.add({ severity: 'error', summary: '啟動失敗', detail: '啟動重新抓取失敗', life: 4000 });
+  } finally {
+    isRefetching.value = false;
+  }
 }
 
 async function triggerFetch() {

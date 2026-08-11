@@ -20,12 +20,16 @@ def save_us_stock_json(stock_id: str, data: dict) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def run_us_fetch_process(target_stocks: Optional[List[str]] = None, months: Optional[int] = None):
+def run_us_fetch_process(target_stocks: Optional[List[str]] = None, months: Optional[int] = None,
+                         mode: str = "incremental"):
     try:
         stocks = target_stocks or get_target_stocks(market="us")
         m_range = months or get_months_range()
 
-        fetch_status.start(f"開始抓取美股資料 - 股票: {stocks}, 範圍: 近 {m_range} 個月")
+        mode_label = "重新抓取" if mode == "repair" else "增量更新"
+        fetch_status.start(
+            f"開始抓取美股資料 ({mode_label}) - 股票: {stocks}, 範圍: 近 {m_range} 個月"
+        )
 
         days = m_range * 30
         period = "3mo" if days <= 90 else "6mo" if days <= 180 else "1y"
@@ -47,7 +51,8 @@ def run_us_fetch_process(target_stocks: Optional[List[str]] = None, months: Opti
                 stock_data = load_stock_json(symbol, market="us")
                 existing_dates = sorted(stock_data.keys())
                 
-                if existing_dates:
+                # 重抓模式忽略既有資料，一律以完整區間抓取，才能補回中間的缺漏
+                if existing_dates and mode != "repair":
                     start_date_str = existing_dates[-1]
                     hist = ticker.history(start=start_date_str)
                 else:

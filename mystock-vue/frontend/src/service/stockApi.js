@@ -76,8 +76,9 @@ export const stockApi = {
     },
 
     // 觸發資料抓取
-    async triggerFetch(stocks = null, months = null, market = 'tw') {
-        const response = await apiClient.post('/fetch/trigger', { stocks, months, market });
+    // mode: 'incremental' 只補最後一筆之後的缺口 / 'repair' 以完整區間重抓
+    async triggerFetch(stocks = null, months = null, market = 'tw', mode = 'incremental') {
+        const response = await apiClient.post('/fetch/trigger', { stocks, months, market, mode });
         return response.data;
     },
 

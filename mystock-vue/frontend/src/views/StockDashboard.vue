@@ -68,6 +68,14 @@
               <i class="pi pi-star-fill"></i> 追蹤中
             </button>
             <button
+              @click="refetchVisible = true"
+              :disabled="isRunning"
+              class="p-1.5 text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="重新抓取當前股票的歷史資料"
+            >
+              <i :class="['pi', isRunning ? 'pi-spin pi-spinner' : 'pi-refresh']"></i>
+            </button>
+            <button
               @click="router.push('/stocks')"
               class="p-1.5 text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg transition-colors"
               title="新增或管理追蹤股票清單"
@@ -282,6 +290,16 @@
       </div>
     </template>
     </div><!-- /內容區 -->
+
+    <!-- 單股重新抓取彈窗 -->
+    <RefetchStockDialog
+      v-model:visible="refetchVisible"
+      :stock-id="selectedStock"
+      :stock-name="currentStockName"
+      :market="currentMarket"
+      :busy="isRefetching"
+      @confirm="doRefetch"
+    />
   </div><!-- /stock-dashboard-root -->
 </template>
 
@@ -290,6 +308,8 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
+import RefetchStockDialog from '@/components/RefetchStockDialog.vue';
+import { useCrawlerStatus } from '@/composables/useCrawlerStatus';
 import { stockApi } from '@/service/stockApi';
 import { colorForValue as colorForValueRaw } from '@/utils/marketColors';
 import { formatPrice, formatChange, formatLots, formatPercent } from '@/utils/format';
@@ -301,6 +321,11 @@ const router = useRouter();
 const toast = useToast();
 const confirm = useConfirm();
 const { currentMarket } = useMarket();
+const { isRunning, checkStatus } = useCrawlerStatus();
+
+const refetchVisible = ref(false);
+const isRefetching = ref(false);
+const pendingRefetchId = ref(null); // 正在等待背景抓取完成的股號
 
 const availableStocks = ref([]);
 const selectedStock = ref(route.params.id || '2330');
@@ -521,6 +546,46 @@ function removeCurrentStock() {
     }
   });
 }
+
+// 單股重抓：repair 模式會忽略增量邏輯改用完整區間，才補得到中間的缺漏
+async function doRefetch({ stockId, months }) {
+  isRefetching.value = true;
+  try {
+    const res = await stockApi.triggerFetch([stockId], months, currentMarket.value, 'repair');
+    if (res.success) {
+      pendingRefetchId.value = stockId;
+      refetchVisible.value = false;
+      await checkStatus();
+      toast.add({
+        severity: 'info',
+        summary: '背景抓取中',
+        detail: `已開始重新抓取 ${stockId} 近 ${months} 個月的資料，完成後會自動重新載入圖表`,
+        life: 4000
+      });
+    } else {
+      toast.add({
+        severity: 'warn',
+        summary: '無法啟動',
+        detail: res.error?.message || res.message || '已有抓取任務執行中',
+        life: 4000
+      });
+    }
+  } catch (err) {
+    toast.add({ severity: 'error', summary: '啟動失敗', detail: '啟動重新抓取失敗', life: 4000 });
+  } finally {
+    isRefetching.value = false;
+  }
+}
+
+// 等自己觸發的背景抓取結束後，重新載入圖表資料
+watch(isRunning, async (running, wasRunning) => {
+  if (wasRunning && !running && pendingRefetchId.value) {
+    const done = pendingRefetchId.value;
+    pendingRefetchId.value = null;
+    await loadStockData();
+    toast.add({ severity: 'success', summary: '資料抓取完成', detail: `${done} 的資料已更新`, life: 3000 });
+  }
+});
 
 function exportCSV() {
   if (!recordsReversed.value.length) return;

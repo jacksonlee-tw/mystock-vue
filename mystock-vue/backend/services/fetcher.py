@@ -88,6 +88,26 @@ fetch_status = FetchStatusManager()
 
 from markets.tw import FIELD_MAP
 
+# 舊資料檔可能殘留中文 key（load_stock_json 會轉成英文，但寫入端曾以中文落檔）
+_ALT_KEYS = {v: k for k, v in FIELD_MAP.items()}
+
+# 價格類欄位：抓不到行情時絕不可用 0 覆蓋既有值
+_PRICE_FIELDS = {
+    "開盤價", "最高價", "最低價", "收盤價",
+    "成交股數(股)", "成交金額(元)", "成交筆數(筆)", "估算買賣超金額(萬元)",
+}
+
+def _field(record: dict, en_key: str, default=None):
+    """讀取記錄欄位，同時容忍英文與中文 key。"""
+    value = record.get(en_key)
+    if value is not None:
+        return value
+    return record.get(_ALT_KEYS.get(en_key, en_key), default)
+
+def _normalize_keys(record: dict) -> dict:
+    """落檔前把中文 key 轉成英文，避免同一筆記錄中英文 key 並存。"""
+    return {FIELD_MAP.get(k, k): v for k, v in record.items()}
+
 def stock_json_path(stock_id: str, market: str = "tw") -> str:
     market_dir = os.path.join(DATA_DIR, market)
     os.makedirs(market_dir, exist_ok=True)
@@ -228,21 +248,23 @@ def backfill_daily_quotes(target_stocks: list, quote_lookup: dict) -> int:
         for date_key, quote in quotes_for_stock.items():
             if date_key not in stock_data:
                 # Add entirely new entry for today's price (even if no institutional data yet)
-                stock_data[date_key] = quote.copy()
+                stock_data[date_key] = _normalize_keys(quote)
                 changed = True
                 patched += 1
             else:
                 record = stock_data[date_key]
-                if record.get("收盤價", 0) != 0 and "開盤價" in record:
+                # 已有非零收盤價代表這天完好；價格為 0 或缺漏才需要修補
+                if _field(record, "close", 0):
                     continue
-                record.update(quote)
-                total_lots = record.get("合計買賣超(張)", 0)
+                record.update(_normalize_keys(quote))
+                total_lots = _field(record, "institutional_total", 0)
                 if total_lots and quote.get("收盤價"):
-                    record["估算買賣超金額(萬元)"] = round(total_lots * quote["收盤價"] / 10, 2)
+                    record["institutional_amount_est"] = round(total_lots * quote["收盤價"] / 10, 2)
                 changed = True
                 patched += 1
 
         if changed:
+            stock_data = {k: _normalize_keys(v) for k, v in stock_data.items()}
             with open(stock_json_path(stock_id), "w", encoding="utf-8") as f:
                 # Sort by date before dumping
                 sorted_data = dict(sorted(stock_data.items()))
@@ -272,8 +294,12 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
     newly_confirmed_no_trading = set()
 
     def is_date_complete(stock_id: str, date_key: str) -> bool:
+        # 注意：load_stock_json 會把 融資餘額(張) 正規化成 margin_balance，
+        # 因此這裡必須用 _field() 同時容忍兩種 key，否則永遠判定為不完整而重爬。
+        # 價格是否為 0 不納入判斷 —— 缺價的日期交由 backfill_daily_quotes 以
+        # STOCK_DAY 修補，不需要重打 T86/MI_MARGN。
         record = existing_data[stock_id].get(date_key)
-        return record is not None and "融資餘額(張)" in record
+        return record is not None and _field(record, "margin_balance") is not None
 
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     skipped_count = 0
@@ -325,31 +351,36 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
 
                     if stock_id in target_stocks:
                         quote = quote_lookup.get(stock_id, {}).get(date_key, {})
-                        close_price = quote.get("收盤價", 0.0)
 
                         foreign_lots = int(row[4].replace(",", "")) // 1000
                         trust_lots = int(row[7].replace(",", "")) // 1000
                         dealer_lots = int(row[10].replace(",", "")) // 1000
                         total_lots = int(row[11].replace(",", "")) // 1000
-                        total_amount_wan = round(total_lots * close_price / 10, 2)
 
                         record = {
                             "日期": date_key,
                             "股票代號": stock_id,
                             "股票名稱": stock_name,
-                            "開盤價": quote.get("開盤價", 0.0),
-                            "最高價": quote.get("最高價", 0.0),
-                            "最低價": quote.get("最低價", 0.0),
-                            "收盤價": close_price,
-                            "成交股數(股)": quote.get("成交股數(股)", 0),
-                            "成交金額(元)": quote.get("成交金額(元)", 0),
-                            "成交筆數(筆)": quote.get("成交筆數(筆)", 0),
                             "外資買賣超(張)": foreign_lots,
                             "投信買賣超(張)": trust_lots,
                             "自營商買賣超(張)": dealer_lots,
                             "合計買賣超(張)": total_lots,
-                            "估算買賣超金額(萬元)": total_amount_wan,
                         }
+                        # 只有真的抓到行情才寫價格欄位。缺漏的欄位會在 DataFrame 中
+                        # 變成 NaN，由 save_data_to_json 既有的 pd.isna 過濾略過，
+                        # 絕不能填 0.0 —— 那會覆蓋掉檔案裡原本正確的價格。
+                        if quote:
+                            close_price = quote["收盤價"]
+                            record.update({
+                                "開盤價": quote["開盤價"],
+                                "最高價": quote["最高價"],
+                                "最低價": quote["最低價"],
+                                "收盤價": close_price,
+                                "成交股數(股)": quote["成交股數(股)"],
+                                "成交金額(元)": quote["成交金額(元)"],
+                                "成交筆數(筆)": quote["成交筆數(筆)"],
+                                "估算買賣超金額(萬元)": round(total_lots * close_price / 10, 2),
+                            })
                         if stock_id in margin_by_stock:
                             record.update(margin_by_stock[stock_id])
 
@@ -382,30 +413,44 @@ def save_data_to_json(df: pd.DataFrame) -> list:
 
         for record in group.to_dict(orient="records"):
             date_key = record["日期"]
+            existing = stock_data.setdefault(date_key, {})
             detail = {}
             for k, v in record.items():
                 if k in ("股票代號", "日期") or pd.isna(v):
                     continue
-                detail[k] = int(v) if k in margin_fields else v
-            stock_data.setdefault(date_key, {}).update(detail)
+                # 最後一道防線：不讓 0 覆蓋既有的非零價格
+                if k in _PRICE_FIELDS and not v and _field(existing, FIELD_MAP.get(k, k)):
+                    continue
+                detail[FIELD_MAP.get(k, k)] = int(v) if k in margin_fields else v
+            existing.update(detail)
 
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(stock_data, f, ensure_ascii=False, indent=2)
+            json.dump({k: _normalize_keys(v) for k, v in stock_data.items()},
+                      f, ensure_ascii=False, indent=2)
 
         written_files.append(path)
 
     return written_files
 
-def run_fetch_process(target_stocks: Optional[list] = None, months: Optional[int] = None):
+def run_fetch_process(target_stocks: Optional[list] = None, months: Optional[int] = None,
+                      mode: str = "incremental"):
     try:
         stocks = target_stocks or get_target_stocks()
         m_range = months or get_months_range()
 
-        fetch_status.start(f"開始抓取 TWSE 資料 - 股票: {stocks}, 範圍: 近 {m_range} 個月")
+        mode_label = "重新抓取" if mode == "repair" else "增量更新"
+        fetch_status.start(
+            f"開始抓取 TWSE 資料 ({mode_label}) - 股票: {stocks}, 範圍: 近 {m_range} 個月"
+        )
 
         global_days = m_range * 30
         days_by_stock = {}
         for stock_id in stocks:
+            if mode == "repair":
+                # 重抓模式一律使用完整視窗，才能補回中間缺漏的行情。
+                # 這也讓行情窗與法人窗一致，避免兩者錯開造成的資料覆蓋。
+                days_by_stock[stock_id] = global_days
+                continue
             stock_data = load_stock_json(stock_id)
             existing_dates = sorted(stock_data.keys())
             if existing_dates:
@@ -415,7 +460,7 @@ def run_fetch_process(target_stocks: Optional[list] = None, months: Optional[int
                 days_by_stock[stock_id] = min(gap_days, global_days)
             else:
                 days_by_stock[stock_id] = global_days
-                
+
         max_days = max(days_by_stock.values()) if days_by_stock else global_days
 
         fetch_status.update(1, 100, f"預先抓取每日行情 (STOCK_DAY)...")
