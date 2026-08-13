@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>極端抄底策略警示 — MyStock Prototype</title>
+  <meta name="description" content="MyStock 極端抄底策略警示系統（Crisis Alpha）UI 原型入口。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .hero { max-width: 700px; margin: 5rem auto 0; padding: 0 1rem; }
+
+    /* ── Risk banner ─────────────── */
+    .risk-banner {
+      background: var(--crisis-light);
+      border: 1px solid var(--crisis-border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .risk-banner-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1; margin-top: 2px; }
+    .risk-banner-title { font-size: 0.85rem; font-weight: 800; color: var(--crisis); margin-bottom: 2px; }
+    .risk-banner-desc  { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5; }
+
+    /* ── Welcome card ────────────── */
+    .welcome-card {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      padding: 2.5rem 2rem 2rem;
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+    .welcome-logo {
+      width: 60px; height: 60px;
+      border-radius: 14px;
+      background: var(--crisis-light);
+      border: 1px solid var(--crisis-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem;
+      margin: 0 auto 1.25rem;
+    }
+    .welcome-card h1 {
+      font-size: 1.5rem; font-weight: 900; color: var(--text-primary);
+      letter-spacing: -0.5px; margin-bottom: 0.25rem;
+    }
+    .welcome-subtitle { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.75rem; }
+    .phase-pills { display: flex; gap: 0.4rem; justify-content: center; flex-wrap: wrap; margin-bottom: 2rem; }
+    .phase-pill {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-size: 0.7rem; font-weight: 700;
+    }
+    .pill-4 { background: var(--blue-light); color: var(--blue); }
+    .pill-5 { background: var(--crisis-light); color: var(--crisis); border: 1px solid var(--crisis-border); }
+    .pill-6 { background: var(--weak-bg); color: var(--weak-fg); }
+
+    /* ── Page grid ───────────────── */
+    .page-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.9rem;
+      margin-bottom: 1.25rem;
+    }
+    .page-link {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding: 1.1rem 1.15rem;
+      background: var(--surface-hover);
+      border: 1px solid var(--surface-border);
+      border-radius: 11px;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.2s;
+      text-align: left;
+    }
+    .page-link:hover { border-color: var(--crisis-border); background: var(--crisis-light); transform: translateY(-2px); box-shadow: var(--shadow-crisis); }
+    .page-link.brass:hover { border-color: var(--brass-border); background: var(--brass-light); box-shadow: var(--shadow-md); }
+    .pl-icon {
+      width: 36px; height: 36px;
+      border-radius: 9px;
+      background: var(--crisis-light);
+      border: 1px solid var(--crisis-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.95rem;
+      color: var(--crisis);
+    }
+    .pl-icon.brass { background: var(--brass-light); border-color: var(--brass-border); color: var(--brass); }
+    .pl-title { font-size: 0.88rem; font-weight: 700; color: var(--text-primary); }
+    .pl-desc  { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; }
+    .pl-badge { font-size: 0.65rem; font-weight: 700; padding: 1px 7px; border-radius: 100px; background: var(--crisis-light); color: var(--crisis); border: 1px solid var(--crisis-border); }
+
+    /* ── Status preview ──────────── */
+    .status-preview {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      background: var(--crisis-light);
+      border: 1px solid var(--crisis-border);
+      border-radius: 10px;
+      flex-wrap: wrap;
+    }
+    .sp-left { display: flex; align-items: center; gap: 0.6rem; }
+    .sp-label { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); }
+    .sp-sub   { font-size: 0.7rem; color: var(--text-muted); margin-top: 1px; }
+
+    /* ── Phase ref ───────────────── */
+    .ma-ref-link {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 0.85rem;
+      background: var(--surface-hover);
+      border: 1px solid var(--surface-border);
+      border-radius: 9px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .ma-ref-link:hover { border-color: var(--brass-border); color: var(--brass); background: var(--brass-light); }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">極端抄底策略警示</span>
+    </div>
+    <div class="topbar-actions">
+      <span data-module-status class="module-status dormant">
+        <span class="module-status-dot"></span>🟢 休眠中
+      </span>
+      <button class="icon-btn" onclick="toggleTheme()">
+        <i class="pi pi-moon" id="theme-icon"></i>
+      </button>
+    </div>
+  </header>
+
+  <main style="padding-top: 64px;">
+    <div class="hero">
+      <!-- Risk disclaimer banner -->
+      <div class="risk-banner">
+        <div class="risk-banner-icon">🔴</div>
+        <div>
+          <div class="risk-banner-title">CRITICAL — 高風險模組</div>
+          <div class="risk-banner-desc">極端抄底策略（Crisis Alpha）涉及真金白銀，採用「接刀」逆勢操作。本模組獨立於常規均線策略，擁有專屬三道防線、白名單過濾與雙重停損機制。所有 UI 均為 Mock 資料，僅供評估使用。</div>
+        </div>
+      </div>
+
+      <div class="welcome-card">
+        <div class="welcome-logo">🔴</div>
+        <h1>極端抄底策略警示系統</h1>
+        <p class="welcome-subtitle">Phase 5 · Crisis Alpha / Extreme Risk Module — UI 原型 v1.0 · 2026-08-11</p>
+
+        <div class="phase-pills">
+          <span class="phase-pill pill-4"><i class="pi pi-check" style="font-size:0.65rem;"></i> Phase 4 均線策略（前置）</span>
+          <span class="phase-pill pill-5"><i class="pi pi-circle-fill" style="font-size:0.6rem;"></i> Phase 5 極端抄底（本模組）</span>
+          <span class="phase-pill pill-6">Phase 6 自動派單（未來）</span>
+        </div>
+
+        <!-- Module status preview -->
+        <div class="status-preview mb-2" style="margin-bottom:1.25rem;">
+          <div class="sp-left">
+            <div style="width:9px;height:9px;border-radius:50%;background:var(--crisis);animation:pulse-dot 1.5s infinite;flex-shrink:0;"></div>
+            <div>
+              <div class="sp-label">模組今日已喚醒 — 大盤跌幅 −4.2%</div>
+              <div class="sp-sub">觸發原因：大盤暴跌 ≥ 3%（market_crash） · 09:01 喚醒</div>
+            </div>
+          </div>
+          <span class="module-status awakened" data-module-status>
+            <span class="module-status-dot"></span>已喚醒 · 掃描中
+          </span>
+        </div>
+
+        <!-- Page navigation grid -->
+        <div class="page-grid">
+          <a href="crisis-alerts.html" class="page-link">
+            <div class="pl-icon"><i class="pi pi-bell"></i></div>
+            <div class="pl-title">極端警示儀表板</div>
+            <div class="pl-desc">Crisis Alert 清單、大盤環境背景、三道防線通過狀態</div>
+            <span class="pl-badge">3 筆新警示</span>
+          </a>
+          <a href="crisis-settings.html" class="page-link">
+            <div class="pl-icon"><i class="pi pi-shield"></i></div>
+            <div class="pl-title">策略設定 + 白名單</div>
+            <div class="pl-desc">觸發條件參數、三道防線設定、權值股白名單管理</div>
+          </a>
+          <a href="module-status.html" class="page-link">
+            <div class="pl-icon"><i class="pi pi-server"></i></div>
+            <div class="pl-title">模組狀態監控</div>
+            <div class="pl-desc">大盤環境儀表、模組生命週期、資金使用、Kill Switch</div>
+          </a>
+          <a href="integrated-alerts.html" class="page-link brass">
+            <div class="pl-icon brass"><i class="pi pi-list"></i></div>
+            <div class="pl-title">整合警示儀表板</div>
+            <div class="pl-desc">均線策略 + 極端抄底，統一警示清單，雙系統整合 UI</div>
+          </a>
+        </div>
+
+        <a href="../均線策略警示系統/prototype/index.html" class="ma-ref-link" style="margin:0 auto;width:fit-content;display:flex;">
+          <i class="pi pi-arrow-left"></i>
+          <span>← 回到均線策略警示系統 Prototype（Phase 4）</span>
+        </a>
+
+        <p style="font-size:0.72rem;color:var(--text-muted);margin-top:1.5rem;">
+          <i class="pi pi-info-circle" style="margin-right:4px;"></i>所有資料皆為 Mock 資料，僅供 UI 原型評估使用
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      setModuleState('awakened');
+    });
+  </script>
+</body>
+</html>

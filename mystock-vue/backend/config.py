@@ -12,6 +12,9 @@ DEFAULT_STOCKS = ["0050", "2330", "006208", "2317"]
 DEFAULT_US_STOCKS = ["AAPL", "MSFT", "GOOGL", "TSLA"]
 DEFAULT_MONTHS_RANGE = 3
 ENABLED_MARKETS_DEFAULT = ["tw", "us"]
+DEFAULT_DATA_SOURCE = "json"
+VALID_DATA_SOURCES = ("json", "postgres")
+DEFAULT_BACKFILL_MAX_DAYS = 90
 
 CORS_ORIGINS = [
     "http://localhost:5173",
@@ -68,3 +71,16 @@ def get_months_range() -> int:
         return int(os.getenv("MONTHS_RANGE", str(DEFAULT_MONTHS_RANGE)))
     except ValueError:
         return DEFAULT_MONTHS_RANGE
+
+def get_data_source() -> str:
+    load_dotenv(ENV_PATH, override=True)
+    source = os.getenv("DATA_SOURCE", DEFAULT_DATA_SOURCE).strip().lower()
+    # 辨識不了的值一律退回 json（現行可用架構），設定打錯字不該讓服務起不來
+    return source if source in VALID_DATA_SOURCES else DEFAULT_DATA_SOURCE
+
+def get_backfill_max_days() -> int:
+    load_dotenv(ENV_PATH, override=True)
+    try:
+        return int(os.getenv("BACKFILL_MAX_DAYS", str(DEFAULT_BACKFILL_MAX_DAYS)))
+    except ValueError:
+        return DEFAULT_BACKFILL_MAX_DAYS

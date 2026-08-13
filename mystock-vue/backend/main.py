@@ -1,6 +1,8 @@
+import asyncio
 import logging
 import os
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,15 +11,28 @@ from api.v1.endpoints.stocks import router as stocks_router
 from api.v1.endpoints.fetch import router as fetch_router
 from api.v1.endpoints.markets import router as markets_router
 from core.exceptions import SymbolNotFoundException
+from db.session import dispose_engine
+from services.scheduler import create_scheduler
+from services.backfill import run_startup_backfill
 from fastapi.responses import JSONResponse
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("mystock-backend")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler = create_scheduler()
+    scheduler.start()
+    asyncio.create_task(run_startup_backfill())  # 背景執行，缺漏回補不阻塞服務啟動（見 phase3_5 設計文件第 3.1 節）
+    yield
+    scheduler.shutdown(wait=False)
+    await dispose_engine()
+
 app = FastAPI(
     title="MyStock 股市三大法人與籌碼分析 API 服務",
     description="提供台灣股市三大法人買賣超、融資融券、K線圖歷史數據聚合與 TWSE 自動抓取服務",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # ── CORS 設定 ─────────────────────────────────────────────────────────────

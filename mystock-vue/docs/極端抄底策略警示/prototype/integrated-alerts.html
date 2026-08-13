@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>整合警示儀表板 — MyStock 均線 + 極端抄底</title>
+  <meta name="description" content="均線策略警示（Phase 4）與極端抄底警示（Phase 5）統一整合的警示儀表板。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    /* ── Tab bar ─────────────────── */
+    .tab-bar {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      border-bottom: 2px solid var(--surface-border);
+      margin-bottom: 1.25rem;
+      overflow-x: auto;
+    }
+    .tab-item {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.6rem 1.1rem;
+      font-size: 0.82rem; font-weight: 700;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      white-space: nowrap;
+      transition: all 0.15s;
+      text-decoration: none;
+    }
+    .tab-item:hover { color: var(--text-primary); background: var(--surface-hover); }
+    .tab-item.active { color: var(--text-primary); border-bottom-color: var(--brass); }
+    .tab-item.crisis-tab.active { color: var(--crisis); border-bottom-color: var(--crisis); }
+    .tab-cnt {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 18px; height: 18px; padding: 0 5px;
+      border-radius: 100px; font-size: 0.65rem; font-weight: 800;
+    }
+    .tab-cnt.ma-cnt  { background: var(--brass-light);  color: var(--brass); }
+    .tab-cnt.cr-cnt  { background: var(--crisis-light); color: var(--crisis); }
+    .tab-cnt.all-cnt { background: var(--surface-hover); color: var(--text-muted); border: 1px solid var(--surface-border); }
+
+    /* ── Summary row ─────────────── */
+    .summary-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.85rem;
+      margin-bottom: 1.25rem;
+    }
+    .sum-card {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 11px;
+      padding: 0.85rem 1rem;
+      display: flex; align-items: center; gap: 0.75rem;
+    }
+    .sum-icon { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; flex-shrink: 0; }
+    .sum-label { font-size: 0.68rem; font-weight: 600; color: var(--text-muted); line-height: 1; }
+    .sum-val   { font-size: 1.3rem; font-weight: 900; color: var(--text-primary); line-height: 1.1; }
+
+    /* ── Module status bar ───────── */
+    .module-bar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.7rem 1.1rem;
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 10px;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .module-bar-section { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .module-bar-divider { width: 1px; height: 24px; background: var(--surface-border); flex-shrink: 0; }
+
+    /* ── Unified alert list ──────── */
+    .unified-alert {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 11px;
+      margin-bottom: 0.7rem;
+      overflow: hidden;
+      transition: box-shadow 0.15s, border-color 0.15s;
+    }
+    .unified-alert:hover { box-shadow: var(--shadow-md); }
+    .unified-alert.ma-type   { border-left: 3px solid var(--brass); }
+    .unified-alert.crisis-type { border-left: 3px solid var(--crisis); box-shadow: var(--shadow-crisis); }
+    .unified-alert.crisis-type:hover { box-shadow: 0 6px 20px rgba(201,22,31,0.18); }
+
+    .ua-row {
+      display: flex; align-items: center; gap: 0.7rem;
+      padding: 0.8rem 1rem;
+      cursor: pointer;
+    }
+    .ua-module-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .ua-direction-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.88rem; font-weight: 900; flex-shrink: 0;
+    }
+    .ua-info { flex: 1; min-width: 0; }
+    .ua-stock { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
+    .ua-stock-id   { font-size: 0.95rem; font-weight: 900; color: var(--text-primary); }
+    .ua-stock-name { font-size: 0.75rem; color: var(--text-muted); font-weight: 500; }
+    .ua-strategy   { font-size: 0.75rem; color: var(--text-secondary); margin-top: 1px; }
+    .ua-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem; flex-shrink: 0; }
+    .ua-time { font-size: 0.68rem; color: var(--text-muted); }
+    .ua-tags { display: flex; gap: 0.25rem; flex-wrap: wrap; justify-content: flex-end; }
+
+    /* ── Crisis priority marker ───── */
+    .crisis-priority-ring {
+      position: absolute;
+      top: -4px; left: -4px; right: -4px; bottom: -4px;
+      border: 2px solid var(--crisis-border);
+      border-radius: 14px;
+      pointer-events: none;
+    }
+
+    /* ── Date group ──────────────── */
+    .date-group { margin-bottom: 1.1rem; }
+    .date-lbl {
+      font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+      color: var(--text-muted); margin-bottom: 0.55rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .date-lbl::after { content:''; flex:1; height:1px; background:var(--surface-border); }
+
+    /* ── Quick filter bar ─────────── */
+    .filter-bar {
+      display: flex; align-items: center; gap: 0.5rem;
+      flex-wrap: wrap; margin-bottom: 1rem;
+    }
+
+    @media (max-width: 860px) { .summary-row { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 480px) { .summary-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="topbar crisis-active">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">整合警示儀表板</span>
+    </div>
+    <nav class="topbar-nav hide-mobile">
+      <!-- Phase 4 links -->
+      <a href="../均線策略警示系統/prototype/alerts.html" class="nav-link"><i class="pi pi-bell"></i> 均線警示</a>
+      <a href="../均線策略警示系統/prototype/strategy-settings.html" class="nav-link"><i class="pi pi-sliders-h"></i> 均線設定</a>
+      <!-- Phase 5 links -->
+      <a href="crisis-alerts.html" class="nav-link crisis-nav"><i class="pi pi-bell" style="color:var(--crisis);"></i> 極端警示</a>
+      <a href="module-status.html" class="nav-link crisis-nav"><i class="pi pi-server"></i> 模組狀態</a>
+      <a href="integrated-alerts.html" class="nav-link active"><i class="pi pi-list"></i> 整合檢視</a>
+    </nav>
+    <div class="topbar-actions">
+      <span class="module-status awakened" data-module-status>
+        <span class="module-status-dot"></span>極端模組：已喚醒
+      </span>
+      <button class="btn btn-kill btn-sm hide-mobile" data-kill-btn onclick="activateKillSwitch()">☠ Kill Switch</button>
+      <button class="icon-btn" onclick="toggleTheme()"><i class="pi pi-moon" id="theme-icon"></i></button>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <div class="content-wrap">
+      <!-- Page header -->
+      <div style="margin-bottom:1.25rem;">
+        <h1 style="font-size:1.2rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.3px;">整合警示儀表板</h1>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">均線策略（Phase 4）+ 極端抄底（Phase 5）統一警示檢視 · 2026-08-11</p>
+      </div>
+
+      <!-- Module status bar -->
+      <div class="module-bar">
+        <div class="module-bar-section">
+          <span style="font-size:0.72rem;font-weight:700;color:var(--text-muted);">均線策略 Phase 4</span>
+          <span class="module-status dormant" style="font-size:0.7rem;"><span class="module-status-dot"></span>正常運行</span>
+          <span style="font-size:0.72rem;color:var(--text-muted);">今日 7 筆警示</span>
+        </div>
+        <div class="module-bar-divider"></div>
+        <div class="module-bar-section">
+          <span style="font-size:0.72rem;font-weight:700;color:var(--crisis);">極端抄底 Phase 5</span>
+          <span class="module-status awakened" style="font-size:0.7rem;"><span class="module-status-dot"></span>已喚醒 · 掃描中</span>
+          <span style="font-size:0.72rem;color:var(--crisis);">今日 3 筆極端警示</span>
+        </div>
+        <div class="module-bar-divider"></div>
+        <div class="module-bar-section">
+          <span style="font-size:0.72rem;color:var(--text-muted);">喚醒原因：大盤跌幅 −4.2%</span>
+        </div>
+        <div style="margin-left:auto;">
+          <a href="module-status.html" class="btn btn-ghost btn-sm"><i class="pi pi-server"></i> 模組詳情</a>
+        </div>
+      </div>
+
+      <!-- Summary row -->
+      <div class="summary-row">
+        <div class="sum-card">
+          <div class="sum-icon" style="background:var(--surface-hover);border:1px solid var(--surface-border);color:var(--text-muted);"><i class="pi pi-bell"></i></div>
+          <div><div class="sum-label">全部警示</div><div class="sum-val">10</div></div>
+        </div>
+        <div class="sum-card">
+          <div class="sum-icon" style="background:var(--brass-light);border:1px solid var(--brass-border);color:var(--brass);"><i class="pi pi-chart-line"></i></div>
+          <div><div class="sum-label">均線策略</div><div class="sum-val" style="color:var(--brass);">7</div></div>
+        </div>
+        <div class="sum-card">
+          <div class="sum-icon" style="background:var(--crisis-light);border:1px solid var(--crisis-border);color:var(--crisis);"><i class="pi pi-exclamation-triangle"></i></div>
+          <div><div class="sum-label">極端抄底</div><div class="sum-val" style="color:var(--crisis);">3</div></div>
+        </div>
+        <div class="sum-card">
+          <div class="sum-icon" style="background:var(--green-light);color:var(--green);"><i class="pi pi-arrow-up-right"></i></div>
+          <div><div class="sum-label">多頭訊號</div><div class="sum-val" style="color:var(--green);">6</div></div>
+        </div>
+        <div class="sum-card">
+          <div class="sum-icon" style="background:var(--red-light);color:var(--red);"><i class="pi pi-arrow-down-right"></i></div>
+          <div><div class="sum-label">空頭/風險</div><div class="sum-val" style="color:var(--red);">4</div></div>
+        </div>
+      </div>
+
+      <!-- Tab bar -->
+      <div class="tab-bar">
+        <div class="tab-item active" onclick="setTab('all', this)">
+          全部 <span class="tab-cnt all-cnt" id="cnt-all">10</span>
+        </div>
+        <div class="tab-item" onclick="setTab('crisis', this)">
+          <span style="color:var(--crisis);">🔴</span> 極端警示 <span class="tab-cnt cr-cnt" id="cnt-crisis">3</span>
+        </div>
+        <div class="tab-item" onclick="setTab('ma', this)">
+          <i class="pi pi-chart-line" style="font-size:0.7rem;color:var(--brass);"></i> 均線策略 <span class="tab-cnt ma-cnt" id="cnt-ma">7</span>
+        </div>
+        <div class="tab-item" onclick="setTab('bull', this)">多頭</div>
+        <div class="tab-item" onclick="setTab('bear', this)">空頭/風險</div>
+        <div class="tab-item" onclick="setTab('strong', this)">強訊號</div>
+      </div>
+
+      <!-- Quick filter bar -->
+      <div class="filter-bar">
+        <span style="font-size:0.72rem;color:var(--text-muted);font-weight:600;">快速篩選：</span>
+        <span class="chip active" onclick="toggleChip(this,'crisis_priority')">🔴 極端優先</span>
+        <span class="chip" onclick="toggleChip(this,'tw_only')">🇹🇼 台股</span>
+        <span class="chip" onclick="toggleChip(this,'strong_only')">⭐ 強訊號</span>
+        <span style="margin-left:auto;font-size:0.72rem;color:var(--text-muted);" id="result-count">顯示 10 筆</span>
+      </div>
+
+      <!-- Unified alert list -->
+      <div id="unified-list"></div>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    // ── MA mock alerts (from 均線策略) ─────────────
+    const MA_ALERTS = [
+      { id:'ma-2330-001', ts:'2026-08-11T14:30:00+08:00', stock_id:'2330', stock_name:'台積電',  market:'tw', module:'ma',     dir:'bull', icon:'▲', dir_label:'突破',   strategy:'收盤價突破 60 日季線',        strength:'strong' },
+      { id:'ma-AAPL-001', ts:'2026-08-11T13:15:00+08:00', stock_id:'AAPL', stock_name:'Apple',   market:'us', module:'ma',     dir:'bull', icon:'✕', dir_label:'黃金交叉', strategy:'20MA 穿越 60MA — 黃金交叉', strength:'strong' },
+      { id:'ma-2454-001', ts:'2026-08-11T14:30:00+08:00', stock_id:'2454', stock_name:'聯發科',   market:'tw', module:'ma',     dir:'bull', icon:'↑', dir_label:'超賣反彈', strategy:'乖離率過大警示（超賣）',       strength:'moderate' },
+      { id:'ma-TSLA-001', ts:'2026-08-11T12:45:00+08:00', stock_id:'TSLA', stock_name:'Tesla',   market:'us', module:'ma',     dir:'bull', icon:'▲', dir_label:'多頭排列', strategy:'均線多頭排列確立',            strength:'moderate' },
+      { id:'ma-2317-001', ts:'2026-08-10T14:30:00+08:00', stock_id:'2317', stock_name:'鴻海',    market:'tw', module:'ma',     dir:'bear', icon:'▼', dir_label:'跌破',    strategy:'收盤價跌破 20 日月線',        strength:'weak' },
+      { id:'ma-2412-001', ts:'2026-08-10T14:30:00+08:00', stock_id:'2412', stock_name:'中華電',   market:'tw', module:'ma',     dir:'bull', icon:'↩', dir_label:'拉回買點', strategy:'均線回踩支撐（月線附近）',   strength:'strong' },
+      { id:'ma-2603-001', ts:'2026-08-09T14:30:00+08:00', stock_id:'2603', stock_name:'長榮',    market:'tw', module:'ma',     dir:'bull', icon:'▲', dir_label:'突破起漲', strategy:'均線糾結突破',                strength:'strong' },
+    ];
+
+    // Merge with crisis alerts
+    const ALL_ALERTS = [
+      ...CRISIS_ALERTS.filter(a => !a.rejected).map(a => ({
+        id: a.id, ts: a.timestamp, stock_id: a.stock_id, stock_name: a.stock_name,
+        market: a.market, module: 'crisis',
+        dir: 'bull', icon: a.scenario_icon, dir_label: a.scenario_label,
+        strategy: a.scenario_label, strength: a.signal_strength,
+        _crisis: a
+      })),
+      ...MA_ALERTS
+    ].sort((a,b) => {
+      // Crisis first, then by time
+      if (a.module === 'crisis' && b.module !== 'crisis') return -1;
+      if (b.module === 'crisis' && a.module !== 'crisis') return 1;
+      return new Date(b.ts) - new Date(a.ts);
+    });
+
+    let currentTab = 'all';
+    let chipFilters = { crisis_priority: true, tw_only: false, strong_only: false };
+
+    function setTab(tab, el) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      render();
+    }
+
+    function toggleChip(el, key) {
+      chipFilters[key] = !chipFilters[key];
+      el.classList.toggle('active', chipFilters[key]);
+      el.classList.toggle('crisis-chip', chipFilters[key] && key === 'crisis_priority');
+      render();
+    }
+
+    function filterAlerts() {
+      let list = [...ALL_ALERTS];
+      if (currentTab === 'crisis') list = list.filter(a => a.module === 'crisis');
+      else if (currentTab === 'ma')  list = list.filter(a => a.module === 'ma');
+      else if (currentTab === 'bull') list = list.filter(a => a.dir === 'bull');
+      else if (currentTab === 'bear') list = list.filter(a => a.dir === 'bear');
+      else if (currentTab === 'strong') list = list.filter(a => a.strength === 'strong');
+
+      if (chipFilters.tw_only)    list = list.filter(a => a.market === 'tw');
+      if (chipFilters.strong_only) list = list.filter(a => a.strength === 'strong');
+      // crisis_priority just reorders (already at top)
+      return list;
+    }
+
+    const STRENGTH_MAP = { strong: 'tag-strong', moderate: 'tag-moderate', weak: 'tag-weak' };
+    const STRENGTH_LBL = { strong: '強', moderate: '中', weak: '弱' };
+
+    function unifiedCardHTML(a) {
+      const isCrisis = a.module === 'crisis';
+      const bull = a.dir === 'bull';
+
+      return `
+      <div class="unified-alert ${isCrisis ? 'crisis-type' : 'ma-type'}">
+        <div class="ua-row">
+          <div class="ua-module-dot" style="background:${isCrisis ? 'var(--crisis)' : 'var(--brass)'};" title="${isCrisis ? '極端抄底策略' : '均線策略'}"></div>
+          <div class="ua-direction-icon" style="background:${isCrisis ? 'var(--crisis-light)' : bull ? 'var(--green-light)' : 'var(--red-light)'};color:${isCrisis ? 'var(--crisis)' : bull ? 'var(--green)' : 'var(--red)'};">
+            ${a.icon}
+          </div>
+          <div class="ua-info">
+            <div class="ua-stock">
+              <span class="ua-stock-id">${a.stock_id}</span>
+              <span class="ua-stock-name">${a.stock_name}</span>
+              <span class="tag ${a.market === 'tw' ? 'tag-tw' : ''}" style="${a.market==='us'?'background:var(--amber-light);color:var(--amber);':''}">${a.market.toUpperCase()}</span>
+              ${isCrisis ? '<span class="tag tag-crisis" style="font-size:0.62rem;">CRITICAL</span>' : ''}
+            </div>
+            <div class="ua-strategy">${a.strategy}</div>
+          </div>
+          <div class="ua-meta">
+            <span class="ua-time"><i class="pi pi-clock" style="font-size:0.58rem;margin-right:2px;"></i>${formatDate(a.ts)} ${formatTime(a.ts)}</span>
+            <div class="ua-tags">
+              <span class="tag ${isCrisis ? 'tag-crisis' : (bull ? 'tag-bull' : 'tag-bear')}" style="font-size:0.65rem;">${isCrisis ? '🔴 極端' : (bull ? '▲ 多頭' : '▼ 空頭')}</span>
+              <span class="tag ${STRENGTH_MAP[a.strength]}" style="font-size:0.65rem;">${STRENGTH_LBL[a.strength]}</span>
+            </div>
+          </div>
+          <a href="${isCrisis ? 'crisis-alerts.html' : '../均線策略警示系統/prototype/alerts.html'}" class="btn ${isCrisis ? 'btn-crisis' : 'btn-ghost'} btn-xs hide-mobile" style="flex-shrink:0;">
+            <i class="pi pi-arrow-right"></i>
+          </a>
+        </div>
+      </div>`;
+    }
+
+    function render() {
+      const filtered = filterAlerts();
+      document.getElementById('result-count').textContent = `顯示 ${filtered.length} 筆`;
+      document.getElementById('cnt-all').textContent = ALL_ALERTS.length;
+      document.getElementById('cnt-crisis').textContent = ALL_ALERTS.filter(a=>a.module==='crisis').length;
+      document.getElementById('cnt-ma').textContent = ALL_ALERTS.filter(a=>a.module==='ma').length;
+
+      if (!filtered.length) {
+        document.getElementById('unified-list').innerHTML = `<div style="text-align:center;padding:3rem;color:var(--text-muted);"><i class="pi pi-filter-slash" style="font-size:2rem;display:block;margin-bottom:0.75rem;"></i><p>無符合的警示</p></div>`;
+        return;
+      }
+
+      const groups = {};
+      filtered.forEach(a => {
+        const d = formatDate(a.ts);
+        if (!groups[d]) groups[d] = [];
+        groups[d].push(a);
+      });
+      const today = '2026-08-11', yesterday = '2026-08-10';
+      const dateLabel = d => d===today ? `今天 ${d}` : d===yesterday ? `昨天 ${d}` : d;
+
+      let html = '';
+      Object.keys(groups).sort((a,b) => b.localeCompare(a)).forEach(date => {
+        html += `<div class="date-group">
+          <div class="date-lbl">${dateLabel(date)}</div>
+          ${groups[date].map(unifiedCardHTML).join('')}
+        </div>`;
+      });
+      document.getElementById('unified-list').innerHTML = html;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      setModuleState('awakened');
+      // set crisis_priority chip active by default
+      document.querySelector('[onclick*="crisis_priority"]')?.classList.add('active','crisis-chip');
+      render();
+    });
+  </script>
+</body>
+</html>

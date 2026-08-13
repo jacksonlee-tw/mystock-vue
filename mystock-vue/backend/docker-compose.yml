@@ -1,0 +1,51 @@
+# 於 backend/ 目錄下執行 `docker compose up -d`（會自動讀取同目錄的 .env，見設計文件第 2.2 節）。
+services:
+  db:
+    image: postgres:15
+    container_name: mystock_db
+    restart: unless-stopped
+    environment:
+      TZ: UTC
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  flyway:
+    image: flyway/flyway:10
+    container_name: mystock_flyway
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./db/migration:/flyway/sql
+    command: >
+      -url=jdbc:postgresql://db:5432/${POSTGRES_DB}
+      -user=${POSTGRES_USER} -password=${POSTGRES_PASSWORD} migrate
+
+  backup:
+    image: prodrigestivill/postgres-backup-local:15
+    container_name: mystock_backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SCHEDULE: "@daily"
+      BACKUP_KEEP_DAYS: 30
+      BACKUP_KEEP_WEEKS: 4
+      BACKUP_KEEP_MONTHS: 6
+    volumes:
+      - ./backups:/backups

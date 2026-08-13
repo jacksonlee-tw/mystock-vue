@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>策略與選股池設定 — MyStock 籌碼選股警示</title>
+  <meta name="description" content="籌碼選股策略啟用停用管理、觸發參數調整與濾網設定介面。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .strategy-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+    @media (max-width: 860px) {
+      .strategy-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Strategy card ───────────────────────── */
+    .strategy-card {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .strategy-card:hover { box-shadow: var(--shadow-md); }
+    .strategy-card.enabled { border-left: 3px solid var(--brass); }
+    .strategy-card.disabled { opacity: 0.65; }
+
+    .sc-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem 1.1rem;
+      background: var(--surface-card);
+    }
+    .sc-icon {
+      width: 38px; height: 38px;
+      border-radius: 9px;
+      background: var(--brass-light);
+      border: 1px solid var(--brass-border);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--brass);
+      font-size: 0.95rem;
+      flex-shrink: 0;
+    }
+    .sc-icon.disabled { background: var(--surface-hover); border-color: var(--surface-border); color: var(--text-muted); }
+    .sc-meta { flex: 1; min-width: 0; }
+    .sc-name {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .sc-id { font-size: 0.7rem; color: var(--text-muted); font-family: monospace; background: var(--surface-hover); padding: 1px 6px; border-radius: 4px; }
+    .sc-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+    .sc-markets { display: flex; gap: 0.25rem; }
+
+    .sc-body {
+      padding: 0 1.1rem 1rem;
+    }
+    .sc-divider { height: 1px; background: var(--surface-border); margin: 0 0 0.75rem; }
+
+    /* ── Param rows ──────────────────────────── */
+    .param-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.4rem 0;
+    }
+    .param-row + .param-row { border-top: 1px solid var(--surface-border); }
+    .param-label { font-size: 0.78rem; color: var(--text-secondary); font-weight: 500; }
+    .param-value-wrap { display: flex; align-items: center; gap: 0.4rem; }
+    .param-input {
+      width: 72px;
+      padding: 0.25rem 0.5rem;
+      background: var(--surface-input);
+      border: 1px solid var(--surface-border);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      color: var(--text-primary);
+      text-align: right;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .param-input:focus { border-color: var(--brass); }
+    .param-unit { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+
+    /* ── Filters section ─────────────────────── */
+    .filters-section { margin-top: 0.75rem; }
+    .filter-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.4rem 0;
+      gap: 0.5rem;
+    }
+    .filter-row + .filter-row { border-top: 1px solid var(--surface-border); }
+    .filter-info { display: flex; flex-direction: column; gap: 2px; }
+    .filter-name { font-size: 0.8rem; font-weight: 600; color: var(--text-primary); }
+    .filter-desc { font-size: 0.72rem; color: var(--text-muted); }
+    .filter-market-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 100px;
+      background: var(--blue-light);
+      color: var(--blue);
+      white-space: nowrap;
+    }
+    .filter-market-badge.tw-only { background: var(--blue-light); color: var(--blue); }
+
+    /* ── Section header ──────────────────────── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.25rem;
+    }
+    .section-title {
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* ── Global settings card ────────────────── */
+    .global-card {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .global-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    @media (max-width: 600px) {
+      .global-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ── Save bar ────────────────────────────── */
+    .save-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--surface-overlay);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid var(--surface-border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      z-index: 90;
+      transform: translateY(100%);
+      transition: transform 0.25s;
+    }
+    .save-bar.visible { transform: translateY(0); }
+    .save-bar-msg { font-size: 0.82rem; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">籌碼選股警示系統</span>
+    </div>
+    <nav class="topbar-nav hide-mobile">
+      <a href="index.html" class="nav-link"><i class="pi pi-home"></i> 首頁</a>
+      <a href="alerts.html" class="nav-link"><i class="pi pi-bell"></i> 警示</a>
+      <a href="strategy-settings.html" class="nav-link active"><i class="pi pi-sliders-h"></i> 策略設定</a>
+      <a href="stock-chart.html" class="nav-link"><i class="pi pi-chart-bar"></i> K 線圖</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="toggleTheme()">
+        <i class="pi pi-moon" id="theme-icon"></i>
+      </button>
+    </div>
+  </header>
+
+  <main class="page-main" style="padding-bottom: 80px;">
+    <div class="content-wrap">
+      <!-- Page header -->
+      <div class="flex items-center justify-between" style="margin-bottom:1.5rem;">
+        <div>
+          <h1 style="font-size:1.25rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.3px;">策略與選股池設定</h1>
+          <p style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">設定 70/30 核心衛星配置，與各型態參數濾網</p>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-ghost btn-sm" onclick="resetAll()"><i class="pi pi-refresh"></i> 重置預設</button>
+          <button class="btn btn-primary btn-sm" onclick="saveSettings()"><i class="pi pi-save"></i> 儲存設定</button>
+        </div>
+      </div>
+
+      <!-- Global defaults -->
+      <div class="global-card">
+        <div style="font-size:0.9rem;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:0.5rem;">
+          <i class="pi pi-cog" style="color:var(--brass);"></i> 全域預設值
+        </div>
+        <div class="global-grid">
+          <div class="form-group">
+            <label class="form-label">均量計算天數（用以判斷量能）</label>
+            <input type="number" class="form-input" value="5" min="3" max="20" oninput="markDirty()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">選股池動態更新頻率</label>
+            <select class="form-input form-select" onchange="markDirty()">
+              <option value="monthly" selected>每月第一個交易日</option>
+              <option value="weekly">每週更新</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">大型權值股市值條件</label>
+            <input type="text" class="form-input" value="前 50 大" oninput="markDirty()" readonly>
+          </div>
+        </div>
+      </div>
+
+      <!-- Strategy cards -->
+      <div class="section-header">
+        <div class="section-title">五大籌碼策略設定</div>
+        <div style="font-size:0.75rem;color:var(--text-muted);">啟用中：<strong id="enabled-count" style="color:var(--text-primary);">5</strong> / 5</div>
+      </div>
+
+      <div class="strategy-grid" id="strategy-grid">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Save bar -->
+  <div class="save-bar" id="save-bar">
+    <span class="save-bar-msg"><i class="pi pi-exclamation-circle" style="color:var(--amber);margin-right:4px;"></i>有未儲存的設定變更</span>
+    <div style="display:flex;gap:0.5rem;">
+      <button class="btn btn-ghost btn-sm" onclick="discardChanges()">放棄變更</button>
+      <button class="btn btn-primary btn-sm" onclick="saveSettings()"><i class="pi pi-check"></i> 儲存</button>
+    </div>
+  </div>
+
+  <script src="shared.js"></script>
+  <script>
+    // ── Strategy definitions ───────────────────────
+    const STRATEGIES = [
+      {
+        id: 'foreign_core',
+        name: '外資大型權值波段 (70% 核心)',
+        icon: 'pi-chart-line',
+        desc: '順勢操作外資推升的大型權值股',
+        markets: ['tw', 'us'],
+        enabled: true,
+        params: [
+          { key: 'capital_weight', label: '資金權重', value: '70', unit: '%' },
+          { key: 'foreign_buy_days', label: '外資買超天數 (近5日)', value: '3', unit: '天' },
+          { key: 'volume_ratio', label: '累計買超佔比門檻', value: '10', unit: '% 成交量' },
+        ],
+        filters: [
+          { id: 'trend_ma60_up', label: '季線濾網', desc: '股價維持在季線之上且斜率為正', enabled: true, markets: 'all' },
+        ]
+      },
+      {
+        id: 'trust_satellite',
+        name: '投信中小型作帳爆發 (30% 衛星)',
+        icon: 'pi-bolt',
+        desc: '鎖定投信破冰買進之中小型股',
+        markets: ['tw'],
+        enabled: true,
+        params: [
+          { key: 'capital_weight', label: '資金權重', value: '30', unit: '%' },
+          { key: 'trust_buy_ratio', label: '投信單日買超佔比', value: '15', unit: '% 成交量' },
+        ],
+        filters: [
+          { id: 'seasonality_q3', label: '作帳週期濾網', desc: '限季末週期 (2,3,5,6,8,9,11,12月)', enabled: true, markets: 'tw' },
+        ]
+      },
+      {
+        id: 'bottom_washout',
+        name: '底部換手 (洗盤)',
+        icon: 'pi-arrow-right-arrow-left',
+        desc: '股價盤整/站上月線，融資大減法人大買',
+        markets: ['tw'],
+        enabled: true,
+        params: [
+          { key: 'margin_decrease', label: '融資大減降幅 (近4週)', value: '5', unit: '%' },
+          { key: 'institutional_buy_days', label: '法人連續買超天數', value: '3', unit: '天' },
+        ],
+        filters: [
+          { id: 'trend_ma20_breakout', label: '月線濾網', desc: '剛突破月線或在月線附近盤整', enabled: true, markets: 'all' },
+        ]
+      },
+      {
+        id: 'top_short_squeeze',
+        name: '高檔軋空 (暴走)',
+        icon: 'pi-angle-double-up',
+        desc: '多頭排列，法人買超，券資比激增',
+        markets: ['tw'],
+        enabled: true,
+        params: [
+          { key: 'short_ratio', label: '券資比門檻', value: '20', unit: '%' },
+          { key: 'short_increase', label: '單週融券激增門檻', value: '10', unit: '%' },
+        ],
+        filters: [
+          { id: 'high_short_ratio', label: '券資比確認', desc: '需達絕對軋空條件', enabled: true, markets: 'tw' },
+        ]
+      },
+      {
+        id: 'top_distribution',
+        name: '高檔出貨 (崩盤前)',
+        icon: 'pi-angle-double-down',
+        desc: '股價作頭/破線，法人倒貨，融資暴增',
+        markets: ['tw'],
+        enabled: true,
+        params: [
+          { key: 'institutional_sell', label: '三大法人連賣天數', value: '3', unit: '天' },
+          { key: 'margin_increase', label: '融資餘額創新高', value: '是', unit: '', readonly: true },
+        ],
+        filters: [
+          { id: 'trend_ma20_breakdown', label: '破線確認', desc: '跌破月線確立出貨', enabled: true, markets: 'all' },
+        ]
+      }
+    ];
+
+    let dirty = false;
+
+    function markDirty() {
+      dirty = true;
+      document.getElementById('save-bar').classList.add('visible');
+    }
+
+    function saveSettings() {
+      dirty = false;
+      document.getElementById('save-bar').classList.remove('visible');
+      // Show inline feedback
+      const btn = event.target.closest('button');
+      if (btn) {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="pi pi-check"></i> 已儲存';
+        btn.disabled = true;
+        setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 1500);
+      }
+    }
+
+    function discardChanges() {
+      dirty = false;
+      document.getElementById('save-bar').classList.remove('visible');
+      render();
+    }
+
+    function resetAll() {
+      if (!confirm('確定要將所有策略設定還原為預設值嗎？')) return;
+      render();
+    }
+
+    // ── Toggle strategy enabled ────────────────────
+    function toggleStrategy(id) {
+      const s = STRATEGIES.find(s => s.id === id);
+      if (!s) return;
+      s.enabled = !s.enabled;
+      markDirty();
+      render();
+    }
+
+    // ── Toggle filter ──────────────────────────────
+    function toggleFilter(strategyId, filterId) {
+      const s = STRATEGIES.find(s => s.id === strategyId);
+      if (!s) return;
+      const f = s.filters.find(f => f.id === filterId);
+      if (f) { f.enabled = !f.enabled; markDirty(); render(); }
+    }
+
+    // ── Render ─────────────────────────────────────
+    function render() {
+      const enabledCount = STRATEGIES.filter(s => s.enabled).length;
+      document.getElementById('enabled-count').textContent = enabledCount;
+
+      document.getElementById('strategy-grid').innerHTML = STRATEGIES.map(s => {
+        const paramsHTML = s.params.map(p => `
+          <div class="param-row">
+            <span class="param-label">${p.label}</span>
+            <div class="param-value-wrap">
+              ${p.readonly
+                ? `<span style="font-size:0.8rem;font-weight:700;color:var(--text-primary);">${p.value}</span>`
+                : `<input type="text" class="param-input" value="${p.value}" ${s.enabled ? '' : 'disabled'} oninput="markDirty()">`
+              }
+              ${p.unit ? `<span class="param-unit">${p.unit}</span>` : ''}
+            </div>
+          </div>`).join('');
+
+        const filtersHTML = s.filters.map(f => `
+          <div class="filter-row">
+            <div class="filter-info">
+              <div class="filter-name" style="display:flex;align-items:center;gap:0.4rem;">
+                ${f.label}
+                ${f.markets === 'tw' ? '<span class="filter-market-badge tw-only">僅台股</span>' : ''}
+              </div>
+              <div class="filter-desc">${f.desc}</div>
+            </div>
+            <label class="toggle" title="${f.enabled ? '停用' : '啟用'}此濾網">
+              <input type="checkbox" ${f.enabled ? 'checked' : ''} ${s.enabled ? '' : 'disabled'}
+                     onchange="toggleFilter('${s.id}', '${f.id}')">
+              <span class="toggle-track"></span>
+              <span class="toggle-thumb"></span>
+            </label>
+          </div>`).join('');
+
+        const marketBadges = s.markets.map(m =>
+          `<span class="tag ${m === 'tw' ? 'tag-tw' : 'tag-us'}">${m.toUpperCase()}</span>`).join('');
+
+        return `
+        <div class="strategy-card ${s.enabled ? 'enabled' : 'disabled'}">
+          <div class="sc-header">
+            <div class="sc-icon ${s.enabled ? '' : 'disabled'}">
+              <i class="pi ${s.icon}"></i>
+            </div>
+            <div class="sc-meta">
+              <div class="sc-name">
+                ${s.name}
+                <span class="sc-id">${s.id}</span>
+              </div>
+              <div class="sc-desc">${s.desc}</div>
+              <div class="sc-markets" style="margin-top:4px;">${marketBadges}</div>
+            </div>
+            <label class="toggle" title="${s.enabled ? '停用' : '啟用'}此策略" style="flex-shrink:0;">
+              <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleStrategy('${s.id}')">
+              <span class="toggle-track"></span>
+              <span class="toggle-thumb"></span>
+            </label>
+          </div>
+          <div class="sc-body">
+            <div class="sc-divider"></div>
+            <div style="font-size:0.7rem;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;color:var(--text-muted);margin-bottom:0.4rem;">參數設定</div>
+            ${paramsHTML}
+            ${s.filters.length ? `
+              <div style="font-size:0.7rem;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;color:var(--text-muted);margin:0.75rem 0 0.4rem;">濾網設定</div>
+              <div class="filters-section">${filtersHTML}</div>
+            ` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    render();
+  </script>
+</body>
+</html>

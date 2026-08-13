@@ -689,10 +689,35 @@
     "high": 358.8999938964844,
     "low": 353.7799987792969,
     "close": 354.29998779296875,
-    "volume": 19805200,
-    "amount": 7016982118,
+    "volume": 19859900,
+    "amount": 7036362327,
     "short_interest": 78667609,
     "short_ratio": 2.32,
     "institutional_holders": 1898963546
+  },
+  "2026-08-10": {
+    "date": "2026-08-10",
+    "symbol": "GOOGL",
+    "name": "Alphabet Inc.",
+    "open": 355.17999267578125,
+    "high": 357.6099853515625,
+    "low": 352.7099914550781,
+    "close": 357.5199890136719,
+    "volume": 18958400,
+    "amount": 6778006959
+  },
+  "2026-08-11": {
+    "date": "2026-08-11",
+    "symbol": "GOOGL",
+    "name": "Alphabet Inc.",
+    "open": 355.8999938964844,
+    "high": 356.80999755859375,
+    "low": 343.3949890136719,
+    "close": 343.79998779296875,
+    "volume": 28664272,
+    "amount": 9854776363,
+    "short_interest": 78667609,
+    "short_ratio": 2.32,
+    "institutional_holders": 1925673484
   }
 }

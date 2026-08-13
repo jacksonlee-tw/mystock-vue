@@ -7,6 +7,7 @@ from typing import Optional, List
 
 from config import get_target_stocks, get_months_range, DATA_DIR
 from services.fetcher import fetch_status, load_stock_json
+from db.dual_write import dual_write_daily_data, log_crawler_run
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +22,10 @@ def save_us_stock_json(stock_id: str, data: dict) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def run_us_fetch_process(target_stocks: Optional[List[str]] = None, months: Optional[int] = None,
-                         mode: str = "incremental"):
+                         mode: str = "incremental", trigger_type: str = "manual"):
+    stocks = target_stocks or get_target_stocks(market="us")
+    started_at = datetime.now()
     try:
-        stocks = target_stocks or get_target_stocks(market="us")
         m_range = months or get_months_range()
 
         mode_label = "重新抓取" if mode == "repair" else "增量更新"
@@ -104,11 +106,25 @@ def run_us_fetch_process(target_stocks: Optional[List[str]] = None, months: Opti
 
                 save_us_stock_json(symbol, stock_data)
                 updated_count += 1
+
+                touched_dates = [d.strftime("%Y-%m-%d") for d in hist.index]
+                dual_write_daily_data(symbol, "us", {d: stock_data[d] for d in touched_dates if d in stock_data})
                 
             except Exception as e:
                 logger.error(f"Failed to fetch or save {symbol}: {e}")
 
         fetch_status.complete(f"美股資料更新完畢！共更新 {updated_count} 檔股票。")
 
+        failed_count = total - updated_count
+        if failed_count == 0:
+            status = "success"
+        elif updated_count == 0:
+            status = "failed"
+        else:
+            status = "partial_failure"
+        log_crawler_run("us", trigger_type, started_at, status,
+                         symbols_success=updated_count, symbols_failed=failed_count)
+
     except Exception as e:
         fetch_status.fail(str(e))
+        log_crawler_run("us", trigger_type, started_at, "failed", error_message=str(e))

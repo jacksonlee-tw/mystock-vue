@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>手動掃描結果 — MyStock 均線策略</title>
+  <meta name="description" content="全市場策略掃描觸發、即時進度顯示與掃描結果摘要。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    /* ── Scan launcher ───────────────────────── */
+    .launcher-card {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+    .launcher-icon {
+      width: 56px; height: 56px;
+      border-radius: 14px;
+      background: var(--brass-light);
+      border: 1px solid var(--brass-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      color: var(--brass);
+      flex-shrink: 0;
+    }
+    .launcher-text { flex: 1; min-width: 200px; }
+    .launcher-title { font-size: 1rem; font-weight: 900; color: var(--text-primary); }
+    .launcher-desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+    .launcher-options {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* ── Progress ────────────────────────────── */
+    .progress-card {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      display: none;
+    }
+    .progress-card.visible { display: block; }
+    .progress-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .progress-bar-wrap {
+      background: var(--surface-hover);
+      border: 1px solid var(--surface-border);
+      border-radius: 100px;
+      height: 8px;
+      overflow: hidden;
+      margin-bottom: 0.75rem;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--brass), #d4900e);
+      border-radius: 100px;
+      transition: width 0.4s;
+    }
+    .progress-log {
+      max-height: 160px;
+      overflow-y: auto;
+      background: var(--surface-hover);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      font-size: 0.75rem;
+      font-family: monospace;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+    .progress-log .log-ok { color: var(--green); }
+    .progress-log .log-warn { color: var(--amber); }
+    .progress-log .log-info { color: var(--blue); }
+
+    /* ── Result card ─────────────────────────── */
+    .result-card {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+      display: none;
+    }
+    .result-card.visible { display: block; }
+
+    .result-summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+    }
+    .result-kpi {
+      padding: 1.25rem;
+      text-align: center;
+      border-right: 1px solid var(--surface-border);
+    }
+    .result-kpi:last-child { border-right: none; }
+    .result-kpi-label { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.3px; }
+    .result-kpi-value { font-size: 1.6rem; font-weight: 900; color: var(--text-primary); line-height: 1.1; margin: 4px 0; }
+    .result-kpi-sub { font-size: 0.7rem; color: var(--text-muted); }
+
+    /* ── New alerts list ─────────────────────── */
+    .new-alert-row {
+      display: grid;
+      grid-template-columns: 36px 1fr auto auto auto;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.8rem 1.25rem;
+      border-top: 1px solid var(--surface-border);
+      transition: background 0.12s;
+    }
+    .new-alert-row:hover { background: var(--surface-hover); }
+    .nar-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 900;
+    }
+    .nar-icon.bull { background: var(--green-light); color: var(--green); }
+    .nar-icon.bear { background: var(--red-light); color: var(--red); }
+
+    /* ── Strategy breakdown ──────────────────── */
+    .breakdown-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .breakdown-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--surface-border);
+    }
+    .breakdown-item:last-child { border-bottom: none; }
+    .breakdown-name { font-size: 0.8rem; color: var(--text-secondary); font-weight: 500; }
+    .breakdown-count {
+      font-size: 0.8rem;
+      font-weight: 900;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .breakdown-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .mini-bar {
+      height: 6px;
+      background: var(--brass);
+      border-radius: 100px;
+      transition: width 0.4s;
+    }
+
+    /* ── History table ───────────────────────── */
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    .history-table th {
+      padding: 0.6rem 1rem;
+      text-align: left;
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+      color: var(--text-muted);
+      background: var(--surface-hover);
+      border-bottom: 1px solid var(--surface-border);
+    }
+    .history-table td {
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--surface-border);
+      color: var(--text-secondary);
+    }
+    .history-table tr:last-child td { border-bottom: none; }
+    .history-table tr:hover td { background: var(--surface-hover); }
+
+    @media (max-width: 700px) {
+      .result-summary { grid-template-columns: 1fr 1fr; }
+      .result-kpi { border-right: none; border-bottom: 1px solid var(--surface-border); }
+      .breakdown-grid { grid-template-columns: 1fr; }
+      .new-alert-row { grid-template-columns: 32px 1fr auto; }
+      .hide-col { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">均線策略警示系統</span>
+    </div>
+    <nav class="topbar-nav hide-mobile">
+      <a href="index.html" class="nav-link"><i class="pi pi-home"></i> 首頁</a>
+      <a href="alerts.html" class="nav-link"><i class="pi pi-bell"></i> 警示</a>
+      <a href="strategy-settings.html" class="nav-link"><i class="pi pi-sliders-h"></i> 策略設定</a>
+      <a href="stock-chart.html" class="nav-link"><i class="pi pi-chart-bar"></i> K 線圖</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="toggleTheme()">
+        <i class="pi pi-moon" id="theme-icon"></i>
+      </button>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <div class="content-wrap">
+      <!-- Page header -->
+      <div style="margin-bottom:1.5rem;">
+        <h1 style="font-size:1.25rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.3px;">手動掃描</h1>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">手動觸發全市場策略掃描，即時查看觸發結果</p>
+      </div>
+
+      <!-- Launch card -->
+      <div class="launcher-card">
+        <div class="launcher-icon"><i class="pi pi-search"></i></div>
+        <div class="launcher-text">
+          <div class="launcher-title">全市場策略掃描</div>
+          <div class="launcher-desc">掃描追蹤清單中所有股票，套用所有啟用策略，產生警示事件</div>
+        </div>
+        <div class="launcher-options">
+          <select class="form-input form-select" style="width:auto;font-size:0.82rem;" id="scan-market">
+            <option value="all">全部市場</option>
+            <option value="tw">台股</option>
+            <option value="us">美股</option>
+          </select>
+          <button class="btn btn-primary" id="scan-btn" onclick="startScan()">
+            <i class="pi pi-search"></i> 開始掃描
+          </button>
+        </div>
+      </div>
+
+      <!-- Progress card -->
+      <div class="progress-card" id="progress-card">
+        <div class="progress-title">
+          <i class="pi pi-spin pi-spinner" style="color:var(--brass);" id="progress-spinner"></i>
+          <span id="progress-label">掃描中... 0 / 7 檔</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" id="progress-bar" style="width:0%;"></div>
+        </div>
+        <div class="progress-log" id="progress-log"></div>
+      </div>
+
+      <!-- Results -->
+      <div class="result-card" id="result-card">
+        <!-- Result summary KPIs -->
+        <div style="padding:1.25rem;border-bottom:1px solid var(--surface-border);">
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;">
+            <i class="pi pi-check-circle" style="color:var(--green);font-size:1.1rem;"></i>
+            <span style="font-size:0.9rem;font-weight:700;color:var(--text-primary);">掃描完成</span>
+            <span style="font-size:0.75rem;color:var(--text-muted);">· 2026-08-11 14:30:52 · 耗時 312ms</span>
+          </div>
+          <div class="result-summary">
+            <div class="result-kpi">
+              <div class="result-kpi-label">掃描股票數</div>
+              <div class="result-kpi-value">7</div>
+              <div class="result-kpi-sub">台股 5 · 美股 2</div>
+            </div>
+            <div class="result-kpi">
+              <div class="result-kpi-label">新增警示</div>
+              <div class="result-kpi-value" style="color:var(--brass);">5</div>
+              <div class="result-kpi-sub">本次掃描產生</div>
+            </div>
+            <div class="result-kpi">
+              <div class="result-kpi-label">多頭訊號</div>
+              <div class="result-kpi-value" style="color:var(--green);">3</div>
+              <div class="result-kpi-sub">突破 / 買點</div>
+            </div>
+            <div class="result-kpi">
+              <div class="result-kpi-label">空頭訊號</div>
+              <div class="result-kpi-value" style="color:var(--red);">2</div>
+              <div class="result-kpi-sub">跌破 / 警示</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Strategy breakdown -->
+        <div style="padding:1.25rem;border-bottom:1px solid var(--surface-border);">
+          <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;color:var(--text-muted);margin-bottom:0.75rem;">各策略觸發分布</div>
+          <div class="breakdown-grid">
+            <div>
+              ${[
+                { name: '收盤價突破/跌破均線', count: 2, max: 5 },
+                { name: '黃金/死亡交叉', count: 1, max: 5 },
+                { name: '均線多頭/空頭排列', count: 1, max: 5 }
+              ].map(r => `
+                <div class="breakdown-item">
+                  <span class="breakdown-name">${r.name}</span>
+                  <div class="breakdown-bar">
+                    <div class="mini-bar" style="width:${Math.round(r.count/r.max*80)+8}px;"></div>
+                    <span class="breakdown-count">${r.count}</span>
+                  </div>
+                </div>`).join('')}
+            </div>
+            <div>
+              ${[
+                { name: '均線糾結突破', count: 1, max: 5 },
+                { name: '乖離率警示', count: 0, max: 5 },
+                { name: '回踩支撐', count: 0, max: 5 }
+              ].map(r => `
+                <div class="breakdown-item">
+                  <span class="breakdown-name">${r.name}</span>
+                  <div class="breakdown-bar">
+                    <div class="mini-bar" style="width:${r.count > 0 ? Math.round(r.count/r.max*80)+8 : 0}px;"></div>
+                    <span class="breakdown-count" style="color:${r.count > 0 ? 'var(--text-primary)' : 'var(--text-muted)'};">${r.count}</span>
+                  </div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- New alerts list -->
+        <div>
+          <div style="padding:0.75rem 1.25rem;font-size:0.72rem;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;color:var(--text-muted);background:var(--surface-hover);border-bottom:1px solid var(--surface-border);">新增警示清單</div>
+          <div id="new-alerts-list"><!-- Rendered by JS --></div>
+          <div style="padding:0.75rem 1.25rem;border-top:1px solid var(--surface-border);display:flex;justify-content:flex-end;">
+            <a href="alerts.html" class="btn btn-primary btn-sm">
+              <i class="pi pi-arrow-right"></i> 前往警示儀表板
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scan history -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-history" style="color:var(--brass);"></i> 掃描歷史紀錄</div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>掃描時間</th>
+                <th>市場</th>
+                <th>掃描檔數</th>
+                <th>警示數</th>
+                <th>耗時</th>
+                <th>觸發方式</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>2026-08-11 14:30:52</td>
+                <td><span class="tag tag-tw">TW</span> <span class="tag tag-us">US</span></td>
+                <td>7</td>
+                <td><strong style="color:var(--brass);">5</strong></td>
+                <td>312 ms</td>
+                <td><span class="tag tag-neu">手動</span></td>
+              </tr>
+              <tr>
+                <td>2026-08-10 14:32:01</td>
+                <td><span class="tag tag-tw">TW</span> <span class="tag tag-us">US</span></td>
+                <td>7</td>
+                <td><strong>2</strong></td>
+                <td>298 ms</td>
+                <td><span class="tag" style="background:var(--green-light);color:var(--green);">排程</span></td>
+              </tr>
+              <tr>
+                <td>2026-08-09 14:31:15</td>
+                <td><span class="tag tag-tw">TW</span> <span class="tag tag-us">US</span></td>
+                <td>7</td>
+                <td><strong>1</strong></td>
+                <td>341 ms</td>
+                <td><span class="tag" style="background:var(--green-light);color:var(--green);">排程</span></td>
+              </tr>
+              <tr>
+                <td>2026-08-08 14:30:44</td>
+                <td><span class="tag tag-tw">TW</span></td>
+                <td>5</td>
+                <td><strong>0</strong></td>
+                <td>187 ms</td>
+                <td><span class="tag tag-neu">手動</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    // ── Mock scan flow ─────────────────────────────
+    const SCAN_STOCKS = [
+      { id: '2330', name: '台積電', market: 'tw' },
+      { id: '2454', name: '聯發科', market: 'tw' },
+      { id: '2317', name: '鴻海', market: 'tw' },
+      { id: '2412', name: '中華電', market: 'tw' },
+      { id: '2603', name: '長榮', market: 'tw' },
+      { id: 'AAPL', name: 'Apple', market: 'us' },
+      { id: 'TSLA', name: 'Tesla', market: 'us' },
+    ];
+
+    const SCAN_LOG_MESSAGES = [
+      (s) => `<span class="log-info">[INFO]</span> 計算 ${s.id} 均線 (MA5/20/60/120/240)...`,
+      (s) => `<span class="log-ok">[OK]</span>   ${s.id} 均線計算完成，掃描 6 項策略...`,
+      (s) => `<span class="log-ok">[ALERT]</span> ${s.id} 觸發策略！寫入警示佇列...`,
+    ];
+
+    let scanTimer = null;
+
+    function startScan() {
+      const btn = document.getElementById('scan-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="pi pi-spin pi-spinner"></i> 掃描中...';
+
+      const progressCard = document.getElementById('progress-card');
+      const resultCard = document.getElementById('result-card');
+      progressCard.classList.add('visible');
+      resultCard.classList.remove('visible');
+
+      const log = document.getElementById('progress-log');
+      const bar = document.getElementById('progress-bar');
+      const label = document.getElementById('progress-label');
+      log.innerHTML = '';
+
+      let step = 0;
+      const total = SCAN_STOCKS.length;
+      const logLines = [];
+      const alertIndexes = [0, 2, 4, 5, 6]; // which stocks generate alerts
+
+      function appendLog(html) {
+        logLines.push(html);
+        log.innerHTML = logLines.join('<br>');
+        log.scrollTop = log.scrollHeight;
+      }
+
+      function tick() {
+        if (step >= total * 2) {
+          // Done
+          bar.style.width = '100%';
+          label.innerHTML = '<span style="color:var(--green);">掃描完成！</span> 共掃描 ' + total + ' 檔，新增 5 筆警示';
+          document.getElementById('progress-spinner').className = 'pi pi-check-circle';
+          document.getElementById('progress-spinner').style.color = 'var(--green)';
+          appendLog('<span class="log-ok">[DONE]</span> 全部掃描完成，耗時 312ms，新增 5 筆警示');
+          btn.disabled = false;
+          btn.innerHTML = '<i class="pi pi-search"></i> 重新掃描';
+          renderResults();
+          return;
+        }
+
+        const stockIdx = Math.floor(step / 2);
+        const subStep = step % 2;
+        const stock = SCAN_STOCKS[stockIdx];
+        const hasAlert = alertIndexes.includes(stockIdx);
+
+        if (subStep === 0) {
+          appendLog(SCAN_LOG_MESSAGES[0](stock));
+        } else {
+          appendLog(SCAN_LOG_MESSAGES[1](stock));
+          if (hasAlert) appendLog(SCAN_LOG_MESSAGES[2](stock));
+        }
+
+        const pct = ((step + 1) / (total * 2)) * 100;
+        bar.style.width = pct + '%';
+        label.textContent = `掃描中... ${Math.min(stockIdx + 1, total)} / ${total} 檔`;
+
+        step++;
+        scanTimer = setTimeout(tick, 280);
+      }
+
+      tick();
+    }
+
+    function renderResults() {
+      const resultCard = document.getElementById('result-card');
+      resultCard.classList.add('visible');
+
+      // Render new alerts list
+      const alerts = MOCK_ALERTS.slice(0, 5);
+      document.getElementById('new-alerts-list').innerHTML = alerts.map(a => {
+        const bull = isBullish(a);
+        const dir = DIRECTION_META[a.direction] || {};
+        const strengthMap = { strong: 'tag-strong', moderate: 'tag-moderate', weak: 'tag-weak' };
+        const strengthLabel = { strong: '強', moderate: '中', weak: '弱' };
+        return `
+          <div class="new-alert-row">
+            <div class="nar-icon ${bull ? 'bull' : 'bear'}">${dir.icon || (bull ? '▲' : '▼')}</div>
+            <div>
+              <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">
+                <strong style="font-size:0.9rem;color:var(--text-primary);">${a.stock_id}</strong>
+                <span style="font-size:0.78rem;color:var(--text-muted);">${a.stock_name}</span>
+                <span class="tag ${a.market === 'tw' ? 'tag-tw' : 'tag-us'}">${a.market.toUpperCase()}</span>
+              </div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">${a.strategy_name}</div>
+            </div>
+            <span class="tag ${bull ? 'tag-bull' : 'tag-bear'} hide-col">${dir.label || ''}</span>
+            <span class="tag ${strengthMap[a.signal_strength]}">${strengthLabel[a.signal_strength]}</span>
+            <a href="stock-chart.html" class="btn btn-ghost btn-sm hide-col"><i class="pi pi-chart-bar"></i></a>
+          </div>`;
+      }).join('');
+
+      // Scroll to results
+      resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  </script>
+</body>
+</html>

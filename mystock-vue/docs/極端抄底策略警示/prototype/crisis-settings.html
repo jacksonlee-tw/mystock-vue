@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>策略設定 + 白名單 — MyStock Crisis Alpha</title>
+  <meta name="description" content="極端抄底策略觸發條件、三道防線參數、資金限制與白名單管理介面。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    /* ── Section layout ──────────── */
+    .settings-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+    .full-width { grid-column: 1 / -1; }
+
+    /* ── Section card ────────────── */
+    .section-card {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .section-card.crisis-border { border-color: var(--crisis-border); }
+
+    /* ── Param row ───────────────── */
+    .param-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+      padding: 0.55rem 1.2rem;
+    }
+    .param-row + .param-row { border-top: 1px solid var(--surface-border); }
+    .param-lbl { font-size: 0.78rem; color: var(--text-secondary); font-weight: 500; }
+    .param-inp {
+      width: 80px; padding: 0.25rem 0.5rem;
+      background: var(--surface-input); border: 1px solid var(--surface-border);
+      border-radius: 6px; font-size: 0.8rem; color: var(--text-primary);
+      text-align: right; outline: none; transition: border-color 0.15s;
+    }
+    .param-inp:focus { border-color: var(--brass); }
+    .param-inp[readonly] { opacity: 0.55; cursor: not-allowed; background: var(--surface-hover); }
+    .param-unit { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+    .param-right { display: flex; align-items: center; gap: 0.4rem; }
+    .lock-badge {
+      font-size: 0.62rem; font-weight: 800; letter-spacing: 0.4px;
+      text-transform: uppercase; color: var(--crisis);
+      background: var(--crisis-light); border: 1px solid var(--crisis-border);
+      border-radius: 4px; padding: 1px 5px;
+    }
+
+    /* ── Scenario accordion ──────── */
+    .scenario-block {
+      border: 1px solid var(--surface-border);
+      border-radius: 9px;
+      overflow: hidden;
+      margin-bottom: 0.65rem;
+    }
+    .scenario-header {
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.7rem 1rem;
+      cursor: pointer;
+      background: var(--surface-hover);
+      transition: background 0.12s;
+    }
+    .scenario-header:hover { background: var(--surface-border); }
+    .scenario-body { padding: 0.75rem 1rem; display: none; }
+    .scenario-body.open { display: block; }
+    .scenario-icon-wrap {
+      width: 28px; height: 28px; border-radius: 7px;
+      background: var(--crisis-light); border: 1px solid var(--crisis-border);
+      display: flex; align-items: center; justify-content: center; font-size: 0.9rem; flex-shrink: 0;
+    }
+    .scenario-name { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
+    .scenario-sub  { font-size: 0.72rem; color: var(--text-muted); margin-top: 1px; }
+
+    /* ── Universe table ──────────── */
+    .universe-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .universe-table th {
+      padding: 0.55rem 1rem; text-align: left;
+      font-size: 0.68rem; font-weight: 800; letter-spacing: 0.4px;
+      color: var(--text-muted); background: var(--surface-hover);
+      border-bottom: 1px solid var(--surface-border); text-transform: uppercase;
+    }
+    .universe-table td { padding: 0.55rem 1rem; border-bottom: 1px solid var(--surface-border); color: var(--text-secondary); }
+    .universe-table tr:last-child td { border-bottom: none; }
+    .universe-table tr:hover td { background: var(--surface-hover); }
+    .sym-id { font-weight: 900; color: var(--text-primary); }
+    .badge-lc { background: var(--crisis-light); color: var(--crisis); border: 1px solid var(--crisis-border); font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:100px; }
+    .badge-idx { background: var(--blue-light); color: var(--blue); font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:100px; }
+
+    /* ── Capital config ──────────── */
+    .capital-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.85rem; padding: 1.2rem; }
+    .capital-item { display: flex; flex-direction: column; gap: 0.35rem; }
+    .capital-lbl { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    .capital-val { font-size: 0.95rem; font-weight: 900; color: var(--text-primary); }
+    .capital-sub { font-size: 0.68rem; color: var(--text-muted); }
+
+    /* ── Save bar ────────────────── */
+    .save-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--surface-overlay); backdrop-filter: blur(12px);
+      border-top: 1px solid var(--surface-border);
+      padding: 0.7rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      z-index: 90;
+      transform: translateY(100%); transition: transform 0.25s;
+    }
+    .save-bar.visible { transform: translateY(0); }
+
+    @media (max-width: 768px) { .settings-layout { grid-template-columns: 1fr; } .capital-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 480px) { .capital-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">極端抄底策略警示</span>
+    </div>
+    <nav class="topbar-nav hide-mobile">
+      <a href="index.html" class="nav-link crisis-nav"><i class="pi pi-home"></i> 首頁</a>
+      <a href="crisis-alerts.html" class="nav-link crisis-nav"><i class="pi pi-bell"></i> 警示</a>
+      <a href="module-status.html" class="nav-link crisis-nav"><i class="pi pi-server"></i> 模組狀態</a>
+      <a href="crisis-settings.html" class="nav-link crisis-nav active"><i class="pi pi-shield"></i> 策略設定</a>
+      <a href="integrated-alerts.html" class="nav-link"><i class="pi pi-list"></i> 整合警示</a>
+    </nav>
+    <div class="topbar-actions">
+      <span class="module-status awakened" data-module-status>
+        <span class="module-status-dot"></span>已喚醒
+      </span>
+      <button class="icon-btn" onclick="toggleTheme()"><i class="pi pi-moon" id="theme-icon"></i></button>
+    </div>
+  </header>
+
+  <main class="page-main" style="padding-bottom:80px;">
+    <div class="content-wrap">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:0.5rem;">
+        <div>
+          <h1 style="font-size:1.2rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.3px;">策略設定 + 白名單管理</h1>
+          <p style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">調整觸發條件參數、資金管理設定與白名單。三道防線 Hardcode，不受此頁面影響。</p>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-ghost btn-sm" onclick="resetAll()"><i class="pi pi-refresh"></i> 重置預設</button>
+          <button class="btn btn-crisis btn-sm" onclick="save()"><i class="pi pi-save"></i> 儲存設定</button>
+        </div>
+      </div>
+
+      <!-- Hardcode warning -->
+      <div style="display:flex;align-items:flex-start;gap:0.6rem;padding:0.85rem 1.1rem;background:var(--crisis-light);border:1px solid var(--crisis-border);border-radius:10px;margin-bottom:1.5rem;">
+        <i class="pi pi-lock" style="color:var(--crisis);margin-top:2px;flex-shrink:0;"></i>
+        <div style="font-size:0.78rem;color:var(--text-secondary);line-height:1.5;">
+          <strong style="color:var(--crisis);">三道防線不受設定檔控制</strong>：白名單過濾、流動性確認、雙重停損的核心邏輯由 <code style="background:var(--surface-hover);padding:1px 5px;border-radius:4px;font-size:0.72rem;">guardrails.py</code> Hardcode 實作。此頁面僅調整觸發參數（如門檻值），不可繞過安全防線。
+        </div>
+      </div>
+
+      <div class="settings-layout">
+
+        <!-- Global market conditions -->
+        <div class="section-card crisis-border">
+          <div class="card-header">
+            <div class="card-title" style="color:var(--crisis);"><i class="pi pi-globe"></i> 大盤喚醒條件</div>
+            <span style="font-size:0.72rem;color:var(--text-muted);">任一成立即喚醒模組</span>
+          </div>
+          <div class="param-row" style="background:var(--crisis-light);">
+            <span class="param-lbl" style="font-weight:700;color:var(--crisis);">market_crash — 大盤日跌幅門檻</span>
+            <div class="param-right">
+              <input type="number" class="param-inp" value="-3.0" step="0.5" oninput="markDirty()">
+              <span class="param-unit">% 以下</span>
+            </div>
+          </div>
+          <div class="param-row">
+            <span class="param-lbl">market_extreme_bias — 大盤 20MA 負乖離</span>
+            <div class="param-right">
+              <input type="number" class="param-inp" value="-8.0" step="1" oninput="markDirty()">
+              <span class="param-unit">% 以下</span>
+            </div>
+          </div>
+          <div class="param-row">
+            <span class="param-lbl">vix_spike 門檻（未來擴充）</span>
+            <div class="param-right">
+              <input type="number" class="param-inp" value="25" readonly>
+              <span class="param-unit">VIX</span>
+              <span class="lock-badge">未接入</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Capital management -->
+        <div class="section-card">
+          <div class="card-header">
+            <div class="card-title"><i class="pi pi-wallet" style="color:var(--brass);"></i> 資金管理</div>
+            <span class="lock-badge" style="font-size:0.65rem;">Hardcode 上限不可超過</span>
+          </div>
+          <div class="capital-grid">
+            <div class="capital-item">
+              <div class="capital-lbl">總策略資金上限</div>
+              <div style="display:flex;align-items:center;gap:0.4rem;">
+                <input type="number" class="param-inp" value="5.0" min="1" max="10" style="width:60px;" oninput="markDirty()">
+                <span class="param-unit">%</span>
+              </div>
+              <div class="capital-sub">Hardcode 上限：10%（不可超過）</div>
+            </div>
+            <div class="capital-item">
+              <div class="capital-lbl">單筆委託上限</div>
+              <div style="display:flex;align-items:center;gap:0.4rem;">
+                <input type="number" class="param-inp" value="30000" readonly style="width:80px;">
+                <span class="param-unit">NT$</span>
+              </div>
+              <div class="capital-sub" style="color:var(--crisis);font-weight:600;">Hardcode · 不可調整</div>
+            </div>
+            <div class="capital-item">
+              <div class="capital-lbl">委託方式</div>
+              <div style="font-size:0.85rem;font-weight:700;color:var(--text-primary);">零股委託</div>
+              <div class="capital-sub" style="color:var(--crisis);font-weight:600;">Hardcode · 不可調整</div>
+            </div>
+            <div class="capital-item">
+              <div class="capital-lbl">同標的日限制</div>
+              <div style="font-size:0.85rem;font-weight:700;color:var(--text-primary);">最多 1 次</div>
+              <div class="capital-sub" style="color:var(--crisis);font-weight:600;">Hardcode · 不可調整</div>
+            </div>
+            <div class="capital-item">
+              <div class="capital-lbl">日總委託上限</div>
+              <div style="font-size:0.85rem;font-weight:700;color:var(--text-primary);">NT$100,000</div>
+              <div class="capital-sub" style="color:var(--crisis);font-weight:600;">Hardcode · 不可調整</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scenario conditions -->
+        <div class="section-card full-width">
+          <div class="card-header">
+            <div class="card-title" style="color:var(--crisis);"><i class="pi pi-sliders-h"></i> 個股觸發情境參數</div>
+            <span style="font-size:0.72rem;color:var(--text-muted);">三種情境，大盤環境成立後才掃描</span>
+          </div>
+          <div style="padding:1.2rem;">
+
+            <!-- Scenario A -->
+            <div class="scenario-block">
+              <div class="scenario-header" onclick="toggleScenario('scenA')">
+                <div class="scenario-icon-wrap">💥</div>
+                <div>
+                  <div class="scenario-name">情境 A：跌停打開 + 爆量（勝率最高）</div>
+                  <div class="scenario-sub">盤中曾觸及跌停 · 收盤打開 · 爆量 · 留下影線</div>
+                </div>
+                <i class="pi pi-chevron-down" id="ico-scenA" style="margin-left:auto;color:var(--text-muted);font-size:0.75rem;transition:transform 0.2s;"></i>
+              </div>
+              <div class="scenario-body" id="scenA">
+                <div class="param-row" style="padding:0.5rem 0;">
+                  <span class="param-lbl">爆量門檻（× 20日均量）</span>
+                  <div class="param-right"><input type="number" class="param-inp" value="2.0" step="0.1" oninput="markDirty()"><span class="param-unit">× 均量</span><span class="lock-badge">下限 2×</span></div>
+                </div>
+                <div class="param-row" style="padding:0.5rem 0;border-top:1px solid var(--surface-border);">
+                  <span class="param-lbl">影線判斷（收盤 &gt; 中線）</span>
+                  <div class="param-right"><span style="font-size:0.82rem;font-weight:700;color:var(--text-primary);">啟用</span><span class="lock-badge">Hardcode</span></div>
+                </div>
+                <div class="param-row" style="padding:0.5rem 0;border-top:1px solid var(--surface-border);">
+                  <span class="param-lbl">收盤必須 &gt; 跌停價</span>
+                  <div class="param-right"><span style="font-size:0.82rem;font-weight:700;color:var(--text-primary);">強制</span><span class="lock-badge">Hardcode</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Scenario B -->
+            <div class="scenario-block">
+              <div class="scenario-header" onclick="toggleScenario('scenB')">
+                <div class="scenario-icon-wrap">📉</div>
+                <div>
+                  <div class="scenario-name">情境 B：連續大跌 + 極端負乖離</div>
+                  <div class="scenario-sub">月線乖離 ≤ −25% 且季線乖離 ≤ −30%</div>
+                </div>
+                <i class="pi pi-chevron-down" id="ico-scenB" style="margin-left:auto;color:var(--text-muted);font-size:0.75rem;transition:transform 0.2s;"></i>
+              </div>
+              <div class="scenario-body" id="scenB">
+                <div class="param-row" style="padding:0.5rem 0;">
+                  <span class="param-lbl">20MA 負乖離門檻</span>
+                  <div class="param-right"><input type="number" class="param-inp" value="-25" step="1" oninput="markDirty()"><span class="param-unit">% 以下</span></div>
+                </div>
+                <div class="param-row" style="padding:0.5rem 0;border-top:1px solid var(--surface-border);">
+                  <span class="param-lbl">60MA 負乖離門檻</span>
+                  <div class="param-right"><input type="number" class="param-inp" value="-30" step="1" oninput="markDirty()"><span class="param-unit">% 以下</span></div>
+                </div>
+                <div class="param-row" style="padding:0.5rem 0;border-top:1px solid var(--surface-border);">
+                  <span class="param-lbl">成交量確認（× 5日均量）</span>
+                  <div class="param-right"><input type="number" class="param-inp" value="1.5" step="0.1" oninput="markDirty()"><span class="param-unit">× 均量</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Scenario C -->
+            <div class="scenario-block">
+              <div class="scenario-header" onclick="toggleScenario('scenC')">
+                <div class="scenario-icon-wrap">🏦</div>
+                <div>
+                  <div class="scenario-name">情境 C：融資斷頭清洗（僅台股）</div>
+                  <div class="scenario-sub">融資連 3 天減少 + 法人翻買 + 季線乖離 ≤ −15%</div>
+                </div>
+                <i class="pi pi-chevron-down" id="ico-scenC" style="margin-left:auto;color:var(--text-muted);font-size:0.75rem;transition:transform 0.2s;"></i>
+              </div>
+              <div class="scenario-body" id="scenC">
+                <div class="param-row" style="padding:0.5rem 0;">
+                  <span class="param-lbl">融資連續減少天數</span>
+                  <div class="param-right"><input type="number" class="param-inp" value="3" min="2" max="5" oninput="markDirty()"><span class="param-unit">天</span></div>
+                </div>
+                <div class="param-row" style="padding:0.5rem 0;border-top:1px solid var(--surface-border);">
+                  <span class="param-lbl">單次減幅門檻</span>
+                  <div class="param-right"><input type="number" class="param-inp" value="5" step="1" oninput="markDirty()"><span class="param-unit">% 以上</span></div>
+                </div>
+                <div class="param-row" style="padding:0.5rem 0;border-top:1px solid var(--surface-border);">
+                  <span class="param-lbl">法人買超條件</span>
+                  <div class="param-right"><span style="font-size:0.82rem;font-weight:700;color:var(--text-primary);">外資 或 投信 淨買超</span></div>
+                </div>
+                <div class="param-row" style="padding:0.5rem 0;border-top:1px solid var(--surface-border);">
+                  <span class="param-lbl">60MA 負乖離門檻</span>
+                  <div class="param-right"><input type="number" class="param-inp" value="-15" step="1" oninput="markDirty()"><span class="param-unit">% 以下</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Universe whitelist -->
+        <div class="section-card full-width">
+          <div class="card-header">
+            <div class="card-title"><i class="pi pi-verified" style="color:var(--crisis);"></i> 權值股白名單（universe.yaml）</div>
+            <div style="display:flex;gap:0.4rem;">
+              <span class="tag tag-crisis" style="font-size:0.65rem;">台股 · 僅限大型股</span>
+              <button class="btn btn-ghost btn-sm" onclick="alert('模擬：新增白名單股票')"><i class="pi pi-plus"></i> 新增</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="universe-table" id="universe-table">
+              <thead>
+                <tr>
+                  <th>股票代號</th>
+                  <th>名稱</th>
+                  <th>大型股</th>
+                  <th>指數成分</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="universe-tbody"></tbody>
+            </table>
+          </div>
+          <div style="padding:0.85rem 1.2rem;font-size:0.72rem;color:var(--text-muted);border-top:1px solid var(--surface-border);">
+            <i class="pi pi-info-circle" style="margin-right:4px;"></i>白名單非指數成分股仍需具備大型股流動性。所有異動需重啟掃描引擎後生效。
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- Save bar -->
+  <div class="save-bar" id="save-bar">
+    <span style="font-size:0.8rem;color:var(--text-muted);"><i class="pi pi-exclamation-circle" style="color:var(--amber);margin-right:4px;"></i>有未儲存的設定變更</span>
+    <div style="display:flex;gap:0.5rem;">
+      <button class="btn btn-ghost btn-sm" onclick="discardChanges()">放棄</button>
+      <button class="btn btn-crisis btn-sm" onclick="save()"><i class="pi pi-check"></i> 儲存</button>
+    </div>
+  </div>
+
+  <script src="shared.js"></script>
+  <script>
+    let dirty = false;
+    function markDirty() { dirty = true; document.getElementById('save-bar').classList.add('visible'); }
+    function save() {
+      dirty = false;
+      document.getElementById('save-bar').classList.remove('visible');
+    }
+    function discardChanges() { dirty = false; document.getElementById('save-bar').classList.remove('visible'); }
+    function resetAll() { if (!confirm('確定還原所有設定為預設值？')) return; }
+
+    function toggleScenario(id) {
+      const body = document.getElementById(id);
+      const ico  = document.getElementById('ico-' + id);
+      const open = body.classList.toggle('open');
+      ico.style.transform = open ? 'rotate(180deg)' : '';
+    }
+
+    function renderUniverse() {
+      document.getElementById('universe-tbody').innerHTML = UNIVERSE.map(u => `
+        <tr>
+          <td><span class="sym-id">${u.symbol}</span></td>
+          <td>${u.name}</td>
+          <td>${u.large_cap ? '<span class="badge-lc">✓ 大型股</span>' : '—'}</td>
+          <td>${u.constituent ? '<span class="badge-idx">✓ 指數成分</span>' : '—'}</td>
+          <td>
+            <button class="btn btn-ghost btn-xs" onclick="alert('模擬：從白名單移除 ${u.symbol}')"><i class="pi pi-trash" style="color:var(--red);"></i></button>
+          </td>
+        </tr>`).join('');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      setModuleState('awakened');
+      renderUniverse();
+    });
+  </script>
+</body>
+</html>

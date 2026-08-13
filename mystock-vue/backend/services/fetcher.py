@@ -2,6 +2,7 @@ import os
 import json
 import time
 import calendar
+import logging
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
@@ -9,6 +10,7 @@ from typing import Dict, Any, List, Optional
 import threading
 
 from config import DATA_DIR, BASE_DIR, get_target_stocks, get_months_range
+from db.dual_write import dual_write_daily_data, dual_write_no_trading_days, log_crawler_run
 
 # ── 抓取進度狀態管理類別 ─────────────────────────────────────────
 
@@ -243,6 +245,7 @@ def backfill_daily_quotes(target_stocks: list, quote_lookup: dict) -> int:
     for stock_id in target_stocks:
         stock_data = load_stock_json(stock_id) or {}
         changed = False
+        patched_dates = set()
 
         quotes_for_stock = quote_lookup.get(stock_id, {})
         for date_key, quote in quotes_for_stock.items():
@@ -251,6 +254,7 @@ def backfill_daily_quotes(target_stocks: list, quote_lookup: dict) -> int:
                 stock_data[date_key] = _normalize_keys(quote)
                 changed = True
                 patched += 1
+                patched_dates.add(date_key)
             else:
                 record = stock_data[date_key]
                 # 已有非零收盤價代表這天完好；價格為 0 或缺漏才需要修補
@@ -262,6 +266,7 @@ def backfill_daily_quotes(target_stocks: list, quote_lookup: dict) -> int:
                     record["institutional_amount_est"] = round(total_lots * quote["收盤價"] / 10, 2)
                 changed = True
                 patched += 1
+                patched_dates.add(date_key)
 
         if changed:
             stock_data = {k: _normalize_keys(v) for k, v in stock_data.items()}
@@ -269,6 +274,7 @@ def backfill_daily_quotes(target_stocks: list, quote_lookup: dict) -> int:
                 # Sort by date before dumping
                 sorted_data = dict(sorted(stock_data.items()))
                 json.dump(sorted_data, f, ensure_ascii=False, indent=2)
+            dual_write_daily_data(stock_id, "tw", {d: stock_data[d] for d in patched_dates if d in stock_data})
 
     return patched
 
@@ -395,6 +401,7 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
 
     if newly_confirmed_no_trading:
         save_no_trading_days(no_trading_days | newly_confirmed_no_trading)
+        dual_write_no_trading_days("tw", newly_confirmed_no_trading)
 
     return pd.DataFrame(all_records)
 
@@ -411,8 +418,10 @@ def save_data_to_json(df: pd.DataFrame) -> list:
         path = stock_json_path(stock_id)
         stock_data = load_stock_json(stock_id)
 
+        touched_dates = []
         for record in group.to_dict(orient="records"):
             date_key = record["日期"]
+            touched_dates.append(date_key)
             existing = stock_data.setdefault(date_key, {})
             detail = {}
             for k, v in record.items():
@@ -424,18 +433,20 @@ def save_data_to_json(df: pd.DataFrame) -> list:
                 detail[FIELD_MAP.get(k, k)] = int(v) if k in margin_fields else v
             existing.update(detail)
 
+        normalized = {k: _normalize_keys(v) for k, v in stock_data.items()}
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({k: _normalize_keys(v) for k, v in stock_data.items()},
-                      f, ensure_ascii=False, indent=2)
+            json.dump(normalized, f, ensure_ascii=False, indent=2)
 
         written_files.append(path)
+        dual_write_daily_data(stock_id, "tw", {d: normalized[d] for d in touched_dates if d in normalized})
 
     return written_files
 
 def run_fetch_process(target_stocks: Optional[list] = None, months: Optional[int] = None,
-                      mode: str = "incremental"):
+                      mode: str = "incremental", trigger_type: str = "manual"):
+    stocks = target_stocks or get_target_stocks()
+    started_at = datetime.now()
     try:
-        stocks = target_stocks or get_target_stocks()
         m_range = months or get_months_range()
 
         mode_label = "重新抓取" if mode == "repair" else "增量更新"
@@ -478,6 +489,8 @@ def run_fetch_process(target_stocks: Optional[list] = None, months: Optional[int
             fetch_status.update(95, 100, f"修補了 {patched} 筆歷史行情數據")
 
         fetch_status.complete("全數資料更新完畢！")
+        log_crawler_run("tw", trigger_type, started_at, "success", symbols_success=len(stocks))
 
     except Exception as e:
         fetch_status.fail(str(e))
+        log_crawler_run("tw", trigger_type, started_at, "failed", symbols_failed=len(stocks), error_message=str(e))

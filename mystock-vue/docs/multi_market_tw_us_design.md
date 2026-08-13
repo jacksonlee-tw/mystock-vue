@@ -205,7 +205,7 @@ backend/data/
 }
 ```
 
-> **生命週期**：`_symbols.json` 在 MySQL 上線前作為標的索引的 source of truth；
+> **生命週期**：`_symbols.json` 在 PostgreSQL 上線前作為標的索引的 source of truth；
 > 資料庫導入後由 `symbols` 表取代，屆時此檔案可作為初始化種子或移除。
 
 ### 4.3 市場判定 `resolve_market(symbol, hint=None)`
@@ -621,7 +621,7 @@ formatChange(diff, pct)     // → '+0.80 (+0.78%)'
 | **4 · 前端雙市場** | `useMarket.js`（含 URL > localStorage 優先權）；`AppTopbar.vue` 右上角市場切換 segmented control；路由改 `/stock/:market/:symbol` + 301；指標盤與分頁改由 `metrics` 驅動；`frequency` 徽章；ECharts `connect` 游標連動 | 依賴 Phase 3 |
 | **5 · 介面優化收尾** | Ctrl K omnibox（打 `/search`）；`session_state` 徽章；圖表說明改收合；美股「已還原權值」標註 | 依賴 Phase 3 |
 | **6 · 低頻資料歷史（獨立提案）** | SI 歷史階梯線（FINRA／Nasdaq，6.2b）；13F 五季長條圖（SEC EDGAR，6.3b） | 各自為獨立工程 |
-| **7 · 排程（併入既有提案）** | 依 [`mysql_migration_and_scheduling_design.md`](./mysql_migration_and_scheduling_design.md) 第 5 節，加入美股收盤規則：台灣時間隔日 04:00／05:00，**夏令時每年變動兩次**，須以 `zoneinfo` 動態計算，不可寫死小時數 | — |
+| **7 · 排程（併入既有提案）** | 依 [`postgresql_migration_and_scheduling_design.md`](./資料轉存到postgressql/postgresql_migration_and_scheduling_design.md) 第 5 節，加入美股收盤規則：台灣時間隔日 04:00／05:00，**夏令時每年變動兩次**，須以 `zoneinfo` 動態計算，不可寫死小時數 | — |
 
 **Phase 0 與 Phase 1 可並行**（一個純前端、一個純後端，無交集）。
 Phase 6 刻意排在最後且標為獨立提案——SI 歷史與 13F 彙總的工程量各自不小於 Phase 1～5 的總和，

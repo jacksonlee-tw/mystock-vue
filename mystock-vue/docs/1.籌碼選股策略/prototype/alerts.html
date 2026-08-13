@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>籌碼策略警示 — MyStock 籌碼選股警示</title>
+  <meta name="description" content="籌碼選股警示清單，支援選股池、籌碼策略、強度筛選，時間軸格式呈現。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    /* ── Page layout ─────────────────────────── */
+    .page-grid {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 1.25rem;
+      align-items: start;
+    }
+
+    /* ── Summary strip ───────────────────────── */
+    .summary-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .summary-kpi {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .skpi-icon {
+      width: 42px; height: 42px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.05rem;
+      flex-shrink: 0;
+    }
+    .skpi-label { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); line-height: 1; }
+    .skpi-value { font-size: 1.6rem; font-weight: 900; color: var(--text-primary); line-height: 1.1; }
+    .skpi-sub   { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── Filter sidebar ──────────────────────── */
+    .filter-panel {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      position: sticky;
+      top: calc(56px + 1.5rem);
+    }
+    .filter-section-title {
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 0.6rem;
+      margin-top: 1rem;
+    }
+    .filter-section-title:first-child { margin-top: 0; }
+    .filter-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.5rem;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.12s;
+      font-size: 0.83rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    .filter-option:hover { background: var(--surface-hover); }
+    .filter-option.selected { background: var(--brass-light); color: var(--brass); font-weight: 700; }
+    .filter-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.6;
+      flex-shrink: 0;
+    }
+    .filter-count {
+      margin-left: auto;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: var(--surface-hover);
+      border-radius: 100px;
+      padding: 1px 7px;
+    }
+
+    /* ── Timeline ────────────────────────────── */
+    .timeline-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .timeline-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .timeline-date-group { margin-bottom: 1.25rem; }
+    .date-label {
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .date-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--surface-border);
+    }
+
+    /* ── Alert card ──────────────────────────── */
+    .alert-card {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      margin-bottom: 0.75rem;
+      overflow: hidden;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .alert-card:hover { border-color: var(--brass-border); box-shadow: var(--shadow-md); }
+    .alert-card.bull { border-left: 3px solid var(--green); }
+    .alert-card.bear { border-left: 3px solid var(--red); }
+
+    .alert-card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.9rem 1.1rem;
+      cursor: pointer;
+    }
+    .alert-direction-icon {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.95rem;
+      font-weight: 900;
+      flex-shrink: 0;
+    }
+    .alert-direction-icon.bull { background: var(--green-light); color: var(--green); }
+    .alert-direction-icon.bear { background: var(--red-light);   color: var(--red); }
+
+    .alert-info { flex: 1; min-width: 0; }
+    .alert-stock {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .alert-stock-id {
+      font-size: 1rem;
+      font-weight: 900;
+      color: var(--text-primary);
+      letter-spacing: -0.3px;
+    }
+    .alert-stock-name { font-size: 0.8rem; color: var(--text-muted); font-weight: 500; }
+    .alert-strategy-name {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .alert-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.35rem;
+      flex-shrink: 0;
+    }
+    .alert-time {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .alert-tags { display: flex; gap: 0.3rem; flex-wrap: wrap; justify-content: flex-end; }
+    .expand-icon {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+    .expand-icon.open { transform: rotate(180deg); }
+
+    /* ── Alert detail ────────────────────────── */
+    .alert-detail {
+      border-top: 1px solid var(--surface-border);
+      padding: 1rem 1.1rem;
+      display: none;
+    }
+    .alert-detail.open { display: block; }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .detail-item { display: flex; flex-direction: column; gap: 2px; }
+    .detail-label { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); }
+    .detail-value { font-size: 0.88rem; font-weight: 700; color: var(--text-primary); }
+    .filters-passed { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .filter-chip {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      background: var(--green-light);
+      color: var(--green);
+    }
+    .suggestion-box {
+      background: var(--surface-hover);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: 0.6rem 0.8rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+    .suggestion-box i { color: var(--brass); margin-top: 2px; flex-shrink: 0; }
+    .detail-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+
+    /* ── Empty state ─────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
+    }
+    .empty-state i { font-size: 2.5rem; margin-bottom: 1rem; display: block; }
+    .empty-state p { font-size: 0.85rem; }
+
+    /* ── Responsive ──────────────────────────── */
+    @media (max-width: 900px) {
+      .page-grid { grid-template-columns: 1fr; }
+      .filter-panel { position: static; }
+      .summary-strip { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 560px) {
+      .summary-strip { grid-template-columns: 1fr 1fr; }
+      .detail-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">籌碼選股警示系統</span>
+    </div>
+    <nav class="topbar-nav hide-mobile">
+      <a href="index.html" class="nav-link"><i class="pi pi-home"></i> 首頁</a>
+      <a href="alerts.html" class="nav-link active"><i class="pi pi-bell"></i> 警示</a>
+      <a href="strategy-settings.html" class="nav-link"><i class="pi pi-sliders-h"></i> 策略設定</a>
+      <a href="stock-chart.html" class="nav-link"><i class="pi pi-chart-bar"></i> K 線圖</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="btn btn-primary btn-sm" onclick="triggerScan()">
+        <i class="pi pi-search"></i> 手動掃描
+      </button>
+      <button class="icon-btn" onclick="toggleTheme()" title="切換深色模式">
+        <i class="pi pi-moon" id="theme-icon"></i>
+      </button>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <div class="content-wrap">
+      <!-- Page header -->
+      <div class="flex items-center justify-between mb-2" style="margin-bottom:1rem;">
+        <div>
+          <h1 style="font-size:1.25rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.3px;">特殊籌碼警示</h1>
+          <p style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">即時監控底部洗盤、高檔軋空與崩盤出貨等籌碼型態<br><i class="pi pi-clock" style="margin-right:4px;"></i>掃描日期：2026-08-11 · 14:30 盤後掃描完成
+          </p>
+        </div>
+        <a href="scan-result.html" class="btn btn-ghost btn-sm hide-mobile">
+          <i class="pi pi-history"></i> 掃描紀錄
+        </a>
+      </div>
+
+      <!-- Summary KPI strip -->
+      <div class="summary-strip" id="summary-strip">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Main grid -->
+      <div class="page-grid">
+        <!-- Filter sidebar -->
+        <aside>
+          <div class="filter-panel">
+            <div style="font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:1rem;">篩選條件</div>
+
+            <div class="filter-section-title">選股池</div>
+            <div id="filter-market">
+              <div class="filter-option selected" data-value="all" onclick="setFilter('market','all',this)">
+                <span class="filter-dot" style="background:var(--text-muted);"></span> 全部選股池
+                <span class="filter-count" id="cnt-market-all">5</span>
+              </div>
+              <div class="filter-option" data-value="large" onclick="setFilter('market','large',this)">
+                <span class="filter-dot" style="background:var(--blue);"></span> 大型權值股
+                <span class="filter-count" id="cnt-market-large">2</span>
+              </div>
+              <div class="filter-option" data-value="mid_small" onclick="setFilter('market','mid_small',this)">
+                <span class="filter-dot" style="background:var(--amber);"></span> 中小型股
+                <span class="filter-count" id="cnt-market-mid_small">3</span>
+              </div>
+            </div>
+
+            <div class="filter-section-title">訊號強度</div>
+            <div id="filter-strength">
+              <div class="filter-option selected" data-value="all" onclick="setFilter('strength','all',this)">
+                <span class="filter-dot"></span> 全部強度
+                <span class="filter-count">5</span>
+              </div>
+              <div class="filter-option" data-value="strong" onclick="setFilter('strength','strong',this)">
+                <span class="filter-dot" style="background:var(--green);"></span> 強 Strong
+                <span class="filter-count">3</span>
+              </div>
+              <div class="filter-option" data-value="moderate" onclick="setFilter('strength','moderate',this)">
+                <span class="filter-dot" style="background:var(--amber);"></span> 中 Moderate
+                <span class="filter-count">2</span>
+              </div>
+              <div class="filter-option" data-value="weak" onclick="setFilter('strength','weak',this)">
+                <span class="filter-dot" style="background:var(--text-muted);"></span> 弱 Weak
+                <span class="filter-count">0</span>
+              </div>
+            </div>
+
+            <div class="filter-section-title">籌碼策略</div>
+            <div id="filter-strategy">
+              <div class="filter-option selected" data-value="all" onclick="setFilter('strategy','all',this)">
+                <span class="filter-dot"></span> 全部策略
+              </div>
+              <div class="filter-option" data-value="foreign_core" onclick="setFilter('strategy','foreign_core',this)">
+                <span class="filter-dot" style="background:var(--blue);"></span> 外資大型波段 (核心)
+              </div>
+              <div class="filter-option" data-value="trust_satellite" onclick="setFilter('strategy','trust_satellite',this)">
+                <span class="filter-dot" style="background:var(--amber);"></span> 投信中小作帳 (衛星)
+              </div>
+              <div class="filter-option" data-value="bottom_washout" onclick="setFilter('strategy','bottom_washout',this)">
+                <span class="filter-dot" style="background:var(--green);"></span> 底部換手 (洗盤)
+              </div>
+              <div class="filter-option" data-value="top_short_squeeze" onclick="setFilter('strategy','top_short_squeeze',this)">
+                <span class="filter-dot" style="background:var(--red);"></span> 高檔軋空 (暴走)
+              </div>
+              <div class="filter-option" data-value="top_distribution" onclick="setFilter('strategy','top_distribution',this)">
+                <span class="filter-dot" style="background:var(--red);"></span> 高檔出貨 (崩盤前)
+              </div>
+            </div>
+
+            <div class="filter-section-title">方向</div>
+            <div id="filter-direction">
+              <div class="filter-option selected" data-value="all" onclick="setFilter('direction','all',this)">
+                <span class="filter-dot"></span> 全部
+              </div>
+              <div class="filter-option" data-value="bull" onclick="setFilter('direction','bull',this)">
+                <span class="filter-dot" style="background:var(--green);"></span> 多頭訊號
+              </div>
+              <div class="filter-option" data-value="bear" onclick="setFilter('direction','bear',this)">
+                <span class="filter-dot" style="background:var(--red);"></span> 空頭訊號
+              </div>
+            </div>
+
+            <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--surface-border);">
+              <button class="btn btn-ghost btn-sm" style="width:100%;" onclick="resetFilters()">
+                <i class="pi pi-refresh"></i> 重置篩選
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Alert timeline -->
+        <section>
+          <div class="timeline-header">
+            <div class="timeline-title" id="timeline-count">顯示 7 筆警示</div>
+            <div style="display:flex;gap:0.5rem;align-items:center;">
+              <select class="form-input form-select" style="width:auto;font-size:0.78rem;padding:0.3rem 1.5rem 0.3rem 0.6rem;" onchange="setDays(this.value)">
+                <option value="7">近 7 天</option>
+                <option value="14">近 14 天</option>
+                <option value="30">近 30 天</option>
+              </select>
+            </div>
+          </div>
+          <div id="timeline-container"><!-- Rendered by JS --></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    // ── State ──────────────────────────────────────
+    const filters = { market: 'all', strength: 'all', strategy: 'all', direction: 'all' };
+
+    // ── Filter logic ───────────────────────────────
+    function setFilter(dim, value, el) {
+      filters[dim] = value;
+      // Update selected state
+      const group = el.parentElement;
+      group.querySelectorAll('.filter-option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      render();
+    }
+    function resetFilters() {
+      Object.keys(filters).forEach(k => filters[k] = 'all');
+      document.querySelectorAll('.filter-option').forEach(o => {
+        o.classList.toggle('selected', o.dataset.value === 'all');
+      });
+      render();
+    }
+    function setDays(v) { render(); }
+
+    function applyFilters(alerts) {
+      return alerts.filter(a => {
+        if (filters.market !== 'all' && a.market !== filters.market) return false;
+        if (filters.strength !== 'all' && a.signal_strength !== filters.strength) return false;
+        if (filters.strategy !== 'all' && a.strategy_id !== filters.strategy) return false;
+        if (filters.direction !== 'all') {
+          const bull = isBullish(a);
+          if (filters.direction === 'bull' && !bull) return false;
+          if (filters.direction === 'bear' && bull) return false;
+        }
+        return true;
+      });
+    }
+
+    // ── Summary KPIs ───────────────────────────────
+    function renderSummary(all) {
+      const total = all.length;
+      const bullish = all.filter(a => isBullish(a)).length;
+      const bearish = total - bullish;
+      const strong = all.filter(a => a.signal_strength === 'strong').length;
+
+      document.getElementById('summary-strip').innerHTML = `
+        <div class="summary-kpi">
+          <div class="skpi-icon" style="background:var(--brass-light);border:1px solid var(--brass-border);color:var(--brass);">
+            <i class="pi pi-bell"></i>
+          </div>
+          <div>
+            <div class="skpi-label">今日警示總數</div>
+            <div class="skpi-value">${total}</div>
+            <div class="skpi-sub">大型 ${all.filter(a => a.market==='large').length} · 中小型 ${all.filter(a => a.market==='mid_small').length}</div>
+          </div>
+        </div>
+        <div class="summary-kpi">
+          <div class="skpi-icon" style="background:var(--green-light);color:var(--green);">
+            <i class="pi pi-arrow-up-right"></i>
+          </div>
+          <div>
+            <div class="skpi-label">進場訊號</div>
+            <div class="skpi-value" style="color:var(--green);">${bullish}</div>
+            <div class="skpi-sub">外資買超 / 洗盤完成 / 軋空</div>
+          </div>
+        </div>
+        <div class="summary-kpi">
+          <div class="skpi-icon" style="background:var(--red-light);color:var(--red);">
+            <i class="pi pi-arrow-down-right"></i>
+          </div>
+          <div>
+            <div class="skpi-label">風險警示</div>
+            <div class="skpi-value" style="color:var(--red);">${bearish}</div>
+            <div class="skpi-sub">高檔出貨 / 法人倒貨</div>
+          </div>
+        </div>
+        <div class="summary-kpi">
+          <div class="skpi-icon" style="background:var(--strong-bg);color:var(--strong-fg);">
+            <i class="pi pi-star-fill"></i>
+          </div>
+          <div>
+            <div class="skpi-label">強訊號數量</div>
+            <div class="skpi-value" style="color:var(--strong-fg);">${strong}</div>
+            <div class="skpi-sub">通過季線 / 時間濾網確認</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ── Alert card HTML ────────────────────────────
+    function alertCardHTML(a) {
+      const bull = isBullish(a);
+      const dir = DIRECTION_META[a.direction] || {};
+      const strengthMap = { strong: 'tag-strong', moderate: 'tag-moderate', weak: 'tag-weak' };
+      const strengthLabel = { strong: '強訊號', moderate: '中訊號', weak: '弱訊號' };
+
+      const detailItems = [];
+      if (a.details.close != null) {
+        detailItems.push({ label: '收盤價', value: '$' + a.details.close.toLocaleString() });
+      }
+      if (a.details.foreign_buy != null) {
+        detailItems.push({ label: '外資買賣超', value: (a.details.foreign_buy > 0 ? '+' : '') + a.details.foreign_buy.toLocaleString() + ' 張' });
+      }
+      if (a.details.trust_buy != null) {
+        detailItems.push({ label: '投信買賣超', value: (a.details.trust_buy > 0 ? '+' : '') + a.details.trust_buy.toLocaleString() + ' 張' });
+      }
+      if (a.details.margin_change != null) {
+        detailItems.push({ label: '融資增減', value: (a.details.margin_change > 0 ? '+' : '') + a.details.margin_change.toLocaleString() + ' 張' });
+      }
+      detailItems.push({ label: '選股池', value: a.market === 'large' ? '📈 大型權值股' : '🚀 中小型股' });
+
+      const filtersHTML = a.filters_passed.length ? a.filters_passed.map(f => {
+        const labels = { trend_ma60_up: '季線向上', trend_ma20_breakout: '站上月線', seasonality_q3: '季末作帳週期', high_short_ratio: '高券資比' };
+        return `<span class="filter-chip"><i class="pi pi-check" style="font-size:0.65rem;"></i>${labels[f] || f}</span>`;
+      }).join('') : '<span style="font-size:0.78rem;color:var(--text-muted);">無濾網通過</span>';
+
+      const detailGridHTML = detailItems.map(d => `
+        <div class="detail-item">
+          <div class="detail-label">${d.label}</div>
+          <div class="detail-value">${d.value}</div>
+        </div>`).join('');
+
+      return `
+      <div class="alert-card ${bull ? 'bull' : 'bear'}" id="${a.id}">
+        <div class="alert-card-header" onclick="toggleDetail('${a.id}')">
+          <div class="alert-direction-icon ${bull ? 'bull' : 'bear'}">
+            ${dir.icon || (bull ? '▲' : '▼')}
+          </div>
+          <div class="alert-info">
+            <div class="alert-stock">
+              <span class="alert-stock-id">${a.stock_id}</span>
+              <span class="alert-stock-name">${a.stock_name}</span>
+              <span class="tag ${a.market === 'large' ? 'tag-tw' : 'tag-us'}">${a.market === 'large' ? '大型' : '中小型'}</span>
+            </div>
+            <div class="alert-strategy-name">${a.strategy_name}</div>
+          </div>
+          <div class="alert-meta">
+            <span class="alert-time"><i class="pi pi-clock" style="font-size:0.6rem;margin-right:2px;"></i>${formatDate(a.timestamp)} ${formatTime(a.timestamp)}</span>
+            <div class="alert-tags">
+              <span class="tag ${strengthMap[a.signal_strength]}">${strengthLabel[a.signal_strength]}</span>
+              <span class="tag ${bull ? 'tag-bull' : 'tag-bear'}">${dir.label || ''}</span>
+            </div>
+          </div>
+          <i class="pi pi-chevron-down expand-icon" id="expand-${a.id}"></i>
+        </div>
+        <div class="alert-detail" id="detail-${a.id}">
+          <div class="detail-grid">${detailGridHTML}</div>
+          <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);margin-bottom:0.4rem;">通過濾網</div>
+          <div class="filters-passed">${filtersHTML}</div>
+          <div class="suggestion-box">
+            <i class="pi pi-lightbulb"></i>
+            <span>${a.suggested_action}</span>
+          </div>
+          <div class="detail-actions">
+            <a href="stock-chart.html" class="btn btn-primary btn-sm">
+              <i class="pi pi-chart-bar"></i> 查看 K 線圖
+            </a>
+            <button class="btn btn-ghost btn-sm">
+              <i class="pi pi-bookmark"></i> 加入觀察清單
+            </button>
+            <button class="btn btn-ghost btn-sm" style="margin-left:auto;">
+              <i class="pi pi-times"></i> 略過
+            </button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function toggleDetail(id) {
+      const detail = document.getElementById('detail-' + id);
+      const icon = document.getElementById('expand-' + id);
+      const isOpen = detail.classList.contains('open');
+      detail.classList.toggle('open', !isOpen);
+      icon.classList.toggle('open', !isOpen);
+    }
+
+    // ── Main render ────────────────────────────────
+    function render() {
+      const filtered = applyFilters(MOCK_ALERTS);
+      document.getElementById('timeline-count').textContent = `顯示 ${filtered.length} 筆警示`;
+
+      if (!filtered.length) {
+        document.getElementById('timeline-container').innerHTML = `
+          <div class="empty-state">
+            <i class="pi pi-filter-slash"></i>
+            <p>目前篩選條件下無警示資料</p>
+          </div>`;
+        return;
+      }
+
+      // Group by date
+      const groups = {};
+      filtered.forEach(a => {
+        const d = formatDate(a.timestamp);
+        if (!groups[d]) groups[d] = [];
+        groups[d].push(a);
+      });
+
+      const today = '2026-08-11';
+      const yesterday = '2026-08-10';
+      const dateLabel = (d) => {
+        if (d === today) return `今天 ${d}`;
+        if (d === yesterday) return `昨天 ${d}`;
+        return d;
+      };
+
+      let html = '';
+      Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
+        html += `<div class="timeline-date-group">
+          <div class="date-label">${dateLabel(date)}</div>
+          ${groups[date].map(alertCardHTML).join('')}
+        </div>`;
+      });
+      document.getElementById('timeline-container').innerHTML = html;
+    }
+
+    // ── Scan modal ─────────────────────────────────
+    function triggerScan() {
+      window.location.href = 'scan-result.html';
+    }
+
+    // ── Init ───────────────────────────────────────
+    renderSummary(MOCK_ALERTS);
+    render();
+  </script>
+</body>
+</html>

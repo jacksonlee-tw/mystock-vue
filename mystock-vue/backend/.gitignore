@@ -1,0 +1,6 @@
+# PostgreSQL 容器資料與備份檔（見 docker-compose.yml），不進版控
+postgres_data/
+backups/
+
+__pycache__/
+*.pyc

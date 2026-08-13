@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>模組狀態監控 — MyStock Crisis Alpha</title>
+  <meta name="description" content="極端抄底策略模組狀態儀表板，包含大盤環境監控、資金使用、Kill Switch 控制台。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    /* ── Kill Switch panel ───────── */
+    .kill-panel {
+      background: var(--surface-card);
+      border: 2px solid var(--crisis-border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .kill-panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--crisis);
+    }
+    .kill-panel-title {
+      font-size: 1rem; font-weight: 900; color: var(--text-primary);
+      display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.35rem;
+    }
+    .kill-panel-desc { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.25rem; line-height: 1.5; }
+    .kill-btn-wrap { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .execution-mode-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .exec-mode-btn {
+      padding: 0.35rem 0.85rem;
+      border-radius: 7px;
+      font-size: 0.76rem; font-weight: 700;
+      border: 1px solid var(--surface-border);
+      background: var(--surface-hover);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .exec-mode-btn.active { background: var(--brass-light); border-color: var(--brass-border); color: var(--brass); }
+    .exec-mode-btn.notify-active { background: var(--green-light); border-color: rgba(22,163,74,0.3); color: var(--green); }
+
+    /* ── Metric cards ────────────── */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .metric-card {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 1rem 1.2rem;
+    }
+    .metric-label { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    .metric-val { font-size: 1.5rem; font-weight: 900; color: var(--text-primary); line-height: 1.1; margin: 4px 0 2px; }
+    .metric-sub { font-size: 0.7rem; color: var(--text-muted); }
+    .metric-progress {
+      height: 5px; background: var(--surface-hover);
+      border-radius: 100px; margin-top: 0.6rem; overflow: hidden;
+    }
+    .metric-bar { height: 100%; border-radius: 100px; transition: width 0.5s; }
+
+    /* ── Market gauge ────────────── */
+    .market-gauge-card {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 1.2rem;
+      margin-bottom: 1.25rem;
+    }
+    .gauge-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 1rem; }
+    .gauge-item { display: flex; flex-direction: column; gap: 0.35rem; }
+    .gauge-key { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); }
+    .gauge-val { font-size: 1.1rem; font-weight: 900; }
+    .gauge-bar-wrap { height: 6px; background: var(--surface-hover); border-radius: 100px; overflow: hidden; margin-top: 3px; }
+    .gauge-bar { height: 100%; border-radius: 100px; }
+    .gauge-threshold { display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-muted); margin-top: 2px; }
+    .condition-badge {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 3px 9px; border-radius: 100px;
+      font-size: 0.7rem; font-weight: 700;
+    }
+    .condition-met  { background: var(--crisis-light); color: var(--crisis); border: 1px solid var(--crisis-border); }
+    .condition-miss { background: var(--green-light);  color: var(--green);  border: 1px solid rgba(22,163,74,0.3); }
+
+    /* ── Awakening log ───────────── */
+    .log-entry {
+      display: flex; align-items: flex-start; gap: 0.75rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid var(--surface-border);
+      font-size: 0.78rem;
+    }
+    .log-entry:last-child { border-bottom: none; }
+    .log-time { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+    .log-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; flex-shrink: 0; }
+    .log-icon.awake { background: var(--crisis-light); color: var(--crisis); }
+    .log-icon.sleep { background: var(--green-light);  color: var(--green); }
+    .log-icon.info  { background: var(--blue-light);   color: var(--blue); }
+    .log-msg { color: var(--text-secondary); line-height: 1.4; }
+
+    /* ── Guardrails config display ── */
+    .guardrail-config-item {
+      display: flex; align-items: flex-start; gap: 0.75rem;
+      padding: 0.85rem;
+      border: 1px solid var(--crisis-border);
+      border-radius: 9px;
+      margin-bottom: 0.65rem;
+      background: var(--crisis-light);
+    }
+    .gc-num { font-size: 1rem; font-weight: 900; color: var(--crisis); width: 24px; flex-shrink: 0; }
+    .gc-title { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
+    .gc-desc  { font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
+
+    @media (max-width: 720px) { .metric-grid { grid-template-columns: 1fr 1fr; } .gauge-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 480px) { .metric-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="topbar crisis-active">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">極端抄底策略警示</span>
+    </div>
+    <nav class="topbar-nav hide-mobile">
+      <a href="index.html" class="nav-link crisis-nav"><i class="pi pi-home"></i> 首頁</a>
+      <a href="crisis-alerts.html" class="nav-link crisis-nav"><i class="pi pi-bell"></i> 警示</a>
+      <a href="module-status.html" class="nav-link crisis-nav active"><i class="pi pi-server"></i> 模組狀態</a>
+      <a href="crisis-settings.html" class="nav-link crisis-nav"><i class="pi pi-shield"></i> 策略設定</a>
+      <a href="integrated-alerts.html" class="nav-link"><i class="pi pi-list"></i> 整合警示</a>
+    </nav>
+    <div class="topbar-actions">
+      <span class="module-status awakened" data-module-status>
+        <span class="module-status-dot"></span>已喚醒 · 掃描中
+      </span>
+      <button class="btn btn-kill btn-sm hide-mobile" data-kill-btn onclick="activateKillSwitch()">☠ 緊急停止 Kill Switch</button>
+      <button class="icon-btn" onclick="toggleTheme()"><i class="pi pi-moon" id="theme-icon"></i></button>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <div class="content-wrap">
+      <div style="margin-bottom:1.5rem;">
+        <h1 style="font-size:1.2rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.3px;">模組狀態監控</h1>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">大盤環境指標、模組生命週期、資金使用、三道防線狀態</p>
+      </div>
+
+      <!-- Kill Switch Panel -->
+      <div class="kill-panel">
+        <div class="kill-panel-title">
+          <span style="font-size:1.2rem;">☠</span>
+          全局緊急停止（Kill Switch）
+          <span class="tag tag-neu" style="font-size:0.65rem;">Phase 6</span>
+        </div>
+        <div class="kill-panel-desc">
+          啟動後立即切斷所有下單 API 權限，模組轉為純通知模式。需手動解除。保護真金白銀的最終護城河。
+        </div>
+        <div class="kill-btn-wrap">
+          <button class="btn btn-kill" data-kill-btn onclick="activateKillSwitch()" style="font-size:0.85rem;padding:0.55rem 1.25rem;">
+            ☠ 緊急停止 Kill Switch
+          </button>
+          <div>
+            <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);margin-bottom:0.35rem;">執行模式</div>
+            <div class="execution-mode-row">
+              <button class="exec-mode-btn notify-active" onclick="setExecMode(this,'notify_only')">🔔 僅通知</button>
+              <button class="exec-mode-btn" onclick="setExecMode(this,'dry_run')">📋 Dry Run</button>
+              <button class="exec-mode-btn" onclick="setExecMode(this,'paper')">📄 模擬交易</button>
+              <button class="exec-mode-btn" onclick="setExecMode(this,'live')" style="opacity:0.4;cursor:not-allowed;" disabled>⚡ Live（鎖定）</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metric cards -->
+      <div class="metric-grid">
+        <div class="metric-card">
+          <div class="metric-label">資金使用比例</div>
+          <div class="metric-val" style="color:var(--green);">0.0%</div>
+          <div class="metric-sub">上限：5.0%（Hardcode 10%）</div>
+          <div class="metric-progress"><div class="metric-bar" style="width:0%;background:var(--green);"></div></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">今日委託數</div>
+          <div class="metric-val">0</div>
+          <div class="metric-sub">同標的最多 1 次 / 日限額 NT$100,000</div>
+          <div class="metric-progress"><div class="metric-bar" style="width:0%;background:var(--brass);"></div></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">白名單股票數</div>
+          <div class="metric-val">10</div>
+          <div class="metric-sub">台股大型權值股 · 今日掃描 10 檔</div>
+          <div class="metric-progress"><div class="metric-bar" style="width:100%;background:var(--blue);"></div></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">今日警示（通過防線）</div>
+          <div class="metric-val" style="color:var(--crisis);">3</div>
+          <div class="metric-sub">含 1 筆被流動性防線攔截</div>
+          <div class="metric-progress"><div class="metric-bar" style="width:30%;background:var(--crisis);"></div></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">模組喚醒時間</div>
+          <div class="metric-val" style="font-size:1rem;">09:01</div>
+          <div class="metric-sub">2026-08-11 · 大盤跌幅 -4.2% 觸發</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">已休眠天數</div>
+          <div class="metric-val">0</div>
+          <div class="metric-sub">今日喚醒（上次：2026-03-20 股災）</div>
+        </div>
+      </div>
+
+      <!-- Market Environment Gauge -->
+      <div class="market-gauge-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+          <div class="card-title"><i class="pi pi-wave-pulse" style="color:var(--crisis);"></i> 大盤環境指標</div>
+          <span class="module-status awakened" style="font-size:0.72rem;">🔴 模組已喚醒</span>
+        </div>
+        <div class="gauge-grid">
+          <div class="gauge-item">
+            <div class="gauge-key">加權指數日跌幅</div>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+              <span class="gauge-val" style="color:var(--crisis);">−4.2%</span>
+              <span class="condition-badge condition-met"><i class="pi pi-exclamation-triangle" style="font-size:0.6rem;"></i>觸發門檻（≤ −3%）</span>
+            </div>
+            <div class="gauge-bar-wrap">
+              <div class="gauge-bar" style="width:84%;background:var(--crisis);"></div>
+            </div>
+            <div class="gauge-threshold"><span>0%</span><span style="color:var(--crisis);">−3%（門檻）</span><span>−5%+</span></div>
+          </div>
+          <div class="gauge-item">
+            <div class="gauge-key">大盤 20MA 負乖離</div>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+              <span class="gauge-val" style="color:var(--crisis);">−9.5%</span>
+              <span class="condition-badge condition-met"><i class="pi pi-exclamation-triangle" style="font-size:0.6rem;"></i>觸發門檻（≤ −8%）</span>
+            </div>
+            <div class="gauge-bar-wrap">
+              <div class="gauge-bar" style="width:79%;background:var(--crisis);"></div>
+            </div>
+            <div class="gauge-threshold"><span>0%</span><span style="color:var(--crisis);">−8%（門檻）</span><span>−15%+</span></div>
+          </div>
+          <div class="gauge-item">
+            <div class="gauge-key">VIX 恐慌指數</div>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+              <span class="gauge-val" style="color:var(--amber);">N/A</span>
+              <span class="condition-badge condition-miss">未接入（未來擴充）</span>
+            </div>
+            <div class="gauge-bar-wrap">
+              <div class="gauge-bar" style="width:0%;background:var(--amber);"></div>
+            </div>
+            <div class="gauge-threshold"><span>0</span><span>25（門檻）</span><span>50</span></div>
+          </div>
+          <div class="gauge-item">
+            <div class="gauge-key">喚醒條件（任一成立即喚醒）</div>
+            <div style="display:flex;gap:0.35rem;margin-top:4px;flex-wrap:wrap;">
+              <span class="condition-badge condition-met">market_crash ✓</span>
+              <span class="condition-badge condition-met">market_extreme_bias ✓</span>
+              <span class="condition-badge condition-miss">vix_spike（未來）</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Two column: Guardrails + Log -->
+      <div class="grid-2" style="gap:1.25rem;margin-bottom:1.25rem;">
+        <!-- Guardrails -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><i class="pi pi-lock" style="color:var(--crisis);"></i> 三道防線（Hardcode）</div>
+            <span class="tag tag-critical" style="font-size:0.65rem;">不可繞過</span>
+          </div>
+          <div class="card-body">
+            <div class="guardrail-config-item">
+              <div class="gc-num">01</div>
+              <div>
+                <div class="gc-title">白名單過濾（Universe Filter）</div>
+                <div class="gc-desc">僅允許 universe.yaml 中 is_large_cap: true 的標的。程式碼 assert 強制，Runtime 不可動態擴充。</div>
+                <div style="margin-top:0.4rem;font-size:0.72rem;color:var(--crisis);font-weight:700;">目前白名單：10 檔台灣大型權值股</div>
+              </div>
+            </div>
+            <div class="guardrail-config-item">
+              <div class="gc-num">02</div>
+              <div>
+                <div class="gc-title">流動性確認（Liquidity Check）</div>
+                <div class="gc-desc">當日成交量 ≥ 過去 20 日均量 × 2 倍。若為跌停打開情境，收盤價必須大於跌停價（拒絕無量鎖死）。</div>
+                <div style="margin-top:0.4rem;font-size:0.72rem;color:var(--crisis);font-weight:700;">今日攔截：1 筆（聯發科：量比 0.8×）</div>
+              </div>
+            </div>
+            <div class="guardrail-config-item">
+              <div class="gc-num">03</div>
+              <div>
+                <div class="gc-title">雙重絕對停損（Double Stop-Loss）</div>
+                <div class="gc-desc">
+                  <strong>價格停損</strong>：T+1/T+2 收盤 &lt; T 日最低價 → 無條件平倉<br>
+                  <strong>時間停損</strong>：買入後 3 交易日內無 +3% 反彈 → 強制平倉<br>
+                  天數與百分比 Hardcode，不可調整。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Awakening log -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><i class="pi pi-list" style="color:var(--brass);"></i> 模組喚醒紀錄</div>
+            <span style="font-size:0.72rem;color:var(--text-muted);">近 30 天</span>
+          </div>
+          <div class="card-body">
+            <div class="log-entry">
+              <div class="log-time">08-11 09:01</div>
+              <div class="log-icon awake"><i class="pi pi-bell" style="font-size:0.55rem;"></i></div>
+              <div class="log-msg">模組喚醒：加權指數跌幅 −4.2%，觸發 market_crash 門檻。開始掃描白名單 10 檔。</div>
+            </div>
+            <div class="log-entry">
+              <div class="log-time">08-11 13:30</div>
+              <div class="log-icon awake" style="background:var(--crisis-light);color:var(--crisis);"><i class="pi pi-check" style="font-size:0.55rem;"></i></div>
+              <div class="log-msg">掃描完成：3 筆通過，1 筆被流動性防線攔截。已推播 Telegram 通知。</div>
+            </div>
+            <div class="log-entry">
+              <div class="log-time">08-11 14:30</div>
+              <div class="log-icon info"><i class="pi pi-info" style="font-size:0.55rem;"></i></div>
+              <div class="log-msg">盤後確認：大盤收盤 19,245 點（−4.2%）。今日大盤 20MA 乖離 −9.5%。模組繼續保持喚醒。</div>
+            </div>
+            <div class="log-entry">
+              <div class="log-time">03-20 09:05</div>
+              <div class="log-icon awake"><i class="pi pi-bell" style="font-size:0.55rem;"></i></div>
+              <div class="log-msg">歷史喚醒（參考）：2026-03-20 全球股災，大盤跌 −5.8%。警示 5 筆，成功反彈 4 筆。</div>
+            </div>
+            <div class="log-entry">
+              <div class="log-time">03-21 14:30</div>
+              <div class="log-icon sleep"><i class="pi pi-moon" style="font-size:0.55rem;"></i></div>
+              <div class="log-msg">模組回歸休眠：大盤連續 2 天收漲，大盤 20MA 乖離回到 −4.2%（低於 8% 門檻）。</div>
+            </div>
+            <div style="text-align:center;margin-top:0.75rem;">
+              <button class="btn btn-ghost btn-sm">查看完整紀錄 →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    function setExecMode(btn, mode) {
+      document.querySelectorAll('.exec-mode-btn').forEach(b => b.classList.remove('active', 'notify-active'));
+      btn.classList.add(mode === 'notify_only' ? 'notify-active' : 'active');
+      if (mode === 'live') alert('⚠️ Live 模式需完成 Dry Run + Paper Trading 驗證後才可啟用，目前鎖定。');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => setModuleState('awakened'));
+  </script>
+</body>
+</html>

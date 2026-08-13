@@ -3,8 +3,10 @@ import json
 import calendar
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
-from config import DATA_DIR, get_target_stocks, get_enabled_markets
+from config import DATA_DIR, get_target_stocks, get_enabled_markets, get_data_source
 from services.fetcher import load_stock_json
+from db.mapping import daily_row_to_record
+from repositories.stock_repository import StockRepository
 
 # 定義欄位分類 (已轉換為英文鍵名)
 SUM_FIELDS = [
@@ -26,28 +28,62 @@ def months_ago(months: int, from_date: Optional[datetime] = None) -> datetime:
     day = min(base.day, calendar.monthrange(year, month)[1])
     return base.replace(year=year, month=month, day=day)
 
-def discover_available_stocks() -> List[Dict[str, Any]]:
-    """掃描 data/{market}/ 目錄下的股票 JSON 檔，回傳股票清單與元資料。"""
+def _list_stock_ids_json(market_dir: str) -> List[str]:
+    if not os.path.exists(market_dir):
+        return []
+    return [
+        f[:-5] for f in sorted(os.listdir(market_dir))
+        if not f.startswith("_") and f.endswith(".json")
+    ]
+
+async def _list_stock_ids_db(market: str) -> List[str]:
+    symbols = await StockRepository().list_symbols(market_type=market)
+    return [s["symbol"] for s in symbols]
+
+async def load_stock_data(stock_id: str, market: str = "tw", source: Optional[str] = None) -> dict:
+    """讀取單一標的的每日資料；依 DATA_SOURCE 決定讀 JSON 檔案或 PostgreSQL（見 phase3_5 設計文件第 2 節）。
+
+    `source` 可明確指定覆蓋 DATA_SOURCE（供 scripts/compare_data_sources.py 兩邊比對使用），一般呼叫端不需傳入。
+    """
+    if (source or get_data_source()) != "postgres":
+        return load_stock_json(stock_id, market)
+
+    repo = StockRepository()
+    rows = await repo.get_daily_data(stock_id)
+    if not rows:
+        return {}
+
+    symbol_info = await repo.get_symbol(stock_id)
+    name = symbol_info["name"] if symbol_info else None
+
+    result: Dict[str, Any] = {}
+    for row in rows:
+        record = daily_row_to_record(row)
+        if name:
+            record["name"] = name
+        if market == "us":
+            record["symbol"] = stock_id
+        result[row["trade_date"].isoformat()] = record
+    return result
+
+async def discover_available_stocks() -> List[Dict[str, Any]]:
+    """回傳系統中所有可用的股票清單與元資料（依 DATA_SOURCE 讀取 JSON 檔案或 PostgreSQL）。"""
     stocks = []
-    
+
     for market in get_enabled_markets():
-        market_dir = os.path.join(DATA_DIR, market)
-        if not os.path.exists(market_dir):
-            continue
-            
         tracked_codes = set(get_target_stocks(market=market))
-        
-        for filename in sorted(os.listdir(market_dir)):
-            if filename.startswith("_") or not filename.endswith(".json"):
-                continue
-            stock_id = filename[:-5]
-            file_path = os.path.join(market_dir, filename)
-            
+
+        if get_data_source() == "postgres":
+            stock_ids = await _list_stock_ids_db(market)
+        else:
+            stock_ids = _list_stock_ids_json(os.path.join(DATA_DIR, market))
+
+        for stock_id in stock_ids:
             try:
-                data = load_stock_json(stock_id, market)
+                data = await load_stock_data(stock_id, market)
                 if not data:
                     continue
-                    
+
                 sorted_dates = sorted(data.keys())
                 latest_date = sorted_dates[-1]
                 latest_record = data[latest_date]
@@ -65,32 +101,30 @@ def discover_available_stocks() -> List[Dict[str, Any]]:
                 })
             except Exception:
                 continue
-                
+
     return stocks
 
-def get_heatmap_data(period: str = "daily", market: Optional[str] = None) -> List[Dict[str, Any]]:
-    """掃描 data/{market}/ 目錄下的股票 JSON 檔，回傳供熱力圖使用的資料（包含最新報價、漲跌與 Sparkline）。"""
+async def get_heatmap_data(period: str = "daily", market: Optional[str] = None) -> List[Dict[str, Any]]:
+    """回傳供熱力圖使用的資料（包含最新報價、漲跌與 Sparkline），依 DATA_SOURCE 讀取 JSON 或 PostgreSQL。"""
     stocks = []
-    
+
     enabled_markets = [market] if market and market in get_enabled_markets() else get_enabled_markets()
     for m in enabled_markets:
-        market_dir = os.path.join(DATA_DIR, m)
-        if not os.path.exists(market_dir):
-            continue
-            
         tracked_codes = set(get_target_stocks(market=m))
-        
-        for filename in sorted(os.listdir(market_dir)):
-            if filename.startswith("_") or not filename.endswith(".json"):
-                continue
-            stock_id = filename[:-5]
+        if not tracked_codes:
+            continue
+
+        if get_data_source() == "postgres":
+            stock_ids = await _list_stock_ids_db(m)
+        else:
+            stock_ids = _list_stock_ids_json(os.path.join(DATA_DIR, m))
+
+        for stock_id in stock_ids:
             if stock_id not in tracked_codes:
                 continue
-                
-            file_path = os.path.join(market_dir, filename)
-            
+
             try:
-                data = load_stock_json(stock_id, m)
+                data = await load_stock_data(stock_id, m)
                 if not data:
                     continue
                 
@@ -215,8 +249,9 @@ def aggregate_stock_data(data: Dict[str, Any], period: str = "daily", months: in
 
     return result
 
-def get_stock_chart_payload(stock_id: str, period: str = "daily", months: int = 3, market: str = "tw") -> Dict[str, Any]:
-    raw_data = load_stock_json(stock_id, market)
+async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: int = 3, market: str = "tw",
+                                   source: Optional[str] = None) -> Dict[str, Any]:
+    raw_data = await load_stock_data(stock_id, market, source=source)
     if not raw_data:
         return {"error": f"找不到股票 {stock_id} 的數據資料"}
 

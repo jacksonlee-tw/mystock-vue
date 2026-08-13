@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K 線圖（增強版）— MyStock 籌碼選股警示</title>
+  <meta name="description" content="籌碼選股觸發點位標記、三大法人與融資融券資訊示意圖。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <!-- ECharts for mock chart -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <style>
+    .control-bar {
+      background: var(--surface-card);
+      border-bottom: 1px solid var(--surface-border);
+      padding: 0.6rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 56px;
+      z-index: 80;
+    }
+    .stock-info {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+    .stock-id { font-size: 1.2rem; font-weight: 900; color: var(--text-primary); letter-spacing: -0.3px; }
+    .stock-name { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+    .stock-price { font-size: 1.1rem; font-weight: 900; color: var(--green); }
+    .stock-change { font-size: 0.8rem; font-weight: 700; color: var(--green); }
+
+    /* ── MA toggles ──────────────────────────── */
+    .ma-toggles { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+    .ma-btn {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.28rem 0.65rem;
+      border-radius: 100px;
+      font-size: 0.73rem;
+      font-weight: 700;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: var(--surface-hover);
+      color: var(--text-muted);
+    }
+    .ma-btn.active { color: #fff; }
+    .ma-btn .ma-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+    /* ── Chart container ─────────────────────── */
+    .chart-container {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 1.25rem;
+    }
+    .chart-wrap { width: 100%; height: 420px; }
+
+    /* ── Alert markers panel ─────────────────── */
+    .markers-panel {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .marker-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1.1rem;
+      border-bottom: 1px solid var(--surface-border);
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .marker-item:last-child { border-bottom: none; }
+    .marker-item:hover { background: var(--surface-hover); }
+    .marker-icon {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 900;
+      flex-shrink: 0;
+    }
+    .marker-icon.bull { background: var(--green-light); color: var(--green); }
+    .marker-icon.bear { background: var(--red-light); color: var(--red); }
+    .marker-date { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
+    .marker-name { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); }
+    .marker-price { font-size: 0.78rem; font-weight: 700; }
+
+    /* ── Right sidebar ───────────────────────── */
+    .chart-layout {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 1.25rem;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .chart-layout { grid-template-columns: 1fr; }
+    }
+
+    /* ── Recent alerts block ─────────────────── */
+    .recent-alert-block {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .legend-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; }
+    .legend-line { width: 24px; height: 2px; border-radius: 2px; }
+    .legend-label { font-size: 0.75rem; color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">籌碼選股警示系統</span>
+    </div>
+    <nav class="topbar-nav hide-mobile">
+      <a href="index.html" class="nav-link"><i class="pi pi-home"></i> 首頁</a>
+      <a href="alerts.html" class="nav-link"><i class="pi pi-bell"></i> 警示</a>
+      <a href="strategy-settings.html" class="nav-link"><i class="pi pi-sliders-h"></i> 策略設定</a>
+      <a href="stock-chart.html" class="nav-link active"><i class="pi pi-chart-bar"></i> K 線圖</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="toggleTheme()">
+        <i class="pi pi-moon" id="theme-icon"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Sticky control bar -->
+  <div class="control-bar">
+    <!-- Stock selector -->
+    <div class="stock-info">
+      <select class="form-input form-select" style="font-size:0.85rem;padding:0.3rem 1.8rem 0.3rem 0.6rem;width:auto;" onchange="updateStock(this.value)">
+        <option value="2330">2330 台積電</option>
+        <option value="AAPL">AAPL Apple</option>
+        <option value="2454">2454 聯發科</option>
+        <option value="TSLA">TSLA Tesla</option>
+      </select>
+    </div>
+
+    <div class="stock-info" style="gap:0.75rem;">
+      <span class="stock-price" id="stock-price">$1,020</span>
+      <span class="stock-change" id="stock-change">+35 (+3.55%)</span>
+    </div>
+
+    <!-- Period -->
+    <div class="chip-group">
+      <span class="chip active" onclick="setPeriod(this,'D')">日K</span>
+      <span class="chip" onclick="setPeriod(this,'W')">週K</span>
+      <span class="chip" onclick="setPeriod(this,'M')">月K</span>
+    </div>
+
+    <!-- MA toggles -->
+    <div class="ma-toggles" style="margin-left:auto;">
+      <span style="font-size:0.72rem;font-weight:700;color:var(--text-muted);">均線：</span>
+      <button class="ma-btn active" style="background:#e86b00;border-color:#e86b00;" onclick="toggleMA(this,'MA5')" id="ma-MA5">
+        <span class="ma-dot" style="background:#fff;"></span>MA5
+      </button>
+      <button class="ma-btn active" style="background:#2563eb;border-color:#2563eb;" onclick="toggleMA(this,'MA20')" id="ma-MA20">
+        <span class="ma-dot" style="background:#fff;"></span>MA20
+      </button>
+      <button class="ma-btn active" style="background:#16a34a;border-color:#16a34a;" onclick="toggleMA(this,'MA60')" id="ma-MA60">
+        <span class="ma-dot" style="background:#fff;"></span>MA60
+      </button>
+      <button class="ma-btn" style="" onclick="toggleMA(this,'MA120')" id="ma-MA120" data-color="#9333ea">
+        <span class="ma-dot" style="background:#9333ea;"></span>MA120
+      </button>
+      <button class="ma-btn" style="" onclick="toggleMA(this,'MA240')" id="ma-MA240" data-color="#dc2626">
+        <span class="ma-dot" style="background:#dc2626;"></span>MA240
+      </button>
+    </div>
+  </div>
+
+  <main style="padding-top: 1.5rem;">
+    <div class="content-wrap" style="padding-top:0;">
+      <div class="chart-layout">
+        <!-- Left: chart + markers legend -->
+        <div>
+          <!-- Annotation -->
+          <div style="margin-bottom:0.6rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:0.35rem;">
+              <span style="font-size:0.85rem;color:var(--green);font-weight:900;">▲</span>
+              <span style="font-size:0.72rem;color:var(--text-muted);">突破點</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.35rem;">
+              <span style="font-size:0.85rem;color:var(--red);font-weight:900;">▼</span>
+              <span style="font-size:0.72rem;color:var(--text-muted);">跌破點</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.35rem;">
+              <span style="font-size:0.95rem;color:var(--amber);font-weight:900;">●</span>
+              <span style="font-size:0.72rem;color:var(--text-muted);">黃金交叉</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.35rem;">
+              <span style="font-size:0.72rem;color:var(--text-muted);font-style:italic;">← 圖表為 Mock 示意</span>
+            </div>
+          </div>
+
+          <div class="chart-container">
+            <div id="kline-chart" class="chart-wrap"></div>
+          </div>
+
+          <!-- MA value table -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i class="pi pi-table" style="color:var(--brass);"></i> 最新均線數值（後端計算）</div>
+              <span style="font-size:0.72rem;color:var(--text-muted);">2026-08-11</span>
+            </div>
+            <div class="card-body" style="padding:0;">
+              <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                <thead>
+                  <tr style="background:var(--surface-hover);">
+                    <th style="padding:0.6rem 1rem;text-align:left;font-size:0.72rem;font-weight:700;color:var(--text-muted);letter-spacing:0.5px;">均線</th>
+                    <th style="padding:0.6rem 1rem;text-align:right;font-weight:700;color:var(--text-muted);font-size:0.72rem;">數值</th>
+                    <th style="padding:0.6rem 1rem;text-align:right;font-weight:700;color:var(--text-muted);font-size:0.72rem;">乖離率</th>
+                    <th style="padding:0.6rem 1rem;text-align:right;font-weight:700;color:var(--text-muted);font-size:0.72rem;">斜率</th>
+                  </tr>
+                </thead>
+                <tbody id="ma-table">
+                  <!-- Rendered by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right sidebar -->
+        <aside>
+          <!-- Recent alerts on this stock -->
+          <div class="recent-alert-block" style="margin-bottom:1.25rem;">
+            <div class="card-header">
+              <div class="card-title" style="font-size:0.85rem;"><i class="pi pi-bell" style="color:var(--brass);"></i> 近期策略觸發</div>
+              <a href="alerts.html" style="font-size:0.72rem;color:var(--brass);text-decoration:none;font-weight:600;">全部 →</a>
+            </div>
+            <div id="recent-markers">
+              <!-- Rendered by JS -->
+            </div>
+          </div>
+
+          <!-- MA legend -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" style="font-size:0.85rem;"><i class="pi pi-palette" style="color:var(--brass);"></i> 均線圖例</div>
+            </div>
+            <div class="card-body">
+              <div class="legend-row"><div class="legend-line" style="background:#e86b00;"></div><span class="legend-label">MA5（週線）</span></div>
+              <div class="legend-row"><div class="legend-line" style="background:#2563eb;"></div><span class="legend-label">MA20（月線）</span></div>
+              <div class="legend-row"><div class="legend-line" style="background:#16a34a;"></div><span class="legend-label">MA60（季線）</span></div>
+              <div class="legend-row"><div class="legend-line" style="background:#9333ea;"></div><span class="legend-label">MA120（半年線）</span></div>
+              <div class="legend-row"><div class="legend-line" style="background:#dc2626;"></div><span class="legend-label">MA240（年線）</span></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    // ── Mock candlestick data for 2330 ─────────────
+    function genMockData() {
+      const dates = [];
+      const kline = [];
+      const ma5 = [], ma20 = [], ma60 = [], ma120 = [], ma240 = [];
+      let base = 950;
+      const start = new Date('2025-12-01');
+      for (let i = 0; i < 180; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        // skip weekends
+        if (d.getDay() === 0 || d.getDay() === 6) continue;
+        const mo = String(d.getMonth() + 1).padStart(2, '0');
+        const da = String(d.getDate()).padStart(2, '0');
+        dates.push(`${d.getFullYear()}-${mo}-${da}`);
+        base = base + (Math.random() - 0.48) * 15;
+        base = Math.max(880, Math.min(1060, base));
+        const open = +(base + (Math.random() - 0.5) * 8).toFixed(1);
+        const close = +(base + (Math.random() - 0.5) * 8).toFixed(1);
+        const high  = +(Math.max(open, close) + Math.random() * 6).toFixed(1);
+        const low   = +(Math.min(open, close) - Math.random() * 6).toFixed(1);
+        kline.push([open, close, low, high]);
+        // MA mock (simplified)
+        ma5.push(+(base - 2 + Math.random() * 4).toFixed(1));
+        ma20.push(+(base - 5 + Math.random() * 6).toFixed(1));
+        ma60.push(+(base - 20 + Math.random() * 8).toFixed(1));
+        ma120.push(+(base - 35 + Math.random() * 10).toFixed(1));
+        ma240.push(+(base - 60 + Math.random() * 12).toFixed(1));
+      }
+      return { dates, kline, ma5, ma20, ma60, ma120, ma240 };
+    }
+
+    const mockData = genMockData();
+
+    // ── MA visibility state ────────────────────────
+    const maVisible = { MA5: true, MA20: true, MA60: true, MA120: false, MA240: false };
+    const maColors = { MA5: '#e86b00', MA20: '#2563eb', MA60: '#16a34a', MA120: '#9333ea', MA240: '#dc2626' };
+
+    function toggleMA(btn, name) {
+      maVisible[name] = !maVisible[name];
+      if (maVisible[name]) {
+        btn.style.background = maColors[name];
+        btn.style.borderColor = maColors[name];
+        btn.classList.add('active');
+      } else {
+        btn.style.background = '';
+        btn.style.borderColor = '';
+        btn.classList.remove('active');
+      }
+      renderChart();
+    }
+
+    function setPeriod(el, p) {
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+    }
+
+    function updateStock(v) {
+      const prices = { '2330': '$1,020', 'AAPL': '$195.30', '2454': '$870', 'TSLA': '$248.00' };
+      const changes = { '2330': '+35 (+3.55%)', 'AAPL': '+4.20 (+2.20%)', '2454': '-12 (-1.36%)', 'TSLA': '+3.50 (+1.43%)' };
+      document.getElementById('stock-price').textContent = prices[v] || '';
+      document.getElementById('stock-change').textContent = changes[v] || '';
+      renderChart();
+    }
+
+    // ── ECharts render ─────────────────────────────
+    let chart;
+    function renderChart() {
+      if (!chart) return;
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const textColor = isDark ? '#c5c2bc' : '#444240';
+      const gridColor = isDark ? '#2c2a26' : '#e6e3de';
+      const bgColor = isDark ? '#1c1b19' : '#ffffff';
+
+      const series = [
+        {
+          name: 'K線',
+          type: 'candlestick',
+          data: mockData.kline,
+          itemStyle: {
+            color: '#16a34a', color0: '#dc2626',
+            borderColor: '#16a34a', borderColor0: '#dc2626'
+          }
+        }
+      ];
+
+      const maData = { MA5: mockData.ma5, MA20: mockData.ma20, MA60: mockData.ma60, MA120: mockData.ma120, MA240: mockData.ma240 };
+      Object.entries(maData).forEach(([name, data]) => {
+        if (!maVisible[name]) return;
+        series.push({
+          name, type: 'line', data,
+          smooth: true, symbol: 'none',
+          lineStyle: { color: maColors[name], width: 1.5 },
+          z: 3
+        });
+      });
+
+      // Mock alert markPoints
+      const markPoints = [
+        { coord: [mockData.dates.length - 1, mockData.kline[mockData.kline.length - 1][1]], value: '突破', symbol: 'triangle', symbolSize: 16, symbolOffset: [0, -20], label: { show: true, formatter: '▲', color: '#16a34a', fontSize: 13 }, itemStyle: { color: 'transparent', borderColor: 'transparent' } },
+        { coord: [Math.floor(mockData.dates.length * 0.7), mockData.kline[Math.floor(mockData.dates.length * 0.7)][1]], value: '跌破', symbol: 'triangle', symbolSize: 16, symbolOffset: [0, 20], label: { show: true, formatter: '▼', color: '#dc2626', fontSize: 13 }, itemStyle: { color: 'transparent', borderColor: 'transparent' } },
+      ];
+
+      series[0].markPoint = { silent: true, data: markPoints };
+
+      chart.setOption({
+        backgroundColor: bgColor,
+        grid: { left: 60, right: 20, top: 16, bottom: 56 },
+        xAxis: { type: 'category', data: mockData.dates, boundaryGap: true, axisLine: { lineStyle: { color: gridColor } }, axisLabel: { color: textColor, fontSize: 10 }, splitLine: { show: false } },
+        yAxis: { scale: true, splitLine: { lineStyle: { color: gridColor, type: 'dashed' } }, axisLabel: { color: textColor, fontSize: 10 }, axisLine: { lineStyle: { color: gridColor } } },
+        dataZoom: [
+          { type: 'inside', start: 60, end: 100 },
+          { type: 'slider', start: 60, end: 100, height: 24, bottom: 4, textStyle: { color: textColor }, handleStyle: { color: '#8f6413' }, fillerColor: 'rgba(143,100,19,0.12)', borderColor: gridColor }
+        ],
+        tooltip: {
+          trigger: 'axis', axisPointer: { type: 'cross' },
+          backgroundColor: isDark ? '#1c1b19' : '#fff',
+          borderColor: isDark ? '#323027' : '#e6e3de',
+          textStyle: { color: textColor, fontSize: 11 }
+        },
+        series
+      }, true);
+    }
+
+    // ── MA Table ───────────────────────────────────
+    function renderMATable() {
+      const lastKline = mockData.kline[mockData.kline.length - 1];
+      const close = lastKline[1];
+      const rows = [
+        { name: 'MA5',   color: '#e86b00', val: mockData.ma5[mockData.ma5.length - 1],   prev: mockData.ma5[mockData.ma5.length - 2] },
+        { name: 'MA20',  color: '#2563eb', val: mockData.ma20[mockData.ma20.length - 1],  prev: mockData.ma20[mockData.ma20.length - 2] },
+        { name: 'MA60',  color: '#16a34a', val: mockData.ma60[mockData.ma60.length - 1],  prev: mockData.ma60[mockData.ma60.length - 2] },
+        { name: 'MA120', color: '#9333ea', val: mockData.ma120[mockData.ma120.length - 1], prev: mockData.ma120[mockData.ma120.length - 2] },
+        { name: 'MA240', color: '#dc2626', val: mockData.ma240[mockData.ma240.length - 1], prev: mockData.ma240[mockData.ma240.length - 2] },
+      ];
+      document.getElementById('ma-table').innerHTML = rows.map(r => {
+        const bias = ((close - r.val) / r.val * 100).toFixed(2);
+        const biasColor = Number(bias) > 0 ? 'var(--green)' : 'var(--red)';
+        const slope = r.val > r.prev ? '↑ 上升' : '↓ 下降';
+        const slopeColor = r.val > r.prev ? 'var(--green)' : 'var(--red)';
+        return `
+          <tr style="border-top:1px solid var(--surface-border);">
+            <td style="padding:0.6rem 1rem;display:flex;align-items:center;gap:0.5rem;">
+              <span style="width:12px;height:12px;border-radius:50%;background:${r.color};display:inline-block;flex-shrink:0;"></span>
+              <strong style="color:${r.color};">${r.name}</strong>
+            </td>
+            <td style="padding:0.6rem 1rem;text-align:right;font-weight:700;color:var(--text-primary);">$${r.val.toFixed(1)}</td>
+            <td style="padding:0.6rem 1rem;text-align:right;font-weight:700;color:${biasColor};">${Number(bias) > 0 ? '+' : ''}${bias}%</td>
+            <td style="padding:0.6rem 1rem;text-align:right;font-size:0.78rem;color:${slopeColor};font-weight:700;">${slope}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    // ── Recent markers sidebar ─────────────────────
+    function renderMarkers() {
+      const alerts = MOCK_ALERTS.slice(0, 3);
+      document.getElementById('recent-markers').innerHTML = alerts.map(a => {
+        const bull = isBullish(a);
+        const dir = DIRECTION_META[a.direction] || {};
+        return `
+          <div class="marker-item">
+            <div class="marker-icon ${bull ? 'bull' : 'bear'}">${dir.icon || (bull ? '▲' : '▼')}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:0.4rem;">
+                <span style="font-size:0.85rem;font-weight:700;color:var(--text-primary);">${a.stock_id}</span>
+                <span class="tag ${a.market === 'tw' ? 'tag-tw' : 'tag-us'}" style="font-size:0.65rem;">${a.market.toUpperCase()}</span>
+              </div>
+              <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.strategy_name}</div>
+              <div style="font-size:0.68rem;color:var(--text-muted);">${formatDate(a.timestamp)}</div>
+            </div>
+            <span class="tag ${a.signal_strength === 'strong' ? 'tag-strong' : a.signal_strength === 'moderate' ? 'tag-moderate' : 'tag-weak'}" style="font-size:0.65rem;">
+              ${a.signal_strength === 'strong' ? '強' : a.signal_strength === 'moderate' ? '中' : '弱'}
+            </span>
+          </div>`;
+      }).join('');
+    }
+
+    // ── Init ───────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      chart = echarts.init(document.getElementById('kline-chart'), isDark ? 'dark' : null);
+      renderChart();
+      renderMATable();
+      renderMarkers();
+      window.addEventListener('resize', () => chart && chart.resize());
+
+      // Re-render chart on theme change
+      const observer = new MutationObserver(() => {
+        if (chart) {
+          chart.dispose();
+          const isDarkNow = document.documentElement.getAttribute('data-theme') === 'dark';
+          chart = echarts.init(document.getElementById('kline-chart'), isDarkNow ? 'dark' : null);
+          renderChart();
+        }
+      });
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    });
+  </script>
+</body>
+</html>

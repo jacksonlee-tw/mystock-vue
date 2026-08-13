@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyStock — 籌碼選股警示系統 Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .welcome-card {
+      max-width: 660px;
+      margin: 5rem auto 0;
+      text-align: center;
+      padding: 3rem 2rem;
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+    }
+    .welcome-card h1 {
+      font-size: 1.75rem;
+      font-weight: 900;
+      color: var(--text-primary);
+      margin-bottom: 0.4rem;
+      letter-spacing: -0.5px;
+    }
+    .welcome-card .subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 2rem;
+    }
+    .page-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .page-link {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding: 1.25rem 1.25rem;
+      background: var(--surface-hover);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.2s;
+    }
+    .page-link:hover {
+      border-color: var(--brass);
+      background: var(--brass-light);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(143,100,19,0.12);
+    }
+    .page-link .plink-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 9px;
+      background: var(--brass-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      color: var(--brass);
+      border: 1px solid var(--brass-border);
+    }
+    .page-link .link-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-top: 0.1rem;
+    }
+    .page-link .link-desc {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">籌碼選股警示系統</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="toggleTheme()" title="切換深色模式">
+        <i class="pi pi-moon" id="theme-icon"></i>
+      </button>
+    </div>
+  </header>
+
+  <main style="padding-top: 64px;">
+    <div class="welcome-card">
+      <div style="width:56px;height:56px;border-radius:14px;background:var(--brass-light);border:1px solid var(--brass-border);display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:var(--brass);margin:0 auto 1.25rem;">
+        <i class="pi pi-bell"></i>
+      </div>
+      <h1>籌碼選股警示系統</h1>
+      <p class="subtitle">追蹤三大法人與信用交易，洞悉主力動向與籌碼流向<br>Phase 4 · 策略層與警示系統 UI 原型 — 2026-08-11</p>
+
+      <div class="page-grid">
+        <a href="alerts.html" class="page-link">
+          <div class="plink-icon"><i class="pi pi-exclamation-triangle"></i></div>
+          <div class="link-title">特殊籌碼警示</div>
+          <div class="link-desc">底部洗盤、高檔軋空與高檔出貨等型態的即時警示。</div>
+        </a>
+        <a href="strategy-settings.html" class="page-link">
+          <div class="plink-icon"><i class="pi pi-filter"></i></div>
+          <div class="link-title">策略與選股池設定</div>
+          <div class="link-desc">70/30 核心衛星配置，設定選股池與動態市值規則。</div>
+        </a>
+        <a href="stock-chart.html" class="page-link">
+          <div class="plink-icon"><i class="pi pi-chart-bar"></i></div>
+          <div class="link-title">K 線圖（增強版）</div>
+          <div class="link-desc">策略觸發點位標記、多均線切換、後端 MA 數值</div>
+        </a>
+        <a href="scan-result.html" class="page-link">
+          <div class="plink-icon"><i class="pi pi-search"></i></div>
+          <div class="link-title">每日選股掃描</div>
+          <div class="link-desc">查看外資大型權值股與投信作帳中小型股的掃描結果。</div>
+        </a>
+      </div>
+
+      <p style="font-size:0.75rem;color:var(--text-muted);margin-top:1.75rem;">
+        <i class="pi pi-info-circle" style="margin-right:4px;"></i>所有資料皆為 Mock 資料，僅供 UI 原型評估使用
+      </p>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+</body>
+</html>

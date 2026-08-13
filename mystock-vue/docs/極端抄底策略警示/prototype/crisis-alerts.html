@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>極端警示儀表板 — MyStock Crisis Alpha</title>
+  <meta name="description" content="極端抄底策略警示清單，顯示大盤環境背景、三道防線通過狀態與停損規則。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    /* ── Market context banner ───── */
+    .mkt-banner {
+      background: var(--crisis-light);
+      border: 1px solid var(--crisis-border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .mkt-banner-label {
+      font-size: 0.72rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.6px;
+      color: var(--crisis);
+      white-space: nowrap;
+    }
+    .mkt-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .mkt-stat-val { font-size: 1.2rem; font-weight: 900; line-height: 1; }
+    .mkt-stat-key { font-size: 0.68rem; color: var(--text-muted); font-weight: 500; }
+    .mkt-divider { width: 1px; height: 32px; background: var(--crisis-border); flex-shrink: 0; }
+    .awakened-reason {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 4px 10px;
+      background: var(--crisis);
+      color: #fff;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      margin-left: auto;
+    }
+
+    /* ── KPI strip ───────────────── */
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.9rem;
+      margin-bottom: 1.25rem;
+    }
+    .kpi-card {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 11px;
+      padding: 0.9rem 1.1rem;
+      display: flex; align-items: center; gap: 0.85rem;
+    }
+    .kpi-icon {
+      width: 38px; height: 38px;
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; flex-shrink: 0;
+    }
+    .kpi-label { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); line-height: 1; }
+    .kpi-val   { font-size: 1.4rem; font-weight: 900; color: var(--text-primary); line-height: 1.1; }
+    .kpi-sub   { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── Page layout ─────────────── */
+    .page-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 1.25rem;
+      align-items: start;
+    }
+
+    /* ── Filter sidebar ──────────── */
+    .filter-panel {
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 1.1rem;
+      position: sticky;
+      top: calc(56px + 1.25rem);
+    }
+    .filter-sec-title {
+      font-size: 0.68rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.7px;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem; margin-top: 0.9rem;
+    }
+    .filter-sec-title:first-child { margin-top: 0; }
+    .filter-opt {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.32rem 0.45rem;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 0.8rem; color: var(--text-secondary); font-weight: 500;
+      transition: background 0.12s;
+    }
+    .filter-opt:hover { background: var(--surface-hover); }
+    .filter-opt.sel { background: var(--crisis-light); color: var(--crisis); font-weight: 700; }
+    .filter-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.7; flex-shrink: 0; }
+    .filter-cnt { margin-left: auto; font-size: 0.68rem; font-weight: 700; color: var(--text-muted); background: var(--surface-hover); border-radius: 100px; padding: 1px 6px; }
+
+    /* ── Crisis alert card ───────── */
+    .crisis-card {
+      background: var(--surface-card);
+      border: 1px solid var(--crisis-border);
+      border-left: 3px solid var(--crisis);
+      border-radius: 12px;
+      margin-bottom: 0.85rem;
+      overflow: hidden;
+      box-shadow: var(--shadow-crisis);
+      transition: box-shadow 0.2s;
+    }
+    .crisis-card:hover { box-shadow: 0 6px 24px rgba(201,22,31,0.2); }
+    .crisis-card.rejected {
+      border-color: var(--surface-border);
+      border-left-color: var(--text-muted);
+      box-shadow: var(--shadow-sm);
+      opacity: 0.7;
+    }
+    .crisis-card.rejected:hover { box-shadow: var(--shadow-md); opacity: 0.85; }
+
+    .cc-header {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.85rem 1.05rem;
+      cursor: pointer;
+    }
+    .cc-scenario-icon {
+      width: 36px; height: 36px;
+      border-radius: 9px;
+      background: var(--crisis-light);
+      border: 1px solid var(--crisis-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    .cc-scenario-icon.rejected { background: var(--surface-hover); border-color: var(--surface-border); }
+    .cc-info { flex: 1; min-width: 0; }
+    .cc-stock {
+      display: flex; align-items: baseline; gap: 0.45rem; flex-wrap: wrap;
+    }
+    .cc-stock-id   { font-size: 1.05rem; font-weight: 900; color: var(--text-primary); letter-spacing: -0.3px; }
+    .cc-stock-name { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; }
+    .cc-scenario-name { font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px; }
+    .cc-meta {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem; flex-shrink: 0;
+    }
+    .cc-time { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; }
+    .cc-tags { display: flex; gap: 0.28rem; flex-wrap: wrap; justify-content: flex-end; }
+    .expand-icon { color: var(--text-muted); font-size: 0.72rem; transition: transform 0.2s; flex-shrink: 0; }
+    .expand-icon.open { transform: rotate(180deg); }
+
+    /* ── Detail panel ────────────── */
+    .cc-detail {
+      border-top: 1px solid var(--crisis-border);
+      padding: 1rem 1.05rem;
+      display: none;
+    }
+    .cc-detail.open { display: block; }
+    .cc-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.6rem;
+      margin-bottom: 0.85rem;
+    }
+    .cc-di { display: flex; flex-direction: column; gap: 2px; }
+    .cc-di-label { font-size: 0.68rem; font-weight: 600; color: var(--text-muted); }
+    .cc-di-value { font-size: 0.86rem; font-weight: 700; color: var(--text-primary); }
+    .cc-di-value.crisis { color: var(--crisis); }
+    .cc-di-value.good   { color: var(--green); }
+
+    /* ── Guardrails ──────────────── */
+    .guardrails-wrap { margin-bottom: 0.85rem; }
+    .guardrails-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 0.4rem; }
+
+    /* ── Rejected notice ─────────── */
+    .rejected-notice {
+      display: flex; align-items: flex-start; gap: 0.5rem;
+      padding: 0.65rem 0.85rem;
+      background: var(--surface-hover);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+    }
+    .rejected-notice i { color: var(--text-muted); margin-top: 2px; flex-shrink: 0; }
+    .rejected-notice span { font-size: 0.78rem; color: var(--text-secondary); }
+
+    /* ── Detail actions ──────────── */
+    .cc-actions { display: flex; gap: 0.45rem; margin-top: 0.75rem; flex-wrap: wrap; }
+
+    /* ── Date group ──────────────── */
+    .date-label {
+      font-size: 0.7rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 0.55rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .date-label::after { content: ''; flex: 1; height: 1px; background: var(--surface-border); }
+    .timeline-group { margin-bottom: 1.25rem; }
+
+    /* ── Responsive ──────────────── */
+    @media (max-width: 860px) { .page-layout { grid-template-columns: 1fr; } .filter-panel { position: static; } }
+    @media (max-width: 640px) { .kpi-strip { grid-template-columns: 1fr 1fr; } .cc-detail-grid { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="topbar crisis-active">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">極端抄底策略警示</span>
+    </div>
+    <nav class="topbar-nav hide-mobile">
+      <a href="index.html" class="nav-link crisis-nav"><i class="pi pi-home"></i> 首頁</a>
+      <a href="crisis-alerts.html" class="nav-link crisis-nav active"><i class="pi pi-bell"></i> 警示</a>
+      <a href="module-status.html" class="nav-link crisis-nav"><i class="pi pi-server"></i> 模組狀態</a>
+      <a href="crisis-settings.html" class="nav-link crisis-nav"><i class="pi pi-shield"></i> 策略設定</a>
+      <a href="integrated-alerts.html" class="nav-link"><i class="pi pi-list"></i> 整合警示</a>
+    </nav>
+    <div class="topbar-actions">
+      <span class="module-status awakened" data-module-status>
+        <span class="module-status-dot"></span>已喚醒 · 掃描中
+      </span>
+      <button class="btn btn-kill btn-sm hide-mobile" data-kill-btn onclick="activateKillSwitch()">☠ 緊急停止 Kill Switch</button>
+      <button class="icon-btn" onclick="toggleTheme()"><i class="pi pi-moon" id="theme-icon"></i></button>
+    </div>
+  </header>
+
+  <!-- Kill switch activated bar -->
+  <div class="kill-switch-bar" id="kill-bar" style="display:none;position:fixed;top:56px;left:0;right:0;z-index:95;background:#18181b;color:#fff;padding:0.5rem 1.5rem;font-size:0.8rem;font-weight:700;text-align:center;border-bottom:2px solid var(--crisis);">
+    ⚫ Kill Switch 已啟動 — 所有下單功能已暫停。
+  </div>
+
+  <main class="page-main">
+    <div class="content-wrap">
+
+      <!-- Page title -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <div>
+          <h1 style="font-size:1.2rem;font-weight:900;color:var(--text-primary);letter-spacing:-0.3px;display:flex;align-items:center;gap:0.5rem;">
+            🔴 極端警示儀表板
+          </h1>
+          <p style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">
+            <i class="pi pi-clock" style="margin-right:3px;font-size:0.7rem;"></i>掃描時間：2026-08-11 13:30 · 盤中觸發
+          </p>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <a href="module-status.html" class="btn btn-ghost btn-sm hide-mobile"><i class="pi pi-server"></i> 模組狀態</a>
+          <button class="btn btn-crisis btn-sm" onclick="alert('模擬：手動觸發掃描完成，共掃描 10 檔，新增 3 筆警示')"><i class="pi pi-search"></i> 手動掃描</button>
+        </div>
+      </div>
+
+      <!-- Market context banner -->
+      <div class="mkt-banner">
+        <div class="mkt-banner-label">🌊 大盤環境</div>
+        <div class="mkt-divider hide-mobile"></div>
+        <div class="mkt-stat">
+          <span class="mkt-stat-val" style="color:var(--crisis);">−4.2%</span>
+          <span class="mkt-stat-key">加權指數日跌幅</span>
+        </div>
+        <div class="mkt-divider hide-mobile"></div>
+        <div class="mkt-stat">
+          <span class="mkt-stat-val" style="color:var(--crisis);">−9.5%</span>
+          <span class="mkt-stat-key">大盤 20MA 乖離</span>
+        </div>
+        <div class="mkt-divider hide-mobile"></div>
+        <div class="mkt-stat">
+          <span class="mkt-stat-val" style="color:var(--amber);">19,245</span>
+          <span class="mkt-stat-key">加權指數收盤</span>
+        </div>
+        <div class="awakened-reason hide-mobile">
+          <i class="pi pi-exclamation-triangle" style="font-size:0.7rem;"></i> 市場恐慌：大盤跌幅觸發喚醒門檻
+        </div>
+      </div>
+
+      <!-- KPI strip -->
+      <div class="kpi-strip">
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--crisis-light);border:1px solid var(--crisis-border);color:var(--crisis);"><i class="pi pi-bell"></i></div>
+          <div><div class="kpi-label">今日極端警示</div><div class="kpi-val" style="color:var(--crisis);">3</div><div class="kpi-sub">含 1 筆被防線攔截</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--green-light);color:var(--green);"><i class="pi pi-check-circle"></i></div>
+          <div><div class="kpi-label">通過所有防線</div><div class="kpi-val" style="color:var(--green);">3</div><div class="kpi-sub">可供評估執行</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--red-light);color:var(--red);"><i class="pi pi-times-circle"></i></div>
+          <div><div class="kpi-label">防線攔截</div><div class="kpi-val" style="color:var(--red);">1</div><div class="kpi-sub">流動性不足，拒絕</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--amber-light);color:var(--amber);"><i class="pi pi-shield"></i></div>
+          <div><div class="kpi-label">資金使用</div><div class="kpi-val">0%</div><div class="kpi-sub">上限 5% / NT$30K/筆</div></div>
+        </div>
+      </div>
+
+      <!-- Main layout -->
+      <div class="page-layout">
+        <!-- Filter sidebar -->
+        <aside>
+          <div class="filter-panel">
+            <div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);margin-bottom:0.9rem;">篩選條件</div>
+
+            <div class="filter-sec-title">警示狀態</div>
+            <div id="filter-status">
+              <div class="filter-opt sel" data-val="all" onclick="setFilter('status','all',this)"><span class="filter-dot" style="background:var(--crisis);"></span>全部<span class="filter-cnt">4</span></div>
+              <div class="filter-opt" data-val="valid" onclick="setFilter('status','valid',this)"><span class="filter-dot" style="background:var(--green);"></span>通過防線<span class="filter-cnt">3</span></div>
+              <div class="filter-opt" data-val="rejected" onclick="setFilter('status','rejected',this)"><span class="filter-dot" style="background:var(--text-muted);"></span>防線攔截<span class="filter-cnt">1</span></div>
+            </div>
+
+            <div class="filter-sec-title">觸發情境</div>
+            <div id="filter-scenario">
+              <div class="filter-opt sel" data-val="all" onclick="setFilter('scenario','all',this)"><span class="filter-dot"></span>全部情境</div>
+              <div class="filter-opt" data-val="limit_down_opened" onclick="setFilter('scenario','limit_down_opened',this)"><span class="filter-dot" style="background:var(--crisis);"></span>情境 A：跌停打開</div>
+              <div class="filter-opt" data-val="extreme_negative_bias" onclick="setFilter('scenario','extreme_negative_bias',this)"><span class="filter-dot" style="background:var(--amber);"></span>情境 B：極端負乖離</div>
+              <div class="filter-opt" data-val="margin_call_washout" onclick="setFilter('scenario','margin_call_washout',this)"><span class="filter-dot" style="background:var(--blue);"></span>情境 C：融資斷頭</div>
+            </div>
+
+            <div class="filter-sec-title">訊號強度</div>
+            <div id="filter-strength">
+              <div class="filter-opt sel" data-val="all" onclick="setFilter('strength','all',this)"><span class="filter-dot"></span>全部</div>
+              <div class="filter-opt" data-val="strong" onclick="setFilter('strength','strong',this)"><span class="filter-dot" style="background:var(--green);"></span>強 Strong</div>
+              <div class="filter-opt" data-val="moderate" onclick="setFilter('strength','moderate',this)"><span class="filter-dot" style="background:var(--amber);"></span>中 Moderate</div>
+              <div class="filter-opt" data-val="weak" onclick="setFilter('strength','weak',this)"><span class="filter-dot" style="background:var(--text-muted);"></span>弱 Weak</div>
+            </div>
+
+            <div style="margin-top:1rem;padding-top:0.9rem;border-top:1px solid var(--surface-border);">
+              <button class="btn btn-ghost btn-sm" style="width:100%;" onclick="resetFilters()"><i class="pi pi-refresh"></i> 重置篩選</button>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Alert timeline -->
+        <section>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85rem;flex-wrap:wrap;gap:0.5rem;">
+            <div id="count-label" style="font-size:0.82rem;font-weight:700;color:var(--text-primary);">顯示 4 筆警示</div>
+            <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.75rem;color:var(--text-muted);cursor:pointer;">
+              <input type="checkbox" id="show-rejected" onchange="render()" style="accent-color:var(--crisis);"> 顯示被攔截的警示
+            </label>
+          </div>
+          <div id="timeline-container"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    const filters = { status: 'all', scenario: 'all', strength: 'all' };
+
+    function setFilter(dim, val, el) {
+      filters[dim] = val;
+      el.parentElement.querySelectorAll('.filter-opt').forEach(o => o.classList.toggle('sel', o.dataset.val === val));
+      render();
+    }
+    function resetFilters() {
+      Object.keys(filters).forEach(k => filters[k] = 'all');
+      document.querySelectorAll('.filter-opt').forEach(o => o.classList.toggle('sel', o.dataset.val === 'all'));
+      render();
+    }
+
+    function applyFilters() {
+      const showRejected = document.getElementById('show-rejected')?.checked ?? true;
+      return CRISIS_ALERTS.filter(a => {
+        if (!showRejected && a.rejected) return false;
+        if (filters.status === 'valid'    && a.rejected)  return false;
+        if (filters.status === 'rejected' && !a.rejected) return false;
+        if (filters.scenario !== 'all' && a.scenario !== filters.scenario) return false;
+        if (filters.strength !== 'all' && a.signal_strength !== filters.strength) return false;
+        return true;
+      });
+    }
+
+    const GUARDRAIL_LABELS = {
+      universe_filter: { label: '白名單過濾', desc: '標的屬於大型權值股', icon: '🏛' },
+      liquidity_check: { label: '流動性確認', desc: '成交量 ≥ 20日均量 × 2×', icon: '💧' },
+    };
+    const STRENGTH_MAP = { strong: 'tag-strong', moderate: 'tag-moderate', weak: 'tag-weak' };
+    const STRENGTH_LABEL = { strong: '強訊號', moderate: '中訊號', weak: '弱訊號' };
+
+    function crisisCardHTML(a) {
+      const passed = a.guardrails_passed || [];
+      const failed = a.guardrails_failed || [];
+      const allGuardrails = ['universe_filter', 'liquidity_check'];
+
+      const guardHTML = allGuardrails.map(g => {
+        const isPassed = passed.includes(g);
+        const info = GUARDRAIL_LABELS[g] || { label: g, desc: '', icon: '🔒' };
+        return `<div class="guardrail-row">
+          <div class="guardrail-icon ${isPassed ? 'pass' : 'fail'}">
+            ${isPassed ? '<i class="pi pi-check" style="font-size:0.65rem;"></i>' : '<i class="pi pi-times" style="font-size:0.65rem;"></i>'}
+          </div>
+          <div>
+            <div class="guardrail-label">${info.icon} ${info.label}</div>
+            <div class="guardrail-value">${info.desc}</div>
+          </div>
+          <div class="hardcode-badge">Hardcode</div>
+        </div>`;
+      }).join('');
+
+      const d = a.details;
+      const detailItems = [];
+      if (d.close != null)      detailItems.push({ k: '收盤價', v: `$${d.close.toLocaleString()}` });
+      if (d.limit_down_price)   detailItems.push({ k: '跌停價', v: `$${d.limit_down_price}`, cls: 'crisis' });
+      if (d.bias_20_percent != null) detailItems.push({ k: '月線乖離', v: `${d.bias_20_percent}%`, cls: 'crisis' });
+      if (d.bias_60_percent != null) detailItems.push({ k: '季線乖離', v: `${d.bias_60_percent}%`, cls: 'crisis' });
+      if (d.volume_ratio != null)    detailItems.push({ k: '量比（20日均）', v: `${d.volume_ratio}× 均量` });
+      if (d.margin_change_3d_percent != null) detailItems.push({ k: '融資 3 日變化', v: `${d.margin_change_3d_percent}%`, cls: 'crisis' });
+      if (d.institutional_net_buy != null)    detailItems.push({ k: '法人今日買超', v: `${d.institutional_net_buy.toLocaleString()} 張`, cls: 'good' });
+
+      const detailGridHTML = detailItems.map(item => `
+        <div class="cc-di">
+          <div class="cc-di-label">${item.k}</div>
+          <div class="cc-di-value ${item.cls||''}">${item.v}</div>
+        </div>`).join('');
+
+      const stopLossHTML = a.stop_loss ? `
+        <div class="stop-loss-box" style="margin-bottom:0.85rem;">
+          <div class="sl-title"><i class="pi pi-shield" style="font-size:0.7rem;"></i> 停損規則（不可違反 · Hardcode）</div>
+          <div class="stop-loss-row"><span class="sl-key">價格停損</span><span class="sl-value">$${a.stop_loss.price_stop} (T 日最低價)</span></div>
+          <div class="stop-loss-row"><span class="sl-key">時間停損</span><span class="sl-value">${a.stop_loss.time_stop_days} 交易日無 +${a.stop_loss.time_stop_target_percent}% 反彈 → 平倉</span></div>
+          ${a.capital ? `<div class="stop-loss-row"><span class="sl-key">資金限制</span><span class="sl-value">${a.capital.order_type} · 單筆 ≤ NT$${a.capital.max_order_ntd.toLocaleString()}</span></div>` : ''}
+        </div>` : '';
+
+      const suggestHTML = a.suggested_action ? `
+        <div style="background:var(--surface-hover);border:1px solid var(--surface-border);border-radius:8px;padding:0.6rem 0.8rem;font-size:0.78rem;color:var(--text-secondary);display:flex;align-items:flex-start;gap:0.4rem;margin-bottom:0.75rem;">
+          <span style="color:var(--amber);margin-top:1px;flex-shrink:0;">⚠️</span>
+          <span>${a.suggested_action}</span>
+        </div>` : '';
+
+      const rejectedHTML = a.rejected ? `
+        <div class="rejected-notice">
+          <i class="pi pi-ban"></i>
+          <span><strong>被防線攔截</strong>：${a.rejected_reason}</span>
+        </div>` : '';
+
+      const actionsHTML = !a.rejected ? `
+        <div class="cc-actions">
+          <button class="btn btn-crisis btn-sm" onclick="alert('模擬：跳轉至 K 線圖 ${a.stock_id}')"><i class="pi pi-chart-bar"></i> 查看 K 線圖</button>
+          <button class="btn btn-ghost btn-sm" onclick="alert('模擬：加入觀察清單')"><i class="pi pi-bookmark"></i> 觀察清單</button>
+          <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="alert('模擬：略過此警示')"><i class="pi pi-times"></i> 略過</button>
+        </div>` : '';
+
+      const ctxLine = a.market_context;
+      const ctxHTML = `
+        <div class="mkt-context" style="margin-bottom:0.85rem;">
+          <div class="mkt-item"><span class="mkt-key">大盤：</span><span class="mkt-val">${ctxLine.index_change_percent}%</span></div>
+          <div class="mkt-item"><span class="mkt-key">20MA乖：</span><span class="mkt-val">${ctxLine.index_bias_20}%</span></div>
+          <div class="mkt-item"><span class="mkt-key">喚醒原因：</span><span class="mkt-val" style="font-size:0.72rem;">${ctxLine.awakened_label}</span></div>
+        </div>`;
+
+      return `
+      <div class="crisis-card ${a.rejected ? 'rejected' : ''}" id="${a.id}">
+        <div class="cc-header" onclick="toggleDetail('${a.id}')">
+          <div class="cc-scenario-icon ${a.rejected ? 'rejected' : ''}">${a.scenario_icon}</div>
+          <div class="cc-info">
+            <div class="cc-stock">
+              <span class="cc-stock-id">${a.stock_id}</span>
+              <span class="cc-stock-name">${a.stock_name}</span>
+              <span class="tag tag-tw">TW</span>
+              ${a.rejected ? '<span class="tag tag-neu">已攔截</span>' : '<span class="tag tag-crisis">CRITICAL</span>'}
+            </div>
+            <div class="cc-scenario-name">${a.scenario_label}</div>
+          </div>
+          <div class="cc-meta">
+            <span class="cc-time"><i class="pi pi-clock" style="font-size:0.6rem;margin-right:2px;"></i>${formatDate(a.timestamp)} ${formatTime(a.timestamp)}</span>
+            <div class="cc-tags">
+              <span class="tag ${STRENGTH_MAP[a.signal_strength]}">${STRENGTH_LABEL[a.signal_strength]}</span>
+            </div>
+          </div>
+          <i class="pi pi-chevron-down expand-icon" id="exp-${a.id}"></i>
+        </div>
+        <div class="cc-detail" id="det-${a.id}">
+          ${ctxHTML}
+          ${rejectedHTML}
+          <div class="cc-detail-grid">${detailGridHTML}</div>
+          <div class="guardrails-wrap">
+            <div class="guardrails-title">三道防線狀態</div>
+            ${guardHTML}
+          </div>
+          ${stopLossHTML}
+          ${suggestHTML}
+          ${actionsHTML}
+        </div>
+      </div>`;
+    }
+
+    function toggleDetail(id) {
+      document.getElementById('det-'+id).classList.toggle('open');
+      document.getElementById('exp-'+id).classList.toggle('open');
+    }
+
+    function render() {
+      const filtered = applyFilters();
+      document.getElementById('count-label').textContent = `顯示 ${filtered.length} 筆警示`;
+
+      if (!filtered.length) {
+        document.getElementById('timeline-container').innerHTML = `
+          <div style="text-align:center;padding:4rem 2rem;color:var(--text-muted);">
+            <i class="pi pi-filter-slash" style="font-size:2.5rem;display:block;margin-bottom:1rem;"></i>
+            <p style="font-size:0.85rem;">目前篩選條件下無警示資料</p>
+          </div>`;
+        return;
+      }
+
+      const groups = {};
+      filtered.forEach(a => {
+        const d = formatDate(a.timestamp);
+        if (!groups[d]) groups[d] = [];
+        groups[d].push(a);
+      });
+      const today = '2026-08-11', yesterday = '2026-08-10';
+      const dateLabel = d => d === today ? `今天 ${d}` : d === yesterday ? `昨天 ${d}` : d;
+
+      let html = '';
+      Object.keys(groups).sort((a,b) => b.localeCompare(a)).forEach(date => {
+        html += `<div class="timeline-group">
+          <div class="date-label">${dateLabel(date)}</div>
+          ${groups[date].map(crisisCardHTML).join('')}
+        </div>`;
+      });
+      document.getElementById('timeline-container').innerHTML = html;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      setModuleState('awakened');
+      render();
+      // Show rejected by default
+      document.getElementById('show-rejected').checked = true;
+    });
+  </script>
+</body>
+</html>
