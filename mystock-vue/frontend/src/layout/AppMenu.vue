@@ -11,6 +11,7 @@ const model = computed(() => [
         items: [
             { label: '全市場個股動態熱力圖', icon: 'pi pi-fw pi-th-large', to: '/' },
             { label: '選股與圖表分析', icon: 'pi pi-fw pi-chart-line', to: '/stock/2330' },
+            { label: '策略警示看板', icon: 'pi pi-fw pi-bell', to: '/alerts' },
             { label: '股票與爬蟲管理', icon: 'pi pi-fw pi-cog', to: '/stocks', loading: isRunning.value }
         ]
     }

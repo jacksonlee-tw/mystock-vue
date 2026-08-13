@@ -17,12 +17,24 @@ logger = logging.getLogger("mystock-backend")
 TAIPEI_TZ = "Asia/Taipei"
 
 
+def _scan_after_fetch(market: str) -> None:
+    """盤後掃描（均線策略警示系統 設計文件 Phase 4a-7）：串接在每日抓取排程之後執行。
+    比照 db/dual_write.py 的容錯慣例 —— 掃描失敗只記警告，絕不讓爬蟲流程被拖垮。"""
+    try:
+        from strategies.scanner import scan_market_sync
+        result = scan_market_sync(market)
+        logger.info(f"[排程] {market} 策略掃描完成: {result}")
+    except Exception as e:
+        logger.warning(f"[排程] {market} 策略掃描失敗: {e}")
+
+
 def _run_if_idle(market: str, fetch_fn) -> None:
     """排程與手動觸發共用同一個 fetch_status 單例；有任務進行中就跳過本次，不排隊等待（見設計文件第 3.4 節）。"""
     if fetch_status.get_snapshot()["is_running"]:
         logger.info(f"[排程] 已有抓取任務進行中，跳過本次 {market} 排程")
         return
     fetch_fn(trigger_type="scheduled")
+    _scan_after_fetch(market)
 
 
 def _scheduled_tw() -> None:

@@ -7,12 +7,18 @@ from config import DATA_DIR, get_target_stocks, get_enabled_markets, get_data_so
 from services.fetcher import load_stock_json
 from db.mapping import daily_row_to_record
 from repositories.stock_repository import StockRepository
+from indicators.moving_average import compute_ma_set
 
 # 定義欄位分類 (已轉換為英文鍵名)
 SUM_FIELDS = [
     "foreign_buy_sell", "trust_buy_sell", "dealer_buy_sell", "institutional_total",
     "institutional_amount_est", "volume", "amount", "trades"
 ]
+
+# 均線策略警示系統 設計文件第 4 節「均線參數矩陣」的預設週期。獨立宣告於此（而非 import
+# strategies 套件），避免 services ↔ strategies 之間形成循環匯入（strategies/chip_provider.py
+# 本身就是靠呼叫 stock_service 取資料）。
+MA_PERIODS = [5, 10, 20, 60, 120, 240]
 
 END_FIELDS = ["margin_balance", "short_balance"]  # 餘額類欄位，0 是合法值，直接採最後一筆
 PRICE_END_FIELDS = ["close"]  # 收盤價 0 代表當天未回補到行情，須排除，改採最後一筆「有效」值
@@ -87,7 +93,12 @@ async def discover_available_stocks() -> List[Dict[str, Any]]:
                 sorted_dates = sorted(data.keys())
                 latest_date = sorted_dates[-1]
                 latest_record = data[latest_date]
-                stock_name = latest_record.get("name", stock_id)
+                # 最新一天常常只回補到行情、三大法人資料尚未到齊（見 aggregate_stock_data 附近註解），
+                # 此時當天記錄不會有 name 欄位；往前找最近一筆有 name 的記錄，避免清單顯示代號取代公司名稱。
+                stock_name = next(
+                    (data[d]["name"] for d in reversed(sorted_dates) if data[d].get("name")),
+                    stock_id,
+                )
                 close_price = latest_record.get("close", 0.0)
 
                 stocks.append({
@@ -288,6 +299,11 @@ async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: 
     start_date = dates[0] if dates else ""
     end_date = dates[-1] if dates else ""
 
+    # 均線由後端統一計算，確保策略掃描（strategies/）與前端繪圖使用同一組數值，避免精度不一致
+    # （均線策略警示系統 設計文件第 6.1 節設計決策）。0 視為缺值（比照上方 kline_data 的處理）。
+    closes_for_ma = [r.get("close") or None for r in aggregated_records]
+    moving_averages = compute_ma_set(closes_for_ma, MA_PERIODS)
+
     return {
         "stock_id": stock_id,
         "stock_name": stock_name,
@@ -319,6 +335,7 @@ async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: 
             "dealer": latest.get("dealer_buy_sell", 0)
         },
         "kline": kline_data,
+        "moving_averages": moving_averages,
         "institutional": {
             "foreign": foreign,
             "trust": trust,

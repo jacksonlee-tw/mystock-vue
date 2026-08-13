@@ -1,0 +1,100 @@
+# 均線策略設定檔（均線策略警示系統 設計文件第 7 節）。
+# 修改這裡的參數不需要改程式碼即可生效（見設計文件 AC-7）；程式碼只負責解讀，不寫死任何均線天數或門檻。
+#
+# 原文件建議路徑是 config/strategies.yaml，但 backend 已有 config.py 模組，
+# 兩者會撞名，因此改放在 strategy_config/ 底下（見策略管理架構實作計畫的說明）。
+
+defaults:
+  ma_periods: [5, 10, 20, 60, 120, 240]
+  volume_ma_period: 5           # 均量計算天數
+  lookback_days: 1              # 排程掃描時，每次檢查最近幾天（手動 /alerts/scan 可覆寫，方便回填測試）
+  scan_frequency: "daily_close" # daily_close | intraday_15m（未來）
+
+strategies:
+  # ── 突破 / 跌破策略 ──────────────────────────
+  - id: "price_cross_ma"
+    name: "收盤價突破/跌破關鍵均線"
+    category: "technical"
+    enabled: true
+    markets: ["tw", "us"]
+    conditions:
+      - type: "price_cross"
+        target: "close"
+        ma_periods: [20, 60, 240]       # 僅監控月/季/年線
+        directions: ["cross_above", "cross_under"]
+    filters:
+      - type: "volume_confirm"
+        params: { multiple: 1.5 }
+      - type: "candlestick_confirm"
+        params: { body_ratio: 0.5 }
+
+  - id: "ma_golden_death_cross"
+    name: "均線黃金/死亡交叉"
+    category: "technical"
+    enabled: true
+    markets: ["tw", "us"]
+    conditions:
+      - type: "ma_cross"
+        pairs:
+          - { short: 5, long: 20 }
+          - { short: 20, long: 60 }
+          - { short: 60, long: 240 }
+
+  # ── 排列策略 ──────────────────────────────────
+  - id: "ma_alignment"
+    name: "均線多頭/空頭排列"
+    category: "technical"
+    enabled: true
+    markets: ["tw", "us"]
+    conditions:
+      - type: "alignment"
+        ma_periods: [5, 10, 20, 60]
+        require_slope: true               # 需同時判斷斜率方向
+
+  # ── 擠壓突破 ──────────────────────────────────
+  - id: "ma_squeeze_breakout"
+    name: "均線糾結突破"
+    category: "technical"
+    enabled: true
+    markets: ["tw", "us"]
+    conditions:
+      - type: "squeeze_breakout"
+        ma_periods: [5, 10, 20, 60]
+        squeeze_threshold: 0.02           # 極差 < 股價 × 2%
+        squeeze_min_days: 5
+    filters:
+      - type: "volume_confirm"
+        params: { multiple: 1.5 }
+
+  # ── 乖離率 ──────────────────────────────────
+  - id: "extreme_bias"
+    name: "乖離率過大警示"
+    category: "technical"
+    enabled: true
+    markets: ["tw", "us"]
+    conditions:
+      - type: "bias"
+        ma_period: 60
+        overbought_threshold: 25          # 正乖離 ≥ 25% → 超買
+        oversold_threshold: -15           # 負乖離 ≤ −15% → 超賣
+
+  # ── 回踩測試 ──────────────────────────────────
+  - id: "ma_pullback_support"
+    name: "均線回踩支撐"
+    category: "technical"
+    enabled: true
+    markets: ["tw", "us"]
+    conditions:
+      - type: "pullback"
+        ma_periods: [20, 60]
+        proximity_percent: 1.0            # 距離均線 ±1%
+        trend_lookback_days: 20           # 過去 N 天須在均線之上
+
+# ── 僅台股可用的濾網 ──────────────────────────
+filters_registry:
+  - id: "institutional_buy"
+    name: "法人買超濾網"
+    markets: ["tw"]
+    params:
+      lookback_days: 3
+      require: "foreign_or_trust_net_buy"

@@ -63,7 +63,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart, LineChart, CandlestickChart } from 'echarts/charts';
@@ -72,7 +72,8 @@ import {
   TooltipComponent,
   LegendComponent,
   GridComponent,
-  DataZoomComponent
+  DataZoomComponent,
+  MarkPointComponent
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 
@@ -80,6 +81,8 @@ import { useRouter } from 'vue-router';
 import { getUpDownColor } from '@/utils/marketColors';
 import { buildMovingAverageSeries } from '@/utils/movingAverage';
 import { chartExplanations } from '@/utils/chartExplanations';
+import { directionVisual, formatDirectionLabel } from '@/utils/alertDirection';
+import { alertApi } from '@/service/alertApi';
 import ChartExplanationBlock from '@/components/ChartExplanationBlock.vue';
 
 use([
@@ -91,7 +94,8 @@ use([
   TooltipComponent,
   LegendComponent,
   GridComponent,
-  DataZoomComponent
+  DataZoomComponent,
+  MarkPointComponent
 ]);
 
 const router = useRouter();
@@ -167,6 +171,49 @@ function goToDetail(chartType) {
 }
 
 const dates = computed(() => props.chartData?.dates || []);
+
+// K 線圖策略觸發標記（均線策略警示系統 設計文件第 9.2 節）。抓該檔近期警示，
+// 疊在 candlestick series 上；抓不到（尚未掃描過、API 失敗等）不影響原本圖表渲染。
+const stockAlerts = ref([]);
+
+async function loadStockAlerts() {
+  if (!props.stockId || !props.market) {
+    stockAlerts.value = [];
+    return;
+  }
+  try {
+    const res = await alertApi.getAlerts({ symbol: props.stockId, market: props.market, days: 400 });
+    stockAlerts.value = res.success ? res.data : [];
+  } catch {
+    stockAlerts.value = [];
+  }
+}
+
+watch([() => props.stockId, () => props.market], loadStockAlerts, { immediate: true });
+
+const alertMarkPoints = computed(() => {
+  const dateIndex = new Map(dates.value.map((d, i) => [d, i]));
+  return stockAlerts.value
+    .filter((a) => dateIndex.has(a.trade_date))
+    .map((a) => {
+      const idx = dateIndex.get(a.trade_date);
+      const candle = props.chartData?.kline?.[idx];
+      const visual = directionVisual(a.direction);
+      const bullish = visual.icon === 'pi-arrow-up';
+      // markPoint 座標值只是用來把圖標定位在 K 棒之上/之下，不影響數值座標軸範圍
+      const yValue = candle ? (bullish ? candle[3] : candle[2]) : null;
+      return {
+        name: `${a.strategy_name}：${formatDirectionLabel(a.direction)}`,
+        coord: [idx, yValue],
+        symbol: 'triangle',
+        symbolRotate: bullish ? 0 : 180,
+        symbolSize: 10,
+        symbolOffset: [0, bullish ? -10 : 10],
+        itemStyle: { color: bullish ? upDown.value.up : upDown.value.down }
+      };
+    })
+    .filter((p) => p.coord[1] != null);
+});
 
 const dateRangeText = computed(() => {
   if (props.chartData?.start_date && props.chartData?.end_date) {
@@ -248,6 +295,12 @@ const klineOption = computed(() => {
           color0: upDown.value.down, // 陰線 (跌)
           borderColor: upDown.value.up,
           borderColor0: upDown.value.down
+        },
+        // 策略觸發標記（均線策略警示系統 設計文件第 9.2 節）：▲ 綠色=偏多方向，▼ 紅色=偏空方向
+        markPoint: {
+          symbolSize: 10,
+          data: alertMarkPoints.value,
+          tooltip: { trigger: 'item', formatter: (p) => p.name }
         }
       },
       ...ma.series

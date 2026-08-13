@@ -40,6 +40,11 @@ const router = createRouter({
                     path: '/stocks',
                     name: 'stock-management',
                     component: () => import('@/views/StockManagement.vue')
+                },
+                {
+                    path: '/alerts',
+                    name: 'alert-dashboard',
+                    component: () => import('@/views/AlertDashboard.vue')
                 }
             ]
         }

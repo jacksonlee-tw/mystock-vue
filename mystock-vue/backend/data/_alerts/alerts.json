@@ -1,0 +1,3518 @@
+[
+  {
+    "stock_id": "0050",
+    "stock_name": "元大台灣50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "moderate",
+    "trade_date": "2026-06-26",
+    "details": {
+      "close": 103.1,
+      "ma_period": 20,
+      "ma_value": 105.205,
+      "bias_percent": -2.0009
+    },
+    "filters_passed": [
+      "volume_confirm"
+    ],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260626-0050-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0050",
+    "stock_name": "元大台灣50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-06-30",
+    "details": {
+      "close": 107.8,
+      "ma_period": 20,
+      "ma_value": 105.2725,
+      "bias_percent": 2.4009
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（102.11）",
+    "id": "alert-20260630-0050-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0050",
+    "stock_name": "元大台灣50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-08",
+    "details": {
+      "close": 106.05,
+      "ma_period": 20,
+      "ma_value": 106.2225,
+      "bias_percent": -0.1624
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260708-0050-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0050",
+    "stock_name": "元大台灣50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-31",
+    "details": {
+      "close": 102.85,
+      "ma_period": 60,
+      "ma_value": 102.42,
+      "bias_percent": 0.4198
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（99.35）",
+    "id": "alert-20260731-0050-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0050",
+    "stock_name": "元大台灣50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA60",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-03",
+    "details": {
+      "close": 102.0,
+      "ma_period": 60,
+      "ma_value": 102.4917,
+      "bias_percent": -0.4797
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA60，建議減碼或設定停損觀察",
+    "id": "alert-20260803-0050-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0050",
+    "stock_name": "元大台灣50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-05",
+    "details": {
+      "close": 103.8,
+      "ma_period": 20,
+      "ma_value": 102.0675,
+      "bias_percent": 1.6974
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（99.01）",
+    "id": "alert-20260805-0050-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0050",
+    "stock_name": "元大台灣50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-05",
+    "details": {
+      "close": 103.8,
+      "ma_period": 60,
+      "ma_value": 102.6675,
+      "bias_percent": 1.1031
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（99.59）",
+    "id": "alert-20260805-0050-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0050",
+    "stock_name": "元大台灣50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA60",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-07",
+    "details": {
+      "close": 102.85,
+      "ma_period": 60,
+      "ma_value": 102.8975,
+      "bias_percent": -0.0462
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA60，建議減碼或設定停損觀察",
+    "id": "alert-20260807-0050-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0050",
+    "stock_name": "元大台灣50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-10",
+    "details": {
+      "close": 104.25,
+      "ma_period": 60,
+      "ma_value": 103.0342,
+      "bias_percent": 1.18
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（99.94）",
+    "id": "alert-20260810-0050-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0050",
+    "stock_name": "元大台灣50",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-13",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 106.46,
+      "long_ma": 106.8075
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260713-0050-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0050",
+    "stock_name": "元大台灣50",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_20_60",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-04",
+    "details": {
+      "short_period": 20,
+      "long_period": 60,
+      "short_ma": 102.1875,
+      "long_ma": 102.5525
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260804-0050-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0050",
+    "stock_name": "元大台灣50",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-06",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 102.52,
+      "long_ma": 101.93
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260806-0050-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-26",
+    "details": {
+      "close": 2340.0,
+      "ma_period": 20,
+      "ma_value": 2368.5,
+      "bias_percent": -1.2033
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260626-2330-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-06-29",
+    "details": {
+      "close": 2370.0,
+      "ma_period": 20,
+      "ma_value": 2369.25,
+      "bias_percent": 0.0317
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（2298.17）",
+    "id": "alert-20260629-2330-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-14",
+    "details": {
+      "close": 2420.0,
+      "ma_period": 20,
+      "ma_value": 2426.25,
+      "bias_percent": -0.2576
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260714-2330-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-15",
+    "details": {
+      "close": 2440.0,
+      "ma_period": 20,
+      "ma_value": 2429.5,
+      "bias_percent": 0.4322
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（2356.61）",
+    "id": "alert-20260715-2330-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-17",
+    "details": {
+      "close": 2290.0,
+      "ma_period": 20,
+      "ma_value": 2428.25,
+      "bias_percent": -5.6934
+    },
+    "filters_passed": [
+      "volume_confirm"
+    ],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260717-2330-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "strong",
+    "trade_date": "2026-07-31",
+    "details": {
+      "close": 2425.0,
+      "ma_period": 20,
+      "ma_value": 2381.5,
+      "bias_percent": 1.8266
+    },
+    "filters_passed": [
+      "volume_confirm",
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（2310.05）",
+    "id": "alert-20260731-2330-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-03",
+    "details": {
+      "close": 2370.0,
+      "ma_period": 20,
+      "ma_value": 2377.75,
+      "bias_percent": -0.3259
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260803-2330-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA60",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-04",
+    "details": {
+      "close": 2320.0,
+      "ma_period": 60,
+      "ma_value": 2349.5833,
+      "bias_percent": -1.2591
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA60，建議減碼或設定停損觀察",
+    "id": "alert-20260804-2330-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-05",
+    "details": {
+      "close": 2405.0,
+      "ma_period": 20,
+      "ma_value": 2369.0,
+      "bias_percent": 1.5196
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（2297.93）",
+    "id": "alert-20260805-2330-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-05",
+    "details": {
+      "close": 2405.0,
+      "ma_period": 60,
+      "ma_value": 2352.4167,
+      "bias_percent": 2.2353
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（2281.84）",
+    "id": "alert-20260805-2330-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-16",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 2318.0,
+      "long_ma": 2315.0
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260616-2330-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-17",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 2412.0,
+      "long_ma": 2428.25
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260717-2330-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-06",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 2377.0,
+      "long_ma": 2364.0
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260806-2330-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_20_60",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-11",
+    "details": {
+      "short_period": 20,
+      "long_period": 60,
+      "short_ma": 2357.5,
+      "long_ma": 2360.75
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260811-2330-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2317",
+    "stock_name": "鴻海",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-21",
+    "details": {
+      "close": 246.0,
+      "ma_period": 20,
+      "ma_value": 243.425,
+      "bias_percent": 1.0578
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（236.12）",
+    "id": "alert-20260721-2317-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2317",
+    "stock_name": "鴻海",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-28",
+    "details": {
+      "close": 238.0,
+      "ma_period": 20,
+      "ma_value": 242.65,
+      "bias_percent": -1.9163
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260728-2317-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2317",
+    "stock_name": "鴻海",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "strong",
+    "trade_date": "2026-07-31",
+    "details": {
+      "close": 250.5,
+      "ma_period": 20,
+      "ma_value": 241.6,
+      "bias_percent": 3.6838
+    },
+    "filters_passed": [
+      "volume_confirm",
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（234.35）",
+    "id": "alert-20260731-2317-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2317",
+    "stock_name": "鴻海",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-05",
+    "details": {
+      "close": 258.5,
+      "ma_period": 60,
+      "ma_value": 255.275,
+      "bias_percent": 1.2633
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（247.62）",
+    "id": "alert-20260805-2317-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2317",
+    "stock_name": "鴻海",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-23",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 244.7,
+      "long_ma": 243.1
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260723-2317-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2317",
+    "stock_name": "鴻海",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-03",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 241.6,
+      "long_ma": 242.225
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260803-2317-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2317",
+    "stock_name": "鴻海",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-04",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 244.0,
+      "long_ma": 242.625
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260804-2317-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "006208",
+    "stock_name": "富邦台50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "moderate",
+    "trade_date": "2026-06-26",
+    "details": {
+      "close": 238.7,
+      "ma_period": 20,
+      "ma_value": 243.4725,
+      "bias_percent": -1.9602
+    },
+    "filters_passed": [
+      "volume_confirm"
+    ],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260626-006208-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "006208",
+    "stock_name": "富邦台50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-06-30",
+    "details": {
+      "close": 250.2,
+      "ma_period": 20,
+      "ma_value": 243.8625,
+      "bias_percent": 2.5988
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（236.55）",
+    "id": "alert-20260630-006208-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "006208",
+    "stock_name": "富邦台50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-08",
+    "details": {
+      "close": 246.15,
+      "ma_period": 20,
+      "ma_value": 246.24,
+      "bias_percent": -0.0365
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260708-006208-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "006208",
+    "stock_name": "富邦台50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-05",
+    "details": {
+      "close": 238.25,
+      "ma_period": 20,
+      "ma_value": 234.3525,
+      "bias_percent": 1.6631
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（227.32）",
+    "id": "alert-20260805-006208-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "006208",
+    "stock_name": "富邦台50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-05",
+    "details": {
+      "close": 238.25,
+      "ma_period": 60,
+      "ma_value": 237.0908,
+      "bias_percent": 0.4889
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（229.98）",
+    "id": "alert-20260805-006208-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "006208",
+    "stock_name": "富邦台50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA60",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-06",
+    "details": {
+      "close": 236.55,
+      "ma_period": 60,
+      "ma_value": 237.2908,
+      "bias_percent": -0.3122
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA60，建議減碼或設定停損觀察",
+    "id": "alert-20260806-006208-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "006208",
+    "stock_name": "富邦台50",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-10",
+    "details": {
+      "close": 238.7,
+      "ma_period": 60,
+      "ma_value": 237.7967,
+      "bias_percent": 0.3799
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（230.66）",
+    "id": "alert-20260810-006208-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "006208",
+    "stock_name": "富邦台50",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-13",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 247.29,
+      "long_ma": 247.71
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260713-006208-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "006208",
+    "stock_name": "富邦台50",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_20_60",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-03",
+    "details": {
+      "short_period": 20,
+      "long_period": 60,
+      "short_ma": 235.825,
+      "long_ma": 236.7633
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260803-006208-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "006208",
+    "stock_name": "富邦台50",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-06",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 234.64,
+      "long_ma": 233.8725
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260806-006208-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-23",
+    "details": {
+      "close": 24.15,
+      "ma_period": 20,
+      "ma_value": 24.3075,
+      "bias_percent": -0.6479
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260623-1101-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-25",
+    "details": {
+      "close": 24.6,
+      "ma_period": 20,
+      "ma_value": 24.3575,
+      "bias_percent": 0.9956
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（23.63）",
+    "id": "alert-20260625-1101-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-26",
+    "details": {
+      "close": 24.15,
+      "ma_period": 20,
+      "ma_value": 24.3825,
+      "bias_percent": -0.9536
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260626-1101-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-16",
+    "details": {
+      "close": 23.95,
+      "ma_period": 20,
+      "ma_value": 23.72,
+      "bias_percent": 0.9696
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（23.01）",
+    "id": "alert-20260716-1101-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-17",
+    "details": {
+      "close": 23.5,
+      "ma_period": 20,
+      "ma_value": 23.6675,
+      "bias_percent": -0.7077
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260717-1101-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-20",
+    "details": {
+      "close": 23.8,
+      "ma_period": 20,
+      "ma_value": 23.6325,
+      "bias_percent": 0.7088
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（22.92）",
+    "id": "alert-20260720-1101-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-04",
+    "details": {
+      "close": 23.55,
+      "ma_period": 20,
+      "ma_value": 23.725,
+      "bias_percent": -0.7376
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260804-1101-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-08-05",
+    "details": {
+      "close": 24.05,
+      "ma_period": 20,
+      "ma_value": 23.7575,
+      "bias_percent": 1.2312
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（23.04）",
+    "id": "alert-20260805-1101-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-08-05",
+    "details": {
+      "close": 24.05,
+      "ma_period": 60,
+      "ma_value": 24.0433,
+      "bias_percent": 0.0279
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（23.32）",
+    "id": "alert-20260805-1101-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-26",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 24.29,
+      "long_ma": 24.3825
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260626-1101-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-21",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 23.77,
+      "long_ma": 23.6175
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260721-1101-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_20_60",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-11",
+    "details": {
+      "short_period": 20,
+      "long_period": 60,
+      "short_ma": 24.085,
+      "long_ma": 24.0367
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260811-1101-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "ma_alignment",
+    "strategy_name": "均線多頭/空頭排列",
+    "direction": "bullish_alignment",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-12",
+    "details": {
+      "close": 24.45,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "values": {
+        "MA5": 24.47,
+        "MA10": 24.21,
+        "MA20": 24.13,
+        "MA60": 24.0433
+      }
+    },
+    "filters_passed": [],
+    "suggested_action": "均線多頭排列成形，動能轉強，可列入強勢股觀察",
+    "id": "alert-20260812-1101-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "ma_squeeze_breakout",
+    "strategy_name": "均線糾結突破",
+    "direction": "squeeze_breakout",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-11",
+    "details": {
+      "close": 24.65,
+      "upper_ma": 24.39,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "squeeze_min_days": 5
+    },
+    "filters_passed": [],
+    "suggested_action": "均線糾結後帶量突破，留意起漲點",
+    "id": "alert-20260811-1101-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1760",
+    "stock_name": "寶齡富錦",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-06-23",
+    "details": {
+      "close": 60.9,
+      "ma_period": 20,
+      "ma_value": 60.45,
+      "bias_percent": 0.7444
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（58.64）",
+    "id": "alert-20260623-1760-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1760",
+    "stock_name": "寶齡富錦",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-26",
+    "details": {
+      "close": 59.6,
+      "ma_period": 20,
+      "ma_value": 60.51,
+      "bias_percent": -1.5039
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260626-1760-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1760",
+    "stock_name": "寶齡富錦",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-29",
+    "details": {
+      "close": 60.6,
+      "ma_period": 20,
+      "ma_value": 60.525,
+      "bias_percent": 0.1239
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（58.71）",
+    "id": "alert-20260629-1760-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1760",
+    "stock_name": "寶齡富錦",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-13",
+    "details": {
+      "close": 60.9,
+      "ma_period": 20,
+      "ma_value": 61.34,
+      "bias_percent": -0.7173
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260713-1760-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1760",
+    "stock_name": "寶齡富錦",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-15",
+    "details": {
+      "close": 62.0,
+      "ma_period": 20,
+      "ma_value": 61.475,
+      "bias_percent": 0.854
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（59.63）",
+    "id": "alert-20260715-1760-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1760",
+    "stock_name": "寶齡富錦",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-16",
+    "details": {
+      "close": 61.5,
+      "ma_period": 20,
+      "ma_value": 61.57,
+      "bias_percent": -0.1137
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260716-1760-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1760",
+    "stock_name": "寶齡富錦",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-25",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 60.68,
+      "long_ma": 60.515
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260625-1760-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1760",
+    "stock_name": "寶齡富錦",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-02",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 60.58,
+      "long_ma": 60.585
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260702-1760-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1760",
+    "stock_name": "寶齡富錦",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-03",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 61.26,
+      "long_ma": 60.675
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260703-1760-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1760",
+    "stock_name": "寶齡富錦",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-16",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 61.48,
+      "long_ma": 61.57
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260716-1760-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0056",
+    "stock_name": "元大高股息",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "moderate",
+    "trade_date": "2026-06-26",
+    "details": {
+      "close": 51.45,
+      "ma_period": 20,
+      "ma_value": 51.8455,
+      "bias_percent": -0.7628
+    },
+    "filters_passed": [
+      "volume_confirm"
+    ],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260626-0056-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0056",
+    "stock_name": "元大高股息",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-06-30",
+    "details": {
+      "close": 53.25,
+      "ma_period": 20,
+      "ma_value": 51.993,
+      "bias_percent": 2.4176
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（50.43）",
+    "id": "alert-20260630-0056-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0056",
+    "stock_name": "元大高股息",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-13",
+    "details": {
+      "close": 52.4,
+      "ma_period": 20,
+      "ma_value": 52.495,
+      "bias_percent": -0.181
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260713-0056-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0056",
+    "stock_name": "元大高股息",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-15",
+    "details": {
+      "close": 53.0,
+      "ma_period": 20,
+      "ma_value": 52.6275,
+      "bias_percent": 0.7078
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（51.05）",
+    "id": "alert-20260715-0056-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0056",
+    "stock_name": "元大高股息",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-16",
+    "details": {
+      "close": 52.65,
+      "ma_period": 20,
+      "ma_value": 52.6825,
+      "bias_percent": -0.0617
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260716-0056-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0056",
+    "stock_name": "元大高股息",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-08-04",
+    "details": {
+      "close": 50.6,
+      "ma_period": 20,
+      "ma_value": 50.5055,
+      "bias_percent": 0.1871
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（48.99）",
+    "id": "alert-20260804-0056-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0056",
+    "stock_name": "元大高股息",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-14",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 52.26,
+      "long_ma": 52.5525
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260714-0056-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0056",
+    "stock_name": "元大高股息",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-06",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 50.53,
+      "long_ma": 50.418
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260806-0056-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "0056",
+    "stock_name": "元大高股息",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_20_60",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-07",
+    "details": {
+      "short_period": 20,
+      "long_period": 60,
+      "short_ma": 50.338,
+      "long_ma": 50.44
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260807-0056-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00878",
+    "stock_name": "國泰永續高股息",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-07",
+    "details": {
+      "close": 32.97,
+      "ma_period": 20,
+      "ma_value": 33.0485,
+      "bias_percent": -0.2375
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260707-00878-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00878",
+    "stock_name": "國泰永續高股息",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-08",
+    "details": {
+      "close": 33.2,
+      "ma_period": 20,
+      "ma_value": 33.093,
+      "bias_percent": 0.3233
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（32.1）",
+    "id": "alert-20260708-00878-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00878",
+    "stock_name": "國泰永續高股息",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-13",
+    "details": {
+      "close": 33.13,
+      "ma_period": 20,
+      "ma_value": 33.249,
+      "bias_percent": -0.3579
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260713-00878-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00878",
+    "stock_name": "國泰永續高股息",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-03",
+    "details": {
+      "close": 32.57,
+      "ma_period": 20,
+      "ma_value": 32.4425,
+      "bias_percent": 0.393
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（31.47）",
+    "id": "alert-20260803-00878-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00878",
+    "stock_name": "國泰永續高股息",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-13",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 33.196,
+      "long_ma": 33.249
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260713-00878-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00878",
+    "stock_name": "國泰永續高股息",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-06",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 32.712,
+      "long_ma": 32.3875
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260806-00878-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00878",
+    "stock_name": "國泰永續高股息",
+    "market": "tw",
+    "strategy_id": "ma_alignment",
+    "strategy_name": "均線多頭/空頭排列",
+    "direction": "bullish_alignment",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-11",
+    "details": {
+      "close": 33.47,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "values": {
+        "MA5": 33.134,
+        "MA10": 32.49,
+        "MA20": 32.4195,
+        "MA60": 32.0602
+      }
+    },
+    "filters_passed": [],
+    "suggested_action": "均線多頭排列成形，動能轉強，可列入強勢股觀察",
+    "id": "alert-20260811-00878-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-17",
+    "details": {
+      "close": 30.88,
+      "ma_period": 20,
+      "ma_value": 30.8815,
+      "bias_percent": -0.0049
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260617-00981A-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-06-18",
+    "details": {
+      "close": 31.5,
+      "ma_period": 20,
+      "ma_value": 31.0135,
+      "bias_percent": 1.5687
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（30.08）",
+    "id": "alert-20260618-00981A-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-26",
+    "details": {
+      "close": 29.91,
+      "ma_period": 20,
+      "ma_value": 31.063,
+      "bias_percent": -3.7118
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260626-00981A-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-06-30",
+    "details": {
+      "close": 31.28,
+      "ma_period": 20,
+      "ma_value": 30.962,
+      "bias_percent": 1.0271
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（30.03）",
+    "id": "alert-20260630-00981A-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-07",
+    "details": {
+      "close": 29.84,
+      "ma_period": 20,
+      "ma_value": 31.0695,
+      "bias_percent": -3.9573
+    },
+    "filters_passed": [
+      "volume_confirm"
+    ],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260707-00981A-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-05",
+    "details": {
+      "close": 28.46,
+      "ma_period": 20,
+      "ma_value": 27.5215,
+      "bias_percent": 3.4101
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（26.7）",
+    "id": "alert-20260805-00981A-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-16",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 30.498,
+      "long_ma": 30.699
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260616-00981A-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-18",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 31.054,
+      "long_ma": 31.0135
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260618-00981A-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-29",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 30.886,
+      "long_ma": 30.983
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260629-00981A-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-02",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 31.036,
+      "long_ma": 31.0075
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260702-00981A-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-09",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 30.6,
+      "long_ma": 30.9985
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260709-00981A-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-06",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 27.624,
+      "long_ma": 27.476
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260806-00981A-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1909",
+    "stock_name": "榮成",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-25",
+    "details": {
+      "close": 9.56,
+      "ma_period": 20,
+      "ma_value": 9.6325,
+      "bias_percent": -0.7527
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260625-1909-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1909",
+    "stock_name": "榮成",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "strong",
+    "trade_date": "2026-07-02",
+    "details": {
+      "close": 9.85,
+      "ma_period": 20,
+      "ma_value": 9.7615,
+      "bias_percent": 0.9066
+    },
+    "filters_passed": [
+      "volume_confirm",
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（9.47）",
+    "id": "alert-20260702-1909-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1909",
+    "stock_name": "榮成",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-20",
+    "details": {
+      "close": 9.9,
+      "ma_period": 20,
+      "ma_value": 10.0485,
+      "bias_percent": -1.4778
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260720-1909-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1909",
+    "stock_name": "榮成",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-21",
+    "details": {
+      "close": 10.15,
+      "ma_period": 20,
+      "ma_value": 10.0585,
+      "bias_percent": 0.9097
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（9.76）",
+    "id": "alert-20260721-1909-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1909",
+    "stock_name": "榮成",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-23",
+    "details": {
+      "close": 10.1,
+      "ma_period": 20,
+      "ma_value": 10.1005,
+      "bias_percent": -0.005
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260723-1909-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1909",
+    "stock_name": "榮成",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-08-10",
+    "details": {
+      "close": 10.15,
+      "ma_period": 20,
+      "ma_value": 10.0835,
+      "bias_percent": 0.6595
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（9.78）",
+    "id": "alert-20260810-1909-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1909",
+    "stock_name": "榮成",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-29",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 9.57,
+      "long_ma": 9.687
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260629-1909-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1909",
+    "stock_name": "榮成",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-06",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 9.984,
+      "long_ma": 9.8255
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260706-1909-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "1909",
+    "stock_name": "榮成",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-23",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 10.07,
+      "long_ma": 10.1005
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260723-1909-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "strong",
+    "trade_date": "2026-06-18",
+    "details": {
+      "close": 482.0,
+      "ma_period": 20,
+      "ma_value": 473.475,
+      "bias_percent": 1.8005
+    },
+    "filters_passed": [
+      "volume_confirm",
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（459.27）",
+    "id": "alert-20260618-2207-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-30",
+    "details": {
+      "close": 465.5,
+      "ma_period": 20,
+      "ma_value": 477.725,
+      "bias_percent": -2.559
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260630-2207-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-06",
+    "details": {
+      "close": 476.5,
+      "ma_period": 20,
+      "ma_value": 474.825,
+      "bias_percent": 0.3528
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（460.58）",
+    "id": "alert-20260706-2207-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-07",
+    "details": {
+      "close": 471.0,
+      "ma_period": 20,
+      "ma_value": 474.725,
+      "bias_percent": -0.7847
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260707-2207-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-08",
+    "details": {
+      "close": 480.5,
+      "ma_period": 20,
+      "ma_value": 474.6,
+      "bias_percent": 1.2432
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（460.36）",
+    "id": "alert-20260708-2207-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-12",
+    "details": {
+      "close": 504.0,
+      "ma_period": 20,
+      "ma_value": 508.675,
+      "bias_percent": -0.9191
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260812-2207-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-17",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 468.8,
+      "long_ma": 472.675
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260617-2207-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-24",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 477.4,
+      "long_ma": 476.425
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260624-2207-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-06-30",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 476.5,
+      "long_ma": 477.725
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260630-2207-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-09",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 475.5,
+      "long_ma": 474.075
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260709-2207-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "ma_pullback_support",
+    "strategy_name": "均線回踩支撐",
+    "direction": "pullback_support_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-11",
+    "details": {
+      "close": 511.0,
+      "ma_period": 20,
+      "ma_value": 507.475,
+      "distance_percent": 0.69
+    },
+    "filters_passed": [],
+    "suggested_action": "回踩均線支撐未破，為趨勢股拉回找買點的參考時機",
+    "id": "alert-20260811-2207-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "ma_pullback_support",
+    "strategy_name": "均線回踩支撐",
+    "direction": "pullback_support_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-12",
+    "details": {
+      "close": 504.0,
+      "ma_period": 20,
+      "ma_value": 508.675,
+      "distance_percent": 0.92
+    },
+    "filters_passed": [],
+    "suggested_action": "回踩均線支撐未破，為趨勢股拉回找買點的參考時機",
+    "id": "alert-20260812-2207-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2308",
+    "stock_name": "台達電",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-08-10",
+    "details": {
+      "close": 1815.0,
+      "ma_period": 20,
+      "ma_value": 1723.5,
+      "bias_percent": 5.309
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（1671.79）",
+    "id": "alert-20260810-2308-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2308",
+    "stock_name": "台達電",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-12",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 1748.0,
+      "long_ma": 1716.0
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260812-2308-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2313",
+    "stock_name": "華通",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "strong",
+    "trade_date": "2026-07-15",
+    "details": {
+      "close": 248.0,
+      "ma_period": 20,
+      "ma_value": 235.525,
+      "bias_percent": 5.2967
+    },
+    "filters_passed": [
+      "volume_confirm",
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（228.46）",
+    "id": "alert-20260715-2313-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2313",
+    "stock_name": "華通",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-17",
+    "details": {
+      "close": 212.0,
+      "ma_period": 20,
+      "ma_value": 232.25,
+      "bias_percent": -8.7191
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260717-2313-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2313",
+    "stock_name": "華通",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-08-05",
+    "details": {
+      "close": 218.0,
+      "ma_period": 20,
+      "ma_value": 205.65,
+      "bias_percent": 6.0053
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（199.48）",
+    "id": "alert-20260805-2313-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2313",
+    "stock_name": "華通",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-07",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 206.2,
+      "long_ma": 204.75
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260807-2313-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2884",
+    "stock_name": "玉山金",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-01",
+    "details": {
+      "close": 32.9,
+      "ma_period": 20,
+      "ma_value": 34.3975,
+      "bias_percent": -4.3535
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260701-2884-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2884",
+    "stock_name": "玉山金",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-08",
+    "details": {
+      "close": 34.75,
+      "ma_period": 20,
+      "ma_value": 34.6075,
+      "bias_percent": 0.4118
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（33.57）",
+    "id": "alert-20260708-2884-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2884",
+    "stock_name": "玉山金",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-13",
+    "details": {
+      "close": 34.6,
+      "ma_period": 20,
+      "ma_value": 34.7,
+      "bias_percent": -0.2882
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260713-2884-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2884",
+    "stock_name": "玉山金",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-16",
+    "details": {
+      "close": 34.9,
+      "ma_period": 20,
+      "ma_value": 34.6825,
+      "bias_percent": 0.6271
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（33.64）",
+    "id": "alert-20260716-2884-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2884",
+    "stock_name": "玉山金",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-12",
+    "details": {
+      "close": 36.75,
+      "ma_period": 20,
+      "ma_value": 36.9025,
+      "bias_percent": -0.4133
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260812-2884-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2884",
+    "stock_name": "玉山金",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-01",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 34.37,
+      "long_ma": 34.3975
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260701-2884-002",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "2884",
+    "stock_name": "玉山金",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-17",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 34.71,
+      "long_ma": 34.6625
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260717-2884-001",
+    "timestamp": "2026-08-13T23:59:50+08:00"
+  },
+  {
+    "stock_id": "AAPL",
+    "stock_name": "Apple Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-02",
+    "details": {
+      "close": 308.3640441894531,
+      "ma_period": 20,
+      "ma_value": 294.5485,
+      "bias_percent": 4.6904
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（285.71）",
+    "id": "alert-20260702-AAPL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "AAPL",
+    "stock_name": "Apple Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-31",
+    "details": {
+      "close": 308.6438293457031,
+      "ma_period": 20,
+      "ma_value": 324.0875,
+      "bias_percent": -4.7653
+    },
+    "filters_passed": [
+      "volume_confirm"
+    ],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260731-AAPL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "AAPL",
+    "stock_name": "Apple Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA60",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-10",
+    "details": {
+      "close": 308.260009765625,
+      "ma_period": 60,
+      "ma_value": 308.5387,
+      "bias_percent": -0.0903
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA60，建議減碼或設定停損觀察",
+    "id": "alert-20260810-AAPL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "AAPL",
+    "stock_name": "Apple Inc.",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-06",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 297.0978,
+      "long_ma": 294.6199
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260706-AAPL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "AAPL",
+    "stock_name": "Apple Inc.",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-04",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 318.3914,
+      "long_ma": 323.5619
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260804-AAPL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "MSFT",
+    "stock_name": "Microsoft Corporation",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-02",
+    "details": {
+      "close": 390.489990234375,
+      "ma_period": 20,
+      "ma_value": 386.9555,
+      "bias_percent": 0.9134
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（375.35）",
+    "id": "alert-20260702-MSFT-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "MSFT",
+    "stock_name": "Microsoft Corporation",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-23",
+    "details": {
+      "close": 381.5799865722656,
+      "ma_period": 20,
+      "ma_value": 385.4485,
+      "bias_percent": -1.0036
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260723-MSFT-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "MSFT",
+    "stock_name": "Microsoft Corporation",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-27",
+    "details": {
+      "close": 389.1000061035156,
+      "ma_period": 20,
+      "ma_value": 387.6985,
+      "bias_percent": 0.3615
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（376.07）",
+    "id": "alert-20260727-MSFT-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "MSFT",
+    "stock_name": "Microsoft Corporation",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-07",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 384.674,
+      "long_ma": 383.4985
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260707-MSFT-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "MSFT",
+    "stock_name": "Microsoft Corporation",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-28",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 387.214,
+      "long_ma": 388.9375
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260728-MSFT-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "MSFT",
+    "stock_name": "Microsoft Corporation",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-30",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 401.158,
+      "long_ma": 393.1545
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260730-MSFT-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "MSFT",
+    "stock_name": "Microsoft Corporation",
+    "market": "us",
+    "strategy_id": "ma_alignment",
+    "strategy_name": "均線多頭/空頭排列",
+    "direction": "bullish_alignment",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-05",
+    "details": {
+      "close": 487.4599914550781,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "values": {
+        "MA5": 476.748,
+        "MA10": 432.001,
+        "MA20": 412.316,
+        "MA60": 405.4824
+      }
+    },
+    "filters_passed": [],
+    "suggested_action": "均線多頭排列成形，動能轉強，可列入強勢股觀察",
+    "id": "alert-20260805-MSFT-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "GOOGL",
+    "stock_name": "Alphabet Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-01",
+    "details": {
+      "close": 361.2099914550781,
+      "ma_period": 20,
+      "ma_value": 358.4652,
+      "bias_percent": 0.7657
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（347.71）",
+    "id": "alert-20260701-GOOGL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "GOOGL",
+    "stock_name": "Alphabet Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-10",
+    "details": {
+      "close": 357.17999267578125,
+      "ma_period": 20,
+      "ma_value": 357.8845,
+      "bias_percent": -0.1969
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260710-GOOGL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "GOOGL",
+    "stock_name": "Alphabet Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-14",
+    "details": {
+      "close": 359.510009765625,
+      "ma_period": 20,
+      "ma_value": 357.613,
+      "bias_percent": 0.5305
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（346.88）",
+    "id": "alert-20260714-GOOGL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "GOOGL",
+    "stock_name": "Alphabet Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-16",
+    "details": {
+      "close": 354.4599914550781,
+      "ma_period": 20,
+      "ma_value": 356.752,
+      "bias_percent": -0.6425
+    },
+    "filters_passed": [
+      "volume_confirm"
+    ],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260716-GOOGL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "GOOGL",
+    "stock_name": "Alphabet Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "strong",
+    "trade_date": "2026-07-31",
+    "details": {
+      "close": 356.1300048828125,
+      "ma_period": 20,
+      "ma_value": 348.054,
+      "bias_percent": 2.3203
+    },
+    "filters_passed": [
+      "volume_confirm",
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（337.61）",
+    "id": "alert-20260731-GOOGL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "GOOGL",
+    "stock_name": "Alphabet Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA60",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-05",
+    "details": {
+      "close": 362.42999267578125,
+      "ma_period": 60,
+      "ma_value": 363.453,
+      "bias_percent": -0.2815
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA60，建議減碼或設定停損觀察",
+    "id": "alert-20260805-GOOGL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "GOOGL",
+    "stock_name": "Alphabet Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-11",
+    "details": {
+      "close": 343.79998779296875,
+      "ma_period": 20,
+      "ma_value": 348.227,
+      "bias_percent": -1.2713
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260811-GOOGL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "GOOGL",
+    "stock_name": "Alphabet Inc.",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-06",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 359.72,
+      "long_ma": 358.2465
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260706-GOOGL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "GOOGL",
+    "stock_name": "Alphabet Inc.",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-21",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 354.258,
+      "long_ma": 354.9725
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260721-GOOGL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "GOOGL",
+    "stock_name": "Alphabet Inc.",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-04",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 355.532,
+      "long_ma": 348.9375
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260804-GOOGL-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "TSLA",
+    "stock_name": "Tesla, Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-02",
+    "details": {
+      "close": 393.45001220703125,
+      "ma_period": 20,
+      "ma_value": 399.157,
+      "bias_percent": -1.4298
+    },
+    "filters_passed": [
+      "volume_confirm"
+    ],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260702-TSLA-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "TSLA",
+    "stock_name": "Tesla, Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-06",
+    "details": {
+      "close": 419.7699890136719,
+      "ma_period": 20,
+      "ma_value": 399.223,
+      "bias_percent": 5.1467
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（387.25）",
+    "id": "alert-20260706-TSLA-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "TSLA",
+    "stock_name": "Tesla, Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-08",
+    "details": {
+      "close": 394.05999755859375,
+      "ma_period": 20,
+      "ma_value": 399.0735,
+      "bias_percent": -1.2563
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260708-TSLA-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "TSLA",
+    "stock_name": "Tesla, Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-07-09",
+    "details": {
+      "close": 406.54998779296875,
+      "ma_period": 20,
+      "ma_value": 399.567,
+      "bias_percent": 1.7476
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（387.58）",
+    "id": "alert-20260709-TSLA-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "TSLA",
+    "stock_name": "Tesla, Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-13",
+    "details": {
+      "close": 394.760009765625,
+      "ma_period": 20,
+      "ma_value": 400.656,
+      "bias_percent": -1.4716
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260713-TSLA-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "TSLA",
+    "stock_name": "Tesla, Inc.",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-01",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 402.514,
+      "long_ma": 400.6695
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260701-TSLA-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "TSLA",
+    "stock_name": "Tesla, Inc.",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-14",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 399.862,
+      "long_ma": 400.1435
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260714-TSLA-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "TSLA",
+    "stock_name": "Tesla, Inc.",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-15",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 399.942,
+      "long_ma": 399.309
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260715-TSLA-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "TSLA",
+    "stock_name": "Tesla, Inc.",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-16",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 396.844,
+      "long_ma": 398.629
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260716-TSLA-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "MU",
+    "stock_name": "Micron Technology, Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-01",
+    "details": {
+      "close": 1032.121337890625,
+      "ma_period": 20,
+      "ma_value": 1048.3108,
+      "bias_percent": -1.5443
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260701-MU-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "MU",
+    "stock_name": "Micron Technology, Inc.",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "death_cross_5_20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-07-07",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 1016.9548,
+      "long_ma": 1046.2814
+    },
+    "filters_passed": [],
+    "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
+    "id": "alert-20260707-MU-001",
+    "timestamp": "2026-08-14T00:01:20+08:00"
+  }
+]

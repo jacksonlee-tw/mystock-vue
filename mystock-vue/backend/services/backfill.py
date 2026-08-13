@@ -8,7 +8,7 @@ import logging
 from datetime import date, timedelta
 from typing import List, Tuple
 
-from config import get_backfill_max_days, get_enabled_markets, get_target_stocks
+from config import get_backfill_max_days, get_data_source, get_enabled_markets, get_target_stocks
 from repositories.stock_repository import StockRepository
 from services.fetcher import run_fetch_process
 from services.us_fetcher import run_us_fetch_process
@@ -39,6 +39,12 @@ async def _compute_missing_symbols(repo: StockRepository, market: str, max_days:
 
 
 async def run_startup_backfill() -> None:
+    # 缺漏偵測靠查詢 daily_stock_data / market_no_trading_days 兩張表，只有 DATA_SOURCE=postgres
+    # 時才有意義；json 模式下沒有 Postgres 可查，跑下去只會每次啟動都連線失敗噴警告，直接跳過。
+    if get_data_source() != "postgres":
+        logger.info("[啟動回補] DATA_SOURCE 非 postgres，略過啟動回補檢查")
+        return
+
     repo = StockRepository()
     max_days = get_backfill_max_days()
 

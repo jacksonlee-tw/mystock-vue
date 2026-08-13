@@ -15,6 +15,8 @@ ENABLED_MARKETS_DEFAULT = ["tw", "us"]
 DEFAULT_DATA_SOURCE = "json"
 VALID_DATA_SOURCES = ("json", "postgres")
 DEFAULT_BACKFILL_MAX_DAYS = 90
+DEFAULT_STRATEGY_CONFIG_PATH = os.path.join(BASE_DIR, "strategy_config", "strategies.yaml")
+DEFAULT_ALERT_COOLDOWN_DAYS = 1
 
 CORS_ORIGINS = [
     "http://localhost:5173",
@@ -84,3 +86,16 @@ def get_backfill_max_days() -> int:
         return int(os.getenv("BACKFILL_MAX_DAYS", str(DEFAULT_BACKFILL_MAX_DAYS)))
     except ValueError:
         return DEFAULT_BACKFILL_MAX_DAYS
+
+def get_strategy_config_path() -> str:
+    """策略設定檔（YAML）路徑，見策略管理架構 設計文件第 8 節 STRATEGY_CONFIG_PATH。"""
+    load_dotenv(ENV_PATH, override=True)
+    return os.getenv("STRATEGY_CONFIG_PATH", DEFAULT_STRATEGY_CONFIG_PATH)
+
+def get_alert_cooldown_days() -> int:
+    """訊號去重（Cooldown）天數，見策略管理架構 設計文件第 8 節 ALERT_COOLDOWN_DAYS。"""
+    load_dotenv(ENV_PATH, override=True)
+    try:
+        return int(os.getenv("ALERT_COOLDOWN_DAYS", str(DEFAULT_ALERT_COOLDOWN_DAYS)))
+    except ValueError:
+        return DEFAULT_ALERT_COOLDOWN_DAYS
