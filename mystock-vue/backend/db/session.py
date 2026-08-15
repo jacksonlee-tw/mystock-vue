@@ -1,8 +1,9 @@
 """PostgreSQL 非同步連線管理（asyncpg 驅動，見設計文件第 4.2 節）。"""
 import os
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from config import ENV_PATH
 
@@ -33,6 +34,30 @@ def get_session_factory() -> async_sessionmaker:
     if _session_factory is None:
         _session_factory = async_sessionmaker(get_engine(), expire_on_commit=False)
     return _session_factory
+
+
+@asynccontextmanager
+async def get_async_session():
+    """通知平台（notify/、api/v1/endpoints/notify_*.py）共用的 session context manager。
+
+    呼叫端負責 commit（例如 dispatcher._tick() 批次結束後才 commit，避免每筆訊息各開一次交易）；
+    這裡只在例外時 rollback，並保證 session 一定會關閉。"""
+    session: AsyncSession = get_session_factory()()
+    try:
+        yield session
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
+
+
+async def get_db():
+    """FastAPI dependency 版本：`Depends(get_db)`。請求成功結束時自動 commit，
+    例外時交由 get_async_session() 的 except 分支 rollback（通知平台 API 端點共用）。"""
+    async with get_async_session() as session:
+        yield session
+        await session.commit()
 
 
 async def dispose_engine() -> None:

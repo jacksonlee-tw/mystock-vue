@@ -14,6 +14,16 @@ const model = computed(() => [
             { label: '策略警示看板', icon: 'pi pi-fw pi-bell', to: '/alerts' },
             { label: '股票與爬蟲管理', icon: 'pi pi-fw pi-cog', to: '/stocks', loading: isRunning.value }
         ]
+    },
+    {
+        label: '通知設定',
+        items: [
+            { label: '管道設定', icon: 'pi pi-fw pi-send', to: '/notify/channels' },
+            { label: '收件人', icon: 'pi pi-fw pi-users', to: '/notify/recipients' },
+            { label: '訂閱規則', icon: 'pi pi-fw pi-filter', to: '/notify/subscriptions' },
+            { label: '訊息模板', icon: 'pi pi-fw pi-file-edit', to: '/notify/templates' },
+            { label: '發送紀錄', icon: 'pi pi-fw pi-history', to: '/notify/logs' }
+        ]
     }
 ]);
 </script>

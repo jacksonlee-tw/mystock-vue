@@ -1,0 +1,112 @@
+# =============================================================================
+# MyStock 本機開發用 compose（僅供工程師在自己電腦上跑熱重載，不對應任何分支）
+# =============================================================================
+# 本檔使用根目錄 .env（本機專屬、不進版控，請由 .env.example 複製），
+# prod/test/dev/local 四個部署環境一律走 docker-compose.yml，並以
+# --env-file .env.prod / .env.test / .env.dev / .env.local 指定環境設定。
+#
+# 啟動方式：
+#   docker compose -f docker-compose.dev.yml up -d --build
+#
+# 後端走 uvicorn --reload、前端走 Vite Dev Server，原始碼皆以 volume 掛載，
+# 改程式碼即時生效，不需要重建 image。
+# =============================================================================
+services:
+  db:
+    image: postgres:15
+    container_name: mystock-localdev-db
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Taipei
+      POSTGRES_DB: ${POSTGRES_DB:-mystock_db}
+      POSTGRES_USER: ${POSTGRES_USER:-stock_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stock_password}
+    volumes:
+      - ./backend/postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stock_user} -d ${POSTGRES_DB:-mystock_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  flyway:
+    image: flyway/flyway:10
+    container_name: mystock-localdev-flyway
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend/db/migration:/flyway/sql
+    command: >
+      -url=jdbc:postgresql://db:5432/${POSTGRES_DB:-mystock_db}
+      -user=${POSTGRES_USER:-stock_user} -password=${POSTGRES_PASSWORD:-stock_password} migrate
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: mystock-localdev-backend
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+    volumes:
+      # 熱重載：整個 backend/ 掛進容器，含 backend/.env（config.py 直接讀取此檔，見設計文件）
+      - ./backend:/app
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Taipei
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: mystock-localdev-frontend
+    volumes:
+      - ./frontend:/app
+      # 容器建置時裝好的 node_modules 優先，避免宿主機（可能是 Windows）的原生模組
+      # 覆蓋掉容器內（Linux）建置的版本。
+      - /app/node_modules
+    env_file:
+      - .env
+    environment:
+      VITE_API_BASE: http://localhost:8000/api/v1
+    ports:
+      - "5173:5173"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5173/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      backend:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# 對外入口（本機直接使用各服務的 host port，未接反向代理）：
+#   前端（Vite Dev Server） http://localhost:5173
+#   後端（FastAPI，Swagger 於 /docs） http://localhost:8000

@@ -1,0 +1,145 @@
+# =============================================================================
+# MyStock 部署用 compose（prod / test / dev / local 四個環境共用同一份定義）
+# =============================================================================
+# 環境設定一律由「.env.<APP_ENV>」提供：
+#   main branch → prod  → .env.prod
+#   test branch → test  → .env.test
+#   dev  branch → dev   → .env.dev
+#   本機驗證完整部署流程（不對應分支）→ local → .env.local
+#
+# 啟動方式（--env-file 必須放在子指令之前；--env-file 同時提供給 compose 插值
+# 語法與下方 backend 服務的 env_file: 使用，兩者缺一不可，見下方 backend 服務註解）：
+#   docker compose --env-file .env.prod  -f docker-compose.yml up -d --build
+#   docker compose --env-file .env.test  -f docker-compose.yml up -d --build
+#   docker compose --env-file .env.dev   -f docker-compose.yml up -d --build
+#   docker compose --env-file .env.local -f docker-compose.yml up -d --build
+#
+# 本檔直接以 host port 對外（尚未接共用反向代理）：
+#   對外埠號由 .env.<APP_ENV> 的 BACKEND_PORT / FRONTEND_PORT / POSTGRES_PORT 決定，
+#   四個環境預設值彼此不重複，即使同時跑在同一台主機也不會搶埠號。
+#   若日後要接上共用 Traefik／nginx 閘道，可參考 docker-compose.traefik.yml
+#   （目前僅為範例疊加檔，預設不隨本檔啟用）。
+#
+# 未提供 APP_ENV 時，下方 backend 服務的 env_file 插值會讓 compose 直接報錯中止，
+# 避免忘記帶 --env-file 而誤用到本機開發用的根目錄 .env（見 docker-compose.dev.yml）。
+#
+# 本機純程式碼熱重載開發請改用 docker-compose.dev.yml，不要用本檔。
+# =============================================================================
+services:
+  db:
+    image: postgres:15
+    container_name: mystock-${APP_ENV}-db
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Taipei
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backend/postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  flyway:
+    image: flyway/flyway:10
+    container_name: mystock-${APP_ENV}-flyway
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend/db/migration:/flyway/sql
+    command: >
+      -url=jdbc:postgresql://db:5432/${POSTGRES_DB}
+      -user=${POSTGRES_USER} -password=${POSTGRES_PASSWORD} migrate
+
+  backup:
+    image: prodrigestivill/postgres-backup-local:15
+    container_name: mystock-${APP_ENV}-backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SCHEDULE: "@daily"
+      BACKUP_KEEP_DAYS: 30
+      BACKUP_KEEP_WEEKS: 4
+      BACKUP_KEEP_MONTHS: 6
+    volumes:
+      - ./backend/backups:/backups
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: mystock-${APP_ENV}-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
+    env_file:
+      # 依 APP_ENV 載入對應環境檔；缺少 APP_ENV 時 compose 立即失敗，不會靜默退回根目錄 .env。
+      - .env.${APP_ENV:?請指定 APP_ENV（prod/test/dev/local）。請加上 --env-file .env.<環境>，例：--env-file .env.prod}
+    environment:
+      # 容器間走 compose 內部網路，固定連到 db 服務名稱，跟本機直接執行 uvicorn 用的
+      # POSTGRES_HOST=localhost（.env.<APP_ENV>）不同，這裡明確覆寫。
+      TZ: Asia/Taipei
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      # 爬蟲落地的 JSON（data/tw、data/us、_alerts）跨容器重啟保留，即使 DATA_SOURCE=postgres
+      # 仍是爬蟲側的真相來源（見 backend/CLAUDE.md）。
+      - ./backend/data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        # 前端以相對路徑呼叫 API，由 frontend/nginx.conf 反向代理到 backend:8000，
+        # 同一份建置產物換環境／換主機都不需要重新建置。
+        # ⚠️ build args 屬於「插值」語法，只能從 --env-file／shell 取值，缺省時採用此預設值。
+        VITE_API_BASE: ${VITE_API_BASE:-/api/v1}
+    container_name: mystock-${APP_ENV}-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

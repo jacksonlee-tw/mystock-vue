@@ -156,6 +156,10 @@ async def scan_market(
         "scanned_stocks": len(target_symbols),
         "alerts_generated": len(finalized),
         "scan_duration_ms": int((time.perf_counter() - started) * 1000),
+        # 補好 id/timestamp 的完整警示清單：純粹回傳已計算好的資料，掃描器本身不知道
+        # 也不需要知道誰會用它（見整合訊息通知平台 系統開發規格書 ADR-13、鐵則 R1 —
+        # 事件發佈的接縫在 services/scheduler.py，不在這裡）。
+        "alerts": finalized,
     }
 
 

@@ -1,6 +1,7 @@
 import AppLayout from '@/layout/AppLayout.vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import { useMarket } from '@/composables/useMarket';
+import { notifyApi } from '@/service/notifyApi';
 
 const router = createRouter({
     history: createWebHistory(),
@@ -45,16 +46,62 @@ const router = createRouter({
                     path: '/alerts',
                     name: 'alert-dashboard',
                     component: () => import('@/views/AlertDashboard.vue')
+                },
+                {
+                    path: '/notify/channels',
+                    name: 'notify-channels',
+                    component: () => import('@/views/notify/ChannelSettings.vue')
+                },
+                {
+                    path: '/notify/recipients',
+                    name: 'notify-recipients',
+                    component: () => import('@/views/notify/RecipientManagement.vue')
+                },
+                {
+                    path: '/notify/subscriptions',
+                    name: 'notify-subscriptions',
+                    component: () => import('@/views/notify/SubscriptionRules.vue')
+                },
+                {
+                    path: '/notify/templates',
+                    name: 'notify-templates',
+                    component: () => import('@/views/notify/MessageTemplates.vue')
+                },
+                {
+                    path: '/notify/logs',
+                    name: 'notify-logs',
+                    component: () => import('@/views/notify/DeliveryLogs.vue')
                 }
             ]
+        },
+        {
+            // 管理端登入：不掛在 AppLayout 之下，避免未登入時先閃過整個殼層（見系統開發規格書 §9.1）
+            path: '/notify/login',
+            name: 'notify-login',
+            component: () => import('@/views/notify/OwnerLogin.vue')
+        },
+        {
+            // 收件人自助頁：獨立路由樹，與管理介面入口完全分離（規格 §12.1「入口完全分離」）
+            path: '/n/me',
+            name: 'notify-self-service',
+            component: () => import('@/views/notify/SelfService.vue')
         }
     ]
 });
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
     if (to.params.market) {
         const { setMarket } = useMarket();
         setMarket(to.params.market);
+    }
+    // 管理端頁面的登入檢查只是體驗上的導向；真正的授權一律由後端 require_owner 強制
+    // （NFR-22，不得只靠前端隱藏），所以這裡失敗只導去登入頁，不做任何權限判斷邏輯。
+    if (to.path.startsWith('/notify/') && to.name !== 'notify-login') {
+        const authenticated = await notifyApi.session.whoami();
+        if (!authenticated) {
+            next({ name: 'notify-login', query: { redirect: to.fullPath } });
+            return;
+        }
     }
     next();
 });

@@ -1,0 +1,12 @@
+⚠️ {{ market | upper }} 每日抓取失敗
+
+發生時間：{{ occurred_at }}
+交易日：{{ trade_date }}
+{% if failed_symbols %}影響範圍：{{ failed_symbols | length }} 檔標的未更新（{{ failed_symbols | join('、') }}）
+{% endif -%}
+錯誤摘要：{{ error_summary | default('未知錯誤') }}
+
+提醒：今日策略掃描結果可能不完整，建議手動重新抓取。
+▸ 開啟抓取管理頁：{{ fetch_url | default('') }}
+
+{{ disclaimer }}

@@ -65,7 +65,7 @@
         </div>
         <div class="kpi-card">
           <div class="kpi-icon" style="background:var(--violet-light); color:var(--violet)"><i class="pi pi-send"></i></div>
-          <div><div class="kpi-label">Telegram 端點</div><div class="kpi-value">2</div></div>
+          <div><div class="kpi-label">Telegram 端點</div><div class="kpi-value">2</div><div class="kpi-sub">另有 1 個共用端點</div></div>
         </div>
         <div class="kpi-card">
           <div class="kpi-icon" style="background:var(--amber-light); color:var(--amber)"><i class="pi pi-pause"></i></div>
@@ -76,15 +76,65 @@
       <div class="banner banner-brass mb-3">
         <i class="pi pi-link"></i>
         <div>
-          每位收件人都有一組<b>專屬自助連結</b>，會附在每則訊息底部。收件人可自行調整訂閱範圍、暫停與退訂（規格 §6.3 M13）。
-          連結可隨時撤銷並重新產生。
+          每位收件人都有一組<b>專屬自助連結</b>，會附在其<b>個人端點</b>的每則訊息底部。收件人可自行調整訂閱範圍、暫停與退訂（規格 §6.3 M13）。
+          平台只保存連結的<b>雜湊摘要</b>，明文僅在產生當下顯示一次（規格 FR-SS-14、NFR-19），可隨時撤銷並重新產生。
         </div>
       </div>
 
       <div id="recipient-list"></div>
 
+      <!-- 共用端點（不屬於任何收件人） -->
+      <div class="page-head mt-3">
+        <div class="page-title" style="font-size:1.05rem">
+          <i class="pi pi-users" style="color:var(--brass)"></i>共用端點（系統擁有者管理）
+        </div>
+        <div class="page-sub">Telegram 群組等多人共用的收件位置，不屬於任何單一收件人</div>
+      </div>
+
+      <div class="banner banner-warn mb-3">
+        <i class="pi pi-shield"></i>
+        <div>
+          共用端點<b>不得附加任何個人專屬連結</b>（規格 FR-RC-09、風險 RK-10）——
+          否則群組中的任何人都能點進去修改<b>他人</b>的訂閱偏好，甚至代為退訂。
+          共用端點的偏好與退訂一律由系統擁有者在此處理。
+        </div>
+      </div>
+
+      <div id="shared-endpoint-list"></div>
+
     </div>
   </main>
+
+  <!-- 自助連結：僅顯示一次 -->
+  <div class="modal-backdrop" id="modal-selflink">
+    <div class="modal" style="max-width:520px">
+      <div class="modal-header">
+        <div class="modal-title"><i class="pi pi-link" style="color:var(--brass)"></i> 新的自助設定連結</div>
+        <button class="icon-btn" onclick="closeModal('modal-selflink')"><i class="pi pi-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="banner banner-warn">
+          <i class="pi pi-exclamation-triangle"></i>
+          <div>
+            <b>此連結只會顯示這一次。</b>關閉後系統只保留雜湊摘要，無法再取回明文。
+            請立即複製並交給收件人；若遺失，只能撤銷重產。
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">連結</label>
+          <div class="link-box"><span class="mono" id="selflink-plain"></span></div>
+        </div>
+        <div class="banner banner-info">
+          <i class="pi pi-info-circle"></i>
+          <div>舊連結已<b>立即失效</b>（規格 AC-25）。收件人首次開啟時，系統會換發僅限本次瀏覽的憑證並轉址，網址列不會留下識別碼。</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="copyLink()"><i class="pi pi-copy"></i>複製</button>
+        <button class="btn btn-primary" onclick="closeModal('modal-selflink')">我已複製，關閉</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 新增收件人 -->
   <div class="modal-backdrop" id="modal-recipient">
@@ -195,7 +245,11 @@
 
         <div class="banner banner-info">
           <i class="pi pi-info-circle"></i>
-          <div>若要接收到<b>群組</b>，請先將機器人加入該群組，再於群組中送出綁定碼即可。</div>
+          <div>
+            若要接收到<b>群組</b>，請先將機器人加入該群組，再於群組中送出綁定碼。
+            群組會被建立為<b>共用端點</b>（不掛在任何收件人名下、不附個人自助連結），
+            列於本頁下方「共用端點」區塊。
+          </div>
         </div>
 
         <div id="bind-status"></div>
@@ -244,39 +298,51 @@
 
     const MODE_LABEL = { realtime: '即時', digest: '每日摘要', critical_only: '僅緊急' };
 
+    // 端點列（個人與共用共用同一個渲染函式，差別只在有沒有自助連結）
+    function endpointRow(e) {
+      const m = CHANNEL_META[e.channel];
+      const color = e.channel === 'email' ? 'blue' : 'violet';
+      const strengths = e.strengths.map(s => `<span class="tag ${STRENGTH_META[s].tag}">${STRENGTH_META[s].label}</span>`).join('');
+      const markets = e.markets.map(k => `<span class="tag ${MARKET_META[k].tag}">${MARKET_META[k].label}</span>`).join('');
+      // 備援端點（規格 FR-RC-10、FR-DP-08）：只能改送「已驗證、已啟用且獲訂閱規則授權」的端點
+      const fallback = e.fallback
+        ? `<span title="Email 寄送量達預算或投遞失敗時，只會改走這個已授權的備援端點">
+             <i class="pi pi-arrow-right-arrow-left" style="font-size:0.62rem"></i> 備援 <b>${esc(e.fallback)}</b>
+           </span>`
+        : '';
+      return `<div class="list-row">
+        <div class="list-avatar" style="background:var(--${color}-light); color:var(--${color})">
+          <i class="pi ${m.icon}"></i>
+        </div>
+        <div class="list-main">
+          <div class="list-title">
+            ${esc(e.address)}
+            ${verifyTag(e.verify)}
+            ${e.paused ? `<span class="tag tag-warn"><i class="pi pi-pause" style="font-size:0.6rem"></i>暫停至 ${e.pauseUntil}</span>` : ''}
+            ${e.members ? `<span class="tag tag-neu"><i class="pi pi-users" style="font-size:0.6rem"></i>共用</span>` : ''}
+          </div>
+          <div class="ep-meta">
+            <span>模式 <b>${MODE_LABEL[e.mode]}</b></span>
+            <span>靜音 <b>${e.quiet}</b></span>
+            <span>上限 <b>${e.limit}</b> 則/日</span>
+            <span class="flex gap-1 items-center">強度 ${strengths}</span>
+            <span class="flex gap-1 items-center">市場 ${markets}</span>
+            ${fallback}
+            ${e.members ? `<span>成員 <b>${esc(e.members)}</b></span>` : ''}
+          </div>
+        </div>
+        <div class="list-actions">
+          <button class="btn btn-ghost btn-sm" onclick="testSend('${esc(e.address)}')" title="測試發送">
+            <i class="pi pi-send"></i><span class="hide-mobile">測試</span>
+          </button>
+          <button class="icon-btn" title="編輯"><i class="pi pi-pencil"></i></button>
+        </div>
+      </div>`;
+    }
+
     function renderRecipients() {
       document.getElementById('recipient-list').innerHTML = MOCK_RECIPIENTS.map(r => {
-        const eps = r.endpoints.map(e => {
-          const m = CHANNEL_META[e.channel];
-          const color = e.channel === 'email' ? 'blue' : 'violet';
-          const strengths = e.strengths.map(s => `<span class="tag ${STRENGTH_META[s].tag}">${STRENGTH_META[s].label}</span>`).join('');
-          const markets = e.markets.map(k => `<span class="tag ${MARKET_META[k].tag}">${MARKET_META[k].label}</span>`).join('');
-          return `<div class="list-row">
-            <div class="list-avatar" style="background:var(--${color}-light); color:var(--${color})">
-              <i class="pi ${m.icon}"></i>
-            </div>
-            <div class="list-main">
-              <div class="list-title">
-                ${esc(e.address)}
-                ${verifyTag(e.verify)}
-                ${e.paused ? `<span class="tag tag-warn"><i class="pi pi-pause" style="font-size:0.6rem"></i>暫停至 ${e.pauseUntil}</span>` : ''}
-              </div>
-              <div class="ep-meta">
-                <span>模式 <b>${MODE_LABEL[e.mode]}</b></span>
-                <span>靜音 <b>${e.quiet}</b></span>
-                <span>上限 <b>${e.limit}</b> 則/日</span>
-                <span class="flex gap-1 items-center">強度 ${strengths}</span>
-                <span class="flex gap-1 items-center">市場 ${markets}</span>
-              </div>
-            </div>
-            <div class="list-actions">
-              <button class="btn btn-ghost btn-sm" onclick="testSend('${esc(e.address)}')" title="測試發送">
-                <i class="pi pi-send"></i><span class="hide-mobile">測試</span>
-              </button>
-              <button class="icon-btn" title="編輯"><i class="pi pi-pencil"></i></button>
-            </div>
-          </div>`;
-        }).join('');
+        const eps = r.endpoints.map(endpointRow).join('');
 
         return `<div class="card rcp-card">
           <div class="rcp-head">
@@ -301,9 +367,11 @@
             <i class="pi pi-link text-muted"></i>
             <span class="text-xs text-muted" style="font-weight:700">自助設定連結</span>
             <div class="link-box" style="flex:1; min-width:200px">
-              <span>https://mystock.local/n/s/${r.code}-a7f3d9e2c1b4</span>
+              <span class="mono text-muted">https://mystock.local/n/s/••••••••••••••••••••</span>
+              <i class="pi pi-eye-slash text-muted" style="margin-left:6px; font-size:0.7rem"
+                 title="平台只保存雜湊摘要，明文無法再取回"></i>
             </div>
-            <button class="btn btn-ghost btn-sm" onclick="copyLink()"><i class="pi pi-copy"></i>複製</button>
+            <span class="text-xs text-muted hide-mobile">${r.selfLinkIssuedAt} 產生</span>
             <button class="btn btn-ghost btn-sm" onclick="revokeLink('${esc(r.name)}')"><i class="pi pi-refresh"></i>撤銷重產</button>
             <a class="btn btn-ghost btn-sm" href="my-subscription.html"><i class="pi pi-external-link"></i>預覽</a>
           </div>
@@ -311,9 +379,33 @@
       }).join('');
     }
 
+    function renderSharedEndpoints() {
+      document.getElementById('shared-endpoint-list').innerHTML = `
+        <div class="card">
+          <div class="row-list">${MOCK_SHARED_ENDPOINTS.map(endpointRow).join('')}</div>
+          <div class="selflink-row">
+            <i class="pi pi-ban text-muted"></i>
+            <span class="text-xs text-muted">
+              共用端點<b>不產生自助設定連結</b>，其訊息底部也不會夾帶任何收件人的專屬連結（驗收條件 AC-29）。
+            </span>
+          </div>
+        </div>`;
+    }
+
     function testSend(addr) { toast(`測試訊息已送往 ${addr}`, 'pi-send'); }
     function copyLink() { toast('已複製自助設定連結'); }
-    function revokeLink(name) { toast(`已撤銷並重新產生 ${name} 的連結，舊連結立即失效`, 'pi-refresh'); }
+
+    function randToken() {
+      const s = 'abcdefghijklmnopqrstuvwxyz0123456789-_';
+      return Array.from({ length: 43 }, () => s[Math.floor(Math.random() * s.length)]).join('');
+    }
+
+    // 撤銷重產 → 明文只在此對話框顯示一次（規格 FR-SS-14、AC-25）
+    function revokeLink(name) {
+      document.getElementById('selflink-plain').textContent = `https://mystock.local/n/s/${randToken()}`;
+      openModal('modal-selflink');
+      toast(`已撤銷 ${name} 的舊連結，舊連結立即失效`, 'pi-refresh');
+    }
 
     function sendVerify() {
       const v = document.getElementById('new-email').value.trim();
@@ -362,6 +454,7 @@
     }
 
     renderRecipients();
+    renderSharedEndpoints();
   </script>
 </body>
 </html>

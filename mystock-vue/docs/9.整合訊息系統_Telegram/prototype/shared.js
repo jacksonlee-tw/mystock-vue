@@ -29,6 +29,7 @@ const ADMIN_NAV = [
   { key: 'channels',      href: 'channels.html',        icon: 'pi-send',            label: '管道設定' },
   { key: 'recipients',    href: 'recipients.html',      icon: 'pi-users',           label: '收件人' },
   { key: 'subscriptions', href: 'subscriptions.html',   icon: 'pi-filter',          label: '訂閱規則' },
+  { key: 'templates',     href: 'templates.html',       icon: 'pi-file-edit',       label: '訊息模板' },
   { key: 'preview',       href: 'message-preview.html', icon: 'pi-comment',         label: '訊息外觀' },
   { key: 'logs',          href: 'logs.html',            icon: 'pi-history',         label: '發送紀錄' }
 ];
@@ -155,23 +156,30 @@ const MOCK_CHANNELS = [
   }
 ];
 
-// ── 收件人與端點 ──────────────────────────────────
+// ── 收件人與「個人端點」 ───────────────────────────
+// 注意：個人端點只能屬於一位收件人（規格 FR-RC-09、§6.3 M8）。
+// Telegram 群組等「共用端點」不掛在任何收件人名下，見下方 MOCK_SHARED_ENDPOINTS。
+// selfLinkIssuedAt：自助連結產生日期。明文識別碼「只在產生當下顯示一次」，
+// 平台端只保存雜湊摘要（規格 FR-SS-14、NFR-19），故此處僅存遮蔽值。
 const MOCK_RECIPIENTS = [
   {
     code: 'rcp-001',
     name: 'Jackson（我）',
     groups: ['本人'],
     status: 'active',
+    selfLinkIssuedAt: '2026-08-01',
     endpoints: [
       {
         code: 'ep-001', channel: 'email', address: 'jackson210@gmail.com',
         verify: 'verified', mode: 'digest', quiet: '22:00–08:00', limit: 30,
-        strengths: ['strong', 'moderate'], markets: ['tw', 'us'], paused: false
+        strengths: ['strong', 'moderate'], markets: ['tw', 'us'], paused: false,
+        fallback: '個人對話 · @jackson（Telegram）'
       },
       {
         code: 'ep-002', channel: 'telegram', address: '個人對話 · @jackson',
         verify: 'verified', mode: 'realtime', quiet: '無', limit: 50,
-        strengths: ['strong', 'moderate'], markets: ['tw', 'us'], paused: false
+        strengths: ['strong', 'moderate'], markets: ['tw', 'us'], paused: false,
+        fallback: null
       }
     ]
   },
@@ -180,16 +188,19 @@ const MOCK_RECIPIENTS = [
     name: '家人 A',
     groups: ['家人'],
     status: 'active',
+    selfLinkIssuedAt: '2026-08-05',
     endpoints: [
       {
         code: 'ep-003', channel: 'email', address: 'familyA@example.com',
         verify: 'verified', mode: 'digest', quiet: '21:00–09:00', limit: 10,
-        strengths: ['strong'], markets: ['tw'], paused: false
+        strengths: ['strong'], markets: ['tw'], paused: false,
+        fallback: '個人對話 · @familyA（Telegram）'
       },
       {
-        code: 'ep-004', channel: 'telegram', address: '家庭群組 · MyStock 通知',
+        code: 'ep-004', channel: 'telegram', address: '個人對話 · @familyA',
         verify: 'verified', mode: 'critical_only', quiet: '22:00–08:00', limit: 20,
-        strengths: ['strong'], markets: ['tw'], paused: true, pauseUntil: '2026-08-20'
+        strengths: ['strong'], markets: ['tw'], paused: true, pauseUntil: '2026-08-20',
+        fallback: null
       }
     ]
   },
@@ -198,13 +209,27 @@ const MOCK_RECIPIENTS = [
     name: '同好 B',
     groups: ['同好'],
     status: 'active',
+    selfLinkIssuedAt: '2026-08-12',
     endpoints: [
       {
         code: 'ep-005', channel: 'email', address: 'friendB@example.com',
         verify: 'pending', mode: 'digest', quiet: '22:00–08:00', limit: 30,
-        strengths: ['strong', 'moderate'], markets: ['tw', 'us'], paused: false
+        strengths: ['strong', 'moderate'], markets: ['tw', 'us'], paused: false,
+        fallback: null
       }
     ]
+  }
+];
+
+// ── 共用端點（系統擁有者管理，不屬於任何收件人） ────
+// 規格 FR-RC-09：共用端點不得套用個人自助連結；
+// 規格 RK-10：群組訊息若夾帶個人專屬連結，群組成員即可修改他人偏好或代為退訂。
+const MOCK_SHARED_ENDPOINTS = [
+  {
+    code: 'ep-900', channel: 'telegram', address: '家庭群組 · MyStock 通知',
+    verify: 'verified', mode: 'critical_only', quiet: '22:00–08:00', limit: 20,
+    strengths: ['strong'], markets: ['tw'], paused: false,
+    members: '家人 A、家人 B、Jackson', fallback: null
   }
 ];
 
@@ -341,8 +366,10 @@ const MOCK_LOGS = [
   { code: 'msg-8841', time: '2026-08-14 14:32', event: 'ALERT_SIGNAL', title: '2317 鴻海 均線死亡交叉', recipient: 'Jackson（我）', channel: 'telegram', status: 'sent', attempts: 1, reason: '' },
   { code: 'msg-8840', time: '2026-08-14 14:32', event: 'ALERT_SIGNAL', title: '2317 鴻海 均線死亡交叉', recipient: '家人 A', channel: 'email', status: 'digested', attempts: 0, reason: '端點為摘要模式，併入 15:00 摘要' },
   { code: 'msg-8839', time: '2026-08-14 14:32', event: 'ALERT_SIGNAL', title: '2330 台積電 跌破 MA20', recipient: 'Jackson（我）', channel: 'telegram', status: 'sent', attempts: 1, reason: '' },
-  { code: 'msg-8838', time: '2026-08-14 14:32', event: 'ALERT_SIGNAL', title: '1101 台泥 高檔出貨', recipient: '家人 A', channel: 'telegram', status: 'deferred', attempts: 0, reason: '端點暫停中（至 2026-08-20）' },
-  { code: 'msg-8837', time: '2026-08-14 14:32', event: 'ALERT_SIGNAL', title: '0050 均線多頭排列', recipient: 'Jackson（我）', channel: 'telegram', status: 'throttled', attempts: 0, reason: 'weak 訊號不即時推送，改入摘要' },
+  { code: 'msg-8838', time: '2026-08-14 14:32', event: 'ALERT_SIGNAL', title: '1101 台泥 高檔出貨', recipient: '家人 A', channel: 'telegram', status: 'skipped_paused', attempts: 0, reason: '收件人自行暫停至 2026-08-20，期間不發送且不補送' },
+  { code: 'msg-8837', time: '2026-08-14 14:32', event: 'ALERT_SIGNAL', title: '0050 均線多頭排列', recipient: 'Jackson（我）', channel: 'telegram', status: 'digested', attempts: 0, reason: 'weak 訊號依訂閱條件不即時推送，併入 15:00 摘要' },
+  { code: 'msg-8837B', time: '2026-08-14 14:32', event: 'ALERT_SIGNAL', title: '1760 寶齡富錦 營收連續衰退', recipient: '家人 A', channel: 'email', status: 'throttled', attempts: 0, reason: '已達每日上限 10 則，超量部分改併入摘要' },
+  { code: 'msg-8837C', time: '2026-08-14 22:14', event: 'ALERT_SIGNAL', title: '2603 長榮 跌破 MA60', recipient: 'Jackson（我）', channel: 'telegram', status: 'deferred', attempts: 0, reason: '靜音時段（22:00–08:00），延後至 08:00 逐則送出，不轉摘要' },
   { code: 'msg-8836', time: '2026-08-14 14:31', event: 'ALERT_SIGNAL', title: '2330 台積電 跌破 MA20', recipient: '同好 B', channel: 'email', status: 'dead', attempts: 3, reason: '收件位址無效（550 mailbox not found），端點已自動停用' },
   { code: 'msg-8835', time: '2026-08-14 14:31', event: 'ALERT_SIGNAL', title: '2884 玉山金 突破 MA60', recipient: 'Jackson（我）', channel: 'telegram', status: 'sent', attempts: 1, reason: '' },
   { code: 'msg-8834', time: '2026-08-14 14:30', event: 'ALERT_SIGNAL', title: '2330 台積電 跌破 MA20', recipient: 'Jackson（我）', channel: 'telegram', status: 'skipped_duplicate', attempts: 0, reason: '同一事件已送過此端點（重跑掃描）' },
@@ -359,14 +386,18 @@ const CHANNEL_META = {
   line:     { label: 'LINE',     icon: 'pi-comments', tag: 'tag-future' }
 };
 
+// 規格 §6.3 M7：`sent` 只代表「外部管道已接受發送請求」，
+// 不等同已進收件匣、更不等同已讀。介面文案一律用「已送出」，
+// 只有管道確實回報送達時才可另標 delivered / bounced。
 const STATUS_META = {
-  sent:              { label: '已送達',   tag: 'tag-ok',    icon: 'pi-check-circle' },
+  sent:              { label: '已送出',   tag: 'tag-ok',    icon: 'pi-check-circle' },
   failed:            { label: '失敗待重試', tag: 'tag-warn',  icon: 'pi-replay' },
   dead:              { label: '最終失敗', tag: 'tag-err',   icon: 'pi-times-circle' },
   digested:          { label: '併入摘要', tag: 'tag-neu',   icon: 'pi-inbox' },
   throttled:         { label: '超量轉摘要', tag: 'tag-neu', icon: 'pi-filter-slash' },
   deferred:          { label: '延後',     tag: 'tag-neu',   icon: 'pi-clock' },
   skipped_duplicate: { label: '重複略過', tag: 'tag-neu',   icon: 'pi-ban' },
+  skipped_paused:    { label: '暫停略過', tag: 'tag-neu',   icon: 'pi-pause' },
   pending:           { label: '待發送',   tag: 'tag-neu',   icon: 'pi-hourglass' }
 };
 

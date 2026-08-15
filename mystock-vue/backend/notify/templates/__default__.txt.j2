@@ -1,0 +1,10 @@
+【{{ event_type_label }}】{{ title | default(event_type_label) }}
+發生時間：{{ occurred_at }}
+{% if market %}市場：{{ market | upper }}
+{% endif -%}
+{% if trade_date %}交易日：{{ trade_date }}
+{% endif -%}
+
+此事件類型尚未設定專屬模板，系統以通用格式呈現（模板管理頁可自訂）。
+
+{{ disclaimer }}

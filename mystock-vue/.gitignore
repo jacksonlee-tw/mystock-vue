@@ -1,0 +1,8 @@
+# 本機開發用的真實環境變數（docker-compose.dev.yml 讀取），常含個人本機密碼，不進版控。
+# .env.dev / .env.test / .env.prod 僅放非機密預設值，維持進版控（部署時直接以
+# --env-file 指定使用）。
+.env
+.env.local
+
+# 根目錄 compose 疊加使用 backend/、frontend/ 的 bind mount，內容已由
+# backend/.gitignore、frontend 自身建置產物規則管理，這裡不重複宣告。

@@ -1,0 +1,21 @@
+{{ stock_id }} {{ stock_name }}（{{ market | upper }}）於 {{ trade_date }} 觸發訊號。
+
+策略：{{ strategy_name }}
+方向：{{ signal_label }}
+強度：{{ strength_label }}
+通過濾網：{{ filters_passed | join('、') if filters_passed else '無' }}
+
+{% if details -%}
+收盤 {{ details.close | default('—') }}
+MA{{ details.ma_period | default('') }} {{ details.ma_value | default('—') }}
+乖離率 {{ details.bias_percent | default('—') }}%
+
+{% endif -%}
+{% if suggested_action %}參考動作：{{ suggested_action }}
+
+{% endif -%}
+▸ 查看圖表：{{ chart_url }}
+{% if manage_url %}▸ 管理我的通知：{{ manage_url }}
+{% endif %}
+
+{{ disclaimer }}

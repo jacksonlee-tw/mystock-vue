@@ -189,6 +189,16 @@
       <div class="card mb-3">
         <div class="card-header">
           <div class="card-title"><i class="pi pi-clock"></i>接收節奏</div>
+          <span class="text-xs text-muted">套用於全部收件方式</span>
+        </div>
+        <div class="card-body">
+          <div class="banner banner-info" style="padding:0.6rem 0.8rem">
+            <i class="pi pi-info-circle"></i>
+            <div>
+              原型以單一組設定示意。<b>正式版依規格 FR-RC-06／FR-SS-05，節奏設定為「每個收件方式各自獨立」</b>——
+              例如 Email 走每日摘要、Telegram 走即時，會收進上方「我的收件方式」每一列的展開區。
+            </div>
+          </div>
         </div>
         <div class="card-body tight">
           <div class="setting-row">
@@ -440,9 +450,11 @@
     }
 
     function renderEndpoints() {
+      // 只列出「個人端點」。家庭群組屬共用端點，由系統擁有者管理，
+      // 不會出現在任何人的自助頁，也不會夾帶個人專屬連結（規格 FR-RC-09、風險 RK-10）。
       const eps = [
         { channel: 'email', address: 'familyA@example.com', verify: 'verified', note: '每日摘要 · 15:00' },
-        { channel: 'telegram', address: '家庭群組 · MyStock 通知', verify: 'verified', note: '即時推送' }
+        { channel: 'telegram', address: '個人對話 · @familyA', verify: 'verified', note: '僅緊急' }
       ];
       document.getElementById('endpoint-list').innerHTML = eps.map((e, i) => {
         const m = CHANNEL_META[e.channel];

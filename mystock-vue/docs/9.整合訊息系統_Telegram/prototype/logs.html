@@ -44,7 +44,11 @@
         </div>
         <div class="kpi-card">
           <div class="kpi-icon" style="background:var(--green-light); color:var(--green)"><i class="pi pi-check-circle"></i></div>
-          <div><div class="kpi-label">送達率</div><div class="kpi-value">83<span class="text-sm">%</span></div><div class="kpi-sub">10 / 12</div></div>
+          <div>
+            <div class="kpi-label">送出成功率</div>
+            <div class="kpi-value">83<span class="text-sm">%</span></div>
+            <div class="kpi-sub" title="管道已接受發送請求，不等同已進收件匣或已讀">10 / 12 · 管道已接受</div>
+          </div>
         </div>
         <div class="kpi-card">
           <div class="kpi-icon" style="background:var(--red-light); color:var(--red)"><i class="pi pi-times-circle"></i></div>
@@ -103,9 +107,12 @@
                 <div class="state-flow">
                   <span class="tag tag-neu">待發送</span><i class="pi pi-arrow-right"></i>
                   <span class="tag tag-neu">發送中</span><i class="pi pi-arrow-right"></i>
-                  <span class="tag tag-ok">已送達</span>
+                  <span class="tag tag-ok">已送出</span>
                 </div>
-                <div class="reason">正常發送流程。</div>
+                <div class="reason">
+                  正常發送流程。<b>「已送出」＝ 外部管道已接受發送請求</b>，
+                  不等同已進收件匣、更不等同已讀；只有管道確實回報送達時，才會另標「已送達／已退信」。
+                </div>
               </div>
             </div>
             <div>
@@ -130,10 +137,13 @@
                   <span class="tag tag-neu">超量轉摘要</span>
                   <span class="tag tag-neu">延後</span>
                   <span class="tag tag-neu">併入摘要</span>
+                  <span class="tag tag-neu">暫停略過</span>
                 </div>
                 <div class="reason">
                   四道政策閘門的結果：去重、每日上限、靜音時段、發送模式。
-                  <b>訊息不會遺失</b>，只是改以摘要或延後送出。
+                  <b>訊息不會遺失</b>，只是改以摘要或延後送出。<br/>
+                  例外：<b>暫停略過</b>是收件人自行暫停期間的訊息，
+                  依規格<b>不會於恢復後補送</b>，僅保留紀錄。
                 </div>
               </div>
             </div>
@@ -167,7 +177,7 @@
       if (activeFilter === 'all') return true;
       if (activeFilter === 'sent') return l.status === 'sent';
       if (activeFilter === 'problem') return ['failed', 'dead'].includes(l.status);
-      if (activeFilter === 'policy') return ['digested', 'throttled', 'deferred', 'skipped_duplicate'].includes(l.status);
+      if (activeFilter === 'policy') return ['digested', 'throttled', 'deferred', 'skipped_duplicate', 'skipped_paused'].includes(l.status);
       return true;
     }
 

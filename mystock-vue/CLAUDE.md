@@ -56,6 +56,24 @@ there, never edit an already-applied `V*` file.
 
 `stop_servers.bat` (repo root) kills whatever is listening on ports 8000/5173/5175, for local (non-Docker) dev.
 
+### Full-stack Docker deployment (repo root)
+Root-level compose files are a separate, full-stack (db + flyway + backup + backend + frontend) setup layered
+on top of `backend/docker-compose.yml` (which is untouched and still works standalone for backend-only use).
+
+```bash
+# prod/test/dev/local share one definition; only the --env-file differs (git branch -> env file):
+#   main branch -> .env.prod, test branch -> .env.test, dev branch -> .env.dev, local -> .env.local (untracked)
+docker compose --env-file .env.prod -f docker-compose.yml up -d --build
+
+# local hot-reload (bind-mounted source, uvicorn --reload + Vite dev server), reads root .env (untracked):
+docker compose -f docker-compose.dev.yml up -d --build
+```
+`docker-compose.traefik.yml` is an illustrative overlay only (example domain/network) for a future reverse-proxy
+gateway; it is not required and not wired into normal usage. `frontend/Dockerfile` has `development` (Vite dev
+server) and `production` (nginx, proxies `/api/` to `backend:8000`, see `frontend/nginx.conf`) build targets;
+`backend/Dockerfile` gained a matching `development`/`production` split (default/no `--target` still builds
+`production`, so `backend/docker-compose.yml` needs no changes).
+
 ## Architecture
 
 ### Dual data source: JSON files vs. PostgreSQL

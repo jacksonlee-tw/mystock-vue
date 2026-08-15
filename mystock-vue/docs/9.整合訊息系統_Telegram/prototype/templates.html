@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>訊息模板 — MyStock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .tpl-layout { display: grid; grid-template-columns: 280px 1fr; gap: 1rem; align-items: start; }
+    @media (max-width: 900px) { .tpl-layout { grid-template-columns: 1fr; } }
+
+    .tpl-nav { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.6rem; }
+    .tpl-nav-item {
+      display: flex; align-items: center; gap: 0.55rem;
+      padding: 0.55rem 0.7rem; border-radius: 9px;
+      border: 1px solid transparent; cursor: pointer;
+      font-size: 0.8rem; transition: all 0.15s;
+    }
+    .tpl-nav-item:hover { background: var(--surface-hover); }
+    .tpl-nav-item.active { background: var(--brass-light); border-color: var(--brass-border); color: var(--brass); font-weight: 700; }
+    .tpl-nav-item .code { font-size: 0.66rem; color: var(--text-placeholder); }
+    .tpl-nav-item.active .code { color: var(--brass); }
+
+    .editor {
+      width: 100%; min-height: 250px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.78rem; line-height: 1.7;
+      padding: 0.85rem;
+      background: var(--surface-hover);
+      border: 1px solid var(--surface-border);
+      border-radius: 10px;
+      color: var(--text-primary);
+      resize: vertical;
+    }
+    .editor:focus { outline: none; border-color: var(--brass); background: var(--surface-card); }
+
+    .var-table { width: 100%; font-size: 0.75rem; }
+    .var-table td { padding: 0.4rem 0.5rem; border-bottom: 1px dashed var(--surface-border); vertical-align: top; }
+    .var-table tr:last-child td { border-bottom: none; }
+    .var-name {
+      font-family: 'Consolas', monospace; font-weight: 700;
+      color: var(--brass); white-space: nowrap;
+      cursor: pointer;
+    }
+    .var-name:hover { text-decoration: underline; }
+
+    .matrix-cell { text-align: center; }
+    .render-box {
+      white-space: pre-wrap;
+      font-size: 0.8rem; line-height: 1.75;
+      padding: 0.9rem 1rem;
+      background: var(--surface-hover);
+      border: 1px solid var(--surface-border);
+      border-radius: 10px;
+      min-height: 120px;
+    }
+    .tab-bar { display: flex; gap: 0.3rem; padding: 0.6rem 1.15rem 0; border-bottom: 1px solid var(--surface-border); }
+    .tab {
+      padding: 0.5rem 0.9rem; font-size: 0.8rem; font-weight: 700;
+      border: 1px solid transparent; border-bottom: none;
+      border-radius: 9px 9px 0 0; cursor: pointer; color: var(--text-muted);
+      position: relative; top: 1px;
+    }
+    .tab.active {
+      background: var(--surface-card); color: var(--brass);
+      border-color: var(--surface-border); border-bottom-color: var(--surface-card);
+    }
+  </style>
+</head>
+<body>
+  <div id="topbar-host"></div>
+
+  <main class="page-main">
+    <div class="content-wrap">
+
+      <div class="page-head flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <div class="page-title"><i class="pi pi-file-edit" style="color:var(--brass)"></i>訊息模板</div>
+          <div class="page-sub">調整文案是編輯模板，不需改程式、不需重新部署（規格鐵則 R4）</div>
+        </div>
+        <div class="flex gap-1">
+          <button class="btn btn-ghost" onclick="resetTpl()"><i class="pi pi-undo"></i>還原</button>
+          <button class="btn btn-primary" onclick="saveTpl()"><i class="pi pi-check"></i>儲存模板</button>
+        </div>
+      </div>
+
+      <div class="banner banner-brass mb-3">
+        <i class="pi pi-shield"></i>
+        <div>
+          模板數量 ＝ <b>事件類型數 × 啟用管道數</b>。任一組合缺漏時會自動回退到
+          <b class="mono">__default__</b> 通用模板，<b>絕不會因為漏補模板而靜默漏發訊息</b>（規格鐵則 R5）。
+          免責聲明與「管理我的通知」連結由系統強制附加，模板無法省略。
+        </div>
+      </div>
+
+      <div class="tpl-layout">
+
+        <!-- 左：模板清單 -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><i class="pi pi-list"></i>模板清單</div>
+          </div>
+          <div class="tpl-nav" id="tpl-nav"></div>
+        </div>
+
+        <!-- 右：編輯 + 變數 + 預覽 -->
+        <div>
+          <div class="card mb-3">
+            <div class="tab-bar" id="tab-bar"></div>
+            <div class="card-body">
+              <div class="flex items-center justify-between mb-2 flex-wrap gap-1">
+                <div class="text-xs text-muted">
+                  模板代碼 <span class="mono" id="cur-code"></span>
+                </div>
+                <div id="fallback-flag"></div>
+              </div>
+
+              <div class="form-group" id="subject-group">
+                <label class="form-label">主旨（僅 Email 管道有此欄位）</label>
+                <input class="form-input mono" id="tpl-subject" style="font-size:0.78rem" oninput="renderPreview()">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">內文</label>
+                <textarea class="editor" id="tpl-body" oninput="renderPreview()"></textarea>
+                <div class="form-hint" id="len-hint"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title"><i class="pi pi-code"></i>可用變數</div>
+                <span class="card-desc">點擊插入</span>
+              </div>
+              <div class="card-body tight" style="padding:0.5rem 0.65rem">
+                <table class="var-table"><tbody id="var-tbody"></tbody></table>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title"><i class="pi pi-eye"></i>範例資料預覽</div>
+                <span class="card-desc">不會實際發送</span>
+              </div>
+              <div class="card-body">
+                <div class="render-box" id="preview-box"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 模板矩陣 -->
+      <div class="card mt-3">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-table"></i>模板矩陣（事件類型 × 管道）</div>
+          <span class="card-desc">灰色 = 尚未自訂，發送時自動回退預設模板</span>
+        </div>
+        <div class="card-body tight">
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>事件類型</th><th>名稱</th>
+                  <th class="matrix-cell">Email</th>
+                  <th class="matrix-cell">Telegram</th>
+                  <th class="matrix-cell">LINE（未啟用）</th>
+                </tr>
+              </thead>
+              <tbody id="matrix-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    renderTopbar('templates', 'admin');
+
+    // ── 模板資料（Mock） ──────────────────────────────
+    const TEMPLATES = {
+      'ALERT_SIGNAL|telegram': {
+        custom: true,
+        subject: null,
+        body:
+`{{ emoji }}【{{ signal_label }}】{{ stock_id }} {{ stock_name }}
+策略：{{ strategy_name }}
+強度：{{ strength_label }}{% if filters_passed %}（通過 {{ filters_passed | join('、') }}）{% endif %}
+交易日：{{ trade_date }}
+收盤 {{ details.close }}　MA{{ details.ma_period }} {{ details.ma_value }}　乖離 {{ details.bias_percent }}%
+{% if suggested_action %}參考動作：{{ suggested_action }}{% endif %}
+▸ 查看圖表 {{ chart_url }}`
+      },
+      'ALERT_SIGNAL|email': {
+        custom: true,
+        subject: '{{ subject_prefix }}{{ signal_label }}｜{{ stock_id }} {{ stock_name }}　{{ strategy_name }}',
+        body:
+`{{ stock_id }} {{ stock_name }}（{{ market_label }}）於 {{ trade_date }} 觸發訊號。
+
+策略：{{ strategy_name }}
+方向：{{ signal_label }}
+強度：{{ strength_label }}
+通過濾網：{{ filters_passed | join('、') | default('無') }}
+
+收盤 {{ details.close }}
+MA{{ details.ma_period }} {{ details.ma_value }}
+乖離率 {{ details.bias_percent }}%
+
+參考動作：{{ suggested_action }}
+▸ 查看圖表：{{ chart_url }}`
+      },
+      'ALERT_DIGEST|email': {
+        custom: true,
+        subject: '{{ subject_prefix }}{{ digest_date }} {{ market_label }}警示摘要（賣出 {{ sell_count }} 檔 / 買進 {{ buy_count }} 檔）',
+        body:
+`當日掃描完成，共觸發 {{ total_count }} 則訊號。
+
+{% for group in groups %}■ {{ group.label }}（{{ group.items | length }}）
+{% for a in group.items %}  {{ a.stock_id }}　{{ a.stock_name }}　{{ a.strategy_name }}　{{ a.strength_label }}　{{ a.details.close }}
+{% endfor %}
+{% endfor %}
+▸ 開啟警示看板：{{ dashboard_url }}`
+      },
+      'ALERT_DIGEST|telegram': { custom: false, subject: null, body: '' },
+      'FETCH_COMPLETED|email': { custom: false, subject: null, body: '' },
+      'FETCH_COMPLETED|telegram': { custom: false, subject: null, body: '' },
+      'FETCH_FAILED|email': { custom: false, subject: null, body: '' },
+      'FETCH_FAILED|telegram': {
+        custom: true,
+        subject: null,
+        body:
+`⚠️【系統異常】{{ market_label }}每日抓取失敗
+發生時間：{{ occurred_at }}
+影響範圍：{{ failed_symbols | length }} 檔標的未更新（{{ failed_symbols | join('、') }}）
+錯誤摘要：{{ error_summary }}
+提醒：今日策略掃描結果可能不完整，建議手動重新抓取
+▸ 開啟抓取管理頁 {{ fetch_url }}`
+      },
+      'SYSTEM_HEALTH|email': { custom: false, subject: null, body: '' },
+      'SYSTEM_HEALTH|telegram': { custom: false, subject: null, body: '' }
+    };
+
+    const DEFAULT_BODY =
+`【{{ event_type_label }}】{{ title }}
+發生時間：{{ occurred_at }}
+{% for key, value in payload.items() %}{{ key }}：{{ value }}
+{% endfor %}`;
+
+    // 可用變數宣告（實作上來自後端 TEMPLATE_CONTEXT_SPEC，不另行維護文件）
+    const VARS = {
+      ALERT_SIGNAL: [
+        ['stock_id / stock_name', '股票代號與名稱'],
+        ['market_label', '市場（台股／美股）'],
+        ['strategy_name', '策略名稱'],
+        ['signal_label / emoji', '買進／賣出／警告，及對應圖示'],
+        ['strength_label', '強／中／弱'],
+        ['filters_passed', '通過的濾網清單'],
+        ['trade_date', '訊號所屬交易日（非發送時間）'],
+        ['details.*', 'close／ma_period／ma_value／bias_percent 等客觀數值'],
+        ['suggested_action', '策略引擎既有輸出，通知平台不新增判斷'],
+        ['chart_url', '回系統的個股圖表頁']
+      ],
+      ALERT_DIGEST: [
+        ['digest_date', '摘要所屬日期'],
+        ['market_label', '市場'],
+        ['total_count / buy_count / sell_count', '訊號數統計'],
+        ['groups', '依訊號類型分組，組內依強度排序；weak 為獨立分區'],
+        ['dashboard_url', '回系統的警示看板']
+      ],
+      FETCH_COMPLETED: [
+        ['market_label', '市場'], ['mode', '抓取模式（incremental／repair）'],
+        ['success_count / failed_count', '成功與失敗檔數'], ['duration_sec', '耗時']
+      ],
+      FETCH_FAILED: [
+        ['market_label', '市場'], ['failed_symbols', '失敗標的清單'],
+        ['error_summary', '錯誤摘要'], ['occurred_at', '發生時間'], ['fetch_url', '抓取管理頁']
+      ],
+      SYSTEM_HEALTH: [
+        ['probe_label', '異常項目'], ['occurred_at', '發生時間'],
+        ['impact', '影響範圍'], ['occurrence_count', '冷卻期內累計次數']
+      ]
+    };
+
+    const ALWAYS = [
+      ['disclaimer', '免責聲明 — 系統強制附加，模板不需也無法省略（FR-MC-05）'],
+      ['manage_url', '「管理我的通知」連結 — 僅個人端點有值；共用端點恆為空（AC-29）'],
+      ['subject_prefix', '主旨前綴，例如【MyStock】（僅 Email）']
+    ];
+
+    // 範例資料（取自 shared.js 的 MOCK_ALERTS，與規格 §16 附錄一致）
+    const SAMPLE = MOCK_ALERTS[0];
+
+    let curEvent = 'ALERT_SIGNAL';
+    let curChannel = 'telegram';
+    const CHANNELS = ['email', 'telegram'];
+
+    function key() { return `${curEvent}|${curChannel}`; }
+    function tpl() { return TEMPLATES[key()] || { custom: false, subject: null, body: '' }; }
+
+    // ── 左側清單 ──
+    function renderNav() {
+      document.getElementById('tpl-nav').innerHTML = Object.entries(EVENT_META).map(([code, m]) => {
+        const anyCustom = CHANNELS.some(c => TEMPLATES[`${code}|${c}`]?.custom);
+        return `<div class="tpl-nav-item ${code === curEvent ? 'active' : ''}" onclick="selectEvent('${code}')">
+          <i class="pi ${m.severity === 'critical' ? 'pi-exclamation-triangle' : 'pi-bolt'}"></i>
+          <div style="flex:1; min-width:0">
+            <div>${m.label}</div>
+            <div class="code mono">${code}</div>
+          </div>
+          ${anyCustom ? '' : '<span class="tag tag-neu" style="font-size:0.6rem">預設</span>'}
+        </div>`;
+      }).join('');
+    }
+
+    function renderTabs() {
+      document.getElementById('tab-bar').innerHTML = CHANNELS.map(c => {
+        const m = CHANNEL_META[c];
+        return `<div class="tab ${c === curChannel ? 'active' : ''}" onclick="selectChannel('${c}')">
+          <i class="pi ${m.icon}" style="font-size:0.7rem"></i> ${m.label}
+        </div>`;
+      }).join('');
+    }
+
+    function renderEditor() {
+      const t = tpl();
+      document.getElementById('cur-code').textContent = `${curEvent.toLowerCase()}.${curChannel}`;
+      document.getElementById('subject-group').style.display = curChannel === 'email' ? '' : 'none';
+      document.getElementById('tpl-subject').value = t.subject || '';
+      document.getElementById('tpl-body').value = t.custom ? t.body : DEFAULT_BODY;
+
+      document.getElementById('fallback-flag').innerHTML = t.custom
+        ? '<span class="tag tag-ok"><i class="pi pi-check" style="font-size:0.6rem"></i>已自訂</span>'
+        : `<span class="tag tag-warn"><i class="pi pi-info-circle" style="font-size:0.6rem"></i>使用預設模板（__default__）</span>`;
+
+      document.getElementById('len-hint').innerHTML = curChannel === 'telegram'
+        ? '<i class="pi pi-info-circle"></i> Telegram 單則有長度上限；超過時系統會於安全邊界截斷並附完整內容連結（FR-MC-06）'
+        : '<i class="pi pi-info-circle"></i> Email 長度寬鬆，適合表格式彙整；每日寄送量有預算限制，建議以摘要為主';
+    }
+
+    function renderVars() {
+      const rows = [...(VARS[curEvent] || []), ...ALWAYS];
+      document.getElementById('var-tbody').innerHTML = rows.map(([n, d]) => `
+        <tr>
+          <td class="var-name" onclick="insertVar('${n.split(' ')[0]}')">{{ ${n} }}</td>
+          <td class="text-muted">${d}</td>
+        </tr>`).join('');
+    }
+
+    function insertVar(name) {
+      const ta = document.getElementById('tpl-body');
+      const pos = ta.selectionStart ?? ta.value.length;
+      const token = `{{ ${name.replace('.*', '.欄位')} }}`;
+      ta.value = ta.value.slice(0, pos) + token + ta.value.slice(pos);
+      ta.focus();
+      renderPreview();
+    }
+
+    // ── 極簡 Jinja 風格渲染（僅原型示意） ──
+    function renderPreview() {
+      const raw = document.getElementById('tpl-body').value;
+      const ctx = {
+        emoji: '🔴',
+        signal_label: SIGNAL_META[SAMPLE.signal_type].label,
+        strength_label: STRENGTH_META[SAMPLE.signal_strength].label,
+        market_label: MARKET_META[SAMPLE.market].label,
+        stock_id: SAMPLE.stock_id,
+        stock_name: SAMPLE.stock_name,
+        strategy_name: SAMPLE.strategy_name,
+        trade_date: SAMPLE.trade_date,
+        suggested_action: SAMPLE.suggested_action,
+        chart_url: 'https://mystock.local/stock/tw/2330',
+        dashboard_url: 'https://mystock.local/alerts',
+        event_type_label: EVENT_META[curEvent].label,
+        title: `${SAMPLE.stock_id} ${SAMPLE.stock_name} ${SAMPLE.strategy_name}`,
+        occurred_at: '2026-08-14 14:32'
+      };
+
+      let out = raw
+        .replace(/\{%[^%]*%\}/g, '')                                   // 原型不解析控制流，直接移除
+        .replace(/\{\{\s*filters_passed[^}]*\}\}/g, SAMPLE.filters_passed.join('、') || '無')
+        .replace(/\{\{\s*details\.(\w+)[^}]*\}\}/g, (_, k) => SAMPLE.details[k] ?? '—')
+        .replace(/\{\{\s*(\w+)[^}]*\}\}/g, (_, k) => ctx[k] ?? '—')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+
+      // 系統強制附加的兩段，不由模板控制
+      out += '\n▸ 管理我的通知 https://mystock.local/n/s/••••••';
+      out += '\n—— 本訊息由系統依既定規則自動產生，僅供參考，非投資建議';
+
+      const subj = curChannel === 'email'
+        ? `主旨：${(document.getElementById('tpl-subject').value || '').replace(/\{\{\s*subject_prefix\s*\}\}/g, '【MyStock】').replace(/\{\{\s*(\w+)[^}]*\}\}/g, (_, k) => ctx[k] ?? '—')}\n\n`
+        : '';
+      document.getElementById('preview-box').textContent = subj + out;
+    }
+
+    function renderMatrix() {
+      const cell = (code, ch) => {
+        const t = TEMPLATES[`${code}|${ch}`];
+        return t?.custom
+          ? '<span class="tag tag-ok">已自訂</span>'
+          : '<span class="tag tag-neu">預設模板</span>';
+      };
+      document.getElementById('matrix-tbody').innerHTML = Object.entries(EVENT_META).map(([code, m]) => `
+        <tr>
+          <td class="mono text-xs">${code}</td>
+          <td style="font-weight:700">${m.label}</td>
+          <td class="matrix-cell">${cell(code, 'email')}</td>
+          <td class="matrix-cell">${cell(code, 'telegram')}</td>
+          <td class="matrix-cell"><span class="tag tag-future">管道未啟用</span></td>
+        </tr>`).join('');
+    }
+
+    function selectEvent(code) { curEvent = code; renderAll(); }
+    function selectChannel(ch) { curChannel = ch; renderAll(); }
+
+    function saveTpl() {
+      const t = TEMPLATES[key()] || (TEMPLATES[key()] = { custom: false, subject: null, body: '' });
+      t.custom = true;
+      t.body = document.getElementById('tpl-body').value;
+      t.subject = curChannel === 'email' ? document.getElementById('tpl-subject').value : null;
+      renderAll();
+      toast('模板已儲存 — 下一則訊息即套用，不需重新部署', 'pi-check-circle');
+    }
+
+    function resetTpl() {
+      if (TEMPLATES[key()]) TEMPLATES[key()].custom = false;
+      renderAll();
+      toast('已還原為預設模板', 'pi-undo');
+    }
+
+    function renderAll() {
+      renderNav(); renderTabs(); renderEditor(); renderVars(); renderPreview(); renderMatrix();
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>

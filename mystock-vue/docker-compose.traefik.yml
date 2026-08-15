@@ -1,0 +1,52 @@
+# =============================================================================
+# docker-compose.traefik.yml — 接入反向代理閘道（Traefik）的 label 疊加檔【範例】
+# =============================================================================
+# ⚠️ 本檔目前只是「範例／未來擴充參考」，docker-compose.yml 預設已直接發布 host port
+#    （見 BACKEND_PORT / FRONTEND_PORT），日常使用不需要疊加本檔。
+#    僅在日後真的要接上共用 Traefik 閘道、改走網域＋路徑路由時才需要調整並啟用。
+#
+# 本檔不啟動 Traefik 容器本身，只把 traefik.* label 加到 backend / frontend 服務上，
+# 讓「別處已啟動」的 Traefik 用 Docker provider 自動發現並轉發流量進來。
+# 網域、網路名稱皆為範例值（mystock.example.com / edge），請依實際閘道環境調整，
+# 不要直接沿用本檔的範例值上線。
+#
+# 使用方式（範例，需與 docker-compose.yml 一起帶入）：
+#   docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.traefik.yml up -d --build
+#
+# 可覆寫變數（來源：--env-file／shell）：
+#   APP_PUBLIC_HOST   對外網域（範例：mystock.example.com）
+#   GATEWAY_NETWORK   共用閘道所在的 Docker 網路名稱（範例：edge）
+# =============================================================================
+services:
+  backend:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${GATEWAY_NETWORK:-edge}"
+      - "traefik.http.routers.mystock-api.rule=Host(`${APP_PUBLIC_HOST:-mystock.example.com}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.mystock-api.priority=10"
+      - "traefik.http.routers.mystock-api.entrypoints=web"
+      - "traefik.http.routers.mystock-api.service=mystock-api"
+      - "traefik.http.services.mystock-api.loadbalancer.server.port=8000"
+    networks:
+      - default
+      - edge
+
+  frontend:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${GATEWAY_NETWORK:-edge}"
+      - "traefik.http.routers.mystock-app.rule=Host(`${APP_PUBLIC_HOST:-mystock.example.com}`)"
+      - "traefik.http.routers.mystock-app.priority=1"
+      - "traefik.http.routers.mystock-app.entrypoints=web"
+      - "traefik.http.routers.mystock-app.service=mystock-app"
+      - "traefik.http.services.mystock-app.loadbalancer.server.port=80"
+    networks:
+      - default
+      - edge
+
+networks:
+  # external: true → 只沿用預先於主機建立好的共用閘道網路，本檔不自建、不驗證 label。
+  # 範例：docker network create edge
+  edge:
+    external: true
+    name: ${GATEWAY_NETWORK:-edge}

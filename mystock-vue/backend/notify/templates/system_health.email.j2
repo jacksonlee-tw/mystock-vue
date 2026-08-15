@@ -1,0 +1,10 @@
+⚠️ 系統異常：{{ description | default(probe_key) }}
+
+發生時間：{{ occurred_at }}
+偵測項目：{{ probe_key | default('—') }}
+{% if occurrence_count and occurrence_count > 1 %}（冷卻期內已累計 {{ occurrence_count }} 次）
+{% endif -%}
+
+此為系統自我偵測產生的告警，非交易或帳務異常。
+
+{{ disclaimer }}
