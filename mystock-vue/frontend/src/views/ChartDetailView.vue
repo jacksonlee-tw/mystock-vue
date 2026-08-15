@@ -323,7 +323,10 @@ const currentChartOption = computed(() => {
             const candle = params.find((p) => p.seriesType === 'candlestick') || params[0];
             if (!candle || !candle.data) return '';
             const date = candle.name;
-            const [openRaw, closeRaw, lowRaw, highRaw] = candle.data;
+            // candle.data 是 ECharts candlestick 內部的 raw value，格式為
+            // [類別索引, open, close, low, high]（開頭多一個座標軸索引維度，不是我們傳入的 [open,close,low,high]），
+            // 需去掉第 0 個索引維度，否則開盤價會顯示成 K 棒的索引序號。
+            const [openRaw, closeRaw, lowRaw, highRaw] = candle.data.slice(1);
             const change = closeRaw - openRaw;
             const color = change >= 0 ? upDown.value.up : upDown.value.down;
             // 美股價格是原始浮點數，統一只顯示到小數 2 位，避免撐爆 tooltip。

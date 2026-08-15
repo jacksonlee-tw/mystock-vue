@@ -126,14 +126,16 @@
     ═══════════════════════════════════════════════════ -->
     <div class="p-6 max-w-7xl mx-auto space-y-6">
 
-    <!-- 載入中狀態 -->
-    <div v-if="loading" class="flex flex-col items-center justify-center p-12 card bg-surface-0 dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700">
+    <!-- 初次載入中狀態：只有在還沒有任何資料可顯示時才整頁顯示 spinner。
+         切換日/週/月線或時間範圍時 chartData 已存在，改用下方 refreshing 覆蓋層，
+         避免整塊內容被卸載導致頁面變矮、瀏覽器把捲動位置重置到頂部。 -->
+    <div v-if="loading && !chartData" class="flex flex-col items-center justify-center p-12 card bg-surface-0 dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700">
       <i class="pi pi-spin pi-spinner text-primary text-4xl mb-3"></i>
       <p class="text-sm font-semibold text-surface-600 dark:text-surface-400">正在加載個股數據與進行週期聚合...</p>
     </div>
 
-    <!-- 錯誤訊息 -->
-    <div v-else-if="error" class="card p-6 border border-red-300 bg-red-50 dark:bg-red-900/20 rounded-2xl text-red-700 dark:text-red-300">
+    <!-- 錯誤訊息（僅在完全沒有既有資料可顯示時整頁擋住；若是刷新中途失敗，保留舊資料原地顯示） -->
+    <div v-else-if="error && !chartData" class="card p-6 border border-red-300 bg-red-50 dark:bg-red-900/20 rounded-2xl text-red-700 dark:text-red-300">
       <div class="flex items-center gap-3">
         <i class="pi pi-exclamation-circle text-2xl"></i>
         <div>
@@ -143,151 +145,163 @@
       </div>
     </div>
 
-    <!-- 主數據視圖 -->
+    <!-- 主數據視圖：loading 為 true 時（切換週期/範圍中）維持原內容顯示，只用淡出＋spinner 覆蓋提示刷新中，
+         不卸載內容，保住使用者原本捲動的位置 -->
     <template v-else-if="chartData">
-      <!-- 指標盤：由後端回傳的 metrics 驅動動態渲染 (4欄卡片矩陣) -->
-      <div v-if="chartData.metrics && chartData.metrics.length > 0" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <!-- 當日區間 (固定顯示) -->
-        <div
-          @click="setActiveChart('price')"
-          class="card bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm hover:shadow-md hover:border-primary/60 hover:-translate-y-0.5 cursor-pointer transition-all duration-200 flex flex-col justify-between"
-        >
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-bold tracking-wide uppercase text-surface-400">當日區間 ({{ summary.date }})</span>
-            <i class="pi pi-arrows-alt text-surface-400"></i>
-          </div>
-          <div class="num text-2xl font-black text-surface-900 dark:text-surface-0 mb-1.5">
-            {{ formatPrice(summary.low, chartData.meta) }} <span class="text-surface-300 dark:text-surface-600 font-normal mx-1">–</span> {{ formatPrice(summary.high, chartData.meta) }}
-          </div>
-          <div class="text-xs font-medium text-surface-500">當日最低 / 最高價</div>
+      <div class="relative">
+        <div v-if="loading" class="absolute inset-0 z-10 flex items-start justify-center pt-24 bg-surface-0/60 dark:bg-surface-900/60 rounded-2xl">
+          <i class="pi pi-spin pi-spinner text-primary text-3xl"></i>
         </div>
-
-        <!-- 動態指標 (依照 metrics 定義) -->
-        <div
-          v-for="metric in chartData.metrics"
-          :key="metric.key"
-          @click="setActiveChart(metric.key)"
-          class="card bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm hover:shadow-md hover:border-primary/60 hover:-translate-y-0.5 cursor-pointer transition-all duration-200 flex flex-col justify-between"
-        >
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-bold tracking-wide uppercase text-surface-400">{{ metric.label }}</span>
-            <i class="pi text-surface-400" :class="{
-              'pi-users': metric.key.includes('buy_sell') || metric.key.includes('institutional'),
-              'pi-dollar': metric.key.includes('amount'),
-              'pi-chart-line': metric.key.includes('margin') || metric.key.includes('short')
-            }"></i>
-          </div>
-          <div class="num text-2xl font-black mb-1.5 text-surface-900 dark:text-surface-0" :style="{ color: isSignedMetric(metric) ? colorForValue(summary[metric.key]) : undefined }">
-            {{ formatMetricValue(summary[metric.key], metric) }} <span class="text-xs font-normal text-surface-500 ml-1" v-if="metric.unit">{{ metric.unit }}</span>
-          </div>
-          <div v-if="metric.key === 'short_balance' && summary.short_ratio !== undefined" class="num text-xs text-orange-500 font-bold">
-            券資比 {{ formatPercent(summary.short_ratio) }}
-          </div>
-          <div v-else-if="metric.key === 'institutional_total' && summary.foreign_buy_sell !== undefined" class="num text-xs text-surface-500">
-            外資 {{ formatLots(summary.foreign_buy_sell) }}
-          </div>
-          <div v-else-if="metric.key === 'institutional_amount_est' && summary.trust_buy_sell !== undefined" class="num text-xs text-surface-500">
-            投信 {{ formatLots(summary.trust_buy_sell) }}
-          </div>
-          <div v-else class="text-xs font-medium text-surface-500">{{ metric.label }}</div>
-        </div>
-      </div>
-
-      <!-- 視圖切換標籤 (圖表 / 表格) -->
-      <div class="flex items-center justify-between border-b border-surface-200 dark:border-surface-700 pb-2">
-        <div class="flex items-center gap-2">
-          <button 
-            @click="viewMode = 'charts'"
-            :class="[
-              'px-4 py-2 font-bold text-sm rounded-lg flex items-center gap-2 transition-colors',
-              viewMode === 'charts' 
-                ? 'bg-primary text-primary-contrast' 
-                : 'bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 hover:bg-surface-200'
-            ]"
+        <div :class="{ 'opacity-50 pointer-events-none transition-opacity duration-150': loading }" class="space-y-6">
+        <!-- 指標盤：由後端回傳的 metrics 驅動動態渲染 (4欄卡片矩陣) -->
+        <div v-if="chartData.metrics && chartData.metrics.length > 0" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <!-- 當日區間 (固定顯示) -->
+          <!-- !m-0：蓋掉全域 .card { margin-bottom: 2rem; &:last-child { margin-bottom: 0 } }（_utils.scss，
+               設計給直向堆疊的單欄卡片用）。在這個 grid 版面下它會讓 v-for 卡到「剛好是最後一張」的那張卡
+               少了 2rem 底部留白，害同一列的卡片 stretch 出來高度不一致（有的大有的小）；版面間距一律交給
+               grid 的 gap-4 處理即可。 -->
+          <div
+            @click="setActiveChart('price')"
+            class="card !m-0 bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm hover:shadow-md hover:border-primary/60 hover:-translate-y-0.5 cursor-pointer transition-all duration-200 flex flex-col justify-between"
           >
-            <i class="pi pi-th-large"></i> 多維度圖表分析
-          </button>
-          <button 
-            @click="viewMode = 'table'"
-            :class="[
-              'px-4 py-2 font-bold text-sm rounded-lg flex items-center gap-2 transition-colors',
-              viewMode === 'table' 
-                ? 'bg-primary text-primary-contrast' 
-                : 'bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 hover:bg-surface-200'
-            ]"
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold tracking-wide uppercase text-surface-400">當日區間 ({{ summary.date }})</span>
+              <i class="pi pi-arrows-alt text-surface-400"></i>
+            </div>
+            <div class="num text-2xl font-black text-surface-900 dark:text-surface-0 mb-1.5">
+              {{ formatPrice(summary.low, chartData.meta) }} <span class="text-surface-300 dark:text-surface-600 font-normal mx-1">–</span> {{ formatPrice(summary.high, chartData.meta) }}
+            </div>
+            <div class="text-xs font-medium text-surface-500">當日最低 / 最高價</div>
+          </div>
+
+          <!-- 動態指標 (依照 metrics 定義) -->
+          <div
+            v-for="metric in chartData.metrics"
+            :key="metric.key"
+            @click="setActiveChart(metric.key)"
+            class="card !m-0 bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm hover:shadow-md hover:border-primary/60 hover:-translate-y-0.5 cursor-pointer transition-all duration-200 flex flex-col justify-between"
           >
-            <i class="pi pi-table"></i> 精確數據表格
-          </button>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold tracking-wide uppercase text-surface-400">{{ metric.label }}</span>
+              <i class="pi text-surface-400" :class="{
+                'pi-users': metric.key.includes('buy_sell') || metric.key.includes('institutional'),
+                'pi-dollar': metric.key.includes('amount'),
+                'pi-chart-line': metric.key.includes('margin') || metric.key.includes('short')
+              }"></i>
+            </div>
+            <div class="num text-2xl font-black mb-1.5 text-surface-900 dark:text-surface-0" :style="{ color: isSignedMetric(metric) ? colorForValue(summary[metric.key]) : undefined }">
+              {{ formatMetricValue(summary[metric.key], metric) }} <span class="text-xs font-normal text-surface-500 ml-1" v-if="metric.unit">{{ metric.unit }}</span>
+            </div>
+            <div v-if="metric.key === 'short_balance' && summary.short_ratio !== undefined" class="num text-xs text-orange-500 font-bold">
+              券資比 {{ formatPercent(summary.short_ratio) }}
+            </div>
+            <div v-else-if="metric.key === 'institutional_total' && summary.foreign_buy_sell !== undefined" class="num text-xs text-surface-500">
+              外資 {{ formatLots(summary.foreign_buy_sell) }}
+            </div>
+            <div v-else-if="metric.key === 'institutional_amount_est' && summary.trust_buy_sell !== undefined" class="num text-xs text-surface-500">
+              投信 {{ formatLots(summary.trust_buy_sell) }}
+            </div>
+            <div v-else class="text-xs font-medium text-surface-500">{{ metric.label }}</div>
+          </div>
         </div>
 
-        <div class="text-xs text-surface-500 flex items-center gap-3">
-          <span>資料筆數: <span class="num font-bold text-surface-900 dark:text-surface-0">{{ chartData.dates.length }}</span> 筆</span>
-        </div>
-      </div>
+        <!-- 視圖切換標籤 (圖表 / 表格) -->
+        <div class="flex items-center justify-between border-b border-surface-200 dark:border-surface-700 pb-2">
+          <div class="flex items-center gap-2">
+            <button 
+              @click="viewMode = 'charts'"
+              :class="[
+                'px-4 py-2 font-bold text-sm rounded-lg flex items-center gap-2 transition-colors',
+                viewMode === 'charts' 
+                  ? 'bg-primary text-primary-contrast' 
+                  : 'bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 hover:bg-surface-200'
+              ]"
+            >
+              <i class="pi pi-th-large"></i> 多維度圖表分析
+            </button>
+            <button 
+              @click="viewMode = 'table'"
+              :class="[
+                'px-4 py-2 font-bold text-sm rounded-lg flex items-center gap-2 transition-colors',
+                viewMode === 'table' 
+                  ? 'bg-primary text-primary-contrast' 
+                  : 'bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 hover:bg-surface-200'
+              ]"
+            >
+              <i class="pi pi-table"></i> 精確數據表格
+            </button>
+          </div>
 
-      <!-- 圖表視圖 -->
-      <StockCharts v-if="viewMode === 'charts'" v-model="activeChartId" :chartData="chartData" :stockId="selectedStock" :period="selectedPeriod" :months="selectedMonths" :market="market" />
-
-      <!-- 明細數據表格視圖 -->
-      <div v-else-if="viewMode === 'table'" class="card p-4 shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
-            <i class="pi pi-list text-primary"></i> 歷史交易明細數據表 ({{ selectedStock }} <span v-if="currentStockName">{{ currentStockName }}</span>)
-            <span v-if="dateRangeText" class="text-xs font-semibold text-surface-500">
-              ({{ dateRangeText }})
-            </span>
-          </h3>
-          <button 
-            @click="exportCSV" 
-            class="px-3 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
-          >
-            <i class="pi pi-file-excel"></i> 匯出 CSV 檔
-          </button>
+          <div class="text-xs text-surface-500 flex items-center gap-3">
+            <span>資料筆數: <span class="num font-bold text-surface-900 dark:text-surface-0">{{ chartData.dates.length }}</span> 筆</span>
+          </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="num w-full text-xs text-left border-collapse">
-            <thead>
-              <tr class="bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 font-bold border-b border-surface-200 dark:border-surface-700">
-                <th class="p-2.5">日期</th>
-                <th class="p-2.5">開盤</th>
-                <th class="p-2.5">最高</th>
-                <th class="p-2.5">最低</th>
-                <th class="p-2.5">收盤</th>
-                <th class="p-2.5">外資(張)</th>
-                <th class="p-2.5">投信(張)</th>
-                <th class="p-2.5">自營商(張)</th>
-                <th class="p-2.5">合計(張)</th>
-                <th class="p-2.5">估算金額(萬)</th>
-                <th class="p-2.5">融資餘額</th>
-                <th class="p-2.5">融券餘額</th>
-                <th class="p-2.5">券資比</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr 
-                v-for="row in recordsReversed" 
-                :key="row.date"
-                class="border-b border-surface-100 dark:border-surface-800/60 hover:bg-surface-50 dark:hover:bg-surface-800/40 transition-colors"
-              >
-                <td class="p-2.5 font-semibold text-surface-900 dark:text-surface-0">{{ row.date }}</td>
-                <td class="p-2.5 text-surface-700 dark:text-surface-300">{{ formatPrice(row.open, chartData.meta) }}</td>
-                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ formatPrice(row.high, chartData.meta) }}</td>
-                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ formatPrice(row.low, chartData.meta) }}</td>
-                <td class="p-2.5 font-bold" :style="{ color: colorForValue(row.close - row.open) }">{{ formatPrice(row.close, chartData.meta) }}</td>
-                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row.foreign_buy_sell) }">{{ signedNumber(row.foreign_buy_sell) }}</td>
-                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row.trust_buy_sell) }">{{ signedNumber(row.trust_buy_sell) }}</td>
-                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row.dealer_buy_sell) }">{{ signedNumber(row.dealer_buy_sell) }}</td>
-                <td class="p-2.5 font-bold" :style="{ color: colorForValue(row.institutional_total) }">{{ signedNumber(row.institutional_total) }}</td>
-                <td class="p-2.5 font-medium" :style="{ color: colorForValue(row.institutional_amount_est) }">{{ signedNumber(row.institutional_amount_est) }}</td>
-                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ plainNumber(row.margin_balance) }}</td>
-                <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ plainNumber(row.short_balance) }}</td>
-                <td class="p-2.5 text-orange-500 font-bold">{{ formatPercent(row.short_ratio) }}</td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- 圖表視圖 -->
+        <StockCharts v-if="viewMode === 'charts'" v-model="activeChartId" :chartData="chartData" :stockId="selectedStock" :period="selectedPeriod" :months="selectedMonths" :market="market" />
+
+        <!-- 明細數據表格視圖 -->
+        <div v-else-if="viewMode === 'table'" class="card p-4 shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
+              <i class="pi pi-list text-primary"></i> 歷史交易明細數據表 ({{ selectedStock }} <span v-if="currentStockName">{{ currentStockName }}</span>)
+              <span v-if="dateRangeText" class="text-xs font-semibold text-surface-500">
+                ({{ dateRangeText }})
+              </span>
+            </h3>
+            <button 
+              @click="exportCSV" 
+              class="px-3 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+            >
+              <i class="pi pi-file-excel"></i> 匯出 CSV 檔
+            </button>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="num w-full text-xs text-left border-collapse">
+              <thead>
+                <tr class="bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 font-bold border-b border-surface-200 dark:border-surface-700">
+                  <th class="p-2.5">日期</th>
+                  <th class="p-2.5">開盤</th>
+                  <th class="p-2.5">最高</th>
+                  <th class="p-2.5">最低</th>
+                  <th class="p-2.5">收盤</th>
+                  <th class="p-2.5">外資(張)</th>
+                  <th class="p-2.5">投信(張)</th>
+                  <th class="p-2.5">自營商(張)</th>
+                  <th class="p-2.5">合計(張)</th>
+                  <th class="p-2.5">估算金額(萬)</th>
+                  <th class="p-2.5">融資餘額</th>
+                  <th class="p-2.5">融券餘額</th>
+                  <th class="p-2.5">券資比</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr 
+                  v-for="row in recordsReversed" 
+                  :key="row.date"
+                  class="border-b border-surface-100 dark:border-surface-800/60 hover:bg-surface-50 dark:hover:bg-surface-800/40 transition-colors"
+                >
+                  <td class="p-2.5 font-semibold text-surface-900 dark:text-surface-0">{{ row.date }}</td>
+                  <td class="p-2.5 text-surface-700 dark:text-surface-300">{{ formatPrice(row.open, chartData.meta) }}</td>
+                  <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ formatPrice(row.high, chartData.meta) }}</td>
+                  <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ formatPrice(row.low, chartData.meta) }}</td>
+                  <td class="p-2.5 font-bold" :style="{ color: colorForValue(row.close - row.open) }">{{ formatPrice(row.close, chartData.meta) }}</td>
+                  <td class="p-2.5 font-medium" :style="{ color: colorForValue(row.foreign_buy_sell) }">{{ signedNumber(row.foreign_buy_sell) }}</td>
+                  <td class="p-2.5 font-medium" :style="{ color: colorForValue(row.trust_buy_sell) }">{{ signedNumber(row.trust_buy_sell) }}</td>
+                  <td class="p-2.5 font-medium" :style="{ color: colorForValue(row.dealer_buy_sell) }">{{ signedNumber(row.dealer_buy_sell) }}</td>
+                  <td class="p-2.5 font-bold" :style="{ color: colorForValue(row.institutional_total) }">{{ signedNumber(row.institutional_total) }}</td>
+                  <td class="p-2.5 font-medium" :style="{ color: colorForValue(row.institutional_amount_est) }">{{ signedNumber(row.institutional_amount_est) }}</td>
+                  <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ plainNumber(row.margin_balance) }}</td>
+                  <td class="p-2.5 text-surface-700 dark:text-surface-300 font-medium">{{ plainNumber(row.short_balance) }}</td>
+                  <td class="p-2.5 text-orange-500 font-bold">{{ formatPercent(row.short_ratio) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+        </div><!-- /opacity 內容包裹 -->
+      </div><!-- /relative 刷新覆蓋層容器 -->
     </template>
     </div><!-- /內容區 -->
 
@@ -459,6 +473,9 @@ async function fetchAvailableStocks() {
 async function loadStockData() {
   loading.value = true;
   error.value = null;
+  // 切換週期/範圍時畫面會保留舊的 chartData 原地顯示（見 template），所以這裡先記住失敗當下是不是
+  // 「背景刷新」（已經有舊資料在畫面上），失敗時才知道要用 toast 提示還是走整頁錯誤畫面。
+  const isBackgroundRefresh = chartData.value !== null;
   try {
     const res = await stockApi.getChartData(selectedStock.value, selectedPeriod.value, selectedMonths.value, currentMarket.value);
     if (res.success) {
@@ -470,6 +487,10 @@ async function loadStockData() {
     error.value = err.response?.data?.error?.message || err.response?.data?.detail || err.message || '連線後端 API 失敗';
   } finally {
     loading.value = false;
+    if (error.value && isBackgroundRefresh) {
+      // 有舊資料時，錯誤畫面不會蓋掉整頁（見 template 的 error && !chartData），改用 toast 提醒。
+      toast.add({ severity: 'error', summary: '刷新資料失敗', detail: error.value, life: 4000 });
+    }
   }
 }
 
