@@ -155,6 +155,10 @@ async def seed_templates(repo: Any) -> None:
     if not TEMPLATES_DIR.exists():
         return
 
+    # notify_template.channel_code 有 FK 指向 notify_channel，__default__.txt.j2 的
+    # "txt" 只是純檔案回退（render() 第 3 層直接讀檔，不查 DB），不對應真實管道，故略過種入
+    valid_channels = {c["channel_code"] for c in await repo.list_channels()}
+
     seeded = 0
     for j2_file in TEMPLATES_DIR.glob("*.j2"):
         stem  = j2_file.stem  # e.g. "alert_signal.email" or "__default__.txt"
@@ -168,6 +172,9 @@ async def seed_templates(repo: Any) -> None:
         else:
             channel_code = parts[-1]                 # email / telegram
             event_type   = "_".join(parts[:-1]).upper()  # alert_signal → ALERT_SIGNAL
+
+        if channel_code not in valid_channels:
+            continue
 
         body_format   = j2_file.read_text(encoding="utf-8")
         template_code = f"{event_type}__{channel_code}"
