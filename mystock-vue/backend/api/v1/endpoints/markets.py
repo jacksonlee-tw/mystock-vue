@@ -26,21 +26,21 @@ def get_markets():
     return {"success": True, "data": result}
 
 @router.get("/search", summary="跨市場代號搜尋驗證")
-def search_symbols(
+async def search_symbols(
     q: str = Query(..., description="搜尋的股票代號，多個以逗號分隔"),
     market: Optional[str] = Query(None, description="指定市場過濾，若無則全部查詢")
 ):
     symbols = [s.strip() for s in q.split(",") if s.strip()]
     if not symbols:
         raise HTTPException(status_code=400, detail="請提供至少一個代號")
-        
+
     enabled = [market] if market and market in MARKETS else get_enabled_markets()
-    
+
     results = {}
     for m in enabled:
         try:
             adapter = get_adapter(m)
-            market_results = adapter.validate_symbols(symbols)
+            market_results = await adapter.validate_symbols(symbols)
             for sym, res in market_results.items():
                 if res.get("status") == "resolved":
                     # Keep the first resolved match across markets if not specifying market
@@ -48,5 +48,27 @@ def search_symbols(
                         results[sym] = res
         except ValueError:
             continue
-            
+
     return {"success": True, "data": results}
+
+@router.get("/suggest", summary="跨市場代號／名稱模糊建議（自動完成）")
+async def suggest_symbols(
+    q: str = Query(..., min_length=1, description="搜尋字串：代號前綴或名稱片段"),
+    market: Optional[str] = Query(None, description="指定市場過濾，若無則全部查詢"),
+    limit: int = Query(20, le=50, description="回傳筆數上限")
+):
+    q = q.strip()
+    if not q:
+        return {"success": True, "data": []}
+
+    enabled = [market] if market and market in MARKETS else get_enabled_markets()
+
+    results = []
+    for m in enabled:
+        try:
+            adapter = get_adapter(m)
+            results.extend(await adapter.search_symbols(q, limit))
+        except ValueError:
+            continue
+
+    return {"success": True, "data": results[:limit]}

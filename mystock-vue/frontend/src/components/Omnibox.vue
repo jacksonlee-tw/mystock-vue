@@ -174,7 +174,10 @@ const performSearch = debounce(async () => {
   }
   loading.value = true;
   try {
-    const res = await stockApi.searchSymbols(searchQuery.value.trim(), searchMarket.value);
+    // suggestSymbols 是模糊建議（代號前綴或名稱片段），回傳陣列；searchSymbols 是精確驗證，
+    // 回傳以代號為 key 的物件——兩者形狀不同，Omnibox 這裡的分組/清單渲染需要的是前者。
+    const market = searchMarket.value === 'all' ? null : searchMarket.value;
+    const res = await stockApi.suggestSymbols(searchQuery.value.trim(), market, 30);
     if (res.success) {
       // 為所有結果加上絕對索引以便上下鍵選取
       let currentIdx = 0;

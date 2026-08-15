@@ -15,6 +15,12 @@ from api.v1.endpoints.indices import router as indices_router
 from api.v1.endpoints.alerts import router as alerts_router
 from api.v1.endpoints.strategies import router as strategies_router
 from api.v1.endpoints.fundamentals import router as fundamentals_router
+from api.v1.endpoints.transactions import router as transactions_router
+from api.v1.endpoints.portfolio import router as portfolio_router
+from api.v1.endpoints.performance import router as performance_router
+from api.v1.endpoints.cashflow import dividend_router as dividends_router, cashflow_router as cashflow_router
+from api.v1.endpoints.watchlist import router as watchlist_router
+from api.v1.endpoints.portfolio_settings import router as portfolio_settings_router
 from api.v1.endpoints.notify_admin import router as notify_admin_router, session_router as notify_session_router
 from api.v1.endpoints.notify_self import router as notify_self_router
 from api.v1.endpoints.notify_public import router as notify_public_router
@@ -96,6 +102,14 @@ app.include_router(indices_router)
 app.include_router(alerts_router)
 app.include_router(strategies_router)
 app.include_router(fundamentals_router)
+# ── 個人投資記帳與績效追蹤模組（docs/8.個人投資記帳功能/）─────────────────
+app.include_router(transactions_router)
+app.include_router(portfolio_router)
+app.include_router(performance_router)
+app.include_router(dividends_router)
+app.include_router(cashflow_router)
+app.include_router(watchlist_router)
+app.include_router(portfolio_settings_router)
 app.include_router(notify_admin_router)
 app.include_router(notify_session_router)
 app.include_router(notify_self_router)

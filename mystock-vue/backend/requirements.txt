@@ -1,6 +1,7 @@
 fastapi>=0.110.0
 uvicorn[standard]>=0.28.0
 requests>=2.31.0
+beautifulsoup4>=4.12  # 解析 TWSE/TPEx ISIN 代碼清單頁（services/symbol_master_fetcher.py），用內建 html.parser 不需 lxml
 pandas>=2.2.0
 lxml>=5.0
 python-dotenv>=1.0.1
@@ -10,6 +11,7 @@ sqlalchemy>=2.0
 asyncpg>=0.29
 apscheduler>=3.10
 PyYAML>=6.0
+python-multipart>=0.0.9  # 個人投資記帳模組 CSV 交易匯入用檔案上傳（api/v1/endpoints/transactions.py）
 
 # ── 整合訊息通知平台（backend/notify/，見系統開發規格書 §10）──
 aiosmtplib>=3.0        # 非同步 SMTP（ADR-05）

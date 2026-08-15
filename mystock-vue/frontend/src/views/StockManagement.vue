@@ -12,15 +12,28 @@
         </p>
       </div>
 
-      <!-- 觸發抓取按鈕 -->
-      <button 
-        @click="triggerFetch"
-        :disabled="fetchStatus?.is_running"
-        class="px-5 py-2.5 font-bold text-white bg-primary hover:bg-primary-600 disabled:opacity-50 rounded-xl flex items-center gap-2 transition-all shadow-md"
-      >
-        <i :class="['pi text-lg', fetchStatus?.is_running ? 'pi-spin pi-spinner' : 'pi-cloud-download']"></i>
-        {{ fetchStatus?.is_running ? '同步資料執行中...' : `立即同步 ${marketMeta.exchange} 資料` }}
-      </button>
+      <div class="flex items-center gap-2">
+        <!-- 同步全市場代碼主檔：餵給下方追蹤股票輸入框與 Ctrl+K 搜尋的自動完成建議用 -->
+        <button
+          @click="syncSymbolMaster"
+          :disabled="isSyncingSymbols"
+          :title="`從 ${currentMarket === 'tw' ? 'TWSE／TPEx' : 'SEC EDGAR'} 抓取全市場代碼與名稱，寫入資料庫供代號自動完成使用`"
+          class="px-4 py-2.5 font-bold text-surface-700 dark:text-surface-200 bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 disabled:opacity-50 rounded-xl flex items-center gap-2 transition-all"
+        >
+          <i :class="['pi text-lg', isSyncingSymbols ? 'pi-spin pi-spinner' : 'pi-database']"></i>
+          {{ isSyncingSymbols ? '同步代碼清單中...' : `同步${marketMeta.label}代碼清單` }}
+        </button>
+
+        <!-- 觸發抓取按鈕 -->
+        <button
+          @click="triggerFetch"
+          :disabled="fetchStatus?.is_running"
+          class="px-5 py-2.5 font-bold text-white bg-primary hover:bg-primary-600 disabled:opacity-50 rounded-xl flex items-center gap-2 transition-all shadow-md"
+        >
+          <i :class="['pi text-lg', fetchStatus?.is_running ? 'pi-spin pi-spinner' : 'pi-cloud-download']"></i>
+          {{ fetchStatus?.is_running ? '同步資料執行中...' : `立即同步 ${marketMeta.exchange} 資料` }}
+        </button>
+      </div>
     </div>
 
     <!-- 抓取狀態與實時進度面板 -->
@@ -179,90 +192,124 @@
           <i class="pi pi-list text-primary"></i> 追蹤股票號碼設定 (.env)
         </h3>
 
-        <!-- 新增股票輸入框 -->
-        <div class="flex items-center gap-2">
-          <input
-            v-model="newStockId"
-            type="text"
-            :placeholder="`請輸入股票代號 (例: ${currentMarket === 'tw' ? '2330' : 'AAPL'})`"
+        <!-- 新增股票輸入框：支援自動完成（打代號或名稱選建議）與一次輸入多筆（chips），
+             未命中建議也可直接打完整代碼按 Enter（AutoComplete 預設 forceSelection=false）。 -->
+        <div class="flex items-start gap-2">
+          <AutoComplete
+            v-model="selectedStocks"
+            :suggestions="suggestions"
+            optionLabel="label"
+            multiple
+            display="chip"
+            dropdown
             :disabled="isAdding"
-            @keyup.enter="addStock"
-            class="px-3 py-2 border border-surface-300 dark:border-surface-600 rounded-xl bg-surface-0 dark:bg-surface-800 text-surface-900 dark:text-surface-0 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-56 disabled:opacity-50"
+            @complete="onAutocomplete"
+            :placeholder="`輸入股票代號，可一次輸入多筆 (例: ${currentMarket === 'tw' ? '2330' : 'AAPL'})`"
+            class="w-72"
+            inputClass="text-sm"
           />
           <button
-            @click="addStock"
-            :disabled="isAdding || !newStockId.trim()"
-            class="px-4 py-2 font-bold text-sm bg-primary text-primary-contrast hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl flex items-center gap-1.5 transition-colors shadow-sm"
+            @click="addStocks"
+            :disabled="isAdding || selectedStocks.length === 0"
+            class="px-4 py-2 font-bold text-sm bg-primary text-primary-contrast hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl flex items-center gap-1.5 transition-colors shadow-sm shrink-0"
           >
             <i :class="['pi', isAdding ? 'pi-spin pi-spinner' : 'pi-plus']"></i> 新增
           </button>
         </div>
       </div>
 
-      <!-- 股票清單網格卡片 -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-        <div 
-          v-for="stock in trackedCodes" 
-          :key="stock.code"
-          @click="goToStock(stock.code)"
-          class="card h-full p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/40 flex flex-col justify-between hover:shadow-md transition-all cursor-pointer hover:-translate-y-1 hover:border-primary/50"
+      <!-- 股票清單資料表 -->
+      <div class="pt-2 overflow-x-auto">
+        <DataTable
+          :value="trackedRows"
+          dataKey="code"
+          sortField="code"
+          :sortOrder="1"
+          stripedRows
+          removableSort
+          class="tracked-stocks-table"
         >
-          <div class="flex items-start justify-between gap-2 mb-3">
-            <div class="flex items-center gap-3 w-full">
-              <div class="w-12 h-12 shrink-0 rounded-lg bg-primary-100 dark:bg-primary-900/40 text-primary font-black flex items-center justify-center text-sm">
-                {{ stock.code }}
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="font-black text-surface-900 dark:text-surface-0 text-lg">
-                  {{ stock.code }}
-                </div>
-                <div v-if="getStockName(stock.code)" class="text-sm font-bold text-primary leading-snug break-words">
-                  {{ getStockName(stock.code) }}
-                </div>
-              </div>
+          <template #empty>
+            <div class="text-center text-surface-400 py-8 text-sm">
+              <i class="pi pi-inbox text-2xl mb-2 block"></i>
+              尚無追蹤中的股票，請於上方輸入代號新增
             </div>
-            
-            <div class="shrink-0 flex items-center -mr-2 -mt-2">
-              <button
-                @click.stop="openRefetch(stock)"
-                :disabled="fetchStatus?.is_running"
-                :title="`重新抓取 ${stock.code} ${getStockName(stock.code)} 的歷史資料`"
-                class="text-surface-400 hover:text-primary p-2 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-surface-400 transition-colors"
-              >
-                <i class="pi pi-refresh text-lg"></i>
-              </button>
-              <button
-                @click.stop="removeStock(stock.code)"
-                :title="`移除股票 ${stock.code} ${getStockName(stock.code)}`"
-                class="text-surface-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-              >
-                <i class="pi pi-trash text-lg"></i>
-              </button>
-            </div>
-          </div>
+          </template>
 
-          <div class="mt-auto pt-2 border-t border-surface-200 dark:border-surface-700/50 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span v-if="pendingStockId === stock.code" class="text-xs font-bold text-amber-500 flex items-center gap-1.5">
-              <i class="pi pi-spin pi-spinner"></i> 背景抓取中...
-            </span>
-            <span v-else-if="stock.start_date" class="text-xs text-surface-500 flex items-center gap-1.5">
-              <i class="pi pi-calendar"></i>
-              {{ stock.start_date }} ~ {{ stock.end_date }}
-            </span>
-            <span v-else class="text-xs text-surface-400 flex items-center gap-1.5">
-              <i class="pi pi-info-circle"></i> 尚無抓取資料
-            </span>
+          <Column field="code" header="代號" sortable style="width: 9rem">
+            <template #body="{ data }">
+              <button
+                @click="goToStock(data.code)"
+                :title="`查看 ${data.code} ${getStockName(data.code)} 的個股分析`"
+                class="font-black text-primary hover:underline"
+              >
+                {{ data.code }}
+              </button>
+            </template>
+          </Column>
 
-            <span
-              v-if="stock.missing_price_days > 0"
-              :title="`有 ${stock.missing_price_days} 天沒有開盤/收盤價，請執行重新抓取補齊`"
-              class="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1"
-            >
-              <i class="pi pi-exclamation-triangle"></i>
-              資料缺漏 {{ stock.missing_price_days }} 天
-            </span>
-          </div>
-        </div>
+          <Column field="name" header="名稱" sortable>
+            <template #body="{ data }">
+              <span
+                @click="goToStock(data.code)"
+                class="font-bold text-surface-900 dark:text-surface-0 cursor-pointer hover:text-primary"
+              >
+                {{ data.name || '-' }}
+              </span>
+            </template>
+          </Column>
+
+          <Column field="start_date" header="追蹤區間" sortable>
+            <template #body="{ data }">
+              <span v-if="pendingStockIds.includes(data.code)" class="text-xs font-bold text-amber-500 flex items-center gap-1.5">
+                <i class="pi pi-spin pi-spinner"></i> 背景抓取中...
+              </span>
+              <span v-else-if="data.start_date" class="text-sm text-surface-600 dark:text-surface-300 flex items-center gap-1.5">
+                <i class="pi pi-calendar text-surface-400"></i>
+                {{ data.start_date }} ~ {{ data.end_date }}
+              </span>
+              <span v-else class="text-xs text-surface-400 flex items-center gap-1.5">
+                <i class="pi pi-info-circle"></i> 尚無抓取資料
+              </span>
+            </template>
+          </Column>
+
+          <Column field="missing_price_days" header="資料缺漏" sortable style="width: 10rem">
+            <template #body="{ data }">
+              <span
+                v-if="data.missing_price_days > 0"
+                :title="`有 ${data.missing_price_days} 天沒有開盤/收盤價，請執行重新抓取補齊`"
+                class="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1"
+              >
+                <i class="pi pi-exclamation-triangle"></i>
+                缺漏 {{ data.missing_price_days }} 天
+              </span>
+              <span v-else class="text-xs text-surface-400">—</span>
+            </template>
+          </Column>
+
+          <Column header="操作" style="width: 7rem">
+            <template #body="{ data }">
+              <div class="flex items-center gap-1">
+                <button
+                  @click="openRefetch(data)"
+                  :disabled="fetchStatus?.is_running"
+                  :title="`重新抓取 ${data.code} ${getStockName(data.code)} 的歷史資料`"
+                  class="text-surface-400 hover:text-primary p-2 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-surface-400 transition-colors"
+                >
+                  <i class="pi pi-refresh text-lg"></i>
+                </button>
+                <button
+                  @click="removeStock(data.code)"
+                  :title="`移除股票 ${data.code} ${getStockName(data.code)}`"
+                  class="text-surface-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <i class="pi pi-trash text-lg"></i>
+                </button>
+              </div>
+            </template>
+          </Column>
+        </DataTable>
       </div>
     </div>
 
@@ -291,9 +338,11 @@ import { useConfirm } from 'primevue/useconfirm';
 
 const trackedCodes = ref([]);
 const stockNameMap = ref({});
-const newStockId = ref('');
+const selectedStocks = ref([]); // AutoComplete v-model：字串或 {symbol,name,label,...} 建議物件混合陣列
+const suggestions = ref([]);
 const isAdding = ref(false);
-const pendingStockId = ref(null); // 正在等待背景抓取完成的股號
+const isSyncingSymbols = ref(false);
+const pendingStockIds = ref([]); // 正在等待背景抓取完成的股號（批次新增/單股重抓共用）
 const refetchVisible = ref(false);
 const refetchTarget = ref(null);
 const isRefetching = ref(false);
@@ -400,6 +449,14 @@ function getStockName(code) {
   return stockNameMap.value[code] || '';
 }
 
+// 表格用資料：合併股名，供欄位排序/顯示使用
+const trackedRows = computed(() =>
+  trackedCodes.value.map(stock => ({
+    ...stock,
+    name: getStockName(stock.code)
+  }))
+);
+
 function goToStock(code) {
   router.push(`/stock/${currentMarket.value}/${code}`);
 }
@@ -427,35 +484,65 @@ async function loadTrackedStocks() {
   }
 }
 
-async function addStock() {
-  const code = newStockId.value.trim();
-  if (!code) return;
+// AutoComplete 的 @complete：依輸入字串向後端要建議清單，附上 label 供 optionLabel 顯示「代號 名稱」
+async function onAutocomplete(event) {
+  try {
+    const res = await stockApi.suggestSymbols(event.query, currentMarket.value, 15);
+    suggestions.value = res.success
+      ? res.data.map(s => ({ ...s, label: s.name ? `${s.symbol} ${s.name}` : s.symbol }))
+      : [];
+  } catch (err) {
+    suggestions.value = [];
+  }
+}
+
+// 批次新增：selectedStocks 裡的項目可能是建議物件（有 .symbol）或使用者手動打完直接 Enter 的純字串
+async function addStocks() {
+  const codes = [...new Set(
+    selectedStocks.value
+      .map(s => (typeof s === 'string' ? s.trim() : s.symbol))
+      .filter(Boolean)
+  )];
+  if (!codes.length) return;
+
   isAdding.value = true;
   try {
-    const res = await stockApi.addTrackedStock(code, currentMarket.value);
+    const res = await stockApi.addTrackedStocks(codes, currentMarket.value);
     if (res.success) {
       trackedCodes.value = res.data;
-      newStockId.value = '';
+      selectedStocks.value = [];
       await loadTrackedStocks();
-      toast.add({ severity: 'success', summary: '已加入追蹤', detail: `${code} 已加入追蹤清單`, life: 3000 });
+      toast.add({ severity: 'success', summary: '已加入追蹤', detail: res.message, life: 3000 });
 
-      // 檢查是否已有歷史資料；若無則自動觸發背景抓取，完成後自動刷新清單
-      let hasData = false;
-      try {
-        const chartRes = await stockApi.getChartData(code, 'daily', 3, currentMarket.value);
-        hasData = !!(chartRes.success && chartRes.data?.records?.length > 0);
-      } catch (checkErr) {
-        hasData = false;
+      if (res.unknown?.length) {
+        toast.add({
+          severity: 'warn',
+          summary: '部分代號未能驗證',
+          detail: `在台股代碼清單中找不到：${res.unknown.join(', ')}，仍已加入追蹤清單`,
+          life: 5000
+        });
       }
 
-      if (!hasData) {
-        pendingStockId.value = code;
-        await stockApi.triggerFetch([code], 3, currentMarket.value);
+      // 針對新加入的代號，並行檢查是否已有歷史資料；沒有的一次性觸發背景抓取（而非逐檔各打一次）
+      const addedCodes = res.added || [];
+      const needFetch = [];
+      await Promise.allSettled(addedCodes.map(async code => {
+        try {
+          const chartRes = await stockApi.getChartData(code, 'daily', 3, currentMarket.value);
+          if (!(chartRes.success && chartRes.data?.records?.length > 0)) needFetch.push(code);
+        } catch (checkErr) {
+          needFetch.push(code);
+        }
+      }));
+
+      if (needFetch.length) {
+        pendingStockIds.value = [...pendingStockIds.value, ...needFetch];
+        await stockApi.triggerFetch(needFetch, 3, currentMarket.value);
         await checkStatus();
         toast.add({
           severity: 'info',
           summary: '背景抓取中',
-          detail: `${code} 尚無歷史資料，已啟動背景抓取，完成後會自動更新清單`,
+          detail: `${needFetch.length} 檔尚無歷史資料，已啟動背景抓取，完成後會自動更新清單`,
           life: 4000
         });
       }
@@ -464,6 +551,23 @@ async function addStock() {
     toast.add({ severity: 'error', summary: '新增失敗', detail: err.response?.data?.detail || '新增股票失敗', life: 4000 });
   } finally {
     isAdding.value = false;
+  }
+}
+
+// 手動觸發全市場代碼主檔同步：讓上面的自動完成建議清單有資料可查
+async function syncSymbolMaster() {
+  isSyncingSymbols.value = true;
+  try {
+    const res = await stockApi.syncSymbolMaster(currentMarket.value);
+    if (res.success) {
+      toast.add({ severity: 'success', summary: '已啟動同步', detail: res.message, life: 3000 });
+    } else {
+      toast.add({ severity: 'warn', summary: '無法啟動', detail: res.error?.message || res.message, life: 4000 });
+    }
+  } catch (err) {
+    toast.add({ severity: 'error', summary: '啟動失敗', detail: '啟動代碼清單同步失敗', life: 4000 });
+  } finally {
+    isSyncingSymbols.value = false;
   }
 }
 
@@ -502,7 +606,7 @@ async function doRefetch({ stockId, months }) {
   try {
     const res = await stockApi.triggerFetch([stockId], months, currentMarket.value, 'repair');
     if (res.success) {
-      pendingStockId.value = stockId;
+      pendingStockIds.value = [...pendingStockIds.value, stockId];
       refetchVisible.value = false;
       await checkStatus();
       toast.add({
@@ -539,13 +643,14 @@ async function triggerFetch() {
   }
 }
 
-// 監控全域抓取狀態：等到自己觸發的背景抓取完成，就自動刷新清單並提示
+// 監控全域抓取狀態：等到自己觸發的背景抓取完成，就自動刷新清單並提示（批次新增/單股重抓共用同一個陣列）
 watch(isRunning, async (running, wasRunning) => {
-  if (wasRunning && !running && pendingStockId.value) {
-    const done = pendingStockId.value;
-    pendingStockId.value = null;
+  if (wasRunning && !running && pendingStockIds.value.length) {
+    const done = pendingStockIds.value;
+    pendingStockIds.value = [];
     await loadTrackedStocks();
-    toast.add({ severity: 'success', summary: '資料抓取完成', detail: `${done} 的歷史資料已就緒`, life: 3000 });
+    const detail = done.length === 1 ? `${done[0]} 的歷史資料已就緒` : `${done.length} 檔股票的歷史資料已就緒`;
+    toast.add({ severity: 'success', summary: '資料抓取完成', detail, life: 3000 });
   }
 });
 </script>

@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import re
 import pytz
 from typing import List, Dict, Any
 from datetime import datetime, time as datetime_time
@@ -7,6 +9,10 @@ import yfinance as yf
 from .base import MarketAdapter, MarketMeta, Metric
 
 logger = logging.getLogger(__name__)
+
+# symbols 主檔查無資料時（例如尚未同步、或 SEC 清單漏收的極冷門/新上市代碼）才退回逐檔
+# 查 yfinance；只對「長得像 ticker」的輸入這麼做，避免使用者打中文名稱時每個按鍵都發一次網路請求。
+_TICKER_LIKE = re.compile(r"^[A-Z][A-Z.\-]{0,5}$")
 
 class USMarketAdapter(MarketAdapter):
     @property
@@ -37,34 +43,103 @@ class USMarketAdapter(MarketAdapter):
     def normalize_symbol(self, symbol: str) -> str:
         return symbol.strip().upper()
 
-    def validate_symbols(self, symbols: List[str]) -> Dict[str, Any]:
+    @staticmethod
+    def _lookup_yfinance(sym: str) -> Dict[str, Any]:
+        """封裝單檔 yfinance 阻塞查詢，供 async 方法透過 asyncio.to_thread 呼叫，
+        避免卡住 FastAPI 主 event loop。"""
+        try:
+            ticker = yf.Ticker(sym)
+            info = ticker.info
+            name = info.get("shortName") or info.get("longName")
+            if name:
+                return {
+                    "market": "us",
+                    "name": name,
+                    "exchange": info.get("exchange", "US"),
+                    "status": "resolved"
+                }
+            return {
+                "market": "us",
+                "status": "not_found",
+                "error": "Symbol not found in Yahoo Finance"
+            }
+        except Exception as e:
+            return {
+                "market": "us",
+                "status": "error",
+                "error": str(e)
+            }
+
+    async def validate_symbols(self, symbols: List[str]) -> Dict[str, Any]:
+        """優先查 symbols 主檔（見 services/symbol_master_fetcher.py 的 SEC EDGAR 同步），
+        查無資料的代號才逐檔查 yfinance（較慢，但涵蓋主檔可能漏收的冷門/新上市代碼）。"""
+        codes = [self.normalize_symbol(s) for s in symbols]
+        found: Dict[str, dict] = {}
+        try:
+            from repositories.stock_repository import StockRepository
+
+            found = {row["symbol"]: row for row in await StockRepository().get_symbols(codes, "us")}
+        except Exception as e:
+            logger.warning(f"[美股代號驗證] 查詢 symbols 主檔失敗，全部退回 yfinance 查詢: {e}")
+
         result = {}
-        for sym in symbols:
-            try:
-                ticker = yf.Ticker(sym)
-                info = ticker.info
-                name = info.get("shortName") or info.get("longName")
-                if name:
-                    result[sym] = {
-                        "market": "us",
-                        "name": name,
-                        "exchange": info.get("exchange", "US"),
-                        "status": "resolved"
-                    }
-                else:
-                    result[sym] = {
-                        "market": "us",
-                        "status": "not_found",
-                        "error": "Symbol not found in Yahoo Finance"
-                    }
-            except Exception as e:
+        for sym, code in zip(symbols, codes):
+            row = found.get(code)
+            if row:
                 result[sym] = {
                     "market": "us",
-                    "status": "error",
-                    "error": str(e)
+                    "name": row.get("name"),
+                    "exchange": row.get("exchange") or "US",
+                    "security_type": row.get("security_type"),
+                    "status": "resolved",
                 }
+                continue
+            result[sym] = await asyncio.to_thread(self._lookup_yfinance, sym)
         return result
-        
+
+    async def search_symbols(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """優先查 symbols 主檔（代號前綴或公司名稱模糊比對，跟 markets/tw.py 一致）。查無結果、
+        且輸入長得像 ticker 時才退回單次 yfinance 驗證（重用 validate_symbols()，不重寫）。"""
+        q = query.strip()
+        if not q:
+            return []
+
+        try:
+            from repositories.stock_repository import StockRepository
+
+            rows = await StockRepository().search_symbols(q, "us", limit)
+        except Exception as e:
+            logger.warning(f"[美股代號搜尋] 查詢 symbols 主檔失敗: {e}")
+            rows = []
+
+        if rows:
+            return [
+                {
+                    "symbol": row["symbol"],
+                    "name": row.get("name"),
+                    "market": "us",
+                    "exchange": row.get("exchange") or "US",
+                    "security_type": row.get("security_type"),
+                }
+                for row in rows
+            ]
+
+        qu = q.upper()
+        if not _TICKER_LIKE.match(qu):
+            return []
+
+        info = (await self.validate_symbols([qu])).get(qu, {})
+        if info.get("status") != "resolved":
+            return []
+
+        return [{
+            "symbol": qu,
+            "name": info.get("name"),
+            "market": "us",
+            "exchange": info.get("exchange"),
+            "security_type": info.get("security_type"),
+        }]
+
     def fetch(self, symbols: List[str], days: int) -> Dict[str, Dict[str, Any]]:
         """
         Fetch historical OHLCV data using yfinance.

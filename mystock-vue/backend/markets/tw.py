@@ -1,11 +1,14 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import json
+import logging
 import os
 import requests
 import time
 
 from .base import MarketAdapter, MarketMeta, Metric
+
+logger = logging.getLogger("mystock-backend")
 
 FIELD_MAP = {
     "股票名稱": "name", 
@@ -61,19 +64,59 @@ class TaiwanMarketAdapter(MarketAdapter):
     def normalize_symbol(self, symbol: str) -> str:
         return symbol.strip().replace('.TW', '')
 
-    def validate_symbols(self, symbols: List[str]) -> Dict[str, Any]:
-        # TODO: Implement actual validation via TWSE API
-        # For now, just return a dummy valid response
-        result = {}
-        for sym in symbols:
-            result[sym] = {
-                "market": "tw",
-                "exchange": "TWSE",
-                "security_type": "普通股", # Or ETF depending on symbol format
-                "status": "resolved"
+    async def validate_symbols(self, symbols: List[str]) -> Dict[str, Any]:
+        """精確驗證代號是否存在於 symbols 主檔（見 services/symbol_master_fetcher.py）並回傳名稱等
+        中繼資料。查詢失敗（例如 Postgres 未啟動、主檔尚未同步）時退回「全部視為已知」的舊行為，
+        不阻斷新增追蹤等既有流程（見 industry_fetcher.py 開頭「誠實標示資料缺口，不阻斷流程」的原則）。"""
+        codes = [self.normalize_symbol(s) for s in symbols]
+        try:
+            from repositories.stock_repository import StockRepository
+
+            found = {row["symbol"]: row for row in await StockRepository().get_symbols(codes, "tw")}
+        except Exception as e:
+            logger.warning(f"[台股代號驗證] 查詢 symbols 主檔失敗，退回未驗證狀態: {e}")
+            return {
+                sym: {"market": "tw", "exchange": "TWSE", "security_type": "普通股", "status": "resolved"}
+                for sym in symbols
             }
+
+        result = {}
+        for sym, code in zip(symbols, codes):
+            row = found.get(code)
+            if row:
+                result[sym] = {
+                    "market": "tw",
+                    "name": row.get("name"),
+                    "exchange": row.get("exchange") or "TWSE",
+                    "security_type": row.get("security_type") or "普通股",
+                    "status": "resolved",
+                }
+            else:
+                result[sym] = {"market": "tw", "status": "not_found"}
         return result
-        
+
+    async def search_symbols(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """代號前綴或名稱模糊搜尋（自動完成），查 symbols 主檔。查詢失敗時回傳空清單，
+        讓呼叫端（Omnibox／股票管理頁自動完成）優雅降級成「查無建議」而非整頁出錯。"""
+        try:
+            from repositories.stock_repository import StockRepository
+
+            rows = await StockRepository().search_symbols(query, "tw", limit)
+        except Exception as e:
+            logger.warning(f"[台股代號搜尋] 查詢 symbols 主檔失敗: {e}")
+            return []
+
+        return [
+            {
+                "symbol": row["symbol"],
+                "name": row.get("name"),
+                "market": "tw",
+                "exchange": row.get("exchange") or "TWSE",
+                "security_type": row.get("security_type"),
+            }
+            for row in rows
+        ]
+
     def fetch(self, symbols: List[str], days: int) -> Dict[str, Dict[str, Any]]:
         # The logic will be refactored from fetcher.py in the future
         # For this Phase, we rely on the migration script to rename keys

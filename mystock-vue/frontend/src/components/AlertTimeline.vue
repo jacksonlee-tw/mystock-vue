@@ -53,6 +53,13 @@
             </div>
           </div>
 
+          <WatchlistStarButton
+            :market="alert.market || 'tw'"
+            :symbol="alert.stock_id"
+            :name="alert.stock_name"
+            :price="typeof alert.details?.close === 'number' ? alert.details.close : null"
+          />
+
           <i class="pi shrink-0 text-surface-400" :class="expanded.has(alert.id) ? 'pi-chevron-up' : 'pi-chevron-down'"></i>
         </div>
 
@@ -97,6 +104,7 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { directionVisual, formatDirectionLabel, STRENGTH_META } from '@/utils/alertDirection';
 import { categoryMeta } from '@/utils/alertCategory';
+import WatchlistStarButton from '@/components/WatchlistStarButton.vue';
 
 const props = defineProps({
   alerts: { type: Array, default: () => [] },

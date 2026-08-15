@@ -81,6 +81,24 @@ async def load_stock_data(stock_id: str, market: str = "tw", source: Optional[st
         result[row["trade_date"].isoformat()] = record
     return result
 
+async def get_latest_quote(stock_id: str, market: str = "tw") -> Optional[Dict[str, Any]]:
+    """取最新一筆有效收盤價（供個人投資記帳模組 GET /api/v1/portfolio/quotes 批次報價使用）。
+
+    沿用 load_stock_data() 已經處理好的 DATA_SOURCE 分支，這裡不重新判斷 json/postgres；
+    收盤價 0 視為當天未回補到行情（見 PRICE_END_FIELDS 註解與 restore_price_from_legacy.py 的歷史成因），
+    往前找最近一筆非 0 的收盤價，都是 0（或沒有資料）就回傳 None，由呼叫端標示「待報價」。
+    """
+    data = await load_stock_data(stock_id, market)
+    if not data:
+        return None
+    for trade_date in sorted(data.keys(), reverse=True):
+        record = data[trade_date]
+        close = record.get("close")
+        if close:
+            return {"symbol": stock_id, "market": market, "date": trade_date, "close": close}
+    return None
+
+
 async def _discover_stocks_db(market: str, tracked_codes: set) -> List[Dict[str, Any]]:
     """discover_available_stocks() 的 PostgreSQL 分支：見 StockRepository.get_symbol_summaries() 註解，
     改用單一批次查詢取代逐 symbol 呼叫 load_stock_data() 的 N+1 寫法。"""

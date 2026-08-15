@@ -13,6 +13,27 @@ spec — many modules carry comments like `見設計文件第 X 節` (see design
 doc under `docs/`. When changing behavior in `strategies/`, `services/`, or `db/`, check the referenced doc
 folder first; the numbered `docs/N.主題/` folders roughly track the project's build phases.
 
+## Hard rules (user-mandated, must never regress)
+
+These come directly from the user as standing requirements, not one-off requests — any future change that
+touches chart controls or KPI/metric card grids must keep both true. If a refactor would break one of these,
+stop and find another approach instead of silently dropping it.
+
+1. **切換 K 線圖等 CHART 的按鈕時，畫面不能整頁 refresh 後跳回最上方** — switching a chart's period/range
+   controls (日/週/月線、1個月/3個月/6個月/1年 etc.) must never reset the page's scroll position. Cause seen
+   in practice: setting a `loading` flag that unmounts the whole content block into a small spinner while
+   refetching collapses the page height, which snaps the browser's scroll position to the top and never
+   restores it. Fix pattern: keep the previous content mounted during a refresh (dim/overlay + spinner is
+   fine), and only show a full-page loading state on the very first load with no data yet — see
+   `StockDashboard.vue`'s `v-if="loading && !chartData"` / `v-else-if="chartData"` + inline refresh overlay.
+2. **上方 KPI／指標卡片大小要一致，不可以有的大有的小** — cards in the same grid row must render at
+   identical height. Watch for the legacy `.card { margin-bottom: 2rem; &:last-child { margin-bottom: 0 } }`
+   rule (`assets/layout/_utils.scss`, meant for old vertically-stacked cards) leaking into CSS Grid card
+   layouts: whichever card lands last in a `v-for` loses its bottom margin while its row-siblings keep theirs,
+   so it renders taller once the grid stretches each row to a common height. Fix pattern: add `!m-0` to grid
+   card items to neutralize that legacy margin and let the grid's own `gap-*` handle spacing — see
+   `StockDashboard.vue`'s KPI card grid.
+
 ## Commands
 
 ### Frontend (`frontend/`)
@@ -42,6 +63,7 @@ python scripts/import_json_to_postgres.py     # one-time bulk import of data/**/
 python scripts/compare_data_sources.py        # asserts JSON and Postgres chart-data responses are field-identical
 python scripts/migrate_data_layout.py         # legacy: flat data/*.json -> data/{tw,us}/*.json
 python scripts/restore_price_from_legacy.py   # one-time repair for a historical 0.0-price bug (--dry-run first)
+python scripts/init_symbol_master.py          # populate `symbols` with the full TW code/name universe (Postgres only, idempotent)
 ```
 
 ### Postgres (optional, `backend/docker-compose.yml`)

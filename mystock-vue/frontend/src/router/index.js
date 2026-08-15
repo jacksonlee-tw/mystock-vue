@@ -61,6 +61,11 @@ const router = createRouter({
                     component: () => import('@/views/StockManagement.vue')
                 },
                 {
+                    path: '/stocks/symbols',
+                    name: 'stock-symbol-browser',
+                    component: () => import('@/views/StockSymbolBrowser.vue')
+                },
+                {
                     path: '/alerts',
                     name: 'alert-dashboard',
                     component: () => import('@/views/AlertDashboard.vue')
@@ -89,6 +94,42 @@ const router = createRouter({
                     path: '/notify/logs',
                     name: 'notify-logs',
                     component: () => import('@/views/notify/DeliveryLogs.vue')
+                },
+                // ── 個人投資記帳與績效追蹤模組（docs/8.個人投資記帳功能/）─────────
+                {
+                    path: '/portfolio',
+                    name: 'portfolio-dashboard',
+                    component: () => import('@/views/portfolio/PortfolioDashboard.vue')
+                },
+                {
+                    path: '/portfolio/transactions',
+                    name: 'portfolio-transactions',
+                    component: () => import('@/views/portfolio/TransactionList.vue')
+                },
+                {
+                    path: '/portfolio/holdings',
+                    name: 'portfolio-holdings',
+                    component: () => import('@/views/portfolio/HoldingsView.vue')
+                },
+                {
+                    path: '/portfolio/realized',
+                    name: 'portfolio-realized',
+                    component: () => import('@/views/portfolio/RealizedPnlView.vue')
+                },
+                {
+                    path: '/portfolio/cashflow',
+                    name: 'portfolio-cashflow',
+                    component: () => import('@/views/portfolio/CashflowView.vue')
+                },
+                {
+                    path: '/portfolio/watchlist',
+                    name: 'portfolio-watchlist',
+                    component: () => import('@/views/portfolio/WatchlistView.vue')
+                },
+                {
+                    path: '/portfolio/settings',
+                    name: 'portfolio-settings',
+                    component: () => import('@/views/portfolio/PortfolioSettingsView.vue')
                 }
             ]
         },

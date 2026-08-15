@@ -3,7 +3,7 @@ import asyncio
 from datetime import date, datetime
 from typing import Any, Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from db.models import CrawlerLog, DailyStockData, MarketNoTradingDay, Symbol, SymbolIndustry
@@ -161,6 +161,122 @@ class StockRepository:
             )
             await session.execute(stmt)
             await session.commit()
+
+    async def get_symbols(self, codes: list[str], market_type: str) -> list[dict]:
+        """精確多筆查詢（IN），給 markets/tw.py 的 validate_symbols() 做批次驗證用。"""
+        if not codes:
+            return []
+        async with self._session_factory() as session:
+            stmt = select(Symbol).where(Symbol.market_type == market_type, Symbol.symbol.in_(codes))
+            result = await session.execute(stmt)
+            return [_symbol_to_dict(row) for row in result.scalars().all()]
+
+    async def search_symbols(self, query: str, market_type: str, limit: int = 20) -> list[dict]:
+        """代號前綴或名稱模糊搜尋，給自動完成用（見 markets/tw.py 的 search_symbols()）。
+        代號完全相等的排最前面，其餘依代號排序。"""
+        q = query.strip()
+        if not q:
+            return []
+        async with self._session_factory() as session:
+            stmt = (
+                select(Symbol)
+                .where(
+                    Symbol.market_type == market_type,
+                    Symbol.is_active.is_(True),
+                    or_(Symbol.symbol.ilike(f"{q}%"), Symbol.name.ilike(f"%{q}%")),
+                )
+                .order_by((Symbol.symbol == q).desc(), Symbol.symbol.asc())
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return [_symbol_to_dict(row) for row in result.scalars().all()]
+
+    async def list_symbols_page(
+        self,
+        market_type: str,
+        query: Optional[str] = None,
+        industry_code: Optional[str] = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[dict], int]:
+        """全市場代碼主檔的分頁瀏覽／篩選（見 stocks.py 的 GET /stocks/symbols）。跟 search_symbols()
+        分工：這裡要準確的 total 筆數（做分頁）與可選的產業別篩選（LEFT JOIN symbol_industry），
+        search_symbols() 只要「前 N 筆建議」給自動完成用，不需要 total 也不需要產業別。"""
+        conditions = [Symbol.market_type == market_type]
+        q = (query or "").strip()
+        if q:
+            conditions.append(or_(Symbol.symbol.ilike(f"{q}%"), Symbol.name.ilike(f"%{q}%")))
+        if industry_code:
+            conditions.append(SymbolIndustry.industry_code == industry_code)
+
+        async with self._session_factory() as session:
+            count_stmt = (
+                select(func.count(Symbol.symbol))
+                .select_from(Symbol)
+                .outerjoin(SymbolIndustry, SymbolIndustry.symbol == Symbol.symbol)
+                .where(*conditions)
+            )
+            total = (await session.execute(count_stmt)).scalar_one()
+
+            list_stmt = (
+                select(Symbol, SymbolIndustry.industry_code, SymbolIndustry.industry_name)
+                .outerjoin(SymbolIndustry, SymbolIndustry.symbol == Symbol.symbol)
+                .where(*conditions)
+                .order_by(Symbol.symbol.asc())
+                .offset(offset)
+                .limit(limit)
+            )
+            result = await session.execute(list_stmt)
+            items = [
+                {
+                    **_symbol_to_dict(row.Symbol),
+                    "industry_code": row.industry_code,
+                    "industry_name": row.industry_name,
+                }
+                for row in result.all()
+            ]
+        return items, total
+
+    async def list_distinct_industries(self, market_type: str) -> list[dict]:
+        """給篩選下拉選單用的產業別選項：只回傳主檔裡實際有資料的分類，不會出現篩了卻 0 筆的選項。"""
+        async with self._session_factory() as session:
+            stmt = (
+                select(SymbolIndustry.industry_code, SymbolIndustry.industry_name)
+                .where(SymbolIndustry.market_type == market_type)
+                .distinct()
+                .order_by(SymbolIndustry.industry_code.asc())
+            )
+            result = await session.execute(stmt)
+            return [{"industry_code": r.industry_code, "industry_name": r.industry_name} for r in result.all()]
+
+    # asyncpg 單一陳述式的 query 參數上限是 32767；本表一列 6 欄，美股 SEC 清單單次就上萬列，
+    # 遠超這個上限會直接丟 InterfaceError（見 services/symbol_master_fetcher.py 的呼叫端），
+    # 所以要分批送出。500 列/批 = 3000 參數，遠低於上限，也讓單一陳述式不會太肥。
+    _UPSERT_SYMBOLS_BATCH_SIZE = 500
+
+    async def upsert_symbols_bulk(self, rows: list[dict]) -> int:
+        """rows: [{"symbol", "market_type", "name", "exchange", "status"}, ...]。
+        用於 services/symbol_master_fetcher.py 的全市場代碼清單同步：只更新 market_type/name/
+        exchange/status，刻意不動 security_type，避免蓋掉 upsert_symbol()（例如
+        scripts/import_json_to_postgres.py）已經填好的值。"""
+        if not rows:
+            return 0
+        async with self._session_factory() as session:
+            for i in range(0, len(rows), self._UPSERT_SYMBOLS_BATCH_SIZE):
+                batch = rows[i:i + self._UPSERT_SYMBOLS_BATCH_SIZE]
+                stmt = pg_insert(Symbol).values(batch)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[Symbol.symbol],
+                    set_={
+                        "market_type": stmt.excluded.market_type,
+                        "name": stmt.excluded.name,
+                        "exchange": stmt.excluded.exchange,
+                        "status": stmt.excluded.status,
+                    },
+                )
+                await session.execute(stmt)
+            await session.commit()
+        return len(rows)
 
     # ── daily_stock_data ──────────────────────────────────────────────
     async def get_daily_data(
@@ -325,3 +441,9 @@ class StockRepository:
 
     def upsert_symbol_industry_sync(self, rows: list[dict]) -> None:
         run_async(self.upsert_symbol_industry(rows))
+
+    # get_symbols()／search_symbols()／upsert_symbols_bulk() 沒有 _sync 橋接：它們只從
+    # markets/tw.py／us.py（FastAPI 主 event loop 內）與 services/symbol_master_fetcher.py
+    # （BackgroundTasks，同樣在主 loop 內）呼叫，必須直接 await，不能用 run_async()（見該函式
+    # 的說明——在還有其他併發請求共用同一個 db/session.py 全域 engine 時呼叫 run_async()／
+    # dispose_engine() 會把它們的連線一併弄壞）。

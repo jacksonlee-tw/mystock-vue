@@ -82,6 +82,7 @@
             >
               <i class="pi pi-cog"></i>
             </button>
+            <WatchlistStarButton :market="market" :symbol="selectedStock" :name="currentStockName" :price="summary.close" />
           </div>
 
           <!-- 聚合週期 -->
@@ -336,6 +337,7 @@ import { formatPrice, formatChange, formatLots, formatPercent } from '@/utils/fo
 import StockCharts from '@/components/StockCharts.vue';
 import VsIndexWidget from '@/components/VsIndexWidget.vue';
 import StockAlertsPanel from '@/components/StockAlertsPanel.vue';
+import WatchlistStarButton from '@/components/WatchlistStarButton.vue';
 import { useMarket } from '@/composables/useMarket';
 
 const route = useRoute();

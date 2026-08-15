@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>個人投資記帳與績效追蹤 - Prototype</title>
 
-<!-- Tailwind Play CDN，config 沿用專案實際色票（brass 主色 / slate 中性色 / 市場漲跌色變數） -->
+<!-- Tailwind Play CDN，config 沿用專案實際色票（brass 主色見 _common-brass.scss / slate 中性色 / 市場漲跌色變數） -->
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
@@ -24,9 +24,10 @@
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.min.css">
 <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<!-- 改用 ECharts：與專案實際圖表堆疊（vue-echarts）一致，避免 prototype 決定的樣式落地時需重做 -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 
-<!-- 嘗試沿用專案既有 CSS（若路徑不可用則靜默失敗，不影響下方內嵌樣式） -->
+<!-- 沿用專案既有 CSS 的 --up/--down 定義（路徑不可用時靜默失敗，下方內嵌樣式已含同樣定義） -->
 <link rel="stylesheet" href="../../../frontend/src/assets/project-style.css">
 
 <style>
@@ -35,10 +36,9 @@
   [data-market="us"] { --up:#16a34a; --down:#dc2626; }
   .text-up { color: var(--up); }
   .text-down { color: var(--down); }
-  .bg-up-soft { background-color: color-mix(in srgb, var(--up) 12%, transparent); }
-  .bg-down-soft { background-color: color-mix(in srgb, var(--down) 12%, transparent); }
-  .border-up { border-color: var(--up); }
-  .border-down { border-color: var(--down); }
+  /* 「統一配色」模式：不分市場，一律綠賺紅賠（見設定頁「損益配色」） */
+  .text-profit { color:#16a34a; }
+  .text-loss   { color:#dc2626; }
 
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -65,10 +65,19 @@
 
   .toast-enter-active, .toast-leave-active { transition: all .25s ease; }
   .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(8px); }
+
+  /* 可排序表頭 */
+  th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+  th.sortable:hover { color: #475569; }
+
+  /* 尚未有後端資料來源的欄位，統一用虛線底標示，避免 prototype 的假數字被當成已確定規格 */
+  .pending-data { border-bottom: 1px dashed #cbd5e1; }
+
+  :focus-visible { outline: 2px solid #8f6413; outline-offset: 2px; border-radius: 4px; }
 </style>
 </head>
 <body class="antialiased">
-<div id="app" v-cloak class="flex min-h-screen">
+<div id="app" v-cloak class="flex min-h-screen" @keydown.esc="closeTopmostOverlay">
 
   <!-- ══════════════ 側邊導覽（桌機） ══════════════ -->
   <aside class="hidden lg:flex w-60 shrink-0 bg-surface-0 border-r border-surface-200 flex-col fixed inset-y-0 left-0 z-20">
@@ -82,13 +91,14 @@
         @click="currentTab = tab.id"
         class="w-full flex items-center gap-3 px-5 py-3 text-sm font-semibold border-r-4 transition-colors text-left"
         :class="currentTab === tab.id ? 'border-primary bg-primary-50 text-primary-700' : 'border-transparent text-surface-500 hover:bg-surface-50 hover:text-surface-800'"
+        :aria-current="currentTab === tab.id ? 'page' : null"
       >
         <i :class="tab.icon" class="text-base w-4 text-center shrink-0"></i>
         <span class="truncate">{{ tab.name }}</span>
       </button>
     </nav>
     <div class="p-4 border-t border-surface-200 text-xs text-surface-400 leading-relaxed shrink-0">
-      Prototype · 僅供 UI/UX 討論<br>圖表與明細皆為示意資料
+      Prototype · 僅供 UI/UX 討論<br>所有數字由下方示範交易即時試算
     </div>
   </aside>
 
@@ -102,13 +112,14 @@
       </div>
 
       <div class="ml-auto flex items-center gap-2 sm:gap-3">
-        <!-- 市場篩選：全部 / 台股 / 美股，套用在下方各清單 -->
-        <div class="hidden sm:flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-lg p-1">
+        <!-- 市場篩選：全部 / 台股 / 美股，一致套用在所有清單、統計卡與圖表 -->
+        <div class="hidden sm:flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-lg p-1" role="group" aria-label="市場篩選">
           <button
             v-for="m in marketFilterOptions" :key="m.value"
             @click="marketFilter = m.value"
             class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors"
             :class="marketFilter === m.value ? 'bg-primary text-primary-contrast shadow-sm' : 'text-surface-500 hover:text-surface-800'"
+            :aria-pressed="marketFilter === m.value"
           >{{ m.label }}</button>
         </div>
 
@@ -136,15 +147,21 @@
 
     <main class="flex-1 p-4 sm:p-6 space-y-6 max-w-[1440px] w-full mx-auto">
 
+      <!-- 對應 API 提示條：銜接設計文件第六節，供後續 API 規格討論 -->
+      <div v-if="currentApis.length" class="flex flex-wrap items-center gap-2 text-xs">
+        <span class="font-bold text-surface-400 flex items-center gap-1"><i class="pi pi-server"></i>對應 API</span>
+        <code v-for="a in currentApis" :key="a" class="px-2 py-1 rounded bg-surface-100 border border-surface-200 text-surface-600 num">{{ a }}</code>
+      </div>
+
       <!-- ══════════════════════ 1. 儀表板總覽 ══════════════════════ -->
       <section v-if="currentTab === 'dashboard'" class="space-y-6">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm flex items-center gap-3">
             <div class="w-12 h-12 rounded-xl bg-primary-50 text-primary flex items-center justify-center text-xl shrink-0"><i class="pi pi-wallet"></i></div>
             <div class="min-w-0">
-              <div class="text-xs font-bold text-surface-400 uppercase tracking-wide">總資產市值</div>
-              <div class="text-2xl font-black text-surface-900 num">NT$ {{ fmtNum(totalAssetValueTwd) }}</div>
-              <div class="text-xs text-surface-400">台股 + 美股折合（匯率 {{ FX_RATE }}）</div>
+              <div class="text-xs font-bold text-surface-400 uppercase tracking-wide">帳戶總值</div>
+              <div class="text-2xl font-black text-surface-900 num">NT$ {{ fmtNum(accountValueTwd) }}</div>
+              <div class="text-xs text-surface-400">持股 {{ fmtNum(portfolioValueTwd) }} + 現金 {{ fmtNum(cashBalanceTwd) }}</div>
             </div>
           </div>
           <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm flex items-center gap-3">
@@ -153,8 +170,8 @@
             </div>
             <div class="min-w-0">
               <div class="text-xs font-bold text-surface-400 uppercase tracking-wide">未實現總損益</div>
-              <div class="text-2xl font-black num" :class="unrealizedTotal >= 0 ? 'text-emerald-600' : 'text-red-600'">
-                {{ unrealizedTotal >= 0 ? '+' : '' }}{{ fmtNum(unrealizedTotal) }}
+              <div class="text-2xl font-black num" :data-market="aggMarket" :class="pnlClass(unrealizedTotal)">
+                {{ signed(unrealizedTotal) }}
               </div>
               <div class="text-xs text-surface-400">報酬率 {{ fmtPct(unrealizedTotalPct) }}</div>
             </div>
@@ -165,30 +182,37 @@
             </div>
             <div class="min-w-0">
               <div class="text-xs font-bold text-surface-400 uppercase tracking-wide">累計已實現損益</div>
-              <div class="text-2xl font-black num" :class="realizedStats.total >= 0 ? 'text-emerald-600' : 'text-red-600'">
-                {{ realizedStats.total >= 0 ? '+' : '' }}{{ fmtNum(realizedStats.total) }}
+              <div class="text-2xl font-black num" :data-market="aggMarket" :class="pnlClass(realizedStats.total)">
+                {{ signed(realizedStats.total) }}
               </div>
-              <div class="text-xs text-surface-400">共 {{ realizedLots.length }} 筆平倉紀錄</div>
+              <div class="text-xs text-surface-400">交易 {{ signed(realizedStats.tradeTotal) }} ＋股利 {{ fmtNum(realizedStats.dividendIncome) }}</div>
             </div>
           </div>
           <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm flex items-center gap-3">
             <div class="w-12 h-12 rounded-xl bg-primary-50 text-primary flex items-center justify-center text-xl shrink-0"><i class="pi pi-percentage"></i></div>
             <div class="min-w-0">
               <div class="text-xs font-bold text-surface-400 uppercase tracking-wide">勝率（獲利次數/總平倉）</div>
-              <div class="text-2xl font-black text-primary-700 num">{{ realizedStats.winRate.toFixed(1) }}%</div>
-              <div class="text-xs text-surface-400">{{ realizedStats.wins }} 勝 / {{ realizedLots.length - realizedStats.wins }} 敗</div>
+              <div class="text-2xl font-black text-primary-700 num">{{ realizedStats.lots ? realizedStats.winRate.toFixed(1) + '%' : '—' }}</div>
+              <div class="text-xs text-surface-400">{{ realizedStats.wins }} 勝 / {{ realizedStats.losses }} 敗</div>
             </div>
           </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div class="lg:col-span-1 p-5 rounded-xl border border-surface-200 bg-surface-0 shadow-sm">
-            <h2 class="text-sm font-bold text-surface-700 mb-3 pb-2 border-b border-surface-100">資產配置比重</h2>
-            <div class="h-64"><canvas id="allocationChart"></canvas></div>
+            <div class="flex items-center justify-between mb-3 pb-2 border-b border-surface-100 gap-2">
+              <h2 class="text-sm font-bold text-surface-700">資產配置比重</h2>
+              <div class="flex items-center gap-0.5 bg-surface-100 border border-surface-200 rounded-md p-0.5">
+                <button v-for="o in allocModeOptions" :key="o.value" @click="allocMode = o.value"
+                  class="px-2 py-1 text-[11px] font-bold rounded transition-colors"
+                  :class="allocMode === o.value ? 'bg-primary text-primary-contrast' : 'text-surface-500'">{{ o.label }}</button>
+              </div>
+            </div>
+            <div ref="allocChartEl" class="h-64"></div>
           </div>
 
           <div class="lg:col-span-2 p-5 rounded-xl border border-surface-200 bg-surface-0 shadow-sm overflow-hidden">
-            <h2 class="text-sm font-bold text-surface-700 mb-3 pb-2 border-b border-surface-100">當前持股明細（即時市值）</h2>
+            <h2 class="text-sm font-bold text-surface-700 mb-3 pb-2 border-b border-surface-100">當前持股明細（{{ costMethodLabel }}）</h2>
             <div class="overflow-x-auto">
               <table class="w-full text-left border-collapse text-sm">
                 <thead>
@@ -201,18 +225,24 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="h in holdings" :key="h.symbol" class="border-t border-surface-100 hover:bg-surface-50">
+                  <tr v-for="h in filteredHoldings" :key="h.key" class="border-t border-surface-100 hover:bg-surface-50">
                     <td class="py-2.5 pr-3">
                       <div class="font-bold text-surface-800">{{ h.symbol }}</div>
                       <div class="text-xs text-surface-400">{{ h.name }}</div>
                     </td>
-                    <td class="py-2.5 px-3 text-right num">{{ fmtNum(h.shares) }}</td>
+                    <td class="py-2.5 px-3 text-right num">
+                      {{ fmtNum(h.shares) }}
+                      <div v-if="lotLabel(h)" class="text-[11px] text-surface-400 font-normal">{{ lotLabel(h) }}</div>
+                    </td>
                     <td class="py-2.5 px-3 text-right num">{{ h.avgCost.toFixed(2) }}</td>
                     <td class="py-2.5 px-3 text-right num font-medium">{{ h.price.toFixed(2) }}</td>
-                    <td class="py-2.5 px-3 text-right num font-bold" :data-market="h.market" :class="profitOf(h) >= 0 ? 'text-up' : 'text-down'">
-                      {{ profitOf(h) >= 0 ? '+' : '' }}{{ fmtNum(profitOf(h)) }}
-                      <div class="text-xs font-normal">({{ fmtPct(profitPctOf(h)) }})</div>
+                    <td class="py-2.5 px-3 text-right num font-bold" :data-market="h.market" :class="pnlClass(h.pnl)">
+                      {{ signed(h.pnl, h.market) }}
+                      <div class="text-xs font-normal">({{ fmtPct(h.pnlPct) }})</div>
                     </td>
+                  </tr>
+                  <tr v-if="filteredHoldings.length === 0">
+                    <td colspan="5" class="py-8 text-center text-surface-400 text-sm">此市場目前沒有庫存部位</td>
                   </tr>
                 </tbody>
               </table>
@@ -223,14 +253,13 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div class="p-5 rounded-xl border border-surface-200 bg-surface-0 shadow-sm">
             <h2 class="text-sm font-bold text-surface-700 mb-3 pb-2 border-b border-surface-100 flex items-center gap-2"><i class="pi pi-list text-primary"></i>近期交易</h2>
+            <p v-if="recentTransactions.length === 0" class="text-sm text-surface-400 py-4 text-center">此市場尚無交易紀錄</p>
             <ul class="divide-y divide-surface-100">
-              <li v-for="tx in transactions.slice(0, 5)" :key="tx.id" class="py-2.5 flex items-center gap-3 text-sm">
-                <span class="px-2 py-0.5 text-xs font-bold rounded" :class="tx.type === 'buy' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'">
-                  {{ tx.type === 'buy' ? '買進' : '賣出' }}
-                </span>
+              <li v-for="tx in recentTransactions" :key="tx.id" class="py-2.5 flex items-center gap-3 text-sm">
+                <span class="px-2 py-0.5 text-xs font-bold rounded shrink-0" :class="txTypeBadge(tx)">{{ txTypeLabel(tx) }}</span>
                 <span class="font-bold text-surface-700">{{ tx.symbol }}</span>
                 <span class="text-surface-400 text-xs truncate">{{ tx.name }}</span>
-                <span class="ml-auto num text-surface-500 text-xs">{{ tx.date }}</span>
+                <span class="ml-auto num text-surface-500 text-xs shrink-0">{{ tx.date }}</span>
               </li>
             </ul>
           </div>
@@ -240,10 +269,13 @@
             <p v-if="nearTargetWatchlist.length === 0" class="text-sm text-surface-400 py-4 text-center">目前沒有股票接近目標買進價</p>
             <ul class="divide-y divide-surface-100">
               <li v-for="w in nearTargetWatchlist" :key="w.id" class="py-2.5 flex items-center gap-3 text-sm">
-                <span class="px-2 py-0.5 text-xs font-bold rounded bg-amber-50 text-amber-600">接近目標</span>
+                <span class="px-2 py-0.5 text-xs font-bold rounded shrink-0" :class="gapPct(w) <= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'">
+                  {{ gapPct(w) <= 0 ? '已達價' : '接近目標' }}
+                </span>
                 <span class="font-bold text-surface-700">{{ w.symbol }}</span>
                 <span class="text-surface-400 text-xs truncate">{{ w.name }}</span>
-                <span class="ml-auto num text-xs" :data-market="w.market" :class="gapPct(w) <= 0 ? 'text-up' : 'text-surface-500'">
+                <!-- 距目標是「離目標買價還有多遠」，不是漲跌，刻意不套市場漲跌色 -->
+                <span class="ml-auto num text-xs shrink-0" :class="gapPct(w) <= 0 ? 'text-emerald-600 font-bold' : 'text-surface-500'">
                   距目標 {{ fmtPct(gapPct(w)) }}
                 </span>
               </li>
@@ -258,20 +290,21 @@
           <div class="flex flex-wrap gap-3 items-center">
             <div class="relative">
               <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 text-sm"></i>
-              <input v-model="txFilter.keyword" type="text" placeholder="搜尋代碼或名稱..." class="pl-9 pr-3 py-2 border border-surface-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-300 focus:border-primary outline-none w-48">
+              <input v-model="txFilter.keyword" type="text" placeholder="搜尋代碼或名稱..." aria-label="搜尋代碼或名稱" class="pl-9 pr-3 py-2 border border-surface-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-300 focus:border-primary outline-none w-48">
             </div>
-            <select v-model="txFilter.type" class="border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
+            <select v-model="txFilter.type" aria-label="交易類型" class="border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
               <option value="">全部類型</option>
               <option value="buy">買進</option>
               <option value="sell">賣出</option>
+              <option value="odd">零股</option>
             </select>
-            <input v-model="txFilter.from" type="date" class="border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
+            <input v-model="txFilter.from" type="date" aria-label="起始日期" class="border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
             <span class="text-surface-400 text-sm">至</span>
-            <input v-model="txFilter.to" type="date" class="border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
+            <input v-model="txFilter.to" type="date" aria-label="結束日期" class="border border-surface-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
             <button @click="resetTxFilter" class="text-sm text-surface-400 hover:text-surface-700 flex items-center gap-1"><i class="pi pi-filter-slash"></i>清除篩選</button>
             <div class="ml-auto flex items-center gap-2">
-              <button class="px-3 py-2 text-sm font-bold border border-surface-300 rounded-lg text-surface-600 hover:bg-surface-50 flex items-center gap-1.5"><i class="pi pi-upload"></i>匯入</button>
-              <button class="px-3 py-2 text-sm font-bold border border-surface-300 rounded-lg text-surface-600 hover:bg-surface-50 flex items-center gap-1.5"><i class="pi pi-download"></i>匯出</button>
+              <button @click="showImportModal = true" class="px-3 py-2 text-sm font-bold border border-surface-300 rounded-lg text-surface-600 hover:bg-surface-50 flex items-center gap-1.5"><i class="pi pi-upload"></i>匯入</button>
+              <button @click="exportCsv" class="px-3 py-2 text-sm font-bold border border-surface-300 rounded-lg text-surface-600 hover:bg-surface-50 flex items-center gap-1.5"><i class="pi pi-download"></i>匯出 CSV</button>
             </div>
           </div>
         </div>
@@ -281,36 +314,46 @@
             <table class="w-full text-left border-collapse text-sm">
               <thead>
                 <tr class="bg-surface-50 text-surface-400 text-xs uppercase tracking-wide">
-                  <th class="p-3">交易日期</th>
+                  <th class="p-3 sortable" @click="sortTxBy('date')">交易日期 <i :class="sortIcon('date')"></i></th>
                   <th class="p-3">市場</th>
                   <th class="p-3">類型</th>
-                  <th class="p-3">股票</th>
-                  <th class="p-3 text-right">股數</th>
-                  <th class="p-3 text-right">單價</th>
+                  <th class="p-3 sortable" @click="sortTxBy('symbol')">股票 <i :class="sortIcon('symbol')"></i></th>
+                  <th class="p-3 text-right sortable" @click="sortTxBy('shares')">股數 <i :class="sortIcon('shares')"></i></th>
+                  <th class="p-3 text-right sortable" @click="sortTxBy('price')">單價 <i :class="sortIcon('price')"></i></th>
                   <th class="p-3 text-right">手續費/稅</th>
-                  <th class="p-3 text-right">淨收付</th>
+                  <th class="p-3 text-right sortable" @click="sortTxBy('net')">淨收付 <i :class="sortIcon('net')"></i></th>
                   <th class="p-3 text-center">操作</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="tx in filteredTransactions" :key="tx.id" class="border-t border-surface-100 hover:bg-surface-50">
-                  <td class="p-3 text-surface-500 num">{{ tx.date }}</td>
+                <tr v-for="tx in pagedTransactions" :key="tx.id" class="border-t border-surface-100 hover:bg-surface-50">
+                  <td class="p-3 text-surface-500 num">
+                    {{ tx.date }}
+                    <div v-if="tx.time" class="text-[11px] text-surface-400">{{ tx.time }}</div>
+                  </td>
                   <td class="p-3"><span class="px-2 py-0.5 text-xs font-bold rounded bg-surface-100 text-surface-600">{{ marketMeta[tx.market].label }}</span></td>
                   <td class="p-3">
-                    <span class="px-2 py-1 text-xs font-bold rounded" :class="tx.type === 'buy' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'">
-                      {{ tx.type === 'buy' ? '買進' : '賣出' }}
-                    </span>
+                    <span class="px-2 py-1 text-xs font-bold rounded whitespace-nowrap" :class="txTypeBadge(tx)">{{ txTypeLabel(tx) }}</span>
                   </td>
-                  <td class="p-3 font-medium text-surface-800">{{ tx.symbol }} <span class="text-surface-400 font-normal">{{ tx.name }}</span></td>
-                  <td class="p-3 text-right num">{{ fmtNum(tx.shares) }}</td>
+                  <td class="p-3 font-medium text-surface-800">
+                    {{ tx.symbol }} <span class="text-surface-400 font-normal">{{ tx.name }}</span>
+                    <span v-if="isTwEtf(tx)" class="ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-primary-50 text-primary-700" title="ETF 證交稅率 0.1%，與一般股票 0.3% 不同">ETF</span>
+                  </td>
+                  <td class="p-3 text-right num">
+                    {{ fmtNum(tx.shares) }}
+                    <div v-if="lotLabel(tx)" class="text-[11px] text-surface-400">{{ lotLabel(tx) }}</div>
+                  </td>
                   <td class="p-3 text-right num">{{ tx.price.toFixed(2) }}</td>
-                  <td class="p-3 text-right num text-surface-400 text-xs">{{ fmtNum(tx.fee + tx.tax) }}</td>
-                  <td class="p-3 text-right font-bold num" :class="tx.type === 'buy' ? 'text-surface-800' : 'text-primary-700'">
-                    {{ tx.type === 'buy' ? '-' : '+' }}{{ fmtNum(tx.amount) }}
+                  <td class="p-3 text-right num text-surface-400 text-xs">
+                    {{ fmtAmt(tx.fee, tx.market) }} / {{ fmtAmt(tx.tax, tx.market) }}
+                    <div v-if="tx.feeOverride != null || tx.taxOverride != null" class="text-[10px] text-amber-600 font-bold">手動</div>
                   </td>
-                  <td class="p-3 text-center text-surface-400">
-                    <button @click="openEditTxModal(tx)" class="hover:text-primary mx-1 transition-colors"><i class="pi pi-pencil"></i></button>
-                    <button @click="confirmDeleteTx(tx)" class="hover:text-red-500 mx-1 transition-colors"><i class="pi pi-trash"></i></button>
+                  <td class="p-3 text-right font-bold num" :class="tx.side === 'buy' ? 'text-surface-800' : 'text-primary-700'">
+                    {{ tx.side === 'buy' ? '-' : '+' }}{{ fmtAmt(tx.net, tx.market) }}
+                  </td>
+                  <td class="p-3 text-center text-surface-400 whitespace-nowrap">
+                    <button @click="openEditTxModal(tx)" title="編輯" aria-label="編輯交易" class="hover:text-primary mx-1 transition-colors"><i class="pi pi-pencil"></i></button>
+                    <button @click="confirmDeleteTx(tx)" title="刪除" aria-label="刪除交易" class="hover:text-red-500 mx-1 transition-colors"><i class="pi pi-trash"></i></button>
                   </td>
                 </tr>
                 <tr v-if="filteredTransactions.length === 0">
@@ -320,28 +363,34 @@
             </table>
           </div>
           <div class="flex items-center justify-between px-4 py-3 border-t border-surface-100 text-xs text-surface-400">
-            <span>共 {{ filteredTransactions.length }} 筆</span>
+            <span>共 {{ filteredTransactions.length }} 筆，第 {{ txPage }} / {{ txPageCount }} 頁</span>
             <div class="flex items-center gap-1">
-              <button disabled class="px-2 py-1 rounded border border-surface-200 opacity-40">上一頁</button>
-              <button disabled class="px-2 py-1 rounded border border-surface-200 opacity-40">下一頁</button>
+              <button @click="txPage = Math.max(1, txPage - 1)" :disabled="txPage <= 1" class="px-2 py-1 rounded border border-surface-200 disabled:opacity-40 hover:bg-surface-50">上一頁</button>
+              <button @click="txPage = Math.min(txPageCount, txPage + 1)" :disabled="txPage >= txPageCount" class="px-2 py-1 rounded border border-surface-200 disabled:opacity-40 hover:bg-surface-50">下一頁</button>
             </div>
           </div>
         </div>
+
+        <p class="text-xs text-surface-400 flex items-start gap-1.5">
+          <i class="pi pi-info-circle mt-0.5"></i>
+          <span>新增／編輯／刪除任一筆交易，下方持股均價、已實現損益、勝率與圖表都會即時重算（本 prototype 以前端試算示範設計文件「自動更新後續持股與成本計算」的行為）。</span>
+        </p>
       </section>
 
       <!-- ══════════════════════ 3. 持股總覽 ══════════════════════ -->
       <section v-if="currentTab === 'holdings'" class="space-y-4">
         <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm flex flex-wrap items-center gap-4">
           <span class="text-sm font-bold text-surface-600 flex items-center gap-1.5"><i class="pi pi-sliders-h text-primary"></i>成本計算法</span>
-          <div class="flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-lg p-1">
+          <div class="flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-lg p-1" role="group" aria-label="成本計算法">
             <button
               v-for="opt in costMethodOptions" :key="opt.value"
-              @click="costMethod = opt.value"
+              @click="settings.costMethod = opt.value"
               class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors"
-              :class="costMethod === opt.value ? 'bg-primary text-primary-contrast shadow-sm' : 'text-surface-500 hover:text-surface-800'"
+              :class="settings.costMethod === opt.value ? 'bg-primary text-primary-contrast shadow-sm' : 'text-surface-500 hover:text-surface-800'"
+              :aria-pressed="settings.costMethod === opt.value"
             >{{ opt.label }}</button>
           </div>
-          <span class="text-xs text-surface-400">{{ costMethod === 'fifo' ? '依先進先出法計算庫存均價成本' : '依歷史買進加權平均計算庫存均價成本' }}</span>
+          <span class="text-xs text-surface-400">{{ costMethodHint }}</span>
         </div>
 
         <div class="rounded-xl border border-surface-200 bg-surface-0 shadow-sm overflow-hidden">
@@ -361,35 +410,44 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="h in filteredHoldings" :key="h.symbol" class="border-t border-surface-100 hover:bg-surface-50">
+                <tr v-for="h in filteredHoldings" :key="h.key" class="border-t border-surface-100 hover:bg-surface-50">
                   <td class="p-3">
                     <div class="font-bold text-surface-800">{{ h.symbol }}</div>
                     <div class="text-xs text-surface-400">{{ h.name }}</div>
                   </td>
                   <td class="p-3"><span class="px-2 py-0.5 text-xs font-bold rounded bg-surface-100 text-surface-600">{{ marketMeta[h.market].label }}</span></td>
-                  <td class="p-3 text-right num">{{ fmtNum(h.shares) }}</td>
-                  <td class="p-3 text-right num">{{ h.avgCost.toFixed(2) }}</td>
+                  <td class="p-3 text-right num">
+                    {{ fmtNum(h.shares) }}
+                    <div v-if="lotLabel(h)" class="text-[11px] text-surface-400">{{ lotLabel(h) }}</div>
+                  </td>
+                  <td class="p-3 text-right num">
+                    {{ h.avgCost.toFixed(2) }}
+                    <div v-if="h.dividendOffset > 0" class="text-[11px] text-emerald-600" :title="'現金股利已沖抵成本 ' + fmtAmt(h.dividendOffset, h.market)">含息還原 -{{ (h.dividendOffset / h.shares).toFixed(2) }}</div>
+                  </td>
                   <td class="p-3 text-right num font-medium">{{ h.price.toFixed(2) }}</td>
-                  <td class="p-3 text-right num">{{ marketMeta[h.market].symbol }} {{ fmtNum(marketValueOf(h)) }}</td>
+                  <td class="p-3 text-right num">{{ marketMeta[h.market].symbol }} {{ fmtAmt(h.marketValue, h.market) }}</td>
                   <td class="p-3 w-32">
-                    <div class="mini-bar"><span :style="{ width: weightOf(h).toFixed(1) + '%' }"></span></div>
+                    <div class="mini-bar"><span :style="{ width: Math.min(100, weightOf(h)).toFixed(1) + '%' }"></span></div>
                     <div class="text-xs text-surface-400 num mt-0.5">{{ weightOf(h).toFixed(1) }}%</div>
                   </td>
-                  <td class="p-3 text-right num font-bold" :data-market="h.market" :class="profitOf(h) >= 0 ? 'text-up' : 'text-down'">
-                    {{ profitOf(h) >= 0 ? '+' : '' }}{{ fmtNum(profitOf(h)) }}
+                  <td class="p-3 text-right num font-bold" :data-market="h.market" :class="pnlClass(h.pnl)">
+                    {{ signed(h.pnl, h.market) }}
                   </td>
-                  <td class="p-3 text-right num font-bold" :data-market="h.market" :class="profitOf(h) >= 0 ? 'text-up' : 'text-down'">
-                    {{ fmtPct(profitPctOf(h)) }}
+                  <td class="p-3 text-right num font-bold" :data-market="h.market" :class="pnlClass(h.pnl)">
+                    {{ fmtPct(h.pnlPct) }}
                   </td>
                 </tr>
+                <tr v-if="filteredHoldings.length === 0">
+                  <td colspan="9" class="p-8 text-center text-surface-400 text-sm">此市場目前沒有庫存部位</td>
+                </tr>
               </tbody>
-              <tfoot>
+              <tfoot v-if="filteredHoldings.length">
                 <tr class="border-t-2 border-surface-200 font-bold text-surface-700 bg-surface-50">
-                  <td class="p-3" colspan="5">合計</td>
-                  <td class="p-3 text-right num">NT$ {{ fmtNum(totalAssetValueTwd) }}</td>
+                  <td class="p-3" colspan="5">合計{{ marketFilter === 'all' ? '（美股以匯率 ' + settings.fxRate + ' 折算）' : '' }}</td>
+                  <td class="p-3 text-right num">NT$ {{ fmtNum(filteredPortfolioValueTwd) }}</td>
                   <td class="p-3">100%</td>
-                  <td class="p-3 text-right num" :class="unrealizedTotal >= 0 ? 'text-emerald-600' : 'text-red-600'">{{ unrealizedTotal >= 0 ? '+' : '' }}{{ fmtNum(unrealizedTotal) }}</td>
-                  <td class="p-3 text-right num" :class="unrealizedTotal >= 0 ? 'text-emerald-600' : 'text-red-600'">{{ fmtPct(unrealizedTotalPct) }}</td>
+                  <td class="p-3 text-right num" :data-market="aggMarket" :class="pnlClass(unrealizedTotal)">{{ signed(unrealizedTotal) }}</td>
+                  <td class="p-3 text-right num" :data-market="aggMarket" :class="pnlClass(unrealizedTotal)">{{ fmtPct(unrealizedTotalPct) }}</td>
                 </tr>
               </tfoot>
             </table>
@@ -402,39 +460,97 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm">
             <div class="text-xs font-bold text-surface-400 uppercase tracking-wide mb-1">累計已實現損益</div>
-            <div class="text-2xl font-black num" :class="realizedStats.total >= 0 ? 'text-emerald-600' : 'text-red-600'">{{ realizedStats.total >= 0 ? '+' : '' }}{{ fmtNum(realizedStats.total) }}</div>
+            <div class="text-2xl font-black num" :data-market="aggMarket" :class="pnlClass(realizedStats.total)">{{ signed(realizedStats.total) }}</div>
+            <div class="text-xs text-surface-400 mt-1">
+              交易 {{ signed(realizedStats.tradeTotal) }}<span v-if="settings.dividendMode === 'income'"> ＋股利 {{ fmtNum(realizedStats.dividendIncome) }}</span>
+            </div>
           </div>
           <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm">
             <div class="text-xs font-bold text-surface-400 uppercase tracking-wide mb-1">總獲利 / 總虧損</div>
             <div class="text-lg font-black num"><span class="text-emerald-600">+{{ fmtNum(realizedStats.grossWin) }}</span> / <span class="text-red-600">-{{ fmtNum(realizedStats.grossLoss) }}</span></div>
+            <div class="text-xs text-surface-400 mt-1">獲利因子 {{ realizedStats.grossLoss ? (realizedStats.grossWin / realizedStats.grossLoss).toFixed(2) : '—' }}</div>
           </div>
           <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm">
             <div class="text-xs font-bold text-surface-400 uppercase tracking-wide mb-1">勝率</div>
-            <div class="text-2xl font-black text-primary-700 num">{{ realizedStats.winRate.toFixed(1) }}%</div>
+            <div class="text-2xl font-black text-primary-700 num">{{ realizedStats.lots ? realizedStats.winRate.toFixed(1) + '%' : '—' }}</div>
+            <div class="text-xs text-surface-400 mt-1">{{ realizedStats.wins }} 勝 / {{ realizedStats.losses }} 敗（共 {{ realizedStats.lots }} 次平倉）</div>
           </div>
           <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm">
             <div class="text-xs font-bold text-surface-400 uppercase tracking-wide mb-1">平均盈虧比</div>
-            <div class="text-2xl font-black text-surface-800 num">{{ realizedStats.profitFactor.toFixed(2) }}</div>
+            <div class="text-2xl font-black text-surface-800 num">{{ realizedStats.avgWinLossRatio == null ? '—' : realizedStats.avgWinLossRatio.toFixed(2) }}</div>
+            <div class="text-xs text-surface-400 mt-1">平均獲利 {{ fmtNum(realizedStats.avgWin) }} / 平均虧損 {{ fmtNum(realizedStats.avgLoss) }}</div>
           </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div class="p-5 rounded-xl border border-surface-200 bg-surface-0 shadow-sm">
             <h2 class="text-sm font-bold text-surface-700 mb-1 pb-2 border-b border-surface-100">月度已實現損益</h2>
-            <p class="text-xs text-surface-400 mb-2">跨市場彙總，統一以獲利＝綠色／虧損＝紅色表示（非個股漲跌色）</p>
-            <div class="h-56"><canvas id="monthlyPnlChart"></canvas></div>
+            <p class="text-xs text-surface-400 mb-2">跨市場彙總為 TWD；損益一律綠賺紅賠（非個股漲跌色）</p>
+            <div ref="monthlyChartEl" class="h-56"></div>
           </div>
           <div class="p-5 rounded-xl border border-surface-200 bg-surface-0 shadow-sm">
-            <h2 class="text-sm font-bold text-surface-700 mb-1 pb-2 border-b border-surface-100">資產權益曲線（累計報酬率）</h2>
-            <p class="text-xs text-surface-400 mb-2">已實現損益 + 未實現損益的累計走勢</p>
-            <div class="h-56"><canvas id="equityCurveChart"></canvas></div>
+            <div class="flex items-center justify-between mb-1 pb-2 border-b border-surface-100 gap-2">
+              <h2 class="text-sm font-bold text-surface-700">資產權益曲線</h2>
+              <div class="flex items-center gap-0.5 bg-surface-100 border border-surface-200 rounded-md p-0.5">
+                <button v-for="o in equityModeOptions" :key="o.value" @click="equityMode = o.value"
+                  class="px-2 py-1 text-[11px] font-bold rounded transition-colors"
+                  :class="equityMode === o.value ? 'bg-primary text-primary-contrast' : 'text-surface-500'">{{ o.label }}</button>
+              </div>
+            </div>
+            <p class="text-xs text-surface-400 mb-2">
+              {{ equityMode === 'amount' ? '累計已實現損益（含股利）；最後一點加計目前未實現損益' : '累計損益 ÷ 累計投入成本，單位 %' }}
+            </p>
+            <div ref="equityChartEl" class="h-56"></div>
+          </div>
+        </div>
+
+        <!-- 年度彙整表（設計文件第三節「月度 / 年度已實現損益彙整表」） -->
+        <div class="rounded-xl border border-surface-200 bg-surface-0 shadow-sm overflow-hidden">
+          <div class="p-4 border-b border-surface-100 flex items-center justify-between gap-2">
+            <h2 class="text-sm font-bold text-surface-700">年度 / 月度損益彙整</h2>
+            <div class="flex items-center gap-0.5 bg-surface-100 border border-surface-200 rounded-md p-0.5">
+              <button v-for="o in periodOptions" :key="o.value" @click="periodMode = o.value"
+                class="px-2.5 py-1 text-[11px] font-bold rounded transition-colors"
+                :class="periodMode === o.value ? 'bg-primary text-primary-contrast' : 'text-surface-500'">{{ o.label }}</button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr class="bg-surface-50 text-surface-400 text-xs uppercase tracking-wide">
+                  <th class="p-3">{{ periodMode === 'year' ? '年度' : '月份' }}</th>
+                  <th class="p-3 text-right">平倉次數</th>
+                  <th class="p-3 text-right">勝 / 敗</th>
+                  <th class="p-3 text-right">勝率</th>
+                  <th class="p-3 text-right">股利收入</th>
+                  <th class="p-3 text-right">已實現損益</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in periodSummary" :key="row.label" class="border-t border-surface-100 hover:bg-surface-50">
+                  <td class="p-3 font-bold text-surface-700 num">{{ row.label }}</td>
+                  <td class="p-3 text-right num">{{ row.lots }}</td>
+                  <td class="p-3 text-right num text-surface-500">{{ row.wins }} / {{ row.losses }}</td>
+                  <td class="p-3 text-right num">{{ row.lots ? row.winRate.toFixed(0) + '%' : '—' }}</td>
+                  <td class="p-3 text-right num text-surface-500">{{ row.dividend ? fmtNum(row.dividend) : '—' }}</td>
+                  <td class="p-3 text-right num font-bold" :class="row.total >= 0 ? 'text-emerald-600' : 'text-red-600'">{{ signed(row.total) }}</td>
+                </tr>
+                <tr v-if="periodSummary.length === 0">
+                  <td colspan="6" class="p-8 text-center text-surface-400 text-sm">尚無平倉紀錄</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
         <div class="rounded-xl border border-surface-200 bg-surface-0 shadow-sm overflow-hidden">
           <div class="p-4 border-b border-surface-100">
             <h2 class="text-sm font-bold text-surface-700">平倉明細清單</h2>
-            <p class="text-xs text-surface-400 mt-0.5">系統依「先進先出 (FIFO)」原則對沖買賣紀錄，已扣除交易成本；點擊展開可查看對應的歷史買進配對明細。</p>
+            <p class="text-xs text-surface-400 mt-0.5">
+              依「{{ costMethodLabel }}」對沖買賣紀錄，已扣除買賣雙邊手續費與證交稅。
+              <template v-if="settings.costMethod === 'fifo'">點擊展開可查看對應的歷史買進配對明細。</template>
+              <template v-else><span class="text-amber-600 font-bold">加權平均法不逐筆配對</span>，成本以平倉當下的移動平均計算。</template>
+            </p>
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse text-sm">
@@ -460,25 +576,28 @@
                     <td class="p-3 text-right num">{{ fmtNum(lot.shares) }}</td>
                     <td class="p-3 text-right num">{{ lot.sellAvg.toFixed(2) }}</td>
                     <td class="p-3 text-right num">{{ lot.costAvg.toFixed(2) }}</td>
-                    <td class="p-3 text-right num text-surface-400">{{ fmtNum(lot.cost) }}</td>
+                    <td class="p-3 text-right num text-surface-400">{{ fmtAmt(lot.cost, lot.market) }}</td>
                     <td class="p-3 text-right num font-bold" :class="lot.pnl >= 0 ? 'text-emerald-600' : 'text-red-600'">
-                      {{ lot.pnl >= 0 ? '+' : '' }}{{ fmtNum(lot.pnl) }} ({{ fmtPct(lot.pnlPct) }})
+                      {{ lot.pnl >= 0 ? '+' : '' }}{{ fmtAmt(lot.pnl, lot.market) }} ({{ fmtPct(lot.pnlPct) }})
                     </td>
                     <td class="p-3 text-center">
-                      <button @click="toggleLotDetail(lot.id)" class="text-surface-400 hover:text-primary transition-colors">
+                      <button v-if="lot.matches.length" @click="toggleLotDetail(lot.id)" :aria-expanded="expandedLotId === lot.id" aria-label="展開配對明細" class="text-surface-400 hover:text-primary transition-colors">
                         <i :class="expandedLotId === lot.id ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"></i>
                       </button>
+                      <span v-else class="text-surface-300 text-xs">不適用</span>
                     </td>
                   </tr>
-                  <tr v-if="expandedLotId === lot.id" class="bg-surface-50/70">
+                  <tr v-if="expandedLotId === lot.id && lot.matches.length" class="bg-surface-50/70">
                     <td colspan="9" class="p-3">
-                      <div class="text-xs font-bold text-surface-500 mb-1.5">該筆賣出對應到以下歷史買進：</div>
-                      <table class="w-full text-xs border-collapse">
+                      <div class="text-xs font-bold text-surface-500 mb-1.5">該筆賣出對應到以下歷史買進（FIFO）：</div>
+                      <table class="w-full text-xs border-collapse max-w-2xl">
                         <thead>
                           <tr class="text-surface-400">
                             <th class="py-1 pr-3 text-left">買進日期</th>
-                            <th class="py-1 px-3 text-right">股數</th>
+                            <th class="py-1 px-3 text-right">配對股數</th>
                             <th class="py-1 px-3 text-right">買進價</th>
+                            <th class="py-1 px-3 text-right">分攤買進手續費</th>
+                            <th class="py-1 pl-3 text-right">該段損益</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -486,12 +605,17 @@
                             <td class="py-1 pr-3 num">{{ m.buyDate }}</td>
                             <td class="py-1 px-3 text-right num">{{ fmtNum(m.shares) }}</td>
                             <td class="py-1 px-3 text-right num">{{ m.buyPrice.toFixed(2) }}</td>
+                            <td class="py-1 px-3 text-right num text-surface-400">{{ fmtAmt(m.feeShare, lot.market) }}</td>
+                            <td class="py-1 pl-3 text-right num font-bold" :class="m.pnl >= 0 ? 'text-emerald-600' : 'text-red-600'">{{ m.pnl >= 0 ? '+' : '' }}{{ fmtAmt(m.pnl, lot.market) }}</td>
                           </tr>
                         </tbody>
                       </table>
                     </td>
                   </tr>
                 </template>
+                <tr v-if="filteredRealizedLots.length === 0">
+                  <td colspan="9" class="p-8 text-center text-surface-400 text-sm">尚無平倉紀錄</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -502,24 +626,40 @@
       <section v-if="currentTab === 'cashflow'" class="space-y-6">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm">
-            <div class="text-xs font-bold text-surface-400 uppercase tracking-wide mb-1">時間加權報酬率 (TWR)</div>
-            <div class="text-2xl font-black text-emerald-600 num">+{{ TWR.toFixed(1) }}%</div>
+            <div class="text-xs font-bold text-surface-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+              時間加權報酬率 (TWR)
+              <i class="pi pi-question-circle text-surface-300" title="真正的 TWR 需要每筆外部現金流時點的組合淨值序列；本 prototype 以 Modified Dietz 近似，正式版需後端提供每日/每現金流日的持股市值"></i>
+            </div>
+            <div class="text-2xl font-black num pending-data" :class="twrApprox >= 0 ? 'text-emerald-600' : 'text-red-600'">{{ signedPct(twrApprox) }}</div>
+            <div class="text-[11px] text-amber-600 font-bold mt-1">近似值 · 待後端提供淨值序列</div>
           </div>
           <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm">
-            <div class="text-xs font-bold text-surface-400 uppercase tracking-wide mb-1">內部報酬率 (IRR)</div>
-            <div class="text-2xl font-black text-emerald-600 num">+{{ IRR.toFixed(1) }}%</div>
+            <div class="text-xs font-bold text-surface-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+              內部報酬率 (IRR)
+              <i class="pi pi-question-circle text-surface-300" title="以出入金日期與金額 + 目前帳戶總值，用 XIRR（年化）試算"></i>
+            </div>
+            <div class="text-2xl font-black num" :class="irrValue >= 0 ? 'text-emerald-600' : 'text-red-600'">{{ irrValue == null ? '—' : signedPct(irrValue) }}</div>
+            <div class="text-[11px] text-surface-400 mt-1">年化 · 由實際出入金試算</div>
           </div>
           <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm">
-            <div class="text-xs font-bold text-surface-400 uppercase tracking-wide mb-1">累計股利收入</div>
+            <div class="text-xs font-bold text-surface-400 uppercase tracking-wide mb-1">累計現金股利</div>
             <div class="text-2xl font-black text-surface-800 num">NT$ {{ fmtNum(totalDividendTwd) }}</div>
+            <div class="text-[11px] text-surface-400 mt-1">{{ settings.dividendMode === 'income' ? '計入已實現收益' : '沖抵持股成本' }}</div>
           </div>
           <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm">
-            <div class="text-xs font-bold text-surface-400 uppercase tracking-wide mb-1">累計出入金淨額</div>
+            <div class="text-xs font-bold text-surface-400 uppercase tracking-wide mb-1">出入金淨額 / 現金餘額</div>
             <div class="text-2xl font-black text-surface-800 num">NT$ {{ fmtNum(netCashflow) }}</div>
+            <div class="text-[11px] text-surface-400 mt-1">目前現金餘額 {{ fmtNum(cashBalanceTwd) }}</div>
           </div>
         </div>
 
-        <div class="flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-lg p-1 w-fit">
+        <div class="p-3 rounded-lg bg-surface-100 border border-surface-200 text-xs text-surface-500 flex items-start gap-2">
+          <i class="pi pi-info-circle mt-0.5"></i>
+          <span>現金餘額 ＝ 入金 － 出金 － 買進淨支出 ＋ 賣出淨收入 ＋ 現金股利，美股部位以匯率 {{ settings.fxRate }} 折算為 TWD。
+          <b>待確認：</b>正式版是否需要分幣別現金帳戶（TWD / USD 各自結餘），以及是否記錄實際換匯匯率。</span>
+        </div>
+
+        <div class="flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-lg p-1 w-fit" role="group" aria-label="子頁籤">
           <button
             v-for="opt in cashSubTabOptions" :key="opt.value"
             @click="cashSubTab = opt.value"
@@ -543,18 +683,21 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="d in dividends" :key="d.id" class="border-t border-surface-100 hover:bg-surface-50">
+                <tr v-for="d in filteredDividends" :key="d.id" class="border-t border-surface-100 hover:bg-surface-50">
                   <td class="p-3 text-surface-500 num">{{ d.date }}</td>
                   <td class="p-3"><span class="px-2 py-0.5 text-xs font-bold rounded bg-surface-100 text-surface-600">{{ marketMeta[d.market].label }}</span></td>
                   <td class="p-3 font-medium text-surface-800">{{ d.symbol }} <span class="text-surface-400 font-normal">{{ d.name }}</span></td>
                   <td class="p-3"><span class="px-2 py-0.5 text-xs font-bold rounded bg-primary-50 text-primary-700">{{ d.type === 'cash' ? '現金股利' : '股票股利' }}</span></td>
                   <td class="p-3 text-right num font-bold text-emerald-600">
-                    {{ d.type === 'cash' ? marketMeta[d.market].symbol + ' ' + fmtNum(d.amount) : '+' + fmtNum(d.shares) + ' 股' }}
+                    {{ d.type === 'cash' ? marketMeta[d.market].symbol + ' ' + fmtAmt(d.amount, d.market) : '+' + fmtNum(d.shares) + ' 股' }}
                   </td>
                   <td class="p-3 text-surface-400 text-xs">{{ d.note }}</td>
                   <td class="p-3 text-center text-surface-400">
-                    <button @click="confirmDeleteDividend(d)" class="hover:text-red-500 transition-colors"><i class="pi pi-trash"></i></button>
+                    <button @click="confirmDeleteDividend(d)" title="刪除" aria-label="刪除股利紀錄" class="hover:text-red-500 transition-colors"><i class="pi pi-trash"></i></button>
                   </td>
+                </tr>
+                <tr v-if="filteredDividends.length === 0">
+                  <td colspan="7" class="p-8 text-center text-surface-400 text-sm">尚無股利紀錄</td>
                 </tr>
               </tbody>
             </table>
@@ -586,12 +729,16 @@
                   </td>
                   <td class="p-3 text-surface-400 text-xs">{{ c.note }}</td>
                   <td class="p-3 text-center text-surface-400">
-                    <button @click="confirmDeleteCashflow(c)" class="hover:text-red-500 transition-colors"><i class="pi pi-trash"></i></button>
+                    <button @click="confirmDeleteCashflow(c)" title="刪除" aria-label="刪除出入金紀錄" class="hover:text-red-500 transition-colors"><i class="pi pi-trash"></i></button>
                   </td>
+                </tr>
+                <tr v-if="cashflows.length === 0">
+                  <td colspan="5" class="p-8 text-center text-surface-400 text-sm">尚無出入金紀錄</td>
                 </tr>
               </tbody>
             </table>
           </div>
+          <p class="px-4 py-3 border-t border-surface-100 text-xs text-surface-400">出入金不分市場，一律以 TWD 記帳（美股換匯視為出入金以外的獨立議題，待確認）。</p>
         </div>
       </section>
 
@@ -599,22 +746,30 @@
       <section v-if="currentTab === 'watchlist'" class="space-y-4">
         <div class="p-4 rounded-xl bg-primary-50 border border-primary-200 text-primary-800 text-sm flex items-start gap-2.5">
           <i class="pi pi-info-circle mt-0.5"></i>
-          <span>股價觸及設定的目標買進價時，會比照既有策略警示機制推播通知；此處僅標記追蹤中的候選股，取消或移除不影響任何已存在的交易紀錄。</span>
+          <span>股價觸及設定的目標買進價時，會比照 <code class="num">strategies/</code> 既有警示機制推播通知；此處僅標記追蹤中的候選股，取消或移除不影響任何已存在的交易紀錄。
+          正式版另有進入點：個股 K 線頁／清單頁的「加入觀察」按鈕（本 prototype 未含個股頁，故以此頁的手動新增示意）。</span>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm flex items-center gap-3">
             <div class="w-12 h-12 rounded-xl bg-primary-50 text-primary flex items-center justify-center text-xl shrink-0"><i class="pi pi-eye"></i></div>
             <div>
               <div class="text-xs font-bold text-surface-400 uppercase tracking-wide">觀察中檔數</div>
-              <div class="text-2xl font-black text-surface-900 num">{{ watchlist.length }}</div>
+              <div class="text-2xl font-black text-surface-900 num">{{ filteredWatchlist.length }}</div>
             </div>
           </div>
           <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm flex items-center gap-3">
             <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl shrink-0"><i class="pi pi-bell"></i></div>
             <div>
-              <div class="text-xs font-bold text-surface-400 uppercase tracking-wide">接近目標價（±3%）</div>
+              <div class="text-xs font-bold text-surface-400 uppercase tracking-wide">接近目標價（±{{ settings.nearTargetPct }}%）</div>
               <div class="text-2xl font-black text-amber-600 num">{{ nearTargetWatchlist.length }}</div>
+            </div>
+          </div>
+          <div class="p-4 rounded-xl border border-surface-200 bg-surface-0 shadow-sm flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl shrink-0"><i class="pi pi-check-circle"></i></div>
+            <div>
+              <div class="text-xs font-bold text-surface-400 uppercase tracking-wide">已跌破目標價</div>
+              <div class="text-2xl font-black text-emerald-600 num">{{ reachedWatchlist.length }}</div>
             </div>
           </div>
         </div>
@@ -639,19 +794,27 @@
                   <td class="p-3">
                     <div class="font-bold text-surface-800 flex items-center gap-1.5">
                       {{ w.symbol }}
-                      <span v-if="isNearTarget(w)" class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-700">到價提醒</span>
+                      <span v-if="gapPct(w) <= 0" class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-100 text-emerald-700">已達價</span>
+                      <span v-else-if="isNearTarget(w)" class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-700">到價提醒</span>
                     </div>
                     <div class="text-xs text-surface-400">{{ w.name }}</div>
                   </td>
                   <td class="p-3"><span class="px-2 py-0.5 text-xs font-bold rounded bg-surface-100 text-surface-600">{{ marketMeta[w.market].label }}</span></td>
                   <td class="p-3 text-surface-500 num">{{ w.addedDate }}</td>
-                  <td class="p-3 text-right num font-medium">{{ w.price.toFixed(2) }}</td>
+                  <td class="p-3 text-right num font-medium">
+                    <span v-if="w.price != null">{{ w.price.toFixed(2) }}</span>
+                    <span v-else class="text-surface-300" title="正式版由既有報價 API 帶入">待報價</span>
+                  </td>
                   <td class="p-3 text-right num">{{ w.target.toFixed(2) }}</td>
-                  <td class="p-3 text-right num font-bold" :class="gapPct(w) <= 0 ? 'text-emerald-600' : 'text-surface-500'">{{ fmtPct(gapPct(w)) }}</td>
+                  <!-- 距目標＝離目標買價的距離，不是漲跌，刻意不套市場漲跌色（與儀表板一致） -->
+                  <td class="p-3 text-right num font-bold" :class="w.price == null ? 'text-surface-300' : (gapPct(w) <= 0 ? 'text-emerald-600' : 'text-surface-500')">
+                    {{ w.price == null ? '—' : fmtPct(gapPct(w)) }}
+                  </td>
                   <td class="p-3 text-surface-400 text-xs max-w-[160px] truncate" :title="w.note">{{ w.note }}</td>
                   <td class="p-3 text-center whitespace-nowrap">
-                    <button @click="convertToTransaction(w)" title="登錄買進" class="text-primary hover:text-primary-700 mx-1 transition-colors"><i class="pi pi-shopping-cart"></i></button>
-                    <button @click="confirmRemoveWatch(w)" title="移除" class="text-surface-400 hover:text-red-500 mx-1 transition-colors"><i class="pi pi-trash"></i></button>
+                    <button @click="convertToTransaction(w)" title="登錄買進" aria-label="登錄買進" class="text-primary hover:text-primary-700 mx-1 transition-colors"><i class="pi pi-shopping-cart"></i></button>
+                    <button @click="openEditWatchModal(w)" title="編輯目標價/備註" aria-label="編輯觀察紀錄" class="text-surface-400 hover:text-primary mx-1 transition-colors"><i class="pi pi-pencil"></i></button>
+                    <button @click="confirmRemoveWatch(w)" title="移除" aria-label="移除觀察紀錄" class="text-surface-400 hover:text-red-500 mx-1 transition-colors"><i class="pi pi-trash"></i></button>
                   </td>
                 </tr>
                 <tr v-if="filteredWatchlist.length === 0">
@@ -663,25 +826,120 @@
         </div>
       </section>
 
+      <!-- ══════════════════════ 7. 設定（本 prototype 提出，設計文件尚未涵蓋） ══════════════════════ -->
+      <section v-if="currentTab === 'settings'" class="space-y-6">
+        <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-start gap-2.5">
+          <i class="pi pi-exclamation-triangle mt-0.5"></i>
+          <span>本頁是 prototype 追加提出的模組——設計文件第一節要求「券商手續費（<b>可設定折讓</b>）」，但沒有規劃存放這些參數的地方。建議在設計文件補上「設定 / 參數」章節與 <code class="num">GET/PUT /api/v1/settings</code>。下方改動會即時影響所有頁面的試算結果。</span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="p-5 rounded-xl border border-surface-200 bg-surface-0 shadow-sm space-y-4">
+            <h2 class="text-sm font-bold text-surface-700 pb-2 border-b border-surface-100">台股交易成本</h2>
+            <div class="flex items-center justify-between gap-3">
+              <label class="text-sm text-surface-600">手續費率</label>
+              <div class="flex items-center gap-1"><input v-model.number="settings.twFeeRate" type="number" step="0.000001" class="w-32 border border-surface-300 rounded p-1.5 text-right num text-sm"></div>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <label class="text-sm text-surface-600">券商折讓 <span class="text-xs text-surface-400">（0.6 ＝ 6 折）</span></label>
+              <input v-model.number="settings.twFeeDiscount" type="number" step="0.01" min="0" max="1" class="w-32 border border-surface-300 rounded p-1.5 text-right num text-sm">
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <label class="text-sm text-surface-600">最低手續費</label>
+              <input v-model.number="settings.twFeeMin" type="number" class="w-32 border border-surface-300 rounded p-1.5 text-right num text-sm">
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <label class="text-sm text-surface-600">證交稅率（一般股票）</label>
+              <input v-model.number="settings.twTaxRate" type="number" step="0.0001" class="w-32 border border-surface-300 rounded p-1.5 text-right num text-sm">
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <label class="text-sm text-surface-600">證交稅率（ETF/ETN）<i class="pi pi-question-circle text-surface-300 text-xs" title="以 scanner.py 既有的 ETF 代號規則 ^00\d{2,4}[A-Za-z]?$ 判斷"></i></label>
+              <input v-model.number="settings.twTaxRateEtf" type="number" step="0.0001" class="w-32 border border-surface-300 rounded p-1.5 text-right num text-sm">
+            </div>
+          </div>
+
+          <div class="p-5 rounded-xl border border-surface-200 bg-surface-0 shadow-sm space-y-4">
+            <h2 class="text-sm font-bold text-surface-700 pb-2 border-b border-surface-100">美股交易成本與匯率</h2>
+            <div class="flex items-center justify-between gap-3">
+              <label class="text-sm text-surface-600">手續費率 <span class="text-xs text-surface-400">（0 ＝ 免佣）</span></label>
+              <input v-model.number="settings.usFeeRate" type="number" step="0.0001" class="w-32 border border-surface-300 rounded p-1.5 text-right num text-sm">
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <label class="text-sm text-surface-600">SEC 規費率（賣出）</label>
+              <input v-model.number="settings.usSecFeeRate" type="number" step="0.0000001" class="w-32 border border-surface-300 rounded p-1.5 text-right num text-sm">
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <label class="text-sm text-surface-600">USD → TWD 匯率</label>
+              <input v-model.number="settings.fxRate" type="number" step="0.01" class="w-32 border border-surface-300 rounded p-1.5 text-right num text-sm">
+            </div>
+            <p class="text-xs text-surface-400 pt-2 border-t border-surface-100">
+              <b>待確認：</b>匯率應該用「交易當日匯率」逐筆記錄，還是統一用一個現行匯率換算？前者才能正確計算美股的 TWD 已實現損益。
+            </p>
+          </div>
+
+          <div class="p-5 rounded-xl border border-surface-200 bg-surface-0 shadow-sm space-y-4">
+            <h2 class="text-sm font-bold text-surface-700 pb-2 border-b border-surface-100">計算與呈現規則</h2>
+            <div>
+              <label class="block text-xs font-bold text-surface-500 mb-1.5">現金股利處理方式</label>
+              <div class="flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-lg p-1 w-fit">
+                <button v-for="o in dividendModeOptions" :key="o.value" @click="settings.dividendMode = o.value"
+                  class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors"
+                  :class="settings.dividendMode === o.value ? 'bg-primary text-primary-contrast' : 'text-surface-500'">{{ o.label }}</button>
+              </div>
+              <p class="text-xs text-surface-400 mt-1.5">設計文件同時寫了「納入已實現收益」與「降低持股成本」，兩者互斥，此處拆成可選模式供決策。</p>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-surface-500 mb-1.5">損益配色</label>
+              <div class="flex items-center gap-1 bg-surface-100 border border-surface-200 rounded-lg p-1 w-fit">
+                <button v-for="o in pnlColorOptions" :key="o.value" @click="settings.pnlColorMode = o.value"
+                  class="px-3 py-1.5 text-xs font-bold rounded-md transition-colors"
+                  :class="settings.pnlColorMode === o.value ? 'bg-primary text-primary-contrast' : 'text-surface-500'">{{ o.label }}</button>
+              </div>
+              <p class="text-xs text-surface-400 mt-1.5">「依市場慣例」＝台股紅賺綠賠、美股綠賺紅賠（同 <code class="num">up_down_convention</code>）；「統一」＝一律綠賺紅賠。跨市場彙總卡片會跟著目前市場篩選走。</p>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-surface-500 mb-1.5">到價提醒門檻（±%）</label>
+              <input v-model.number="settings.nearTargetPct" type="number" step="0.5" class="w-32 border border-surface-300 rounded p-1.5 text-right num text-sm">
+            </div>
+          </div>
+
+          <div class="p-5 rounded-xl border border-surface-200 bg-surface-0 shadow-sm space-y-3">
+            <h2 class="text-sm font-bold text-surface-700 pb-2 border-b border-surface-100">Prototype 操作</h2>
+            <p class="text-sm text-surface-500">所有數字都由示範交易即時試算，不會寫入任何後端。改壞了可以重設。</p>
+            <button @click="resetDemoData" class="px-4 py-2 border border-surface-300 rounded-lg text-sm font-bold text-surface-600 hover:bg-surface-50 flex items-center gap-1.5"><i class="pi pi-refresh"></i>重設示範資料</button>
+            <div class="pt-3 border-t border-surface-100 text-xs text-surface-400 leading-relaxed">
+              目前示範資料：{{ transactions.length }} 筆交易、{{ dividends.length }} 筆股利、{{ cashflows.length }} 筆出入金、{{ watchlist.length }} 檔觀察股。
+            </div>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
 
   <!-- ══════════════════════ Modal：新增／編輯交易 ══════════════════════ -->
-  <div v-if="showTxModal" class="fixed inset-0 z-50 flex items-center justify-center modal-overlay p-4" @click.self="showTxModal = false">
+  <div v-if="showTxModal" class="fixed inset-0 z-50 flex items-center justify-center modal-overlay p-4" @click.self="showTxModal = false" role="dialog" aria-modal="true" aria-label="交易紀錄">
     <div class="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
       <div class="bg-primary px-6 py-4 flex justify-between items-center text-primary-contrast shrink-0">
         <h3 class="font-bold text-lg">{{ editingTxId ? '編輯交易紀錄' : '新增交易紀錄' }}</h3>
-        <button @click="showTxModal = false" class="hover:opacity-75"><i class="pi pi-times text-xl"></i></button>
+        <button @click="showTxModal = false" aria-label="關閉" class="hover:opacity-75"><i class="pi pi-times text-xl"></i></button>
       </div>
       <div class="p-6 overflow-y-auto space-y-4">
         <div class="flex gap-3">
-          <label class="flex-1 flex items-center justify-center gap-2 cursor-pointer font-bold px-4 py-2.5 rounded-lg border-2 transition-colors" :class="txForm.type === 'buy' ? 'text-red-600 bg-red-50 border-red-200' : 'text-surface-400 border-surface-200'">
-            <input type="radio" v-model="txForm.type" value="buy" class="accent-red-600"> 買進
+          <label class="flex-1 flex items-center justify-center gap-2 cursor-pointer font-bold px-4 py-2.5 rounded-lg border-2 transition-colors" :class="txForm.side === 'buy' ? 'text-red-600 bg-red-50 border-red-200' : 'text-surface-400 border-surface-200'">
+            <input type="radio" v-model="txForm.side" value="buy" class="accent-red-600"> 買進
           </label>
-          <label class="flex-1 flex items-center justify-center gap-2 cursor-pointer font-bold px-4 py-2.5 rounded-lg border-2 transition-colors" :class="txForm.type === 'sell' ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : 'text-surface-400 border-surface-200'">
-            <input type="radio" v-model="txForm.type" value="sell" class="accent-emerald-600"> 賣出
+          <label class="flex-1 flex items-center justify-center gap-2 cursor-pointer font-bold px-4 py-2.5 rounded-lg border-2 transition-colors" :class="txForm.side === 'sell' ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : 'text-surface-400 border-surface-200'">
+            <input type="radio" v-model="txForm.side" value="sell" class="accent-emerald-600"> 賣出
           </label>
         </div>
+
+        <!-- 零股：設計文件第一節把「零股」與買/賣並列，實際上零股是「盤別」而非第三種買賣方向，
+             故此處拆成 買/賣 × 是否零股，交易類型顯示為「零股買進 / 零股賣出」 -->
+        <label v-if="txForm.market === 'tw'" class="flex items-center gap-2 text-sm text-surface-600 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2">
+          <input type="checkbox" v-model="txForm.oddLot" class="accent-primary">
+          <span>零股交易<span class="text-xs text-surface-400 ml-1">（未滿 1 張 ＝ {{ marketMeta.tw.lotSize }} 股；勾選後股數不受整張限制）</span></span>
+        </label>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
@@ -692,15 +950,21 @@
             </select>
           </div>
           <div>
-            <label class="block text-xs font-bold text-surface-500 mb-1">交易日期</label>
-            <input v-model="txForm.date" type="date" class="w-full border border-surface-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
+            <label class="block text-xs font-bold text-surface-500 mb-1">交易日期 / 時間</label>
+            <div class="flex gap-1.5">
+              <input v-model="txForm.date" type="date" class="w-full border border-surface-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
+              <input v-model="txForm.time" type="time" title="成交時間（選填）" class="w-28 shrink-0 border border-surface-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
+            </div>
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-xs font-bold text-surface-500 mb-1">股票代碼</label>
-            <input v-model="txForm.symbol" type="text" :placeholder="txForm.market === 'tw' ? '例如: 2330' : '例如: AAPL'" class="w-full border border-surface-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
+            <div class="flex gap-1.5">
+              <input v-model="txForm.symbol" @blur="autofillTxName" type="text" :placeholder="txForm.market === 'tw' ? '例如: 2330' : '例如: AAPL'" class="w-full border border-surface-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
+              <button @click="autofillTxName" title="查詢名稱" aria-label="查詢股票名稱" class="shrink-0 px-2.5 border border-surface-300 rounded-lg text-surface-500 hover:bg-surface-50"><i class="pi pi-search"></i></button>
+            </div>
           </div>
           <div>
             <label class="block text-xs font-bold text-surface-500 mb-1">股票名稱</label>
@@ -714,29 +978,42 @@
             <input v-model.number="txForm.price" type="number" step="0.01" class="w-full border border-surface-300 rounded-lg p-2 text-sm num focus:ring-2 focus:ring-primary-300 outline-none">
           </div>
           <div>
-            <label class="block text-xs font-bold text-surface-500 mb-1">成交股數</label>
-            <input v-model.number="txForm.shares" type="number" class="w-full border border-surface-300 rounded-lg p-2 text-sm num focus:ring-2 focus:ring-primary-300 outline-none">
+            <label class="block text-xs font-bold text-surface-500 mb-1">
+              成交股數
+              <span v-if="txForm.market === 'tw' && !txForm.oddLot" class="font-normal text-surface-400">（{{ txSharesInLots }}）</span>
+            </label>
+            <input v-model.number="txForm.shares" type="number" :step="txForm.market === 'tw' && !txForm.oddLot ? marketMeta.tw.lotSize : 1" class="w-full border border-surface-300 rounded-lg p-2 text-sm num focus:ring-2 focus:ring-primary-300 outline-none">
           </div>
         </div>
 
         <div class="bg-surface-50 p-4 rounded-lg border border-surface-100 space-y-2">
-          <label class="flex items-center gap-2 text-xs font-bold text-surface-500 mb-1">
-            <input type="checkbox" v-model="txForm.manualOverride" class="accent-primary"> 手動調整手續費 / 稅金
-          </label>
-          <div class="flex justify-between items-center">
-            <span class="text-sm text-surface-600">手續費（估算）</span>
-            <input v-model.number="txForm.fee" type="number" :disabled="!txForm.manualOverride" class="w-28 border border-surface-300 rounded p-1 text-right num text-sm disabled:bg-surface-100">
+          <div class="flex items-center justify-between">
+            <label class="flex items-center gap-2 text-xs font-bold text-surface-500">
+              <input type="checkbox" v-model="txForm.manualOverride" class="accent-primary"> 手動調整手續費 / 稅金
+            </label>
+            <span class="text-[11px] text-surface-400">折讓 {{ settings.twFeeDiscount }}（於設定頁調整）</span>
           </div>
           <div class="flex justify-between items-center">
-            <span class="text-sm text-surface-600">證交稅（估算，賣出時）</span>
-            <input v-model.number="txForm.tax" type="number" :disabled="!txForm.manualOverride" class="w-28 border border-surface-300 rounded p-1 text-right num text-sm disabled:bg-surface-100">
+            <span class="text-sm text-surface-600">手續費{{ txForm.manualOverride ? '' : '（自動試算）' }}</span>
+            <input v-model.number="txForm.fee" type="number" step="0.01" :disabled="!txForm.manualOverride" aria-label="手續費" class="w-28 border border-surface-300 rounded p-1 text-right num text-sm disabled:bg-surface-100 disabled:text-surface-500">
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-surface-600">
+              {{ txForm.market === 'tw' ? '證交稅' : 'SEC 規費' }}{{ txForm.manualOverride ? '' : '（自動試算）' }}
+              <span v-if="txForm.market === 'tw' && txForm.side === 'sell' && isTwEtfSymbol(txForm.symbol)" class="text-[11px] text-primary-700 font-bold">ETF 稅率</span>
+            </span>
+            <input v-model.number="txForm.tax" type="number" step="0.01" :disabled="!txForm.manualOverride" aria-label="稅金" class="w-28 border border-surface-300 rounded p-1 text-right num text-sm disabled:bg-surface-100 disabled:text-surface-500">
           </div>
           <div class="flex justify-between items-center border-t border-surface-200 pt-2 mt-2 font-bold text-surface-800">
-            <span>預估總收付</span>
-            <span class="num" :class="txForm.type === 'buy' ? 'text-red-600' : 'text-emerald-600'">
-              {{ txForm.type === 'buy' ? '- ' : '+ ' }}{{ marketMeta[txForm.market].symbol }} {{ fmtNum(txTotalAmount) }}
+            <span>預估總{{ txForm.side === 'buy' ? '支出' : '收入' }}</span>
+            <span class="num" :class="txForm.side === 'buy' ? 'text-red-600' : 'text-emerald-600'">
+              {{ txForm.side === 'buy' ? '- ' : '+ ' }}{{ marketMeta[txForm.market].symbol }} {{ fmtAmt(txNetAmount, txForm.market) }}
             </span>
           </div>
+        </div>
+
+        <div v-if="txForm.side === 'sell' && sellPreview" class="p-3 rounded-lg border text-sm" :class="sellPreview.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'">
+          <i :class="sellPreview.ok ? 'pi pi-check-circle' : 'pi pi-exclamation-triangle'" class="mr-1"></i>{{ sellPreview.message }}
         </div>
 
         <label v-if="pendingWatchId" class="flex items-center gap-2 text-xs font-bold text-surface-500">
@@ -750,18 +1027,18 @@
     </div>
   </div>
 
-  <!-- ══════════════════════ Modal：加入觀察名單 ══════════════════════ -->
-  <div v-if="showWatchModal" class="fixed inset-0 z-50 flex items-center justify-center modal-overlay p-4" @click.self="showWatchModal = false">
+  <!-- ══════════════════════ Modal：加入／編輯觀察名單 ══════════════════════ -->
+  <div v-if="showWatchModal" class="fixed inset-0 z-50 flex items-center justify-center modal-overlay p-4" @click.self="showWatchModal = false" role="dialog" aria-modal="true" aria-label="觀察名單">
     <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
       <div class="bg-primary px-6 py-4 flex justify-between items-center text-primary-contrast">
-        <h3 class="font-bold text-lg">加入觀察名單</h3>
-        <button @click="showWatchModal = false" class="hover:opacity-75"><i class="pi pi-times text-xl"></i></button>
+        <h3 class="font-bold text-lg">{{ editingWatchId ? '編輯觀察紀錄' : '加入觀察名單' }}</h3>
+        <button @click="showWatchModal = false" aria-label="關閉" class="hover:opacity-75"><i class="pi pi-times text-xl"></i></button>
       </div>
       <div class="p-6 space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-xs font-bold text-surface-500 mb-1">市場</label>
-            <select v-model="watchForm.market" class="w-full border border-surface-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
+            <select v-model="watchForm.market" :disabled="!!editingWatchId" class="w-full border border-surface-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none disabled:bg-surface-100">
               <option value="tw">台股 TWSE</option>
               <option value="us">美股 NASDAQ</option>
             </select>
@@ -769,8 +1046,8 @@
           <div>
             <label class="block text-xs font-bold text-surface-500 mb-1">股票代碼</label>
             <div class="flex gap-1.5">
-              <input v-model="watchForm.symbol" type="text" placeholder="例如: 2317" class="w-full border border-surface-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
-              <button @click="lookupSymbolName" title="查詢名稱" class="shrink-0 px-2.5 border border-surface-300 rounded-lg text-surface-500 hover:bg-surface-50"><i class="pi pi-search"></i></button>
+              <input v-model="watchForm.symbol" :disabled="!!editingWatchId" type="text" placeholder="例如: 2317" class="w-full border border-surface-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none disabled:bg-surface-100">
+              <button v-if="!editingWatchId" @click="lookupSymbolName" title="查詢名稱" aria-label="查詢股票名稱" class="shrink-0 px-2.5 border border-surface-300 rounded-lg text-surface-500 hover:bg-surface-50"><i class="pi pi-search"></i></button>
             </div>
           </div>
         </div>
@@ -781,6 +1058,7 @@
         <div>
           <label class="block text-xs font-bold text-surface-500 mb-1">目標買進價</label>
           <input v-model.number="watchForm.target" type="number" step="0.01" class="w-full border border-surface-300 rounded-lg p-2 text-sm num focus:ring-2 focus:ring-primary-300 outline-none">
+          <p v-if="watchCurrentPrice != null" class="text-xs text-surface-400 mt-1">目前股價 {{ watchCurrentPrice.toFixed(2) }}，距目標 {{ fmtPct((watchCurrentPrice / (watchForm.target || watchCurrentPrice) - 1) * 100) }}</p>
         </div>
         <div>
           <label class="block text-xs font-bold text-surface-500 mb-1">備註</label>
@@ -789,17 +1067,17 @@
       </div>
       <div class="px-6 py-4 bg-surface-50 flex justify-end gap-3 border-t border-surface-100">
         <button @click="showWatchModal = false" class="px-4 py-2 border border-surface-300 rounded-lg text-surface-600 hover:bg-surface-100 transition-colors">取消</button>
-        <button @click="saveWatch" class="px-4 py-2 bg-primary text-primary-contrast rounded-lg hover:bg-primary-600 transition-colors font-bold">加入觀察</button>
+        <button @click="saveWatch" class="px-4 py-2 bg-primary text-primary-contrast rounded-lg hover:bg-primary-600 transition-colors font-bold">{{ editingWatchId ? '儲存變更' : '加入觀察' }}</button>
       </div>
     </div>
   </div>
 
   <!-- ══════════════════════ Modal：新增現金流／股利紀錄 ══════════════════════ -->
-  <div v-if="showCashModal" class="fixed inset-0 z-50 flex items-center justify-center modal-overlay p-4" @click.self="showCashModal = false">
+  <div v-if="showCashModal" class="fixed inset-0 z-50 flex items-center justify-center modal-overlay p-4" @click.self="showCashModal = false" role="dialog" aria-modal="true" aria-label="現金流與股利">
     <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
       <div class="bg-primary px-6 py-4 flex justify-between items-center text-primary-contrast">
         <h3 class="font-bold text-lg">新增現金流／股利紀錄</h3>
-        <button @click="showCashModal = false" class="hover:opacity-75"><i class="pi pi-times text-xl"></i></button>
+        <button @click="showCashModal = false" aria-label="關閉" class="hover:opacity-75"><i class="pi pi-times text-xl"></i></button>
       </div>
       <div class="p-6 space-y-4">
         <div>
@@ -811,7 +1089,7 @@
             <option value="withdraw">資金出金</option>
           </select>
         </div>
-        <div v-if="cashForm.kind === 'cash_dividend' || cashForm.kind === 'stock_dividend'" class="grid grid-cols-2 gap-4">
+        <div v-if="isDividendKind" class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-xs font-bold text-surface-500 mb-1">市場</label>
             <select v-model="cashForm.market" class="w-full border border-surface-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary-300 outline-none">
@@ -830,7 +1108,10 @@
         </div>
         <div>
           <label class="block text-xs font-bold text-surface-500 mb-1">{{ cashForm.kind === 'stock_dividend' ? '股票股利股數' : '金額' }}</label>
-          <input v-model.number="cashForm.amount" type="number" class="w-full border border-surface-300 rounded-lg p-2 text-sm num focus:ring-2 focus:ring-primary-300 outline-none">
+          <input v-model.number="cashForm.amount" type="number" step="0.01" class="w-full border border-surface-300 rounded-lg p-2 text-sm num focus:ring-2 focus:ring-primary-300 outline-none">
+          <p v-if="isDividendKind" class="text-xs text-surface-400 mt-1">
+            現金股利目前設定為<b>{{ settings.dividendMode === 'income' ? '計入已實現收益' : '沖抵持股成本' }}</b>（可於設定頁切換）。
+          </p>
         </div>
         <div>
           <label class="block text-xs font-bold text-surface-500 mb-1">備註</label>
@@ -844,8 +1125,60 @@
     </div>
   </div>
 
+  <!-- ══════════════════════ Modal：批次匯入 ══════════════════════ -->
+  <div v-if="showImportModal" class="fixed inset-0 z-50 flex items-center justify-center modal-overlay p-4" @click.self="showImportModal = false" role="dialog" aria-modal="true" aria-label="批次匯入">
+    <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="bg-primary px-6 py-4 flex justify-between items-center text-primary-contrast shrink-0">
+        <h3 class="font-bold text-lg">批次匯入交易紀錄</h3>
+        <button @click="showImportModal = false" aria-label="關閉" class="hover:opacity-75"><i class="pi pi-times text-xl"></i></button>
+      </div>
+      <div class="p-6 overflow-y-auto space-y-4">
+        <div class="p-3 rounded-lg bg-surface-50 border border-surface-200 text-xs text-surface-500">
+          <div class="font-bold text-surface-700 mb-1">CSV 範本欄位</div>
+          <code class="num block whitespace-pre-wrap">{{ CSV_HEADER.join(',') }}</code>
+          <div class="mt-1.5">market：tw / us；side：buy / sell；odd_lot：1 為零股；fee、tax 留空則依設定頁費率自動試算。</div>
+          <button @click="downloadTemplate" class="mt-2 text-primary font-bold hover:underline flex items-center gap-1"><i class="pi pi-download"></i>下載空白範本</button>
+        </div>
+        <div class="flex items-center gap-3">
+          <input type="file" accept=".csv,text/csv" @change="onImportFile" class="text-sm file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-primary file:text-white file:font-bold file:cursor-pointer">
+          <button @click="importText = SAMPLE_CSV" class="text-xs text-surface-500 hover:text-primary underline">填入範例資料</button>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-surface-500 mb-1">或直接貼上 CSV 內容</label>
+          <textarea v-model="importText" rows="6" class="w-full border border-surface-300 rounded-lg p-2 text-xs num focus:ring-2 focus:ring-primary-300 outline-none" :placeholder="CSV_HEADER.join(',')"></textarea>
+        </div>
+        <div v-if="importPreview.rows.length || importPreview.errors.length" class="space-y-2">
+          <div v-if="importPreview.errors.length" class="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 space-y-0.5">
+            <div v-for="(e, i) in importPreview.errors" :key="i">第 {{ e.line }} 行：{{ e.message }}</div>
+          </div>
+          <div v-if="importPreview.rows.length" class="border border-surface-200 rounded-lg overflow-hidden">
+            <div class="px-3 py-2 bg-surface-50 text-xs font-bold text-surface-600 border-b border-surface-200">可匯入 {{ importPreview.rows.length }} 筆</div>
+            <div class="overflow-x-auto max-h-48">
+              <table class="w-full text-xs">
+                <tbody>
+                  <tr v-for="(r, i) in importPreview.rows" :key="i" class="border-b border-surface-100">
+                    <td class="p-2 num">{{ r.date }}</td>
+                    <td class="p-2">{{ marketMeta[r.market].label }}</td>
+                    <td class="p-2 font-bold">{{ txTypeLabel(r) }}</td>
+                    <td class="p-2">{{ r.symbol }} {{ r.name }}</td>
+                    <td class="p-2 text-right num">{{ fmtNum(r.shares) }} 股</td>
+                    <td class="p-2 text-right num">{{ r.price.toFixed(2) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-4 bg-surface-50 flex justify-end gap-3 border-t border-surface-100 shrink-0">
+        <button @click="showImportModal = false" class="px-4 py-2 border border-surface-300 rounded-lg text-surface-600 hover:bg-surface-100 transition-colors">取消</button>
+        <button @click="commitImport" :disabled="!importPreview.rows.length" class="px-4 py-2 bg-primary text-primary-contrast rounded-lg hover:bg-primary-600 transition-colors font-bold disabled:opacity-40">匯入 {{ importPreview.rows.length }} 筆</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ══════════════════════ 通用確認對話框 ══════════════════════ -->
-  <div v-if="confirmDialog.visible" class="fixed inset-0 z-[60] flex items-center justify-center modal-overlay p-4" @click.self="confirmDialog.visible = false">
+  <div v-if="confirmDialog.visible" class="fixed inset-0 z-[60] flex items-center justify-center modal-overlay p-4" @click.self="confirmDialog.visible = false" role="dialog" aria-modal="true" aria-label="確認操作">
     <div class="bg-white w-full max-w-sm rounded-xl shadow-2xl overflow-hidden">
       <div class="p-6">
         <div class="flex items-center gap-3 mb-2">
@@ -862,7 +1195,7 @@
   </div>
 
   <!-- ══════════════════════ Toast 通知（取代原生 alert/confirm） ══════════════════════ -->
-  <div class="fixed bottom-5 right-5 z-[70] space-y-2">
+  <div class="fixed bottom-5 right-5 z-[70] space-y-2" role="status" aria-live="polite">
     <transition-group name="toast">
       <div v-for="t in toasts" :key="t.id" class="px-4 py-3 rounded-lg shadow-lg text-sm font-bold flex items-center gap-2 text-white" :class="t.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'">
         <i :class="t.type === 'error' ? 'pi pi-times-circle' : 'pi pi-check-circle'"></i>{{ t.message }}
@@ -873,40 +1206,111 @@
 </div>
 
 <script>
-const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
+const { createApp, ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick } = Vue;
 
 createApp({
   setup() {
-    // ── 基礎設定 ──────────────────────────────────────────
-    const FX_RATE = 32.5; // 僅供 Prototype 彙總美股市值用的示意匯率
+    // ══════════════════════════════════════════════════════════
+    // 基礎設定
+    // ══════════════════════════════════════════════════════════
+    // marketMeta 對應 backend/markets/{tw,us}.py 的 MarketMeta（currency_symbol / lot_size）
     const marketMeta = {
-      tw: { label: '台股', symbol: 'NT$' },
-      us: { label: '美股', symbol: '$' },
+      tw: { label: '台股', symbol: 'NT$', lotSize: 1000, decimals: 0 },
+      us: { label: '美股', symbol: '$',   lotSize: 1,    decimals: 2 },
     };
     const today = new Date().toISOString().slice(0, 10);
 
     const tabs = [
-      { id: 'dashboard', name: '儀表板總覽', icon: 'pi pi-chart-pie' },
-      { id: 'transactions', name: '交易紀錄', icon: 'pi pi-list' },
-      { id: 'holdings', name: '持股總覽', icon: 'pi pi-briefcase' },
-      { id: 'realized', name: '已實現損益', icon: 'pi pi-money-bill' },
-      { id: 'cashflow', name: '現金流/股利', icon: 'pi pi-sync' },
-      { id: 'watchlist', name: '觀察名單', icon: 'pi pi-eye' },
+      { id: 'dashboard',    name: '儀表板總覽', icon: 'pi pi-chart-pie' },
+      { id: 'transactions', name: '交易紀錄',   icon: 'pi pi-list' },
+      { id: 'holdings',     name: '持股總覽',   icon: 'pi pi-briefcase' },
+      { id: 'realized',     name: '已實現損益', icon: 'pi pi-money-bill' },
+      { id: 'cashflow',     name: '現金流/股利', icon: 'pi pi-sync' },
+      { id: 'watchlist',    name: '觀察名單',   icon: 'pi pi-eye' },
+      { id: 'settings',     name: '設定',       icon: 'pi pi-cog' },
     ];
     const currentTab = ref('dashboard');
     const currentTabName = computed(() => tabs.find(t => t.id === currentTab.value)?.name || '');
+
+    // 對應設計文件第六節的 API 規劃，讓每頁能直接對照要開哪些端點
+    const TAB_APIS = {
+      dashboard:    ['GET /api/v1/portfolio/summary', 'GET /api/v1/portfolio/holdings', 'GET /api/v1/watchlist'],
+      transactions: ['GET/POST /api/v1/transactions', 'PUT/DELETE /api/v1/transactions/{id}', 'POST /api/v1/transactions/import', 'GET /api/v1/transactions/export'],
+      holdings:     ['GET /api/v1/portfolio/holdings?cost_method=fifo|average'],
+      realized:     ['GET /api/v1/performance/realized', 'GET /api/v1/performance/history?group_by=month|year'],
+      cashflow:     ['GET/POST /api/v1/dividends', 'GET/POST /api/v1/cashflow', 'GET /api/v1/performance/returns'],
+      watchlist:    ['GET/POST /api/v1/watchlist', 'PUT/DELETE /api/v1/watchlist/{id}'],
+      settings:     ['GET/PUT /api/v1/settings ← prototype 追加提案'],
+    };
+    const currentApis = computed(() => TAB_APIS[currentTab.value] || []);
 
     const marketFilterOptions = [
       { value: 'all', label: '全部' }, { value: 'tw', label: '台股' }, { value: 'us', label: '美股' },
     ];
     const marketFilter = ref('all');
     const byMarket = (list) => list.filter(r => marketFilter.value === 'all' || r.market === marketFilter.value);
+    // 跨市場彙總卡片要用哪一套漲跌色：跟著目前篩選，全部時以台股慣例為主
+    const aggMarket = computed(() => marketFilter.value === 'us' ? 'us' : 'tw');
 
-    // ── 格式化工具 ──────────────────────────────────────────
-    const fmtNum = (n) => Math.round(n).toLocaleString();
-    const fmtPct = (n) => (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
+    // ══════════════════════════════════════════════════════════
+    // 可調參數（設計文件缺少的「設定」模組，見設定頁說明）
+    // ══════════════════════════════════════════════════════════
+    const DEFAULT_SETTINGS = {
+      twFeeRate: 0.001425,   // 台股公定手續費率
+      twFeeDiscount: 0.6,    // 券商折讓（6 折）
+      twFeeMin: 20,          // 最低手續費
+      twTaxRate: 0.003,      // 一般股票證交稅
+      twTaxRateEtf: 0.001,   // ETF/ETN 證交稅
+      usFeeRate: 0,          // 美股多為免佣
+      usSecFeeRate: 0.0000278, // 賣出 SEC 規費
+      fxRate: 32.5,
+      costMethod: 'fifo',        // fifo | average
+      dividendMode: 'income',    // income（計入已實現）| reduce_cost（沖抵成本）
+      pnlColorMode: 'unified',   // unified（綠賺紅賠）| market（依市場慣例）
+      nearTargetPct: 3,
+    };
+    const settings = reactive({ ...DEFAULT_SETTINGS });
 
-    // ── Toast / 確認對話框（取代原生 alert/confirm） ──────────
+    const costMethodOptions = [{ value: 'fifo', label: '先進先出 FIFO' }, { value: 'average', label: '加權平均法' }];
+    const dividendModeOptions = [{ value: 'income', label: '計入已實現收益' }, { value: 'reduce_cost', label: '沖抵持股成本' }];
+    const pnlColorOptions = [{ value: 'unified', label: '統一綠賺紅賠' }, { value: 'market', label: '依市場慣例' }];
+    const costMethodLabel = computed(() => costMethodOptions.find(o => o.value === settings.costMethod).label);
+    const costMethodHint = computed(() => settings.costMethod === 'fifo'
+      ? '賣出時由最早買進的部位開始對沖，庫存均價 ＝ 剩餘各批次成本加權（含買進手續費）'
+      : '每次買進後重算移動平均成本，賣出以當下平均成本認列，不逐筆配對');
+
+    // ══════════════════════════════════════════════════════════
+    // 格式化工具
+    // ══════════════════════════════════════════════════════════
+    const fmtNum = (n) => Math.round(n || 0).toLocaleString();
+    // 美股金額保留 2 位小數（原型早期一律四捨五入到整數，$11,965.98 會被顯示成 11,966）
+    const fmtAmt = (n, market) => (market === 'us')
+      ? (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : Math.round(n || 0).toLocaleString();
+    const fmtPct = (n) => (n >= 0 ? '+' : '') + (n || 0).toFixed(1) + '%';
+    const signedPct = (n) => n == null ? '—' : (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
+    const signed = (n, market) => (n >= 0 ? '+' : '-') + fmtAmt(Math.abs(n || 0), market);
+
+    // 台股張/股輔助顯示（lot_size = 1000，見 markets/tw.py）
+    function lotLabel(row) {
+      if (row.market !== 'tw') return '';
+      const lot = marketMeta.tw.lotSize;
+      const full = Math.floor(row.shares / lot);
+      const odd = row.shares % lot;
+      if (full === 0) return `${odd} 股（零股）`;
+      return odd === 0 ? `${full} 張` : `${full} 張 ${odd} 股`;
+    }
+
+    // 損益配色：unified ＝ 綠賺紅賠；market ＝ 台股紅賺綠賠、美股綠賺紅賠
+    // （用法：元素同時綁 :data-market，market 模式才拿得到 --up/--down）
+    function pnlClass(v) {
+      if (settings.pnlColorMode === 'market') return v >= 0 ? 'text-up' : 'text-down';
+      return v >= 0 ? 'text-profit' : 'text-loss';
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // Toast / 確認對話框
+    // ══════════════════════════════════════════════════════════
     const toasts = ref([]);
     let toastSeq = 1;
     function pushToast(message, type = 'success') {
@@ -916,75 +1320,390 @@ createApp({
     }
     const confirmDialog = reactive({ visible: false, message: '', action: null });
     function askConfirm(message, action) {
-      confirmDialog.message = message;
-      confirmDialog.action = action;
-      confirmDialog.visible = true;
+      Object.assign(confirmDialog, { message, action, visible: true });
     }
     function runConfirm() {
       confirmDialog.action?.();
       confirmDialog.visible = false;
     }
 
-    // ── 持股 Holdings ─────────────────────────────────────
-    const holdings = ref([
-      { symbol: '2330', name: '台積電', market: 'tw', sector: '半導體', shares: 3000, avgCost: 620.5, price: 950.0 },
-      { symbol: '2454', name: '聯發科', market: 'tw', sector: '半導體', shares: 1000, avgCost: 850.0, price: 1120.0 },
-      { symbol: '2881', name: '富邦金', market: 'tw', sector: '金融保險', shares: 3000, avgCost: 65.2, price: 89.5 },
-      { symbol: 'AAPL', name: 'Apple Inc.', market: 'us', sector: '美股科技', shares: 100, avgCost: 175.5, price: 220.0 },
-      { symbol: 'NVDA', name: 'NVIDIA Corp.', market: 'us', sector: '美股科技', shares: 40, avgCost: 410.0, price: 612.3 },
-    ]);
-    const costMethodOptions = [{ value: 'fifo', label: '先進先出 FIFO' }, { value: 'avg', label: '加權平均法' }];
-    const costMethod = ref('fifo');
+    // ══════════════════════════════════════════════════════════
+    // 示範資料
+    // ══════════════════════════════════════════════════════════
+    // 現價：正式版由既有 /api/v1/stocks/{market}/{symbol} 報價帶入
+    const PRICE_MAP = {
+      'tw:2330': 950.0, 'tw:2454': 1120.0, 'tw:2881': 89.5, 'tw:0050': 208.5,
+      'tw:2317': 198.5, 'tw:2603': 178.0, 'tw:2412': 119.5, 'tw:2609': 74.0, 'tw:00981A': 16.2,
+      'us:AAPL': 220.0, 'us:NVDA': 612.3, 'us:MSFT': 452.0, 'us:TSLA': 271.5,
+    };
+    const SYMBOL_NAME_MAP = {
+      'tw:2330': '台積電', 'tw:2317': '鴻海', 'tw:2454': '聯發科', 'tw:2881': '富邦金',
+      'tw:2603': '長榮', 'tw:2412': '中華電', 'tw:2609': '陽明', 'tw:0050': '元大台灣50',
+      'tw:00981A': '主動統一台灣高息動能',
+      'us:AAPL': 'Apple Inc.', 'us:NVDA': 'NVIDIA Corp.', 'us:MSFT': 'Microsoft Corp.', 'us:TSLA': 'Tesla Inc.',
+    };
+    const SECTOR_MAP = {
+      'tw:2330': '半導體', 'tw:2454': '半導體', 'tw:2881': '金融保險', 'tw:0050': 'ETF',
+      'tw:2317': '電子零組件', 'tw:2603': '航運', 'tw:2412': '電信', 'tw:2609': '航運', 'tw:00981A': 'ETF',
+      'us:AAPL': '美股科技', 'us:NVDA': '美股科技', 'us:MSFT': '美股科技', 'us:TSLA': '美股科技',
+    };
+    const nameOf = (market, symbol) => SYMBOL_NAME_MAP[`${market}:${String(symbol).toUpperCase()}`] || symbol;
+    const priceOf = (market, symbol) => PRICE_MAP[`${market}:${String(symbol).toUpperCase()}`] ?? null;
+    const sectorOf = (market, symbol) => SECTOR_MAP[`${market}:${String(symbol).toUpperCase()}`] || '其他';
+
+    // 台股 ETF/ETN 代號規則，與 backend/strategies/scanner.py:44 的
+    // _CHIP_EXCLUDED_SYMBOL_PATTERN 一致；此處用來套 ETF 的 0.1% 證交稅率
+    const TW_ETF_RE = /^00\d{2,4}[A-Za-z]?$/;
+    const isTwEtfSymbol = (symbol) => TW_ETF_RE.test(String(symbol || '').toUpperCase());
+    const isTwEtf = (row) => row.market === 'tw' && isTwEtfSymbol(row.symbol);
+
+    // 交易原始資料：只存「事實」（日期/市場/方向/代碼/股數/單價/是否零股），
+    // 手續費與稅一律由 settings 試算，除非該筆有 feeOverride / taxOverride（＝設計文件的「手動調整欄位」）
+    function seedTransactions() {
+      return [
+        { id: 1,  date: '2025-02-10', time: '09:32', market: 'tw', side: 'buy',  symbol: '2881',   shares: 5000, price: 62.0 },
+        { id: 2,  date: '2025-03-14', time: '10:05', market: 'tw', side: 'buy',  symbol: '2330',   shares: 2000, price: 585.0 },
+        { id: 3,  date: '2025-05-06', time: '11:20', market: 'tw', side: 'buy',  symbol: '2609',   shares: 3000, price: 68.0 },
+        { id: 4,  date: '2025-06-20', time: '09:15', market: 'tw', side: 'buy',  symbol: '2454',   shares: 1000, price: 850.0 },
+        { id: 5,  date: '2025-09-12', time: '22:40', market: 'us', side: 'buy',  symbol: 'AAPL',   shares: 50,   price: 168.0 },
+        { id: 6,  date: '2025-09-18', time: '13:05', market: 'tw', side: 'sell', symbol: '2609',   shares: 3000, price: 79.5 },
+        { id: 7,  date: '2025-10-08', time: '21:55', market: 'us', side: 'buy',  symbol: 'NVDA',   shares: 20,   price: 425.0 },
+        { id: 8,  date: '2025-11-03', time: '09:08', market: 'tw', side: 'buy',  symbol: '2330',   shares: 1000, price: 830.0 },
+        { id: 9,  date: '2025-12-05', time: '10:47', market: 'tw', side: 'buy',  symbol: '2412',   shares: 2000, price: 122.0 },
+        { id: 10, date: '2026-02-02', time: '23:10', market: 'us', side: 'buy',  symbol: 'TSLA',   shares: 30,   price: 230.0 },
+        { id: 11, date: '2026-03-02', time: '09:45', market: 'tw', side: 'buy',  symbol: '00981A', shares: 3000, price: 16.8 },
+        { id: 12, date: '2026-03-20', time: '13:22', market: 'tw', side: 'sell', symbol: '2412',   shares: 2000, price: 118.0 },
+        { id: 13, date: '2026-04-14', time: '10:30', market: 'tw', side: 'sell', symbol: '2881',   shares: 2000, price: 90.0 },
+        { id: 14, date: '2026-04-15', time: '09:50', market: 'tw', side: 'buy',  symbol: '0050',   shares: 350,  price: 195.0, oddLot: true },
+        { id: 15, date: '2026-05-08', time: '11:11', market: 'tw', side: 'sell', symbol: '00981A', shares: 3000, price: 15.9 },
+        { id: 16, date: '2026-06-15', time: '22:05', market: 'us', side: 'sell', symbol: 'TSLA',   shares: 30,   price: 265.0 },
+        { id: 17, date: '2026-06-20', time: '10:02', market: 'tw', side: 'buy',  symbol: '0050',   shares: 150,  price: 202.0, oddLot: true },
+        { id: 18, date: '2026-07-10', time: '09:25', market: 'tw', side: 'buy',  symbol: '2603',   shares: 2000, price: 195.0 },
+        { id: 19, date: '2026-07-25', time: '13:01', market: 'tw', side: 'sell', symbol: '2603',   shares: 2000, price: 185.5 },
+        { id: 20, date: '2026-08-01', time: '21:35', market: 'us', side: 'buy',  symbol: 'AAPL',   shares: 50,   price: 210.5 },
+        { id: 21, date: '2026-08-05', time: '22:18', market: 'us', side: 'buy',  symbol: 'NVDA',   shares: 20,   price: 598.0 },
+        { id: 22, date: '2026-08-10', time: '10:44', market: 'tw', side: 'sell', symbol: '2330',   shares: 1000, price: 980.0 },
+        { id: 23, date: '2026-08-15', time: '09:12', market: 'tw', side: 'buy',  symbol: '2330',   shares: 1000, price: 955.0 },
+      ];
+    }
+    function seedDividends() {
+      return [
+        { id: 1, date: '2025-08-14', market: 'tw', symbol: '2330', type: 'cash',  amount: 18000, note: '2025 Q1 現金股利 3 元/股' },
+        { id: 2, date: '2026-01-16', market: 'tw', symbol: '2881', type: 'cash',  amount: 12500, note: '2025 年度現金股利' },
+        { id: 3, date: '2026-05-15', market: 'us', symbol: 'AAPL', type: 'cash',  amount: 12.5,  note: 'Q2 dividend $0.25/share' },
+        { id: 4, date: '2026-07-01', market: 'tw', symbol: '2330', type: 'stock', shares: 150,   note: '股票股利 0.5 元/股（配股 150 股）' },
+        { id: 5, date: '2026-08-12', market: 'tw', symbol: '2454', type: 'cash',  amount: 30000, note: '2026 現金股利 30 元/股' },
+      ];
+    }
+    function seedCashflows() {
+      return [
+        { id: 1, date: '2025-01-06', type: 'deposit',  amount: 2000000, note: '期初投入本金' },
+        { id: 2, date: '2025-07-15', type: 'deposit',  amount: 1000000, note: '加碼投入' },
+        { id: 3, date: '2026-04-20', type: 'withdraw', amount: 300000,  note: '提領獲利' },
+        { id: 4, date: '2026-08-01', type: 'deposit',  amount: 1800000, note: '加碼投入' },
+      ];
+    }
+    function seedWatchlist() {
+      return [
+        { id: 1, symbol: '2317',   market: 'tw', addedDate: '2026-07-01', target: 190.0, note: '等季報公布' },
+        { id: 2, symbol: '00981A', market: 'tw', addedDate: '2026-07-20', target: 16.5,  note: '等回檔至月線' },
+        { id: 3, symbol: 'MSFT',   market: 'us', addedDate: '2026-06-15', target: 430.0, note: '等待財報後拉回' },
+      ];
+    }
+
+    const transactions = ref(seedTransactions());
+    const dividends = ref(seedDividends().map(d => ({ ...d, name: nameOf(d.market, d.symbol) })));
+    const cashflows = ref(seedCashflows());
+    const watchlist = ref(seedWatchlist().map(w => ({ ...w, name: nameOf(w.market, w.symbol) })));
+
+    let txSeq = 100, divSeq = 100, cashSeq = 100, watchSeq = 100;
+
+    function resetDemoData() {
+      transactions.value = seedTransactions();
+      dividends.value = seedDividends().map(d => ({ ...d, name: nameOf(d.market, d.symbol) }));
+      cashflows.value = seedCashflows();
+      watchlist.value = seedWatchlist().map(w => ({ ...w, name: nameOf(w.market, w.symbol) }));
+      Object.assign(settings, DEFAULT_SETTINGS);
+      pushToast('已重設示範資料');
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // 費用試算（設計文件第一節：自動計算手續費/證交稅 + 可設定折讓 + 可手動覆寫）
+    // ══════════════════════════════════════════════════════════
+    function calcFee(t, s) {
+      const gross = (t.price || 0) * (t.shares || 0);
+      if (!gross) return 0;
+      if (t.market === 'tw') return Math.max(s.twFeeMin, Math.round(gross * s.twFeeRate * s.twFeeDiscount));
+      return round2(gross * s.usFeeRate);
+    }
+    function calcTax(t, s) {
+      if (t.side !== 'sell') return 0;
+      const gross = (t.price || 0) * (t.shares || 0);
+      if (!gross) return 0;
+      if (t.market === 'tw') return Math.round(gross * (isTwEtfSymbol(t.symbol) ? s.twTaxRateEtf : s.twTaxRate));
+      return round2(gross * s.usSecFeeRate);
+    }
+    const round2 = (n) => Math.round(n * 100) / 100;
+
+    // 交易列表 + 試算後的 fee/tax/gross/net，所有下游計算都吃這份
+    const enrichedTransactions = computed(() => {
+      return transactions.value.map(t => {
+        const fee = t.feeOverride != null ? t.feeOverride : calcFee(t, settings);
+        const tax = t.taxOverride != null ? t.taxOverride : calcTax(t, settings);
+        const gross = t.price * t.shares;
+        return {
+          ...t,
+          name: t.name || nameOf(t.market, t.symbol),
+          fee, tax, gross,
+          net: t.side === 'buy' ? gross + fee + tax : gross - fee - tax,
+        };
+      }).sort((a, b) => (a.date === b.date ? a.id - b.id : (a.date < b.date ? -1 : 1)));
+    });
+
+    // ══════════════════════════════════════════════════════════
+    // 帳務引擎：FIFO / 加權平均，產出持股、平倉明細、股利處理
+    // 設計文件第二、三、四節的核心邏輯，正式版應搬到後端 services/
+    // ══════════════════════════════════════════════════════════
+    function buildLedger(txList, divList, s) {
+      const method = s.costMethod;
+      const events = [];
+      txList.forEach(t => events.push({ kind: 'tx', date: t.date, seq: t.id, data: t }));
+      divList.forEach(d => events.push({ kind: 'div', date: d.date, seq: 10000 + d.id, data: d }));
+      events.sort((a, b) => (a.date === b.date ? a.seq - b.seq : (a.date < b.date ? -1 : 1)));
+
+      const books = {}; // key: market:symbol
+      const realized = [];      // 平倉明細
+      const dividendIncome = []; // 計入已實現的現金股利
+      let lotSeq = 1;
+
+      const bookOf = (market, symbol) => {
+        const key = `${market}:${symbol}`;
+        if (!books[key]) books[key] = { key, market, symbol, name: nameOf(market, symbol), lots: [], shares: 0, cost: 0, dividendOffset: 0 };
+        return books[key];
+      };
+
+      for (const ev of events) {
+        if (ev.kind === 'tx') {
+          const t = ev.data;
+          const b = bookOf(t.market, t.symbol);
+          if (t.side === 'buy') {
+            // 買進成本含手續費
+            b.lots.push({ date: t.date, shares: t.shares, price: t.price, fee: t.fee, remaining: t.shares });
+            b.shares += t.shares;
+            b.cost += t.gross + t.fee;
+          } else {
+            const sellShares = Math.min(t.shares, b.shares);
+            if (sellShares <= 0) continue; // 無庫存可賣（前端已擋，這裡保險）
+            const sellProceeds = t.price * sellShares - (t.fee + t.tax) * (sellShares / t.shares);
+            let costBasis = 0;
+            const matches = [];
+
+            if (method === 'fifo') {
+              let need = sellShares;
+              for (const lot of b.lots) {
+                if (need <= 0) break;
+                if (lot.remaining <= 0) continue;
+                const take = Math.min(lot.remaining, need);
+                const feeShare = lot.fee * (take / lot.shares);
+                const lotCost = lot.price * take + feeShare;
+                costBasis += lotCost;
+                matches.push({
+                  buyDate: lot.date, shares: take, buyPrice: lot.price, feeShare,
+                  pnl: (t.price * take - (t.fee + t.tax) * (take / t.shares)) - lotCost,
+                });
+                lot.remaining -= take;
+                need -= take;
+              }
+              b.lots = b.lots.filter(l => l.remaining > 0);
+            } else {
+              // 加權平均：以當下移動平均成本認列，不逐筆配對
+              costBasis = b.cost * (sellShares / b.shares);
+            }
+
+            b.shares -= sellShares;
+            b.cost = method === 'fifo'
+              ? b.lots.reduce((sum, l) => sum + l.price * l.remaining + l.fee * (l.remaining / l.shares), 0)
+              : Math.max(0, b.cost - costBasis);
+            if (b.shares === 0) b.cost = 0;
+
+            const pnl = sellProceeds - costBasis;
+            realized.push({
+              id: lotSeq++, closeDate: t.date, market: t.market, symbol: t.symbol, name: b.name,
+              shares: sellShares, sellAvg: t.price,
+              costAvg: costBasis / sellShares,
+              cost: (t.fee + t.tax) * (sellShares / t.shares) + matches.reduce((sum, m) => sum + m.feeShare, 0),
+              pnl, pnlPct: costBasis ? (pnl / costBasis) * 100 : 0,
+              matches,
+            });
+          }
+        } else {
+          const d = ev.data;
+          const b = bookOf(d.market, d.symbol);
+          if (d.type === 'stock') {
+            // 配股：股數增加、總成本不變 → 均價自然被稀釋
+            b.shares += d.shares;
+            if (b.lots.length) b.lots[b.lots.length - 1].remaining += d.shares;
+            else b.lots.push({ date: d.date, shares: d.shares, price: 0, fee: 0, remaining: d.shares });
+          } else if (s.dividendMode === 'reduce_cost' && b.shares > 0) {
+            // 沖抵成本：現金股利直接扣減庫存總成本
+            const offset = Math.min(d.amount, b.cost);
+            b.cost -= offset;
+            b.dividendOffset += offset;
+            if (b.lots.length) {
+              // 依剩餘股數比例回攤到各批次，讓 FIFO 之後的平倉成本也反映沖抵
+              const totalRemaining = b.lots.reduce((sum, l) => sum + l.remaining, 0) || 1;
+              b.lots.forEach(l => { l.price = Math.max(0, l.price - (offset * (l.remaining / totalRemaining)) / l.remaining); });
+            }
+          } else {
+            dividendIncome.push({ date: d.date, market: d.market, symbol: d.symbol, amount: d.amount });
+          }
+        }
+      }
+
+      const positions = Object.values(books)
+        .filter(b => b.shares > 0)
+        .map(b => {
+          const price = priceOf(b.market, b.symbol) ?? 0;
+          const avgCost = b.cost / b.shares;
+          const marketValue = b.shares * price;
+          const pnl = marketValue - b.cost;
+          return {
+            key: b.key, market: b.market, symbol: b.symbol, name: b.name,
+            sector: sectorOf(b.market, b.symbol),
+            shares: b.shares, avgCost, price, marketValue, cost: b.cost,
+            pnl, pnlPct: b.cost ? (pnl / b.cost) * 100 : 0,
+            dividendOffset: b.dividendOffset,
+          };
+        })
+        .sort((a, b) => b.marketValue * (a.market === 'us' ? 1 : 1) - a.marketValue);
+
+      return { positions, realized: realized.reverse(), dividendIncome };
+    }
+
+    const ledger = computed(() => buildLedger(enrichedTransactions.value, dividends.value, settings));
+
+    // ── 持股 ──────────────────────────────────────────────
+    const holdings = computed(() => ledger.value.positions);
     const filteredHoldings = computed(() => byMarket(holdings.value));
+    const toTwd = (v, market) => market === 'us' ? v * settings.fxRate : v;
 
-    const marketValueOf = (h) => h.shares * h.price;
-    const marketValueTwdOf = (h) => h.market === 'us' ? marketValueOf(h) * FX_RATE : marketValueOf(h);
-    const profitOf = (h) => (h.price - h.avgCost) * h.shares;
-    const profitPctOf = (h) => (h.price / h.avgCost - 1) * 100;
-
-    const totalAssetValueTwd = computed(() => holdings.value.reduce((s, h) => s + marketValueTwdOf(h), 0));
-    const unrealizedTotal = computed(() => holdings.value.reduce((s, h) => s + (h.market === 'us' ? profitOf(h) * FX_RATE : profitOf(h)), 0));
-    const unrealizedCostTwd = computed(() => holdings.value.reduce((s, h) => s + (h.market === 'us' ? h.avgCost * h.shares * FX_RATE : h.avgCost * h.shares), 0));
+    const portfolioValueTwd = computed(() => holdings.value.reduce((s, h) => s + toTwd(h.marketValue, h.market), 0));
+    const filteredPortfolioValueTwd = computed(() => filteredHoldings.value.reduce((s, h) => s + toTwd(h.marketValue, h.market), 0));
+    const unrealizedTotal = computed(() => filteredHoldings.value.reduce((s, h) => s + toTwd(h.pnl, h.market), 0));
+    const unrealizedCostTwd = computed(() => filteredHoldings.value.reduce((s, h) => s + toTwd(h.cost, h.market), 0));
     const unrealizedTotalPct = computed(() => unrealizedCostTwd.value ? (unrealizedTotal.value / unrealizedCostTwd.value) * 100 : 0);
-    const weightOf = (h) => totalAssetValueTwd.value ? (marketValueTwdOf(h) / totalAssetValueTwd.value) * 100 : 0;
+    const weightOf = (h) => filteredPortfolioValueTwd.value ? (toTwd(h.marketValue, h.market) / filteredPortfolioValueTwd.value) * 100 : 0;
 
-    // ── 交易紀錄 Transactions ─────────────────────────────
-    let txSeq = 100;
-    const transactions = ref([
-      { id: 1, date: '2026-08-15', market: 'tw', type: 'buy', symbol: '2330', name: '台積電', shares: 1000, price: 955.0, fee: 1360, tax: 0, amount: 956360 },
-      { id: 2, date: '2026-08-14', market: 'tw', type: 'sell', symbol: '2881', name: '富邦金', shares: 2000, price: 90.0, fee: 256, tax: 540, amount: 179204 },
-      { id: 3, date: '2026-08-05', market: 'us', type: 'buy', symbol: 'NVDA', name: 'NVIDIA Corp.', shares: 20, price: 598.0, fee: 5.98, tax: 0, amount: 11965.98 },
-      { id: 4, date: '2026-08-01', market: 'us', type: 'buy', symbol: 'AAPL', name: 'Apple Inc.', shares: 50, price: 210.5, fee: 1.05, tax: 0, amount: 10526.05 },
-      { id: 5, date: '2026-07-25', market: 'tw', type: 'sell', symbol: '2603', name: '長榮', shares: 2000, price: 185.5, fee: 264, tax: 1113, amount: 369623 },
-      { id: 6, date: '2026-07-10', market: 'tw', type: 'buy', symbol: '2603', name: '長榮', shares: 2000, price: 195.0, fee: 278, tax: 0, amount: 390278 },
-    ]);
+    // ── 現金餘額（把交易/股利/出入金串成一本現金帳） ────────
+    const netCashflow = computed(() => cashflows.value.reduce((s, c) => s + (c.type === 'deposit' ? c.amount : -c.amount), 0));
+    const totalDividendTwd = computed(() => dividends.value.reduce((s, d) => d.type === 'cash' ? s + toTwd(d.amount, d.market) : s, 0));
+    const cashBalanceTwd = computed(() => {
+      const traded = enrichedTransactions.value.reduce((s, t) => s + toTwd(t.side === 'buy' ? -t.net : t.net, t.market), 0);
+      return netCashflow.value + traded + totalDividendTwd.value;
+    });
+    const accountValueTwd = computed(() => portfolioValueTwd.value + cashBalanceTwd.value);
+
+    // ══════════════════════════════════════════════════════════
+    // 交易紀錄頁
+    // ══════════════════════════════════════════════════════════
     const txFilter = reactive({ keyword: '', type: '', from: '', to: '' });
-    function resetTxFilter() { txFilter.keyword = ''; txFilter.type = ''; txFilter.from = ''; txFilter.to = ''; }
-    const filteredTransactions = computed(() => byMarket(transactions.value).filter(tx => {
-      if (txFilter.type && tx.type !== txFilter.type) return false;
-      if (txFilter.keyword && !(tx.symbol.includes(txFilter.keyword) || tx.name.includes(txFilter.keyword))) return false;
-      if (txFilter.from && tx.date < txFilter.from) return false;
-      if (txFilter.to && tx.date > txFilter.to) return false;
-      return true;
-    }));
+    function resetTxFilter() { Object.assign(txFilter, { keyword: '', type: '', from: '', to: '' }); }
 
+    const txTypeLabel = (tx) => (tx.oddLot ? '零股' : '') + (tx.side === 'buy' ? '買進' : '賣出');
+    const txTypeBadge = (tx) => tx.side === 'buy'
+      ? (tx.oddLot ? 'bg-red-50 text-red-500 ring-1 ring-red-200' : 'bg-red-50 text-red-600')
+      : (tx.oddLot ? 'bg-emerald-50 text-emerald-500 ring-1 ring-emerald-200' : 'bg-emerald-50 text-emerald-600');
+
+    const txSort = reactive({ key: 'date', dir: 'desc' });
+    function sortTxBy(key) {
+      if (txSort.key === key) txSort.dir = txSort.dir === 'asc' ? 'desc' : 'asc';
+      else { txSort.key = key; txSort.dir = 'desc'; }
+    }
+    const sortIcon = (key) => txSort.key !== key ? 'pi pi-sort-alt text-surface-300 text-[10px]'
+      : (txSort.dir === 'asc' ? 'pi pi-sort-amount-up-alt text-primary text-[10px]' : 'pi pi-sort-amount-down text-primary text-[10px]');
+
+    const filteredTransactions = computed(() => {
+      const rows = byMarket(enrichedTransactions.value).filter(tx => {
+        if (txFilter.type === 'odd' ? !tx.oddLot : (txFilter.type && tx.side !== txFilter.type)) return false;
+        if (txFilter.keyword) {
+          const k = txFilter.keyword.toLowerCase();
+          if (!tx.symbol.toLowerCase().includes(k) && !(tx.name || '').toLowerCase().includes(k)) return false;
+        }
+        if (txFilter.from && tx.date < txFilter.from) return false;
+        if (txFilter.to && tx.date > txFilter.to) return false;
+        return true;
+      });
+      const dir = txSort.dir === 'asc' ? 1 : -1;
+      return rows.slice().sort((a, b) => {
+        const va = a[txSort.key], vb = b[txSort.key];
+        if (va === vb) return (a.id - b.id) * dir;
+        return (va > vb ? 1 : -1) * dir;
+      });
+    });
+
+    const TX_PAGE_SIZE = 12;
+    const txPage = ref(1);
+    const txPageCount = computed(() => Math.max(1, Math.ceil(filteredTransactions.value.length / TX_PAGE_SIZE)));
+    const pagedTransactions = computed(() => filteredTransactions.value.slice((txPage.value - 1) * TX_PAGE_SIZE, txPage.value * TX_PAGE_SIZE));
+    watch([filteredTransactions, txPageCount], () => { if (txPage.value > txPageCount.value) txPage.value = txPageCount.value; });
+
+    const recentTransactions = computed(() => byMarket(enrichedTransactions.value).slice().reverse().slice(0, 5));
+
+    // ── 新增/編輯交易 Modal ────────────────────────────────
     const showTxModal = ref(false);
     const editingTxId = ref(null);
     const pendingWatchId = ref(null);
-    const txForm = reactive({ type: 'buy', market: 'tw', symbol: '', name: '', date: today, price: null, shares: null, fee: 20, tax: 0, manualOverride: false, removeFromWatchlist: true });
+    const blankTxForm = () => ({
+      side: 'buy', market: 'tw', symbol: '', name: '', date: today, time: '',
+      price: null, shares: null, oddLot: false, fee: 0, tax: 0,
+      manualOverride: false, removeFromWatchlist: true,
+    });
+    const txForm = reactive(blankTxForm());
 
-    const txGrossAmount = computed(() => (txForm.price || 0) * (txForm.shares || 0));
-    const txTotalAmount = computed(() => txForm.type === 'buy' ? txGrossAmount.value + (txForm.fee || 0) + (txForm.tax || 0) : txGrossAmount.value - (txForm.fee || 0) - (txForm.tax || 0));
+    const txGross = computed(() => (txForm.price || 0) * (txForm.shares || 0));
+    const txNetAmount = computed(() => txForm.side === 'buy'
+      ? txGross.value + (txForm.fee || 0) + (txForm.tax || 0)
+      : txGross.value - (txForm.fee || 0) - (txForm.tax || 0));
+    const txSharesInLots = computed(() => {
+      const lot = marketMeta.tw.lotSize;
+      const n = txForm.shares || 0;
+      return n % lot === 0 ? `${n / lot} 張` : `${(n / lot).toFixed(2)} 張，非整張請勾選零股`;
+    });
 
-    watch([() => txForm.price, () => txForm.shares, () => txForm.type, () => txForm.market], () => {
-      if (txForm.manualOverride) return;
-      const gross = txGrossAmount.value;
-      txForm.fee = txForm.market === 'tw' ? Math.max(20, Math.round(gross * 0.001425)) : Math.round(Math.max(1, gross * 0.0005) * 100) / 100;
-      txForm.tax = (txForm.type === 'sell' && txForm.market === 'tw') ? Math.round(gross * 0.003) : 0;
+    // 未手動覆寫時，費用隨輸入與設定即時重算
+    watch(
+      () => [txForm.price, txForm.shares, txForm.side, txForm.market, txForm.symbol, txForm.manualOverride,
+             settings.twFeeRate, settings.twFeeDiscount, settings.twFeeMin, settings.twTaxRate, settings.twTaxRateEtf,
+             settings.usFeeRate, settings.usSecFeeRate],
+      () => {
+        if (txForm.manualOverride) return;
+        const probe = { market: txForm.market, side: txForm.side, symbol: txForm.symbol, price: txForm.price || 0, shares: txForm.shares || 0 };
+        txForm.fee = calcFee(probe, settings);
+        txForm.tax = calcTax(probe, settings);
+      },
+      { immediate: true }
+    );
+    // 美股沒有零股概念（lot_size = 1），切到美股就取消勾選
+    watch(() => txForm.market, (m) => { if (m !== 'tw') txForm.oddLot = false; });
+
+    // 賣出前檢查庫存（設計文件沒寫，但沒有這道檢查會算出負庫存）
+    const sellPreview = computed(() => {
+      if (txForm.side !== 'sell' || !txForm.symbol) return null;
+      const pos = holdings.value.find(h => h.market === txForm.market && h.symbol === String(txForm.symbol).toUpperCase());
+      let available = pos ? pos.shares : 0;
+      if (editingTxId.value) {
+        const orig = transactions.value.find(t => t.id === editingTxId.value);
+        if (orig && orig.side === 'sell' && orig.symbol === txForm.symbol && orig.market === txForm.market) available += orig.shares;
+      }
+      const want = txForm.shares || 0;
+      if (!want) return { ok: true, message: `目前 ${txForm.symbol} 可賣庫存 ${available.toLocaleString()} 股` };
+      return want <= available
+        ? { ok: true, message: `可賣庫存 ${available.toLocaleString()} 股，本次賣出後剩餘 ${(available - want).toLocaleString()} 股` }
+        : { ok: false, message: `庫存不足：目前僅有 ${available.toLocaleString()} 股，無法賣出 ${want.toLocaleString()} 股` };
     });
 
     function resetTxForm() {
-      Object.assign(txForm, { type: 'buy', market: 'tw', symbol: '', name: '', date: today, price: null, shares: null, fee: 20, tax: 0, manualOverride: false, removeFromWatchlist: true });
+      Object.assign(txForm, blankTxForm());
       editingTxId.value = null;
       pendingWatchId.value = null;
     }
@@ -992,19 +1711,43 @@ createApp({
     function openEditTxModal(tx) {
       resetTxForm();
       editingTxId.value = tx.id;
-      Object.assign(txForm, { type: tx.type, market: tx.market, symbol: tx.symbol, name: tx.name, date: tx.date, price: tx.price, shares: tx.shares, fee: tx.fee, tax: tx.tax, manualOverride: true });
+      const raw = transactions.value.find(t => t.id === tx.id) || tx;
+      Object.assign(txForm, {
+        side: raw.side, market: raw.market, symbol: raw.symbol, name: tx.name, date: raw.date, time: raw.time || '',
+        price: raw.price, shares: raw.shares, oddLot: !!raw.oddLot,
+        fee: tx.fee, tax: tx.tax,
+        manualOverride: raw.feeOverride != null || raw.taxOverride != null,
+      });
       showTxModal.value = true;
+    }
+    function autofillTxName() {
+      if (!txForm.symbol) return;
+      const found = SYMBOL_NAME_MAP[`${txForm.market}:${txForm.symbol.toUpperCase()}`];
+      if (found) txForm.name = found;
     }
     function saveTx() {
       if (!txForm.symbol || !txForm.price || !txForm.shares) { pushToast('請完整填寫股票代碼、單價與股數', 'error'); return; }
-      const payload = { market: txForm.market, type: txForm.type, symbol: txForm.symbol, name: txForm.name || txForm.symbol, date: txForm.date, shares: txForm.shares, price: txForm.price, fee: txForm.fee, tax: txForm.tax, amount: txTotalAmount.value };
+      if (txForm.shares <= 0 || txForm.price <= 0) { pushToast('單價與股數必須大於 0', 'error'); return; }
+      if (txForm.market === 'tw' && !txForm.oddLot && txForm.shares % marketMeta.tw.lotSize !== 0) {
+        pushToast(`台股整股交易需為 ${marketMeta.tw.lotSize} 股的倍數，或勾選「零股交易」`, 'error'); return;
+      }
+      if (sellPreview.value && !sellPreview.value.ok) { pushToast(sellPreview.value.message, 'error'); return; }
+
+      const payload = {
+        market: txForm.market, side: txForm.side, symbol: String(txForm.symbol).toUpperCase(),
+        name: txForm.name || nameOf(txForm.market, txForm.symbol),
+        date: txForm.date, time: txForm.time || '', shares: txForm.shares, price: txForm.price,
+        oddLot: !!txForm.oddLot,
+        feeOverride: txForm.manualOverride ? txForm.fee : null,
+        taxOverride: txForm.manualOverride ? txForm.tax : null,
+      };
       if (editingTxId.value) {
         const idx = transactions.value.findIndex(t => t.id === editingTxId.value);
         if (idx >= 0) transactions.value[idx] = { ...transactions.value[idx], ...payload };
-        pushToast('交易紀錄已更新');
+        pushToast('交易紀錄已更新，持股與績效已重算');
       } else {
-        transactions.value.unshift({ id: txSeq++, ...payload });
-        pushToast('交易紀錄已新增');
+        transactions.value.push({ id: txSeq++, ...payload });
+        pushToast('交易紀錄已新增，持股與績效已重算');
       }
       if (pendingWatchId.value && txForm.removeFromWatchlist) {
         watchlist.value = watchlist.value.filter(w => w.id !== pendingWatchId.value);
@@ -1012,81 +1755,240 @@ createApp({
       showTxModal.value = false;
     }
     function confirmDeleteTx(tx) {
-      askConfirm(`確定要刪除 ${tx.symbol} ${tx.name} 於 ${tx.date} 的交易紀錄嗎？`, () => {
+      askConfirm(`確定要刪除 ${tx.symbol} ${tx.name} 於 ${tx.date} 的交易紀錄嗎？刪除後所有持股成本、已實現損益與勝率都會重新計算。`, () => {
         transactions.value = transactions.value.filter(t => t.id !== tx.id);
         pushToast('已刪除交易紀錄');
       });
     }
 
-    // ── 已實現損益 Realized ────────────────────────────────
-    const realizedLots = ref([
-      { id: 1, closeDate: '2026-08-10', market: 'tw', symbol: '2330', name: '台積電', shares: 1000, sellAvg: 980.0, costAvg: 850.0, cost: 4335, pnl: 125665, pnlPct: 14.7,
-        matches: [{ buyDate: '2025-11-02', shares: 600, buyPrice: 830.0 }, { buyDate: '2025-12-18', shares: 400, buyPrice: 880.0 }] },
-      { id: 2, closeDate: '2026-07-25', market: 'tw', symbol: '2603', name: '長榮', shares: 2000, sellAvg: 185.5, costAvg: 195.0, cost: 1643, pnl: -20643, pnlPct: -5.2,
-        matches: [{ buyDate: '2026-07-10', shares: 2000, buyPrice: 195.0 }] },
-      { id: 3, closeDate: '2026-06-15', market: 'us', symbol: 'TSLA', name: 'Tesla Inc.', shares: 30, sellAvg: 265.0, costAvg: 230.0, cost: 9.6, pnl: 1040.4, pnlPct: 15.2,
-        matches: [{ buyDate: '2026-02-01', shares: 30, buyPrice: 230.0 }] },
-      { id: 4, closeDate: '2026-05-08', market: 'tw', symbol: '00981A', name: '主動統一台灣高息動能', shares: 3000, sellAvg: 15.9, costAvg: 16.8, cost: 68, pnl: -2768, pnlPct: -5.4,
-        matches: [{ buyDate: '2026-03-02', shares: 3000, buyPrice: 16.8 }] },
-    ]);
+    // ── 匯入 / 匯出（設計文件第一節：批次匯入/匯出 CSV 範本） ──
+    const CSV_HEADER = ['date', 'time', 'market', 'side', 'symbol', 'name', 'shares', 'price', 'odd_lot', 'fee', 'tax'];
+    const SAMPLE_CSV = [
+      CSV_HEADER.join(','),
+      '2026-08-18,09:30,tw,buy,2317,鴻海,2000,196.5,0,,',
+      '2026-08-18,10:15,tw,buy,0050,元大台灣50,120,209.0,1,,',
+      '2026-08-19,21:45,us,buy,MSFT,Microsoft Corp.,10,448.2,0,0,',
+    ].join('\n');
+    const showImportModal = ref(false);
+    const importText = ref('');
+
+    function parseCsv(text) {
+      const rows = [], errors = [];
+      const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (!lines.length) return { rows, errors };
+      const start = lines[0].toLowerCase().startsWith('date') ? 1 : 0;
+      for (let i = start; i < lines.length; i++) {
+        const cells = lines[i].split(',').map(c => c.trim());
+        const [date, time, market, side, symbol, name, shares, price, oddLot, fee, tax] = cells;
+        const lineNo = i + 1;
+        if (!date || !market || !side || !symbol) { errors.push({ line: lineNo, message: '缺少必填欄位 (date/market/side/symbol)' }); continue; }
+        if (!marketMeta[market]) { errors.push({ line: lineNo, message: `market 需為 tw 或 us，收到「${market}」` }); continue; }
+        if (side !== 'buy' && side !== 'sell') { errors.push({ line: lineNo, message: `side 需為 buy 或 sell，收到「${side}」` }); continue; }
+        const sh = Number(shares), pr = Number(price);
+        if (!(sh > 0) || !(pr > 0)) { errors.push({ line: lineNo, message: 'shares 與 price 必須是大於 0 的數字' }); continue; }
+        const odd = oddLot === '1' || oddLot === 'true';
+        if (market === 'tw' && !odd && sh % marketMeta.tw.lotSize !== 0) { errors.push({ line: lineNo, message: `台股整股需為 ${marketMeta.tw.lotSize} 股倍數，或將 odd_lot 設為 1` }); continue; }
+        rows.push({
+          date, time: time || '', market, side, symbol: symbol.toUpperCase(),
+          name: name || nameOf(market, symbol), shares: sh, price: pr, oddLot: odd,
+          feeOverride: fee === '' || fee == null ? null : Number(fee),
+          taxOverride: tax === '' || tax == null ? null : Number(tax),
+        });
+      }
+      return { rows, errors };
+    }
+    const importPreview = computed(() => parseCsv(importText.value));
+    function onImportFile(e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => { importText.value = String(reader.result || ''); };
+      reader.readAsText(file, 'utf-8');
+    }
+    function commitImport() {
+      const { rows } = importPreview.value;
+      if (!rows.length) return;
+      rows.forEach(r => transactions.value.push({ id: txSeq++, ...r }));
+      pushToast(`已匯入 ${rows.length} 筆交易紀錄`);
+      importText.value = '';
+      showImportModal.value = false;
+    }
+    function downloadFile(filename, content) {
+      const blob = new Blob(['﻿' + content], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    function downloadTemplate() { downloadFile('transactions_template.csv', CSV_HEADER.join(',') + '\n'); }
+    function exportCsv() {
+      const body = filteredTransactions.value.map(t => [
+        t.date, t.time || '', t.market, t.side, t.symbol, t.name, t.shares, t.price,
+        t.oddLot ? 1 : 0, t.fee, t.tax,
+      ].join(','));
+      downloadFile(`transactions_${today}.csv`, [CSV_HEADER.join(','), ...body].join('\n'));
+      pushToast(`已匯出 ${body.length} 筆交易紀錄`);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // 已實現損益頁
+    // ══════════════════════════════════════════════════════════
+    const realizedLots = computed(() => ledger.value.realized);
     const filteredRealizedLots = computed(() => byMarket(realizedLots.value));
     const expandedLotId = ref(null);
     function toggleLotDetail(id) { expandedLotId.value = expandedLotId.value === id ? null : id; }
 
+    // 已實現統計一律換算 TWD 後彙總（跨市場才有意義），且跟著市場篩選走
+    const filteredDividendIncome = computed(() => byMarket(ledger.value.dividendIncome));
+
     const realizedStats = computed(() => {
-      const lots = realizedLots.value;
+      const lots = filteredRealizedLots.value;
       const wins = lots.filter(l => l.pnl > 0);
-      const losses = lots.filter(l => l.pnl <= 0);
-      const grossWin = wins.reduce((s, l) => s + l.pnl, 0);
-      const grossLoss = Math.abs(losses.reduce((s, l) => s + l.pnl, 0));
+      const losses = lots.filter(l => l.pnl < 0);
+      const twd = (l) => toTwd(l.pnl, l.market);
+      const grossWin = wins.reduce((s, l) => s + twd(l), 0);
+      const grossLoss = Math.abs(losses.reduce((s, l) => s + twd(l), 0));
+      const tradeTotal = lots.reduce((s, l) => s + twd(l), 0);
+      const dividendIncome = filteredDividendIncome.value.reduce((s, d) => s + toTwd(d.amount, d.market), 0);
+      const avgWin = wins.length ? grossWin / wins.length : 0;
+      const avgLoss = losses.length ? grossLoss / losses.length : 0;
       return {
-        total: lots.reduce((s, l) => s + l.pnl, 0),
-        wins: wins.length,
+        lots: lots.length, wins: wins.length, losses: losses.length,
         winRate: lots.length ? (wins.length / lots.length) * 100 : 0,
-        grossWin, grossLoss,
-        profitFactor: (wins.length && losses.length) ? (grossWin / wins.length) / (grossLoss / losses.length) : 0,
+        grossWin, grossLoss, avgWin, avgLoss,
+        // 沒有虧損樣本時盈虧比無意義，回傳 null 顯示「—」，而不是誤導的 0.00
+        avgWinLossRatio: (wins.length && losses.length) ? avgWin / avgLoss : null,
+        tradeTotal, dividendIncome,
+        total: tradeTotal + dividendIncome,
       };
     });
 
-    const monthlyPnl = [
-      { label: '2026-03', value: -2768 }, { label: '2026-04', value: 0 }, { label: '2026-05', value: -2768 },
-      { label: '2026-06', value: 1040 }, { label: '2026-07', value: -20643 }, { label: '2026-08', value: 125665 },
-    ];
-    const equityCurve = (() => {
-      let acc = 0;
-      return monthlyPnl.map(m => { acc += m.value; return { label: m.label, value: acc }; });
-    })();
+    // 月度 / 年度彙整：全部由平倉明細與股利即時彙總，不再另存一份會對不上的假資料
+    function summarize(granularity) {
+      const buckets = new Map();
+      const keyOf = (date) => granularity === 'year' ? date.slice(0, 4) : date.slice(0, 7);
+      const touch = (k) => {
+        if (!buckets.has(k)) buckets.set(k, { label: k, lots: 0, wins: 0, losses: 0, trade: 0, dividend: 0 });
+        return buckets.get(k);
+      };
+      filteredRealizedLots.value.forEach(l => {
+        const b = touch(keyOf(l.closeDate));
+        b.lots++; if (l.pnl > 0) b.wins++; else if (l.pnl < 0) b.losses++;
+        b.trade += toTwd(l.pnl, l.market);
+      });
+      filteredDividendIncome.value.forEach(d => { touch(keyOf(d.date)).dividend += toTwd(d.amount, d.market); });
+      return [...buckets.values()]
+        .map(b => ({ ...b, total: b.trade + b.dividend, winRate: b.lots ? (b.wins / b.lots) * 100 : 0 }))
+        .sort((a, b) => a.label < b.label ? 1 : -1);
+    }
+    const periodOptions = [{ value: 'year', label: '年度' }, { value: 'month', label: '月度' }];
+    const periodMode = ref('year');
+    const periodSummary = computed(() => summarize(periodMode.value));
 
-    // ── 現金流與股利 Cashflow / Dividends ───────────────────
-    let divSeq = 10, cashSeq = 10;
-    const dividends = ref([
-      { id: 1, date: '2026-08-12', market: 'tw', symbol: '2454', name: '聯發科', type: 'cash', amount: 30000, note: '2026 Q2 現金股利' },
-      { id: 2, date: '2026-07-01', market: 'tw', symbol: '2330', name: '台積電', type: 'stock', shares: 150, note: '股票股利換算 0.5 元/股' },
-      { id: 3, date: '2026-05-15', market: 'us', symbol: 'AAPL', name: 'Apple Inc.', type: 'cash', amount: 1250, note: 'Q2 dividend' },
-    ]);
-    const cashflows = ref([
-      { id: 1, date: '2026-01-05', type: 'deposit', amount: 500000, note: '年初增資' },
-      { id: 2, date: '2026-04-10', type: 'withdraw', amount: 100000, note: '提領獲利' },
-      { id: 3, date: '2026-06-01', type: 'deposit', amount: 200000, note: '加碼投入' },
-    ]);
+    // 月度圖用的序列（含空月份，才看得出節奏）
+    const monthlySeries = computed(() => {
+      const rows = summarize('month');
+      if (!rows.length) return [];
+      const asc = rows.slice().reverse();
+      const out = [];
+      const [sy, sm] = asc[0].label.split('-').map(Number);
+      const [ey, em] = asc[asc.length - 1].label.split('-').map(Number);
+      const byLabel = new Map(asc.map(r => [r.label, r]));
+      let y = sy, m = sm;
+      while (y < ey || (y === ey && m <= em)) {
+        const label = `${y}-${String(m).padStart(2, '0')}`;
+        out.push({ label, value: byLabel.get(label)?.total || 0 });
+        m++; if (m > 12) { m = 1; y++; }
+      }
+      return out;
+    });
+
+    // 權益曲線：累計已實現（含股利）＋期末未實現；% 模式以累計投入成本為分母
+    const equityModeOptions = [{ value: 'amount', label: '金額' }, { value: 'pct', label: '報酬率 %' }];
+    const equityMode = ref('amount');
+    const equitySeries = computed(() => {
+      const months = monthlySeries.value;
+      if (!months.length) return [];
+      const buys = byMarket(enrichedTransactions.value).filter(t => t.side === 'buy');
+      let acc = 0;
+      const out = months.map(m => {
+        acc += m.value;
+        const investedTo = buys.filter(t => t.date.slice(0, 7) <= m.label).reduce((s, t) => s + toTwd(t.net, t.market), 0);
+        return { label: m.label, amount: acc, pct: investedTo ? (acc / investedTo) * 100 : 0 };
+      });
+      // 最後一點加計目前未實現損益，讓曲線終點等於實際帳面績效
+      const last = out[out.length - 1];
+      const investedTotal = buys.reduce((s, t) => s + toTwd(t.net, t.market), 0);
+      out.push({
+        label: '目前',
+        amount: last.amount + unrealizedTotal.value,
+        pct: investedTotal ? ((last.amount + unrealizedTotal.value) / investedTotal) * 100 : 0,
+      });
+      return out;
+    });
+
+    // ══════════════════════════════════════════════════════════
+    // 報酬率：IRR 以 XIRR 實算；TWR 以 Modified Dietz 近似（標示為近似值）
+    // ══════════════════════════════════════════════════════════
+    const externalFlows = computed(() => cashflows.value
+      .map(c => ({ date: new Date(c.date), amount: c.type === 'deposit' ? -c.amount : c.amount }))
+      .sort((a, b) => a.date - b.date));
+
+    function xnpv(rate, flows) {
+      const t0 = flows[0].date.getTime();
+      return flows.reduce((s, f) => s + f.amount / Math.pow(1 + rate, (f.date.getTime() - t0) / (365 * 86400000)), 0);
+    }
+    const irrValue = computed(() => {
+      const flows = [...externalFlows.value, { date: new Date(today), amount: accountValueTwd.value }];
+      if (flows.length < 2 || !flows.some(f => f.amount < 0) || !flows.some(f => f.amount > 0)) return null;
+      let lo = -0.9999, hi = 10;
+      let fLo = xnpv(lo, flows), fHi = xnpv(hi, flows);
+      if (fLo * fHi > 0) return null;
+      for (let i = 0; i < 200; i++) {
+        const mid = (lo + hi) / 2;
+        const fMid = xnpv(mid, flows);
+        if (fLo * fMid <= 0) { hi = mid; fHi = fMid; } else { lo = mid; fLo = fMid; }
+      }
+      return ((lo + hi) / 2) * 100;
+    });
+    const twrApprox = computed(() => {
+      const flows = externalFlows.value;
+      if (!flows.length) return 0;
+      const t0 = flows[0].date.getTime();
+      const tN = new Date(today).getTime();
+      const span = Math.max(1, tN - t0);
+      // Modified Dietz：期初淨值 0，外部現金流以停留時間加權
+      let netFlow = 0, weighted = 0;
+      flows.forEach(f => {
+        const contribution = -f.amount; // 入金為正貢獻
+        netFlow += contribution;
+        weighted += contribution * ((tN - f.date.getTime()) / span);
+      });
+      return weighted ? ((accountValueTwd.value - netFlow) / weighted) * 100 : 0;
+    });
+
+    // ══════════════════════════════════════════════════════════
+    // 現金流與股利頁
+    // ══════════════════════════════════════════════════════════
     const cashSubTabOptions = [{ value: 'dividend', label: '股利紀錄' }, { value: 'cash', label: '資金出入金' }];
     const cashSubTab = ref('dividend');
-    const totalDividendTwd = computed(() => dividends.value.reduce((s, d) => d.type === 'cash' ? s + (d.market === 'us' ? d.amount * FX_RATE : d.amount) : s, 0));
-    const netCashflow = computed(() => cashflows.value.reduce((s, c) => s + (c.type === 'deposit' ? c.amount : -c.amount), 0));
-    const TWR = 18.4;
-    const IRR = 21.7;
+    const filteredDividends = computed(() => byMarket(dividends.value).slice().sort((a, b) => a.date < b.date ? 1 : -1));
 
     const showCashModal = ref(false);
     const cashForm = reactive({ kind: 'cash_dividend', market: 'tw', symbol: '', date: today, amount: null, note: '' });
+    const isDividendKind = computed(() => cashForm.kind === 'cash_dividend' || cashForm.kind === 'stock_dividend');
     function openAddCashModal() {
       Object.assign(cashForm, { kind: 'cash_dividend', market: 'tw', symbol: '', date: today, amount: null, note: '' });
       showCashModal.value = true;
     }
     function saveCash() {
-      if (cashForm.kind === 'cash_dividend' || cashForm.kind === 'stock_dividend') {
+      if (isDividendKind.value) {
         if (!cashForm.symbol || !cashForm.amount) { pushToast('請填寫股票代碼與金額/股數', 'error'); return; }
-        dividends.value.unshift({
-          id: divSeq++, date: cashForm.date, market: cashForm.market, symbol: cashForm.symbol, name: cashForm.symbol,
+        const symbol = String(cashForm.symbol).toUpperCase();
+        dividends.value.push({
+          id: divSeq++, date: cashForm.date, market: cashForm.market, symbol,
+          name: nameOf(cashForm.market, symbol),
           type: cashForm.kind === 'cash_dividend' ? 'cash' : 'stock',
           amount: cashForm.kind === 'cash_dividend' ? cashForm.amount : 0,
           shares: cashForm.kind === 'stock_dividend' ? cashForm.amount : 0,
@@ -1094,7 +1996,8 @@ createApp({
         });
       } else {
         if (!cashForm.amount) { pushToast('請填寫金額', 'error'); return; }
-        cashflows.value.unshift({ id: cashSeq++, date: cashForm.date, type: cashForm.kind, amount: cashForm.amount, note: cashForm.note });
+        cashflows.value.push({ id: cashSeq++, date: cashForm.date, type: cashForm.kind, amount: cashForm.amount, note: cashForm.note });
+        cashflows.value.sort((a, b) => a.date < b.date ? -1 : 1);
       }
       pushToast('已新增紀錄');
       showCashModal.value = false;
@@ -1112,36 +2015,62 @@ createApp({
       });
     }
 
-    // ── 觀察名單 Watchlist ─────────────────────────────────
-    let watchSeq = 10;
-    const watchlist = ref([
-      { id: 1, symbol: '2317', name: '鴻海', market: 'tw', addedDate: '2026-07-01', price: 198.5, target: 190.0, note: '等季報公布' },
-      { id: 2, symbol: '00981A', name: '主動統一台灣高息動能', market: 'tw', addedDate: '2026-07-20', price: 16.8, target: 16.5, note: '等回檔至月線' },
-      { id: 3, symbol: 'MSFT', name: 'Microsoft Corp.', market: 'us', addedDate: '2026-06-15', price: 452.0, target: 430.0, note: '等待財報後拉回' },
-    ]);
-    const filteredWatchlist = computed(() => byMarket(watchlist.value));
-    const gapPct = (w) => (w.price / w.target - 1) * 100;
-    const isNearTarget = (w) => Math.abs(gapPct(w)) <= 3;
-    const nearTargetWatchlist = computed(() => watchlist.value.filter(isNearTarget));
+    // ══════════════════════════════════════════════════════════
+    // 觀察名單
+    // ══════════════════════════════════════════════════════════
+    // 現價由報價資料帶入；查不到時為 null，UI 顯示「待報價」而不是拿目標價假裝
+    const watchlistView = computed(() => watchlist.value.map(w => ({ ...w, price: priceOf(w.market, w.symbol) })));
+    const filteredWatchlist = computed(() => byMarket(watchlistView.value));
+    const gapPct = (w) => w.price == null ? 0 : (w.price / w.target - 1) * 100;
+    const isNearTarget = (w) => w.price != null && Math.abs(gapPct(w)) <= settings.nearTargetPct;
+    const nearTargetWatchlist = computed(() => filteredWatchlist.value.filter(isNearTarget));
+    const reachedWatchlist = computed(() => filteredWatchlist.value.filter(w => w.price != null && gapPct(w) <= 0));
 
-    const SYMBOL_NAME_MAP = { '2330': '台積電', '2317': '鴻海', '2454': '聯發科', '2881': '富邦金', '2603': '長榮', AAPL: 'Apple Inc.', NVDA: 'NVIDIA Corp.', MSFT: 'Microsoft Corp.', TSLA: 'Tesla Inc.' };
     const showWatchModal = ref(false);
+    const editingWatchId = ref(null);
     const watchForm = reactive({ market: 'tw', symbol: '', name: '', target: null, note: '' });
-    function openAddWatchModal() { Object.assign(watchForm, { market: 'tw', symbol: '', name: '', target: null, note: '' }); showWatchModal.value = true; }
+    const watchCurrentPrice = computed(() => watchForm.symbol ? priceOf(watchForm.market, watchForm.symbol) : null);
+
+    function openAddWatchModal() {
+      editingWatchId.value = null;
+      Object.assign(watchForm, { market: 'tw', symbol: '', name: '', target: null, note: '' });
+      showWatchModal.value = true;
+    }
+    function openEditWatchModal(w) {
+      editingWatchId.value = w.id;
+      Object.assign(watchForm, { market: w.market, symbol: w.symbol, name: w.name, target: w.target, note: w.note });
+      showWatchModal.value = true;
+    }
     function lookupSymbolName() {
-      const found = SYMBOL_NAME_MAP[watchForm.symbol.toUpperCase()];
-      if (found) { watchForm.name = found; pushToast('已帶入股票名稱'); }
-      else pushToast('查無此代碼，請手動輸入名稱', 'error');
+      const found = SYMBOL_NAME_MAP[`${watchForm.market}:${String(watchForm.symbol).toUpperCase()}`];
+      if (found) {
+        watchForm.name = found;
+        const p = watchCurrentPrice.value;
+        if (p != null && !watchForm.target) watchForm.target = p;
+        pushToast('已帶入股票名稱' + (p != null ? `（現價 ${p}）` : ''));
+      } else pushToast('查無此代碼，請手動輸入名稱', 'error');
     }
     function saveWatch() {
       if (!watchForm.symbol || !watchForm.target) { pushToast('請填寫股票代碼與目標買進價', 'error'); return; }
-      const existing = watchlist.value.find(w => w.symbol === watchForm.symbol && w.market === watchForm.market);
-      if (existing) {
-        Object.assign(existing, { target: watchForm.target, note: watchForm.note });
-        pushToast('已更新既有觀察紀錄');
+      const symbol = String(watchForm.symbol).toUpperCase();
+      if (editingWatchId.value) {
+        const w = watchlist.value.find(x => x.id === editingWatchId.value);
+        if (w) Object.assign(w, { name: watchForm.name || w.name, target: watchForm.target, note: watchForm.note });
+        pushToast('已更新觀察紀錄');
       } else {
-        watchlist.value.unshift({ id: watchSeq++, symbol: watchForm.symbol, name: watchForm.name || watchForm.symbol, market: watchForm.market, addedDate: today, price: watchForm.target, target: watchForm.target, note: watchForm.note });
-        pushToast('已加入觀察名單');
+        // 同市場同代碼唯一：重複加入視為更新（設計文件第五節）
+        const existing = watchlist.value.find(w => w.symbol === symbol && w.market === watchForm.market);
+        if (existing) {
+          Object.assign(existing, { target: watchForm.target, note: watchForm.note });
+          pushToast('該股已在觀察名單中，已更新目標價與備註');
+        } else {
+          watchlist.value.unshift({
+            id: watchSeq++, symbol, market: watchForm.market,
+            name: watchForm.name || nameOf(watchForm.market, symbol),
+            addedDate: today, target: watchForm.target, note: watchForm.note,
+          });
+          pushToast('已加入觀察名單');
+        }
       }
       showWatchModal.value = false;
     }
@@ -1153,74 +2082,150 @@ createApp({
     }
     function convertToTransaction(w) {
       resetTxForm();
-      Object.assign(txForm, { type: 'buy', market: w.market, symbol: w.symbol, name: w.name, price: w.target });
+      Object.assign(txForm, {
+        side: 'buy', market: w.market, symbol: w.symbol, name: w.name,
+        price: w.price ?? w.target,
+        shares: w.market === 'tw' ? marketMeta.tw.lotSize : 1,
+      });
       pendingWatchId.value = w.id;
       showTxModal.value = true;
     }
 
-    // ── 圖表 ────────────────────────────────────────────────
-    let allocationChart, monthlyPnlChart, equityCurveChart;
-    function renderAllocationChart() {
-      const el = document.getElementById('allocationChart');
-      if (!el) return;
-      if (allocationChart) allocationChart.destroy();
-      const bySector = {};
-      holdings.value.forEach(h => { bySector[h.sector] = (bySector[h.sector] || 0) + marketValueTwdOf(h); });
-      const cash = totalAssetValueTwd.value * 0.1;
-      const labels = [...Object.keys(bySector), '現金'];
-      const data = [...Object.values(bySector), cash];
-      allocationChart = new Chart(el, {
-        type: 'doughnut',
-        data: { labels, datasets: [{ data, backgroundColor: ['#8f6413', '#d9a441', '#64748b', '#cbd5e1', '#e4c27c'], borderWidth: 0 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } } },
+    // ══════════════════════════════════════════════════════════
+    // 圖表（ECharts，與專案 vue-echarts 一致）
+    // ══════════════════════════════════════════════════════════
+    const allocChartEl = ref(null), monthlyChartEl = ref(null), equityChartEl = ref(null);
+    let allocChart = null, monthlyChart = null, equityChart = null;
+
+    const allocModeOptions = [{ value: 'symbol', label: '個股' }, { value: 'sector', label: '產業' }, { value: 'market', label: '市場' }];
+    const allocMode = ref('symbol');
+    const PIE_COLORS = ['#8f6413', '#d9a441', '#e4c27c', '#5c400c', '#daab55', '#64748b', '#94a3b8', '#cbd5e1', '#f0dcae'];
+
+    const allocationData = computed(() => {
+      const groups = {};
+      filteredHoldings.value.forEach(h => {
+        const key = allocMode.value === 'symbol' ? `${h.symbol} ${h.name}`
+          : allocMode.value === 'sector' ? h.sector
+          : marketMeta[h.market].label;
+        groups[key] = (groups[key] || 0) + toTwd(h.marketValue, h.market);
       });
+      const items = Object.entries(groups).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+      // 現金部位由現金帳實算，不再用「總市值 × 10%」的假數字
+      if (cashBalanceTwd.value > 0 && marketFilter.value === 'all') items.push({ name: '現金', value: cashBalanceTwd.value });
+      return items;
+    });
+
+    function renderAllocation() {
+      if (!allocChartEl.value) return;
+      allocChart = allocChart || echarts.init(allocChartEl.value);
+      allocChart.setOption({
+        color: PIE_COLORS,
+        tooltip: { trigger: 'item', formatter: (p) => `${p.name}<br/>NT$ ${fmtNum(p.value)}（${p.percent}%）` },
+        legend: { bottom: 0, type: 'scroll', itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11, color: '#64748b' } },
+        series: [{
+          type: 'pie', radius: ['45%', '70%'], center: ['50%', '44%'], avoidLabelOverlap: true,
+          itemStyle: { borderWidth: 2, borderColor: '#fff' },
+          label: { show: false }, labelLine: { show: false },
+          data: allocationData.value,
+        }],
+      }, true);
     }
-    function renderMonthlyPnlChart() {
-      const el = document.getElementById('monthlyPnlChart');
-      if (!el) return;
-      if (monthlyPnlChart) monthlyPnlChart.destroy();
-      monthlyPnlChart = new Chart(el, {
-        type: 'bar',
-        data: { labels: monthlyPnl.map(m => m.label), datasets: [{ data: monthlyPnl.map(m => m.value), backgroundColor: monthlyPnl.map(m => m.value >= 0 ? '#16a34a' : '#dc2626'), borderRadius: 4 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => fmtNum(v) } } } },
-      });
+    function renderMonthly() {
+      if (!monthlyChartEl.value) return;
+      monthlyChart = monthlyChart || echarts.init(monthlyChartEl.value);
+      const rows = monthlySeries.value;
+      monthlyChart.setOption({
+        grid: { left: 8, right: 12, top: 16, bottom: 4, containLabel: true },
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (ps) => `${ps[0].name}<br/>已實現 NT$ ${fmtNum(ps[0].value)}` },
+        xAxis: { type: 'category', data: rows.map(r => r.label), axisLabel: { fontSize: 10, color: '#94a3b8', rotate: rows.length > 8 ? 45 : 0 }, axisLine: { lineStyle: { color: '#e2e8f0' } } },
+        yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#94a3b8', formatter: (v) => fmtNum(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+        series: [{
+          type: 'bar', barMaxWidth: 28,
+          // 損益一律綠賺紅賠，不套市場漲跌色（跨市場彙總，沒有單一慣例可依）
+          data: rows.map(r => ({ value: r.value, itemStyle: { color: r.value >= 0 ? '#16a34a' : '#dc2626', borderRadius: r.value >= 0 ? [4, 4, 0, 0] : [0, 0, 4, 4] } })),
+        }],
+      }, true);
     }
-    function renderEquityCurveChart() {
-      const el = document.getElementById('equityCurveChart');
-      if (!el) return;
-      if (equityCurveChart) equityCurveChart.destroy();
-      equityCurveChart = new Chart(el, {
-        type: 'line',
-        data: {
-          labels: equityCurve.map(m => m.label),
-          datasets: [{ data: equityCurve.map(m => m.value), borderColor: '#8f6413', backgroundColor: 'rgba(143,100,19,0.12)', fill: true, tension: 0.3, pointRadius: 3 }],
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => fmtNum(v) } } } },
-      });
+    function renderEquity() {
+      if (!equityChartEl.value) return;
+      equityChart = equityChart || echarts.init(equityChartEl.value);
+      const rows = equitySeries.value;
+      const isPct = equityMode.value === 'pct';
+      equityChart.setOption({
+        grid: { left: 8, right: 12, top: 16, bottom: 4, containLabel: true },
+        tooltip: { trigger: 'axis', formatter: (ps) => `${ps[0].name}<br/>${isPct ? ps[0].value.toFixed(1) + '%' : 'NT$ ' + fmtNum(ps[0].value)}` },
+        xAxis: { type: 'category', boundaryGap: false, data: rows.map(r => r.label), axisLabel: { fontSize: 10, color: '#94a3b8', rotate: rows.length > 8 ? 45 : 0 }, axisLine: { lineStyle: { color: '#e2e8f0' } } },
+        yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#94a3b8', formatter: (v) => isPct ? v.toFixed(0) + '%' : fmtNum(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+        series: [{
+          type: 'line', smooth: true, symbolSize: 5,
+          data: rows.map(r => isPct ? r.pct : r.amount),
+          lineStyle: { color: '#8f6413', width: 2 },
+          itemStyle: { color: '#8f6413' },
+          areaStyle: { color: 'rgba(143,100,19,0.12)' },
+        }],
+      }, true);
     }
-    function renderChartsForTab(tab) {
-      if (tab === 'dashboard') renderAllocationChart();
-      if (tab === 'realized') { renderMonthlyPnlChart(); renderEquityCurveChart(); }
+
+    function renderChartsForTab() {
+      if (currentTab.value === 'dashboard') renderAllocation();
+      if (currentTab.value === 'realized') { renderMonthly(); renderEquity(); }
     }
-    watch(currentTab, async (tab) => { await nextTick(); renderChartsForTab(tab); });
-    onMounted(() => renderChartsForTab(currentTab.value));
+    // 資料/設定/篩選任一變動都重畫，避免圖表與表格對不上
+    watch([currentTab, allocationData, monthlySeries, equitySeries, equityMode, allocMode], async () => {
+      await nextTick();
+      renderChartsForTab();
+    });
+
+    function onResize() { [allocChart, monthlyChart, equityChart].forEach(c => c && c.resize()); }
+    onMounted(async () => { await nextTick(); renderChartsForTab(); window.addEventListener('resize', onResize); });
+    onBeforeUnmount(() => window.removeEventListener('resize', onResize));
+
+    // ESC 依序關閉最上層的浮層
+    function closeTopmostOverlay() {
+      if (confirmDialog.visible) { confirmDialog.visible = false; return; }
+      if (showImportModal.value) { showImportModal.value = false; return; }
+      if (showCashModal.value) { showCashModal.value = false; return; }
+      if (showWatchModal.value) { showWatchModal.value = false; return; }
+      if (showTxModal.value) { showTxModal.value = false; }
+    }
+    function onKeydown(e) { if (e.key === 'Escape') closeTopmostOverlay(); }
+    onMounted(() => window.addEventListener('keydown', onKeydown));
+    onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
 
     return {
-      FX_RATE, marketMeta, tabs, currentTab, currentTabName,
-      marketFilterOptions, marketFilter,
-      fmtNum, fmtPct,
-      toasts, confirmDialog, runConfirm,
-      holdings, costMethodOptions, costMethod, filteredHoldings,
-      marketValueOf, profitOf, profitPctOf, weightOf,
-      totalAssetValueTwd, unrealizedTotal, unrealizedTotalPct,
-      transactions, txFilter, resetTxFilter, filteredTransactions,
-      showTxModal, editingTxId, pendingWatchId, txForm, txTotalAmount,
-      openAddTxModal, openEditTxModal, saveTx, confirmDeleteTx,
-      realizedLots, filteredRealizedLots, expandedLotId, toggleLotDetail, realizedStats,
-      dividends, cashflows, cashSubTabOptions, cashSubTab, totalDividendTwd, netCashflow, TWR, IRR,
-      showCashModal, cashForm, openAddCashModal, saveCash, confirmDeleteDividend, confirmDeleteCashflow,
-      watchlist, filteredWatchlist, gapPct, isNearTarget, nearTargetWatchlist,
-      showWatchModal, watchForm, openAddWatchModal, lookupSymbolName, saveWatch, confirmRemoveWatch, convertToTransaction,
+      // 基礎
+      marketMeta, tabs, currentTab, currentTabName, currentApis,
+      marketFilterOptions, marketFilter, aggMarket, settings,
+      fmtNum, fmtAmt, fmtPct, signed, signedPct, lotLabel, pnlClass, isTwEtf, isTwEtfSymbol,
+      toasts, confirmDialog, runConfirm, closeTopmostOverlay, resetDemoData,
+      // 持股
+      holdings, filteredHoldings, weightOf,
+      costMethodOptions, costMethodLabel, costMethodHint,
+      portfolioValueTwd, filteredPortfolioValueTwd, cashBalanceTwd, accountValueTwd,
+      unrealizedTotal, unrealizedTotalPct,
+      allocModeOptions, allocMode, allocChartEl,
+      // 交易
+      transactions, txFilter, resetTxFilter, filteredTransactions, pagedTransactions,
+      txPage, txPageCount, sortTxBy, sortIcon, txTypeLabel, txTypeBadge, recentTransactions,
+      showTxModal, editingTxId, pendingWatchId, txForm, txNetAmount, txSharesInLots, sellPreview,
+      openAddTxModal, openEditTxModal, autofillTxName, saveTx, confirmDeleteTx,
+      // 匯入匯出
+      CSV_HEADER, SAMPLE_CSV, showImportModal, importText, importPreview,
+      onImportFile, commitImport, downloadTemplate, exportCsv,
+      // 已實現
+      filteredRealizedLots, expandedLotId, toggleLotDetail, realizedStats,
+      periodOptions, periodMode, periodSummary,
+      equityModeOptions, equityMode, monthlyChartEl, equityChartEl,
+      // 現金流
+      cashflows, filteredDividends, dividends, cashSubTabOptions, cashSubTab,
+      totalDividendTwd, netCashflow, twrApprox, irrValue,
+      showCashModal, cashForm, isDividendKind, openAddCashModal, saveCash,
+      confirmDeleteDividend, confirmDeleteCashflow,
+      dividendModeOptions, pnlColorOptions,
+      // 觀察名單
+      watchlist, filteredWatchlist, gapPct, isNearTarget, nearTargetWatchlist, reachedWatchlist,
+      showWatchModal, editingWatchId, watchForm, watchCurrentPrice,
+      openAddWatchModal, openEditWatchModal, lookupSymbolName, saveWatch, confirmRemoveWatch, convertToTransaction,
     };
   },
 }).mount('#app');

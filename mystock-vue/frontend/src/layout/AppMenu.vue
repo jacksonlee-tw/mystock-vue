@@ -14,7 +14,20 @@ const model = computed(() => [
             { label: '大盤指數', icon: 'pi pi-fw pi-globe', to: '/index/tw/TWII' },
             { label: '類股輪動', icon: 'pi pi-fw pi-sync', to: '/indices/sectors' },
             { label: '策略警示看板', icon: 'pi pi-fw pi-bell', to: '/alerts' },
+            { label: '全市場代碼查詢', icon: 'pi pi-fw pi-table', to: '/stocks/symbols' },
             { label: '股票與爬蟲管理', icon: 'pi pi-fw pi-cog', to: '/stocks', loading: isRunning.value }
+        ]
+    },
+    {
+        label: '投資記帳',
+        items: [
+            { label: '觀察名單', icon: 'pi pi-fw pi-eye', to: '/portfolio/watchlist' },
+            { label: '儀表板總覽', icon: 'pi pi-fw pi-wallet', to: '/portfolio' },
+            { label: '交易紀錄', icon: 'pi pi-fw pi-list', to: '/portfolio/transactions' },
+            { label: '持股總覽', icon: 'pi pi-fw pi-briefcase', to: '/portfolio/holdings' },
+            { label: '已實現損益', icon: 'pi pi-fw pi-money-bill', to: '/portfolio/realized' },
+            { label: '現金流/股利', icon: 'pi pi-fw pi-sync', to: '/portfolio/cashflow' },
+            { label: '記帳設定', icon: 'pi pi-fw pi-cog', to: '/portfolio/settings' }
         ]
     },
     {

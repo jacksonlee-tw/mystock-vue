@@ -88,12 +88,15 @@
     </div>
 
     <div class="p-6 max-w-7xl mx-auto space-y-6">
-      <div v-if="loading" class="flex flex-col items-center justify-center p-12 card bg-surface-0 dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700">
+      <!-- 初次載入中狀態：只有在還沒有任何資料可顯示時才整頁顯示 spinner，比照 CLAUDE.md「Hard rules」與
+           StockDashboard.vue 的作法——切換週期/範圍時 chartData 已存在，不能整塊卸載內容，否則頁面變矮，
+           瀏覽器會把捲動位置重置到頂部。 -->
+      <div v-if="loading && !chartData" class="flex flex-col items-center justify-center p-12 card bg-surface-0 dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700">
         <i class="pi pi-spin pi-spinner text-primary text-4xl mb-3"></i>
         <p class="text-sm font-semibold text-surface-600 dark:text-surface-400">正在加載指數數據...</p>
       </div>
 
-      <div v-else-if="error" class="card p-6 border border-red-300 bg-red-50 dark:bg-red-900/20 rounded-2xl text-red-700 dark:text-red-300">
+      <div v-else-if="error && !chartData" class="card p-6 border border-red-300 bg-red-50 dark:bg-red-900/20 rounded-2xl text-red-700 dark:text-red-300">
         <div class="flex items-center gap-3">
           <i class="pi pi-exclamation-circle text-2xl"></i>
           <div>
@@ -104,62 +107,72 @@
       </div>
 
       <template v-else-if="chartData">
-        <!-- KPI 卡列（大盤指數功能規劃書 §5.3）-->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div class="card bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm flex flex-col justify-between">
-            <span class="text-xs font-bold tracking-wide uppercase text-surface-400 mb-2">當日區間 ({{ summary.date }})</span>
-            <div class="num text-2xl font-black text-surface-900 dark:text-surface-0 mb-1.5">
-              {{ formatIndexValue(summary.low) }} <span class="text-surface-300 dark:text-surface-600 font-normal mx-1">–</span> {{ formatIndexValue(summary.high) }}
-            </div>
-            <div class="text-xs font-medium text-surface-500">當日最低 / 最高</div>
+        <div class="relative">
+          <div v-if="loading" class="absolute inset-0 z-10 flex items-start justify-center pt-24 bg-surface-0/60 dark:bg-surface-900/60 rounded-2xl">
+            <i class="pi pi-spin pi-spinner text-primary text-3xl"></i>
           </div>
+          <div :class="{ 'opacity-50 pointer-events-none transition-opacity duration-150': loading }" class="space-y-6">
+            <!-- KPI 卡列（大盤指數功能規劃書 §5.3）
+                 !m-0：蓋掉全域 .card { margin-bottom: 2rem; &:last-child { margin-bottom: 0 } }（_utils.scss），
+                 否則 grid 裡剛好排到最後的那張卡少了底部留白，stretch 出來會比同列其他卡高，見 CLAUDE.md
+                 「Hard rules」。 -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div class="card !m-0 bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm flex flex-col justify-between">
+                <span class="text-xs font-bold tracking-wide uppercase text-surface-400 mb-2">當日區間 ({{ summary.date }})</span>
+                <div class="num text-2xl font-black text-surface-900 dark:text-surface-0 mb-1.5">
+                  {{ formatIndexValue(summary.low) }} <span class="text-surface-300 dark:text-surface-600 font-normal mx-1">–</span> {{ formatIndexValue(summary.high) }}
+                </div>
+                <div class="text-xs font-medium text-surface-500">當日最低 / 最高</div>
+              </div>
 
-          <div
-            v-if="hasTurnover"
-            @click="activeChartId = 'index-turnover'"
-            class="card bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm hover:shadow-md hover:border-primary/60 hover:-translate-y-0.5 cursor-pointer transition-all duration-200 flex flex-col justify-between"
-          >
-            <span class="text-xs font-bold tracking-wide uppercase text-surface-400 mb-2">成交金額</span>
-            <div class="num text-2xl font-black text-surface-900 dark:text-surface-0 mb-1.5">{{ formatTurnover(latestTurnover) }}</div>
-            <div class="text-xs font-medium text-surface-500">{{ market === 'us' ? '估算值' : '全市場合計' }}</div>
-          </div>
+              <div
+                v-if="hasTurnover"
+                @click="activeChartId = 'index-turnover'"
+                class="card !m-0 bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm hover:shadow-md hover:border-primary/60 hover:-translate-y-0.5 cursor-pointer transition-all duration-200 flex flex-col justify-between"
+              >
+                <span class="text-xs font-bold tracking-wide uppercase text-surface-400 mb-2">成交金額</span>
+                <div class="num text-2xl font-black text-surface-900 dark:text-surface-0 mb-1.5">{{ formatTurnover(latestTurnover) }}</div>
+                <div class="text-xs font-medium text-surface-500">{{ market === 'us' ? '估算值' : '全市場合計' }}</div>
+              </div>
 
-          <div class="card bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm flex flex-col justify-between">
-            <span class="text-xs font-bold tracking-wide uppercase text-surface-400 mb-2">距季線 (MA60)</span>
-            <div class="num text-2xl font-black mb-1.5" :style="{ color: bias60 !== null ? colorForValue(bias60) : undefined }">
-              {{ bias60 !== null ? formatBias(bias60) : '—' }}
+              <div class="card !m-0 bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm flex flex-col justify-between">
+                <span class="text-xs font-bold tracking-wide uppercase text-surface-400 mb-2">距季線 (MA60)</span>
+                <div class="num text-2xl font-black mb-1.5" :style="{ color: bias60 !== null ? colorForValue(bias60) : undefined }">
+                  {{ bias60 !== null ? formatBias(bias60) : '—' }}
+                </div>
+                <div class="text-xs font-medium text-surface-500">乖離率</div>
+              </div>
+
+              <div class="card !m-0 bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm flex flex-col justify-between">
+                <span class="text-xs font-bold tracking-wide uppercase text-surface-400 mb-2">距年線 (MA240)</span>
+                <div class="num text-2xl font-black mb-1.5" :style="{ color: bias240 !== null ? colorForValue(bias240) : undefined }">
+                  {{ bias240 !== null ? formatBias(bias240) : '—' }}
+                </div>
+                <div class="text-xs font-medium text-surface-500">乖離率 ・ {{ maPositionLabel }}</div>
+              </div>
             </div>
-            <div class="text-xs font-medium text-surface-500">乖離率</div>
-          </div>
 
-          <div class="card bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm flex flex-col justify-between">
-            <span class="text-xs font-bold tracking-wide uppercase text-surface-400 mb-2">距年線 (MA240)</span>
-            <div class="num text-2xl font-black mb-1.5" :style="{ color: bias240 !== null ? colorForValue(bias240) : undefined }">
-              {{ bias240 !== null ? formatBias(bias240) : '—' }}
+            <div class="flex items-center justify-between border-b border-surface-200 dark:border-surface-700 pb-2">
+              <h3 class="font-bold text-sm text-surface-700 dark:text-surface-300 flex items-center gap-2">
+                <i class="pi pi-chart-line text-primary"></i> 指數走勢圖表
+              </h3>
+              <div class="flex items-center gap-3">
+                <button
+                  @click="exportCSV"
+                  class="px-3 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+                >
+                  <i class="pi pi-file-excel"></i> 匯出 CSV
+                </button>
+                <span class="text-xs text-surface-500">資料筆數: <span class="num font-bold text-surface-900 dark:text-surface-0">{{ chartData.dates.length }}</span> 筆</span>
+              </div>
             </div>
-            <div class="text-xs font-medium text-surface-500">乖離率 ・ {{ maPositionLabel }}</div>
+
+            <StockCharts v-model="activeChartId" :chartData="chartData" :stockId="code" :period="selectedPeriod" :months="selectedMonths" :market="market" kind="index" />
+
+            <!-- 多指數比較（大盤指數功能規劃書 FR-IDX-06） -->
+            <IndexCompareWidget :baseCode="code" :baseMarket="market" :period="selectedPeriod" :months="selectedMonths" />
           </div>
         </div>
-
-        <div class="flex items-center justify-between border-b border-surface-200 dark:border-surface-700 pb-2">
-          <h3 class="font-bold text-sm text-surface-700 dark:text-surface-300 flex items-center gap-2">
-            <i class="pi pi-chart-line text-primary"></i> 指數走勢圖表
-          </h3>
-          <div class="flex items-center gap-3">
-            <button
-              @click="exportCSV"
-              class="px-3 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
-            >
-              <i class="pi pi-file-excel"></i> 匯出 CSV
-            </button>
-            <span class="text-xs text-surface-500">資料筆數: <span class="num font-bold text-surface-900 dark:text-surface-0">{{ chartData.dates.length }}</span> 筆</span>
-          </div>
-        </div>
-
-        <StockCharts v-model="activeChartId" :chartData="chartData" :stockId="code" :period="selectedPeriod" :months="selectedMonths" :market="market" kind="index" />
-
-        <!-- 多指數比較（大盤指數功能規劃書 FR-IDX-06） -->
-        <IndexCompareWidget :baseCode="code" :baseMarket="market" :period="selectedPeriod" :months="selectedMonths" />
       </template>
     </div>
   </div>
@@ -168,6 +181,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useToast } from 'primevue/usetoast';
 import Select from 'primevue/select';
 import StockCharts from '@/components/StockCharts.vue';
 import IndexCompareWidget from '@/components/IndexCompareWidget.vue';
@@ -178,6 +192,7 @@ import { useMarket } from '@/composables/useMarket';
 
 const route = useRoute();
 const router = useRouter();
+const toast = useToast();
 const { currentMarket } = useMarket();
 
 const availableIndices = ref([]);
@@ -304,6 +319,9 @@ async function fetchAvailableIndices() {
 async function loadIndexData() {
   loading.value = true;
   error.value = null;
+  // 切換週期/範圍時畫面會保留舊的 chartData 原地顯示（見 template，比照 StockDashboard.vue 與 CLAUDE.md
+  // 「Hard rules」），所以背景刷新失敗時走 toast 提示，不能只靠 error && !chartData 的整頁錯誤畫面。
+  const isBackgroundRefresh = chartData.value !== null;
   try {
     const res = await indexApi.getChartData(code.value, selectedPeriod.value, selectedMonths.value, route.params.market || currentMarket.value);
     if (res.success) {
@@ -315,6 +333,9 @@ async function loadIndexData() {
     error.value = err.response?.data?.error?.message || err.response?.data?.detail || err.message || '連線後端 API 失敗';
   } finally {
     loading.value = false;
+    if (error.value && isBackgroundRefresh) {
+      toast.add({ severity: 'error', summary: '刷新資料失敗', detail: error.value, life: 4000 });
+    }
   }
 }
 

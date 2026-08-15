@@ -63,15 +63,23 @@
             v-for="stock in category.stocks"
             :key="stock.stock_id + '-' + selectedPeriod"
             @click="goToItem(stock)"
-            class="card p-3 rounded-xl border bg-surface-0 dark:bg-surface-900 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-lg transition-all"
+            class="card !m-0 !p-3 rounded-xl border bg-surface-0 dark:bg-surface-900 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-lg transition-all"
             :class="getCardBorderClass(stock)"
           >
             <div class="flex justify-between items-start mb-1.5">
-              <div>
-                <div class="flex items-center gap-1 flex-wrap">
-                  <span class="text-sm font-bold text-surface-900 dark:text-surface-0">{{ stock.stock_name }}</span>
+              <div class="min-w-0 flex-1">
+                <!-- 名稱長度落差很大（例如「發行量加權股價指數」vs「台泥」）：獨立成一整行、用
+                     line-clamp-2 + min-h 固定保留 2 行高度，不管實際字數多少都佔一樣的空間，
+                     同一列卡片才不會有的大有的小（CLAUDE.md「Hard rules」）。徽章移到下面跟代號
+                     同一行，不跟名稱搶橫向空間（名稱那排如果還要塞徽章，可用寬度會被壓得太窄，
+                     單行截斷幾乎看不到字）。 -->
+                <div class="text-sm font-bold text-surface-900 dark:text-surface-0 line-clamp-2 min-h-[2.5rem] leading-tight" :title="stock.stock_name">{{ stock.stock_name }}</div>
+                <div class="flex items-center gap-1 mt-0.5 min-w-0">
+                  <!-- 代號長度也不固定（4~6 碼），跟徽章擠在這條窄窄的欄寬裡容易溢出卡片邊界；
+                       徽章（TWSE/指數）字短且固定，保留 shrink-0，代號改成可截斷的那個。 -->
+                  <span class="text-[11px] text-surface-500 font-medium truncate min-w-0">{{ stock.stock_id }}</span>
                   <span
-                    class="px-1 py-0.5 text-[9px] font-bold rounded border"
+                    class="px-1 py-0.5 text-[9px] font-bold rounded border shrink-0"
                     :class="stock.is_index
                       ? 'bg-amber-500 text-white border-amber-500'
                       : 'bg-primary text-primary-contrast border-primary'"
@@ -80,21 +88,31 @@
                   </span>
                   <span
                     v-if="stock.industry_tag"
-                    class="px-1 py-0.5 text-[9px] font-bold rounded border bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700"
+                    class="px-1 py-0.5 text-[9px] font-bold rounded border bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700 truncate"
                   >
                     {{ stock.industry_tag }}
                   </span>
                 </div>
-                <div class="text-[11px] text-surface-500 font-medium">{{ stock.stock_id }}</div>
               </div>
-              <div class="text-right">
-                <div class="text-sm font-black" :class="getPriceColorClass(stock)">
-                  <span v-if="!stock.is_index">{{ marketMeta.currency_symbol }}</span>{{ formatCardPrice(stock.latest_close) }}
+              <div class="flex items-start gap-1 shrink-0">
+                <div class="text-right">
+                  <div class="text-sm font-black" :class="getPriceColorClass(stock)">
+                    <span v-if="!stock.is_index">{{ marketMeta.currency_symbol }}</span>{{ formatCardPrice(stock.latest_close) }}
+                  </div>
+                  <div class="text-[11px] font-bold" :class="getPriceColorClass(stock)">
+                    {{ stock.change > 0 ? '+' : '' }}{{ stock.change.toFixed(2) }}
+                    ({{ stock.change > 0 ? '+' : '' }}{{ stock.change_percent.toFixed(2) }}%)
+                  </div>
                 </div>
-                <div class="text-[11px] font-bold" :class="getPriceColorClass(stock)">
-                  {{ stock.change > 0 ? '+' : '' }}{{ stock.change.toFixed(2) }}
-                  ({{ stock.change > 0 ? '+' : '' }}{{ stock.change_percent.toFixed(2) }}%)
-                </div>
+                <!-- 指數不是可買賣的個股，不提供加入觀察名單（設計文件 §五僅適用個股） -->
+                <WatchlistStarButton
+                  v-if="!stock.is_index"
+                  :market="currentMarket"
+                  :symbol="stock.stock_id"
+                  :name="stock.stock_name"
+                  :price="stock.latest_close"
+                  size="sm"
+                />
               </div>
             </div>
 
@@ -128,6 +146,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { LineChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
+import WatchlistStarButton from '@/components/WatchlistStarButton.vue';
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent]);
 
