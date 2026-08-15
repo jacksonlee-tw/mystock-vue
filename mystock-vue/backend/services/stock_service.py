@@ -46,12 +46,21 @@ async def _list_stock_ids_db(market: str) -> List[str]:
     symbols = await StockRepository().list_symbols(market_type=market)
     return [s["symbol"] for s in symbols]
 
-async def load_stock_data(stock_id: str, market: str = "tw", source: Optional[str] = None) -> dict:
+async def load_stock_data(stock_id: str, market: str = "tw", source: Optional[str] = None,
+                           kind: str = "stock") -> dict:
     """讀取單一標的的每日資料；依 DATA_SOURCE 決定讀 JSON 檔案或 PostgreSQL（見 phase3_5 設計文件第 2 節）。
 
     `source` 可明確指定覆蓋 DATA_SOURCE（供 scripts/compare_data_sources.py 兩邊比對使用），一般呼叫端不需傳入。
+
+    `kind='index'`：讀取大盤指數而非個股（見大盤指數功能規劃書 ADR-I2）。只影響 JSON 路徑解析
+    （改讀 data/{market}/_indices/{code}.json），PostgreSQL 分支邏輯完全不變 —— daily_stock_data
+    以 symbol 為鍵、指數與個股同表（規劃書 ADR-I1），不需要（也不應該）為此新增
+    get_data_source() 的分支。
     """
     if (source or get_data_source()) != "postgres":
+        if kind == "index":
+            from services.index_fetcher import load_index_json
+            return load_index_json(stock_id, market)
         return load_stock_json(stock_id, market)
 
     repo = StockRepository()
@@ -261,10 +270,11 @@ def aggregate_stock_data(data: Dict[str, Any], period: str = "daily", months: in
     return result
 
 async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: int = 3, market: str = "tw",
-                                   source: Optional[str] = None) -> Dict[str, Any]:
-    raw_data = await load_stock_data(stock_id, market, source=source)
+                                   source: Optional[str] = None, kind: str = "stock") -> Dict[str, Any]:
+    raw_data = await load_stock_data(stock_id, market, source=source, kind=kind)
     if not raw_data:
-        return {"error": f"找不到股票 {stock_id} 的數據資料"}
+        label = "指數" if kind == "index" else "股票"
+        return {"error": f"找不到{label} {stock_id} 的數據資料"}
 
     aggregated_records = aggregate_stock_data(raw_data, period=period, months=months)
     if not aggregated_records:

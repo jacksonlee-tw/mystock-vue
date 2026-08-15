@@ -38,6 +38,24 @@ const router = createRouter({
                     component: () => import('@/views/ChartDetailView.vue')
                 },
                 {
+                    // 大盤指數詳細頁（大盤指數功能規劃書 §10.1）：與個股路由平行但獨立，
+                    // 共用 StockCharts.vue（kind='index'）與 ChartDetailView.vue（見下方 meta.kind）
+                    path: '/index/:market/:code',
+                    name: 'index-detail',
+                    component: () => import('@/views/IndexDetailView.vue')
+                },
+                {
+                    path: '/index/:market/:code/chart/:chartType',
+                    name: 'index-chart-detail',
+                    component: () => import('@/views/ChartDetailView.vue'),
+                    meta: { kind: 'index' }
+                },
+                {
+                    path: '/indices/sectors',
+                    name: 'sector-rotation',
+                    component: () => import('@/views/SectorRotationView.vue')
+                },
+                {
                     path: '/stocks',
                     name: 'stock-management',
                     component: () => import('@/views/StockManagement.vue')

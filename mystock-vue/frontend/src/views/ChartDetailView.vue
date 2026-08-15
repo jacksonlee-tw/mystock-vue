@@ -15,7 +15,7 @@
             <i class="pi pi-home"></i>
           </button>
           <button
-            @click="router.push(`/stock/${market}/${stockId}`)"
+            @click="router.push(`${basePath}/${market}/${stockId}`)"
             class="px-2.5 py-1 text-xs font-bold bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg flex items-center gap-1 transition-colors"
           >
             <i class="pi pi-arrow-left"></i> <span class="hidden sm:inline">返回儀表板</span>
@@ -133,6 +133,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { stockApi } from '@/service/stockApi';
+import { indexApi } from '@/service/indexApi';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart, LineChart, CandlestickChart } from 'echarts/charts';
@@ -164,9 +165,14 @@ use([
 const route = useRoute();
 const router = useRouter();
 
-const stockId = ref(route.params.id || '2330');
+// 指數／個股共用本頁（大盤指數功能規劃書 §10.1）：由路由 meta.kind 判斷，
+// 決定要呼叫哪個 API、顯示哪些頁籤、返回鍵導去哪裡。
+const kind = computed(() => route.meta.kind || 'stock');
+const basePath = computed(() => (kind.value === 'index' ? '/index' : '/stock'));
+
+const stockId = ref(route.params.id || route.params.code || '2330');
 const market = ref(route.params.market || 'tw');
-const chartType = ref(route.params.chartType || 'institutional');
+const chartType = ref(route.params.chartType || (kind.value === 'index' ? 'kline' : 'institutional'));
 const period = ref(route.query.period || 'daily');
 const months = ref(Number(route.query.months) || 3);
 
@@ -174,7 +180,7 @@ const loading = ref(true);
 const error = ref(null);
 const chartData = ref(null);
 
-const chartTabs = [
+const stockChartTabs = [
   { value: 'institutional', label: '三大法人', icon: 'pi-users' },
   { value: 'kline', label: 'K線圖', icon: 'pi-chart-bar' },
   { value: 'amount', label: '估算金額', icon: 'pi-dollar' },
@@ -183,7 +189,15 @@ const chartTabs = [
   { value: 'short-ratio', label: '券資比', icon: 'pi-percentage' }
 ];
 
-const currentTabInfo = computed(() => chartTabs.find(t => t.value === chartType.value));
+// 指數目前只有 OHLCV（P1 爬蟲範圍，見 services/index_fetcher.py），頁籤只給 K 線圖／成交金額，
+// 不假裝有三大法人／融資融券資料（P-4「誠實標示資料缺口」）。
+const indexChartTabs = [
+  { value: 'kline', label: 'K線圖', icon: 'pi-chart-bar' },
+  { value: 'index-turnover', label: '成交金額', icon: 'pi-dollar' }
+];
+
+const chartTabs = computed(() => (kind.value === 'index' ? indexChartTabs : stockChartTabs));
+const currentTabInfo = computed(() => chartTabs.value.find(t => t.value === chartType.value));
 const currentExplanation = computed(() => chartExplanations[chartType.value] || null);
 const dates = computed(() => chartData.value?.dates || []);
 const stockName = computed(() => chartData.value?.stock_name || '');
@@ -218,10 +232,11 @@ onMounted(() => {
   loadStockData();
 });
 
-watch([() => route.params.id, () => route.params.market, () => route.params.chartType], ([newId, newMarket, newType]) => {
+watch([() => route.params.id, () => route.params.code, () => route.params.market, () => route.params.chartType], ([newId, newCode, newMarket, newType]) => {
   let shouldReload = false;
-  if (newId && newId !== stockId.value) {
-    stockId.value = newId;
+  const combinedId = newId || newCode;
+  if (combinedId && combinedId !== stockId.value) {
+    stockId.value = combinedId;
     shouldReload = true;
   }
   if (newMarket && newMarket !== market.value) {
@@ -254,14 +269,16 @@ async function loadStockData() {
   loading.value = true;
   error.value = null;
   try {
-    const res = await stockApi.getChartData(stockId.value, period.value, months.value, market.value);
+    const res = kind.value === 'index'
+      ? await indexApi.getChartData(stockId.value, period.value, months.value, market.value)
+      : await stockApi.getChartData(stockId.value, period.value, months.value, market.value);
     if (res.success) {
       chartData.value = res.data;
     } else {
       error.value = '載入資料時發生未知錯誤';
     }
   } catch (err) {
-    error.value = err.response?.data?.detail || err.message || '連線後端 API 失敗';
+    error.value = err.response?.data?.error?.message || err.response?.data?.detail || err.message || '連線後端 API 失敗';
   } finally {
     loading.value = false;
   }
@@ -270,7 +287,7 @@ async function loadStockData() {
 function switchChartType(type) {
   // 使用 replace 避免堆疊瞬戒歷史
   router.replace({
-    path: `/stock/${market.value}/${stockId.value}/chart/${type}`,
+    path: `${basePath.value}/${market.value}/${stockId.value}/chart/${type}`,
     query: { period: period.value, months: months.value }
   });
 }
@@ -414,6 +431,17 @@ const currentChartOption = computed(() => {
         yAxis: { type: 'value', name: '%', scale: true },
         series: [{ name: '券資比', type: 'line', data: ratios, smooth: true, itemStyle: { color: '#64748b' }, lineStyle: { width: 3 } }]
       };
+    case 'index-turnover': {
+      const amounts = (chartData.value?.records || []).map((r) => r.amount || 0);
+      return {
+        tooltip: { trigger: 'axis' },
+        dataZoom: dataZoomConfig,
+        grid: { left: '3%', right: '4%', bottom: '15%', top: '5%', containLabel: true },
+        xAxis: { type: 'category', data: d },
+        yAxis: { type: 'value', name: market.value === 'us' ? '美元' : '元' },
+        series: [{ name: '成交金額', type: 'bar', data: amounts, itemStyle: { color: '#0ea5e9' } }]
+      };
+    }
     default:
       return {};
   }

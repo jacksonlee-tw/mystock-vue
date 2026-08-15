@@ -240,6 +240,9 @@
         <!-- 圖表視圖 -->
         <StockCharts v-if="viewMode === 'charts'" v-model="activeChartId" :chartData="chartData" :stockId="selectedStock" :period="selectedPeriod" :months="selectedMonths" :market="market" />
 
+        <!-- 個股 vs 大盤（大盤指數功能規劃書 FR-IDX-50） -->
+        <VsIndexWidget v-if="viewMode === 'charts'" :stockId="selectedStock" :market="market" :period="selectedPeriod" :months="Math.max(selectedMonths, 3)" />
+
         <!-- 明細數據表格視圖 -->
         <div v-else-if="viewMode === 'table'" class="card p-4 shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900">
           <div class="flex items-center justify-between mb-4">
@@ -328,6 +331,7 @@ import { stockApi } from '@/service/stockApi';
 import { colorForValue as colorForValueRaw } from '@/utils/marketColors';
 import { formatPrice, formatChange, formatLots, formatPercent } from '@/utils/format';
 import StockCharts from '@/components/StockCharts.vue';
+import VsIndexWidget from '@/components/VsIndexWidget.vue';
 import { useMarket } from '@/composables/useMarket';
 
 const route = useRoute();

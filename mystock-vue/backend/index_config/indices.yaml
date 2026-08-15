@@ -1,0 +1,60 @@
+# 大盤指數定義檔（見 docs/10.加權指數/大盤指數功能規劃書.md 第 4.1 節）。
+#
+# 新增／調整指數只需編輯本檔，不需要修改任何程式碼（規劃書 AC-IDX-10）。
+# 擺放位置比照 strategy_config/strategies.yaml 的慣例：純資料夾、不含 __init__.py，
+# 由 services/index_fetcher.py 的 load_index_definitions() 直接 open() 讀取。
+#
+# 欄位說明：
+#   code            系統代號，不含 '^'（見規劃書 §1.2「代號設計」）；對應 JSON 檔名與
+#                   Postgres daily_stock_data.symbol。
+#   market          'tw' | 'us'
+#   name / short_name  顯示用全名／簡稱
+#   source          'twse'（台股，見 services/index_fetcher.py 的 TWSE 擷取邏輯）
+#                   | 'yfinance'（美股）
+#   external_symbol 資料來源實際查詢用的代號（例如 yfinance 的 '^DJI'）
+#   display_order   首頁卡片與清單的排序（越小越前面）
+#
+# Phase 1 範圍（大盤指數功能規劃書 §1.2）：台股加權指數 + 美股四大指數。
+# 櫃買指數、未含金融/電子指數、類股指數、VIX 等屬於 Phase 2 以後，待對應抓取邏輯
+# 到位後再於此加入定義（規劃書附錄 A 需先實測驗證資料來源）。
+
+indices:
+  - code: TWII
+    market: tw
+    name: 發行量加權股價指數
+    short_name: 加權指數
+    source: twse
+    external_symbol: "^TWII"
+    display_order: 1
+
+  - code: DJI
+    market: us
+    name: 道瓊工業指數
+    short_name: 道瓊
+    source: yfinance
+    external_symbol: "^DJI"
+    display_order: 2
+
+  - code: GSPC
+    market: us
+    name: 標普 500 指數
+    short_name: S&P 500
+    source: yfinance
+    external_symbol: "^GSPC"
+    display_order: 3
+
+  - code: IXIC
+    market: us
+    name: 那斯達克綜合指數
+    short_name: 那斯達克
+    source: yfinance
+    external_symbol: "^IXIC"
+    display_order: 4
+
+  - code: SOX
+    market: us
+    name: 費城半導體指數
+    short_name: 費半
+    source: yfinance
+    external_symbol: "^SOX"
+    display_order: 5

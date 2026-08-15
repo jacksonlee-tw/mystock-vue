@@ -25,6 +25,12 @@ export const stockApi = {
         return response.data;
     },
 
+    // 取得個股產業標籤對照表（大盤指數功能規劃書 §8.2）：{ symbol: { industry_code, industry_name } }
+    async getIndustries(market = 'tw') {
+        const response = await apiClient.get('/stocks/industries', { params: { market } });
+        return response.data;
+    },
+
     // 取得所有可用股票資料庫與元資料
     async getAvailableStocks(market = null) {
         const params = {};
@@ -85,6 +91,14 @@ export const stockApi = {
     // 查詢抓取狀態
     async getFetchStatus() {
         const response = await apiClient.get('/fetch/status');
+        return response.data;
+    },
+
+    // 個股 vs 大盤 Rebase 比較（大盤指數功能規劃書 FR-IDX-50）
+    async getVsIndex(stockId, market = 'tw', benchmark = null, period = 'daily', months = 12) {
+        const params = { market, period, months };
+        if (benchmark) params.benchmark = benchmark;
+        const response = await apiClient.get(`/stocks/${stockId}/vs-index`, { params });
         return response.data;
     },
 

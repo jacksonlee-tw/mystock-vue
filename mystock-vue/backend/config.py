@@ -18,6 +18,8 @@ VALID_DATA_SOURCES = ("json", "postgres")
 DEFAULT_BACKFILL_MAX_DAYS = 90
 DEFAULT_STRATEGY_CONFIG_PATH = os.path.join(BASE_DIR, "strategy_config", "strategies.yaml")
 DEFAULT_ALERT_COOLDOWN_DAYS = 1
+DEFAULT_INDEX_CONFIG_PATH = os.path.join(BASE_DIR, "index_config", "indices.yaml")
+DEFAULT_INDEX_HISTORY_YEARS = 5
 
 # ── 每日抓取＋掃描排程（見 services/scheduler.py）─────────────────────────
 # 時間一律以 SCHEDULE_TIMEZONE 解讀；台股盤後 14:30、美股收盤後隔日台北時間 06:00。
@@ -113,6 +115,19 @@ def get_alert_cooldown_days() -> int:
         return int(os.getenv("ALERT_COOLDOWN_DAYS", str(DEFAULT_ALERT_COOLDOWN_DAYS)))
     except ValueError:
         return DEFAULT_ALERT_COOLDOWN_DAYS
+
+def get_index_config_path() -> str:
+    """指數定義檔（YAML）路徑，見大盤指數功能規劃書第 4.1 節。"""
+    load_dotenv(ENV_PATH, override=True)
+    return os.getenv("INDEX_CONFIG_PATH", DEFAULT_INDEX_CONFIG_PATH)
+
+def get_index_history_years() -> int:
+    """歷史回補預設年數，供 scripts/init_index_history.py 使用（大盤指數功能規劃書第 3.3 節）。"""
+    load_dotenv(ENV_PATH, override=True)
+    try:
+        return int(os.getenv("INDEX_HISTORY_YEARS", str(DEFAULT_INDEX_HISTORY_YEARS)))
+    except ValueError:
+        return DEFAULT_INDEX_HISTORY_YEARS
 
 
 # ── 排程設定 ──────────────────────────────────────────────────────────────

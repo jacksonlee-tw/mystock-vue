@@ -109,7 +109,8 @@ const props = defineProps({
   period: String,
   months: Number,
   market: String, // 'tw' | 'us'；未提供時 getUpDownColor 退回台股慣例
-  modelValue: { type: String, default: null } // 目前顯示中的圖表 id（v-model，供父層 KPI 卡點選切換）
+  modelValue: { type: String, default: null }, // 目前顯示中的圖表 id（v-model，供父層 KPI 卡點選切換）
+  kind: { type: String, default: 'stock' } // 'stock' | 'index'：決定「放大檢視」導去 /stock/... 還是 /index/...（大盤指數功能規劃書 ADR-I1，同一元件重用）
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -126,7 +127,10 @@ const widgetDefinitions = [
   { id: 'margin-short', title: '融券餘額', icon: 'pi-sort-alt', route: 'margin-short', panel: 'margin' },
   { id: 'short-ratio', title: '券資比', icon: 'pi-percentage', route: 'short-ratio', panel: 'margin' },
   { id: 'short', title: '空頭持倉', icon: 'pi-sort-alt', panel: 'short', emptyPlaceholder: '歷史空頭趨勢圖表即將支援' },
-  { id: 'holders', title: '機構持股', icon: 'pi-users', panel: 'holders', emptyPlaceholder: '歷史機構持股趨勢圖表即將支援' }
+  { id: 'holders', title: '機構持股', icon: 'pi-users', panel: 'holders', emptyPlaceholder: '歷史機構持股趨勢圖表即將支援' },
+  // 指數專用（大盤指數功能規劃書 FR-IDX-04）：panel='index' 只在後端 meta.panels 含 'index' 時出現，
+  // 目前只有指數的 chart-data 會回傳這個 panel（見 services/index_service.py 的 get_index_chart_data）。
+  { id: 'index-turnover', title: '成交金額', icon: 'pi-dollar', route: 'index-turnover', panel: 'index' }
 ];
 
 const availableWidgets = computed(() => {
@@ -157,14 +161,16 @@ function getOption(id) {
     case 'margin-long': return marginLongOption.value;
     case 'margin-short': return marginShortOption.value;
     case 'short-ratio': return shortRatioOption.value;
+    case 'index-turnover': return indexTurnoverOption.value;
     default: return null;
   }
 }
 
 function goToDetail(chartType) {
   if (props.stockId && props.market) {
+    const base = props.kind === 'index' ? '/index' : '/stock';
     router.push({
-      path: `/stock/${props.market}/${props.stockId}/chart/${chartType}`,
+      path: `${base}/${props.market}/${props.stockId}/chart/${chartType}`,
       query: { period: props.period, months: props.months }
     });
   }
@@ -336,6 +342,29 @@ const estimatedAmountOption = computed(() => {
             ]
           }
         }
+      }
+    ]
+  };
+});
+
+// 指數成交金額 Option（大盤指數功能規劃書 FR-IDX-04）：資料來源是 chartData.records 裡
+// 每日原始的 amount 欄位（K 線聚合時就已經帶著，不需要後端另外組一份陣列，見
+// services/index_service.py 對 meta.panels 的註解）。
+const indexTurnoverOption = computed(() => {
+  const records = props.chartData?.records || [];
+  const amounts = records.map((r) => r.amount || 0);
+  const unit = props.market === 'us' ? '美元' : '元';
+  return {
+    tooltip: { trigger: 'axis' },
+    grid: { left: '3%', right: '4%', bottom: '10%', top: '5%', containLabel: true },
+    xAxis: { type: 'category', data: dates.value },
+    yAxis: { type: 'value', name: unit },
+    series: [
+      {
+        name: '成交金額',
+        type: 'bar',
+        data: amounts,
+        itemStyle: { color: '#0ea5e9' }
       }
     ]
   };

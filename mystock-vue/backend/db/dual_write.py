@@ -26,6 +26,20 @@ def dual_write_daily_data(symbol: str, market_type: str, dated_records: dict) ->
         logger.warning(f"PostgreSQL 雙寫失敗 ({market_type}/{symbol}): {e}")
 
 
+def dual_write_symbol_industry(rows: list) -> None:
+    """個股產業標籤雙寫（大盤指數功能規劃書 §8.2）。rows: [{"symbol","market_type",
+    "industry_code","industry_name"}, ...]。同樣容錯：Postgres 失敗只記警告，
+    JSON（services/industry_fetcher.py 的 save_industries_json）才是主要儲存。"""
+    if not rows:
+        return
+    try:
+        from repositories.stock_repository import StockRepository
+
+        StockRepository().upsert_symbol_industry_sync(rows)
+    except Exception as e:
+        logger.warning(f"個股產業標籤 PostgreSQL 雙寫失敗: {e}")
+
+
 def dual_write_no_trading_days(market_type: str, dates) -> None:
     """把爬蟲探測到的非交易日寫入 market_no_trading_days（見 phase3_5 設計文件第 3.5 節）。"""
     if not dates:

@@ -10,3 +10,11 @@ __pycache__/
 data/*.json
 data/tw/*.json
 data/us/*.json
+
+# 大盤指數資料快取（見 services/index_fetcher.py），與個股資料同理不進版控
+data/tw/_indices/*.json
+data/us/_indices/*.json
+
+# 個股產業標籤快取（見 services/industry_fetcher.py），同理不進版控
+data/tw/_meta/*.json
+data/us/_meta/*.json

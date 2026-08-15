@@ -6,7 +6,7 @@ from typing import Any, Optional
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from db.models import CrawlerLog, DailyStockData, MarketNoTradingDay, Symbol
+from db.models import CrawlerLog, DailyStockData, MarketNoTradingDay, Symbol, SymbolIndustry
 from db.session import get_session_factory
 
 
@@ -233,6 +233,50 @@ class StockRepository:
             await session.execute(stmt)
             await session.commit()
 
+    # ── symbol_industry（個股產業標籤，見大盤指數功能規劃書 §8.2）─────────
+    async def upsert_symbol_industry(self, rows: list[dict]) -> None:
+        """rows: [{"symbol", "market_type", "industry_code", "industry_name"}, ...]。
+        比照 upsert_daily_data()：先確保 symbols 表有對應列（FK 依賴），industry_fetcher.py
+        可能獨立於價格爬蟲執行，不能假設 symbols 一定已存在。"""
+        if not rows:
+            return
+        async with self._session_factory() as session:
+            symbol_seen: dict[str, str] = {}
+            for row in rows:
+                symbol_seen.setdefault(row["symbol"], row["market_type"])
+            sym_stmt = pg_insert(Symbol).values(
+                [{"symbol": s, "market_type": m} for s, m in symbol_seen.items()]
+            )
+            sym_stmt = sym_stmt.on_conflict_do_nothing(index_elements=[Symbol.symbol])
+            await session.execute(sym_stmt)
+
+            stmt = pg_insert(SymbolIndustry).values(rows)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[SymbolIndustry.symbol],
+                set_={
+                    "market_type": stmt.excluded.market_type,
+                    "industry_code": stmt.excluded.industry_code,
+                    "industry_name": stmt.excluded.industry_name,
+                    "updated_at": func.now(),
+                },
+            )
+            await session.execute(stmt)
+            await session.commit()
+
+    async def list_symbol_industries(self, market_type: Optional[str] = None) -> list[dict]:
+        async with self._session_factory() as session:
+            stmt = select(SymbolIndustry)
+            if market_type:
+                stmt = stmt.where(SymbolIndustry.market_type == market_type)
+            result = await session.execute(stmt)
+            return [
+                {
+                    "symbol": r.symbol, "market_type": r.market_type,
+                    "industry_code": r.industry_code, "industry_name": r.industry_name,
+                }
+                for r in result.scalars().all()
+            ]
+
     # ── 給同步爬蟲模組使用的橋接方法（見 db/dual_write.py） ──────────────
     def upsert_daily_data_sync(self, rows: list[dict]) -> None:
         run_async(self.upsert_daily_data(rows))
@@ -242,3 +286,6 @@ class StockRepository:
 
     def add_no_trading_days_sync(self, market_type: str, dates, source: str = "probed") -> None:
         run_async(self.add_no_trading_days(market_type, dates, source))
+
+    def upsert_symbol_industry_sync(self, rows: list[dict]) -> None:
+        run_async(self.upsert_symbol_industry(rows))

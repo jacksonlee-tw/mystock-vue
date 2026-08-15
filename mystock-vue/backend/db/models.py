@@ -76,3 +76,14 @@ class MarketNoTradingDay(Base):
     trade_date: Mapped[date] = mapped_column(Date, primary_key=True)
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="probed")
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now())
+
+
+class SymbolIndustry(Base):
+    """個股產業標籤（大盤指數功能規劃書 §8.2），見 db/migration/V6__Create_symbol_industry.sql。"""
+    __tablename__ = "symbol_industry"
+
+    symbol: Mapped[str] = mapped_column(String(20), ForeignKey("symbols.symbol"), primary_key=True)
+    market_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    industry_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    industry_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now())
