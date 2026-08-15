@@ -3514,5 +3514,237 @@
     "suggested_action": "均線死亡交叉，趨勢轉弱，建議降低持股比重",
     "id": "alert-20260707-MU-001",
     "timestamp": "2026-08-14T00:01:20+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "moderate",
+    "trade_date": "2026-08-13",
+    "details": {
+      "close": 24.05,
+      "ma_period": 20,
+      "ma_value": 24.135,
+      "bias_percent": -0.3522
+    },
+    "filters_passed": [
+      "volume_confirm"
+    ],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "id": "alert-20260813-1101-001",
+    "timestamp": "2026-08-14T01:01:43+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-13",
+    "details": {
+      "close": 29.95,
+      "ma_period": 60,
+      "ma_value": 29.5917,
+      "bias_percent": 1.2108
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（28.7）",
+    "id": "alert-20260813-00981A-001",
+    "timestamp": "2026-08-14T01:01:43+08:00"
+  },
+  {
+    "stock_id": "1909",
+    "stock_name": "榮成",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-13",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 10.09,
+      "long_ma": 10.0635
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260813-1909-001",
+    "timestamp": "2026-08-14T01:01:43+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "strong",
+    "trade_date": "2026-08-13",
+    "details": {
+      "close": 524.0,
+      "ma_period": 20,
+      "ma_value": 510.225,
+      "bias_percent": 2.6998
+    },
+    "filters_passed": [
+      "volume_confirm",
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（494.92）",
+    "id": "alert-20260813-2207-001",
+    "timestamp": "2026-08-14T01:01:43+08:00"
+  },
+  {
+    "stock_id": "2884",
+    "stock_name": "玉山金",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-08-13",
+    "details": {
+      "close": 37.3,
+      "ma_period": 20,
+      "ma_value": 37.0225,
+      "bias_percent": 0.7495
+    },
+    "filters_passed": [
+      "volume_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（35.91）",
+    "id": "alert-20260813-2884-001",
+    "timestamp": "2026-08-14T01:01:43+08:00"
+  },
+  {
+    "stock_id": "TSLA",
+    "stock_name": "Tesla, Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-08-13",
+    "details": {
+      "close": 339.9599914550781,
+      "ma_period": 20,
+      "ma_value": 331.068,
+      "bias_percent": 2.6859
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（321.14）",
+    "id": "alert-20260813-TSLA-001",
+    "timestamp": "2026-08-14T06:00:08+08:00"
+  },
+  {
+    "stock_id": "TSLA",
+    "stock_name": "Tesla, Inc.",
+    "market": "us",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-13",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 331.948,
+      "long_ma": 331.068
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "id": "alert-20260813-TSLA-002",
+    "timestamp": "2026-08-14T06:00:08+08:00"
+  },
+  {
+    "stock_id": "MU",
+    "stock_name": "Micron Technology, Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-08-13",
+    "details": {
+      "close": 949.8300170898438,
+      "ma_period": 60,
+      "ma_value": 948.3553,
+      "bias_percent": 0.1555
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（919.9）",
+    "id": "alert-20260813-MU-001",
+    "timestamp": "2026-08-14T06:00:08+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-08-14",
+    "details": {
+      "close": 24.25,
+      "ma_period": 20,
+      "ma_value": 24.1725,
+      "bias_percent": 0.3206
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（23.45）",
+    "id": "alert-20260814-1101-001",
+    "timestamp": "2026-08-14T14:31:48+08:00"
+  },
+  {
+    "stock_id": "1909",
+    "stock_name": "榮成",
+    "market": "tw",
+    "strategy_id": "ma_alignment",
+    "strategy_name": "均線多頭/空頭排列",
+    "direction": "bullish_alignment",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-14",
+    "details": {
+      "close": 10.6,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "values": {
+        "MA5": 10.2,
+        "MA10": 10.104,
+        "MA20": 10.0735,
+        "MA60": 9.8312
+      }
+    },
+    "filters_passed": [],
+    "suggested_action": "均線多頭排列成形，動能轉強，可列入強勢股觀察",
+    "id": "alert-20260814-1909-001",
+    "timestamp": "2026-08-14T14:31:48+08:00"
   }
 ]

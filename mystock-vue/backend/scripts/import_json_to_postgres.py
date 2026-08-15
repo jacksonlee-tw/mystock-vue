@@ -61,8 +61,13 @@ async def import_all() -> None:
         if not data:
             continue
 
-        latest_record = data[sorted(data.keys())[-1]]
-        await repo.upsert_symbol(symbol=symbol, market_type=market_type, name=latest_record.get("name"))
+        # 最新一天常常只由 backfill_daily_quotes() 純行情補上，不帶 name 欄位（見
+        # services/stock_service.py 的 discover_available_stocks() 同一段註解）；若直接取
+        # 最後一筆，name 會是 None，upsert_symbol() 的 ON CONFLICT DO UPDATE 又是整欄覆蓋，
+        # 會把 symbols 表裡原本正確的名稱洗成空值。改為往前找最近一筆真的有 name 的記錄。
+        sorted_dates = sorted(data.keys())
+        name = next((data[d].get("name") for d in reversed(sorted_dates) if data[d].get("name")), None)
+        await repo.upsert_symbol(symbol=symbol, market_type=market_type, name=name)
 
         rows = [
             record_to_daily_row(symbol, market_type, date_key, record) for date_key, record in data.items()

@@ -10,12 +10,16 @@ _BULLISH_PREFIXES = (
     "squeeze_breakout",
     "oversold",
     "pullback_support",
+    "bottom_turnover",
+    "short_squeeze",
 )
 _BEARISH_PREFIXES = (
     "cross_under",
     "death_cross",
     "bearish_alignment",
     "overbought",
+    "distribution_top",
+    "revenue_yoy_decline",
 )
 
 

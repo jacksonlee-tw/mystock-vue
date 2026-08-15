@@ -1,4 +1,31 @@
 {
+  "2026-05-04": {
+    "close": 227.5,
+    "open": 224.0,
+    "high": 229.5,
+    "low": 223.5,
+    "volume": 57506042,
+    "amount": 13028901060,
+    "trades": 48021
+  },
+  "2026-05-05": {
+    "close": 239.5,
+    "open": 227.5,
+    "high": 240.0,
+    "low": 227.0,
+    "volume": 162873566,
+    "amount": 38242818193,
+    "trades": 129745
+  },
+  "2026-05-06": {
+    "close": 252.0,
+    "open": 246.5,
+    "high": 253.0,
+    "low": 245.0,
+    "volume": 240330399,
+    "amount": 59900737351,
+    "trades": 167309
+  },
   "2026-05-07": {
     "name": "鴻海",
     "open": 255.0,
@@ -1751,10 +1778,10 @@
     "trades": 58017,
     "name": "鴻海",
     "foreign_buy_sell": 29370,
-    "trust_buy_sell": 0,
-    "dealer_buy_sell": 255,
-    "institutional_total": 1457,
-    "institutional_amount_est": 39339.0,
+    "trust_buy_sell": 255,
+    "dealer_buy_sell": 1457,
+    "institutional_total": 31084,
+    "institutional_amount_est": 839268.0,
     "融資買進(張)": 3547,
     "融資賣出(張)": 2448,
     "融資現金償還(張)": 117,
@@ -1792,5 +1819,31 @@
     "融券前日餘額(張)": 760,
     "short_balance": 1231,
     "資券互抵(張)": 17
+  },
+  "2026-08-14": {
+    "close": 259.5,
+    "open": 262.0,
+    "high": 264.5,
+    "low": 257.5,
+    "volume": 51013887,
+    "amount": 13278246549,
+    "trades": 55960,
+    "name": "鴻海",
+    "foreign_buy_sell": 3071,
+    "trust_buy_sell": -2552,
+    "dealer_buy_sell": -819,
+    "institutional_total": -300,
+    "institutional_amount_est": -7785.0,
+    "融資買進(張)": 2336,
+    "融資賣出(張)": 2614,
+    "融資現金償還(張)": 19,
+    "融資前日餘額(張)": 51348,
+    "margin_balance": 51051,
+    "融券買進(張)": 584,
+    "融券賣出(張)": 57,
+    "融券現券償還(張)": 0,
+    "融券前日餘額(張)": 1231,
+    "short_balance": 704,
+    "資券互抵(張)": 8
   }
 }

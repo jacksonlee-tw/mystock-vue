@@ -13,8 +13,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from config import get_enabled_markets, get_target_stocks
 from services.stock_service import get_stock_chart_payload
 
-FLOAT_TOLERANCE = 1e-4  # daily_stock_data 價格欄位為 NUMERIC(15,4)，US 股價（yfinance 還原股利/分割後有效位數更長）
-                        # 落地時本來就會四捨五入到小數點後 4 位，這是設計上接受的精度上限，不是轉換誤差（見設計文件第 2.6 節）
+FLOAT_TOLERANCE = 2e-4  # daily_stock_data 價格欄位為 NUMERIC(15,4)，US 股價（yfinance 還原股利/分割後有效位數更長）
+                        # 落地時本來就會四捨五入到小數點後 4 位，這是設計上接受的精度上限，不是轉換誤差（見設計文件第 2.6 節）。
+                        # 實測發現差 1 個第 4 位小數的正常案例（如 331.4391 vs 331.4392）在 Python 浮點數運算下
+                        # abs(a-b) 會算成 1.0000000000317e-4，比 1e-4 還多一點點浮點誤差，用 abs_tol=1e-4 卡在邊界上
+                        # 反而全部被誤判成差異；抓到 2e-4 才有安全餘裕吸收這個浮點噪音，同時仍遠低於「真的算錯」的量級。
 PERIODS = ("daily", "weekly", "monthly")
 MONTHS_OPTIONS = (1, 3, 12)
 

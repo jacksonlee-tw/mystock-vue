@@ -1,0 +1,16 @@
+# 執行期由 docker-compose volume 掛載提供，不烘進 image
+data/
+postgres_data/
+backups/
+.env
+
+# 開發環境產物
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 版控與編輯器雜項
+.git/
+.gitignore
+*.md

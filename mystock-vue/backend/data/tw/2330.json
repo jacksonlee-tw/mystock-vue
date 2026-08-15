@@ -1,4 +1,31 @@
 {
+  "2026-05-04": {
+    "close": 2275.0,
+    "open": 2200.0,
+    "high": 2285.0,
+    "low": 2195.0,
+    "volume": 44458732,
+    "amount": 99944198300,
+    "trades": 129173
+  },
+  "2026-05-05": {
+    "close": 2250.0,
+    "open": 2250.0,
+    "high": 2270.0,
+    "low": 2240.0,
+    "volume": 26644983,
+    "amount": 60009590420,
+    "trades": 153870
+  },
+  "2026-05-06": {
+    "close": 2250.0,
+    "open": 2250.0,
+    "high": 2285.0,
+    "low": 2240.0,
+    "volume": 38026963,
+    "amount": 85874042414,
+    "trades": 125342
+  },
   "2026-05-07": {
     "name": "台積電",
     "open": 2335.0,
@@ -1751,10 +1778,10 @@
     "trades": 63548,
     "name": "台積電",
     "foreign_buy_sell": 2626,
-    "trust_buy_sell": 0,
-    "dealer_buy_sell": 587,
-    "institutional_total": -291,
-    "institutional_amount_est": -70276.5,
+    "trust_buy_sell": 587,
+    "dealer_buy_sell": -290,
+    "institutional_total": 2923,
+    "institutional_amount_est": 705904.5,
     "融資買進(張)": 257,
     "融資賣出(張)": 702,
     "融資現金償還(張)": 21,
@@ -1791,6 +1818,32 @@
     "融券現券償還(張)": 2,
     "融券前日餘額(張)": 39,
     "short_balance": 38,
+    "資券互抵(張)": 0
+  },
+  "2026-08-14": {
+    "close": 2395.0,
+    "open": 2435.0,
+    "high": 2440.0,
+    "low": 2395.0,
+    "volume": 21162682,
+    "amount": 51159731253,
+    "trades": 105889,
+    "name": "台積電",
+    "foreign_buy_sell": -3024,
+    "trust_buy_sell": -380,
+    "dealer_buy_sell": -372,
+    "institutional_total": -3777,
+    "institutional_amount_est": -904591.5,
+    "融資買進(張)": 470,
+    "融資賣出(張)": 343,
+    "融資現金償還(張)": 30,
+    "融資前日餘額(張)": 27963,
+    "margin_balance": 28060,
+    "融券買進(張)": 8,
+    "融券賣出(張)": 7,
+    "融券現券償還(張)": 1,
+    "融券前日餘額(張)": 38,
+    "short_balance": 36,
     "資券互抵(張)": 0
   }
 }

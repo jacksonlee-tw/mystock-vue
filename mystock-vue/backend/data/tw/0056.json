@@ -1,4 +1,49 @@
 {
+  "2026-05-04": {
+    "close": 41.92,
+    "open": 41.51,
+    "high": 41.94,
+    "low": 41.51,
+    "volume": 105581914,
+    "amount": 4415116767,
+    "trades": 41410
+  },
+  "2026-05-05": {
+    "close": 42.62,
+    "open": 42.15,
+    "high": 42.68,
+    "low": 42.15,
+    "volume": 98244392,
+    "amount": 4170661535,
+    "trades": 39112
+  },
+  "2026-05-06": {
+    "close": 43.86,
+    "open": 43.59,
+    "high": 43.9,
+    "low": 43.16,
+    "volume": 106691262,
+    "amount": 4654946006,
+    "trades": 41782
+  },
+  "2026-05-07": {
+    "close": 44.72,
+    "open": 44.23,
+    "high": 44.77,
+    "low": 44.01,
+    "volume": 74924610,
+    "amount": 3334452575,
+    "trades": 37295
+  },
+  "2026-05-08": {
+    "close": 44.85,
+    "open": 44.7,
+    "high": 45.2,
+    "low": 44.29,
+    "volume": 97813252,
+    "amount": 4385073972,
+    "trades": 38089
+  },
   "2026-05-11": {
     "name": "元大高股息",
     "open": 45.04,
@@ -1700,9 +1745,9 @@
     "name": "元大高股息",
     "foreign_buy_sell": 8297,
     "trust_buy_sell": 0,
-    "dealer_buy_sell": 0,
-    "institutional_total": 3784,
-    "institutional_amount_est": 19941.68,
+    "dealer_buy_sell": 3784,
+    "institutional_total": 12082,
+    "institutional_amount_est": 63672.14,
     "融資買進(張)": 512,
     "融資賣出(張)": 1585,
     "融資現金償還(張)": 2,
@@ -1740,5 +1785,31 @@
     "融券前日餘額(張)": 163,
     "short_balance": 166,
     "資券互抵(張)": 0
+  },
+  "2026-08-14": {
+    "close": 53.4,
+    "open": 53.35,
+    "high": 54.0,
+    "low": 53.3,
+    "volume": 49247717,
+    "amount": 2639082749,
+    "trades": 22931,
+    "name": "元大高股息",
+    "foreign_buy_sell": 17125,
+    "trust_buy_sell": 0,
+    "dealer_buy_sell": 19257,
+    "institutional_total": 36383,
+    "institutional_amount_est": 194285.22,
+    "融資買進(張)": 72,
+    "融資賣出(張)": 1039,
+    "融資現金償還(張)": 0,
+    "融資前日餘額(張)": 5778,
+    "margin_balance": 4811,
+    "融券買進(張)": 0,
+    "融券賣出(張)": 12,
+    "融券現券償還(張)": 0,
+    "融券前日餘額(張)": 166,
+    "short_balance": 178,
+    "資券互抵(張)": 2
   }
 }

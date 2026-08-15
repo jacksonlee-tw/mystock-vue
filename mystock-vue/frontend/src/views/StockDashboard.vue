@@ -5,7 +5,7 @@
          使用 backdrop-blur 玻璃效果，不遮擋閱讀體驗
     ═══════════════════════════════════════════════════ -->
     <div class="stock-control-bar sticky top-16 z-30 bg-surface-0/95 dark:bg-surface-900/95 backdrop-blur-md border-b border-surface-200 dark:border-surface-700 shadow-sm">
-      <div class="max-w-7xl mx-auto px-6 py-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div class="max-w-7xl mx-auto px-6 py-4 flex flex-wrap items-center gap-x-4 gap-y-2">
         <!-- 返回按鈕 -->
         <button
           @click="router.push('/')"
@@ -16,19 +16,19 @@
 
         <!-- 股票代號 & 名稱 -->
         <div class="flex items-center gap-2 shrink-0">
-          <Select 
-            :modelValue="selectedStock" 
+          <Select
+            :modelValue="selectedStock"
             @update:modelValue="handleStockChange"
-            :options="availableStocks" 
+            :options="availableStocks"
             optionLabel="stock_name"
             optionValue="stock_id"
-            placeholder="切換股票..." 
-            class="w-48 sm:w-64 !bg-transparent !border-transparent hover:!bg-surface-100 dark:hover:!bg-surface-800 transition-colors"
+            placeholder="切換股票..."
+            class="w-60 sm:w-80 !bg-transparent !border-transparent hover:!bg-surface-100 dark:hover:!bg-surface-800 transition-colors"
           >
             <template #value="slotProps">
-              <div v-if="slotProps.value" class="flex items-baseline gap-2">
-                <span class="num text-xl font-black text-surface-900 dark:text-surface-0">{{ slotProps.value }}</span>
-                <span class="text-sm text-surface-500 font-semibold">{{ currentStockName }}</span>
+              <div v-if="slotProps.value" class="flex items-baseline gap-2.5 min-w-0">
+                <span class="num text-3xl font-black text-surface-900 dark:text-surface-0 shrink-0">{{ slotProps.value }}</span>
+                <span class="text-lg text-surface-600 dark:text-surface-300 font-bold truncate">{{ currentStockName }}</span>
               </div>
               <span v-else>{{ slotProps.placeholder }}</span>
             </template>
@@ -42,17 +42,17 @@
         </div>
 
         <!-- 最新收盤價 & 漲跌 -->
-        <div v-if="summary.close !== undefined" class="flex items-baseline gap-2 shrink-0">
-          <span class="num text-xl font-black" :style="{ color: latestChange ? colorForValue(latestChange.diff) : undefined }">
+        <div v-if="summary.close !== undefined" class="flex items-baseline gap-2.5 shrink-0">
+          <span class="num text-3xl font-black" :style="{ color: latestChange ? colorForValue(latestChange.diff) : undefined }">
             {{ formatPrice(summary.close, chartData.meta) }}
           </span>
-          <span v-if="latestChange" class="num text-xs font-bold" :style="{ color: colorForValue(latestChange.diff) }">
+          <span v-if="latestChange" class="num text-lg font-extrabold" :style="{ color: colorForValue(latestChange.diff) }">
             {{ formatChange(latestChange.diff, latestChange.pct) }}
           </span>
         </div>
 
         <!-- 日期區間 -->
-        <span v-if="dateRangeText" class="text-xs font-semibold text-surface-400 hidden sm:inline shrink-0">
+        <span v-if="dateRangeText" class="text-sm font-bold text-surface-500 dark:text-surface-400 hidden sm:inline shrink-0">
           <i class="pi pi-calendar mr-1"></i>{{ dateRangeText }}
         </span>
 

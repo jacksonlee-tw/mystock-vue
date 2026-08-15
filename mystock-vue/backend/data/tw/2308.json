@@ -1,4 +1,67 @@
 {
+  "2026-05-04": {
+    "close": 2220.0,
+    "open": 2250.0,
+    "high": 2260.0,
+    "low": 2150.0,
+    "volume": 12649019,
+    "amount": 27697247725,
+    "trades": 42036
+  },
+  "2026-05-05": {
+    "close": 2165.0,
+    "open": 2185.0,
+    "high": 2195.0,
+    "low": 2145.0,
+    "volume": 10559120,
+    "amount": 22911508005,
+    "trades": 61328
+  },
+  "2026-05-06": {
+    "close": 2210.0,
+    "open": 2215.0,
+    "high": 2270.0,
+    "low": 2150.0,
+    "volume": 15562046,
+    "amount": 34327226898,
+    "trades": 41041
+  },
+  "2026-05-07": {
+    "close": 2280.0,
+    "open": 2275.0,
+    "high": 2370.0,
+    "low": 2250.0,
+    "volume": 15656408,
+    "amount": 36035612040,
+    "trades": 43756
+  },
+  "2026-05-08": {
+    "close": 2200.0,
+    "open": 2230.0,
+    "high": 2250.0,
+    "low": 2170.0,
+    "volume": 11802071,
+    "amount": 26136627365,
+    "trades": 73037
+  },
+  "2026-05-11": {
+    "close": 2245.0,
+    "open": 2215.0,
+    "high": 2270.0,
+    "low": 2205.0,
+    "volume": 9200516,
+    "amount": 20637874185,
+    "trades": 25486
+  },
+  "2026-05-12": {
+    "close": 2195.0,
+    "open": 2225.0,
+    "high": 2260.0,
+    "low": 2190.0,
+    "volume": 13011711,
+    "amount": 28754359505,
+    "trades": 58301
+  },
   "2026-05-13": {
     "name": "台達電",
     "open": 2160.0,
@@ -1646,11 +1709,11 @@
     "amount": 16395133530,
     "trades": 31452,
     "name": "台達電",
-    "foreign_buy_sell": -1167,
-    "trust_buy_sell": 0,
-    "dealer_buy_sell": 170,
-    "institutional_total": 166,
-    "institutional_amount_est": 29714.0,
+    "foreign_buy_sell": -1166,
+    "trust_buy_sell": 170,
+    "dealer_buy_sell": 166,
+    "institutional_total": -829,
+    "institutional_amount_est": -148391.0,
     "融資買進(張)": 324,
     "融資賣出(張)": 818,
     "融資現金償還(張)": 13,
@@ -1688,5 +1751,31 @@
     "融券前日餘額(張)": 44,
     "short_balance": 59,
     "資券互抵(張)": 5
+  },
+  "2026-08-14": {
+    "close": 1885.0,
+    "open": 1945.0,
+    "high": 1975.0,
+    "low": 1865.0,
+    "volume": 14036875,
+    "amount": 26791405135,
+    "trades": 41504,
+    "name": "台達電",
+    "foreign_buy_sell": -992,
+    "trust_buy_sell": 155,
+    "dealer_buy_sell": -172,
+    "institutional_total": -1009,
+    "institutional_amount_est": -190196.5,
+    "融資買進(張)": 344,
+    "融資賣出(張)": 703,
+    "融資現金償還(張)": 25,
+    "融資前日餘額(張)": 8304,
+    "margin_balance": 7920,
+    "融券買進(張)": 8,
+    "融券賣出(張)": 12,
+    "融券現券償還(張)": 0,
+    "融券前日餘額(張)": 59,
+    "short_balance": 63,
+    "資券互抵(張)": 4
   }
 }

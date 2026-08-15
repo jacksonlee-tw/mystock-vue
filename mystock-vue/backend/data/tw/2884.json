@@ -1,4 +1,67 @@
 {
+  "2026-05-04": {
+    "close": 31.3,
+    "open": 32.15,
+    "high": 32.15,
+    "low": 31.3,
+    "volume": 59013659,
+    "amount": 1857880792,
+    "trades": 28790
+  },
+  "2026-05-05": {
+    "close": 31.55,
+    "open": 31.3,
+    "high": 31.55,
+    "low": 31.1,
+    "volume": 35874248,
+    "amount": 1125333155,
+    "trades": 15723
+  },
+  "2026-05-06": {
+    "close": 31.85,
+    "open": 31.65,
+    "high": 31.95,
+    "low": 31.5,
+    "volume": 40013467,
+    "amount": 1270708871,
+    "trades": 16921
+  },
+  "2026-05-07": {
+    "close": 32.1,
+    "open": 31.85,
+    "high": 32.5,
+    "low": 31.85,
+    "volume": 42535750,
+    "amount": 1370250011,
+    "trades": 14022
+  },
+  "2026-05-08": {
+    "close": 32.5,
+    "open": 32.5,
+    "high": 32.5,
+    "low": 31.9,
+    "volume": 40274456,
+    "amount": 1299079071,
+    "trades": 13382
+  },
+  "2026-05-11": {
+    "close": 32.3,
+    "open": 32.5,
+    "high": 32.55,
+    "low": 32.3,
+    "volume": 28821923,
+    "amount": 933224084,
+    "trades": 11324
+  },
+  "2026-05-12": {
+    "close": 31.8,
+    "open": 32.3,
+    "high": 32.3,
+    "low": 31.75,
+    "volume": 48368669,
+    "amount": 1541723573,
+    "trades": 19995
+  },
   "2026-05-13": {
     "name": "玉山金",
     "open": 32.05,
@@ -1646,11 +1709,11 @@
     "amount": 1031327535,
     "trades": 12462,
     "name": "玉山金",
-    "foreign_buy_sell": -5879,
-    "trust_buy_sell": 0,
-    "dealer_buy_sell": 363,
-    "institutional_total": 54,
-    "institutional_amount_est": 198.45,
+    "foreign_buy_sell": -5878,
+    "trust_buy_sell": 363,
+    "dealer_buy_sell": 54,
+    "institutional_total": -5459,
+    "institutional_amount_est": -20061.83,
     "融資買進(張)": 124,
     "融資賣出(張)": 91,
     "融資現金償還(張)": 2,
@@ -1687,6 +1750,32 @@
     "融券現券償還(張)": 0,
     "融券前日餘額(張)": 234,
     "short_balance": 222,
+    "資券互抵(張)": 0
+  },
+  "2026-08-14": {
+    "close": 37.65,
+    "open": 37.45,
+    "high": 38.2,
+    "low": 36.95,
+    "volume": 54934800,
+    "amount": 2070646225,
+    "trades": 18539,
+    "name": "玉山金",
+    "foreign_buy_sell": -17361,
+    "trust_buy_sell": 18352,
+    "dealer_buy_sell": -171,
+    "institutional_total": 819,
+    "institutional_amount_est": 3083.53,
+    "融資買進(張)": 317,
+    "融資賣出(張)": 364,
+    "融資現金償還(張)": 2,
+    "融資前日餘額(張)": 5053,
+    "margin_balance": 5004,
+    "融券買進(張)": 0,
+    "融券賣出(張)": 431,
+    "融券現券償還(張)": 0,
+    "融券前日餘額(張)": 222,
+    "short_balance": 653,
     "資券互抵(張)": 0
   }
 }

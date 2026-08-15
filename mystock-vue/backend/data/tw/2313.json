@@ -1,4 +1,67 @@
 {
+  "2026-05-04": {
+    "close": 268.5,
+    "open": 254.5,
+    "high": 268.5,
+    "low": 247.0,
+    "volume": 83904966,
+    "amount": 21893109344,
+    "trades": 76627
+  },
+  "2026-05-05": {
+    "close": 274.5,
+    "open": 272.0,
+    "high": 285.0,
+    "low": 270.0,
+    "volume": 126303200,
+    "amount": 34827448343,
+    "trades": 103787
+  },
+  "2026-05-06": {
+    "close": 250.0,
+    "open": 274.5,
+    "high": 274.5,
+    "low": 247.5,
+    "volume": 105195489,
+    "amount": 26800890310,
+    "trades": 118117
+  },
+  "2026-05-07": {
+    "close": 249.5,
+    "open": 248.0,
+    "high": 253.0,
+    "low": 237.0,
+    "volume": 65353833,
+    "amount": 16044650217,
+    "trades": 70851
+  },
+  "2026-05-08": {
+    "close": 253.5,
+    "open": 245.5,
+    "high": 259.5,
+    "low": 239.0,
+    "volume": 86924245,
+    "amount": 21754843681,
+    "trades": 72730
+  },
+  "2026-05-11": {
+    "close": 242.0,
+    "open": 248.0,
+    "high": 254.5,
+    "low": 242.0,
+    "volume": 81477797,
+    "amount": 20136212213,
+    "trades": 80463
+  },
+  "2026-05-12": {
+    "close": 260.0,
+    "open": 246.0,
+    "high": 264.5,
+    "low": 246.0,
+    "volume": 93921908,
+    "amount": 24282188635,
+    "trades": 79981
+  },
   "2026-05-13": {
     "name": "華通",
     "open": 253.5,
@@ -1646,11 +1709,11 @@
     "amount": 2856777191,
     "trades": 14829,
     "name": "華通",
-    "foreign_buy_sell": -2556,
-    "trust_buy_sell": 0,
-    "dealer_buy_sell": 404,
-    "institutional_total": 110,
-    "institutional_amount_est": 2299.0,
+    "foreign_buy_sell": -2555,
+    "trust_buy_sell": 404,
+    "dealer_buy_sell": 110,
+    "institutional_total": -2040,
+    "institutional_amount_est": -42636.0,
     "融資買進(張)": 702,
     "融資賣出(張)": 426,
     "融資現金償還(張)": 22,
@@ -1688,5 +1751,31 @@
     "融券前日餘額(張)": 1056,
     "short_balance": 1186,
     "資券互抵(張)": 35
+  },
+  "2026-08-14": {
+    "close": 215.5,
+    "open": 216.0,
+    "high": 222.5,
+    "low": 213.5,
+    "volume": 25421269,
+    "amount": 5521332065,
+    "trades": 24723,
+    "name": "華通",
+    "foreign_buy_sell": 2523,
+    "trust_buy_sell": -598,
+    "dealer_buy_sell": -272,
+    "institutional_total": 1652,
+    "institutional_amount_est": 35600.6,
+    "融資買進(張)": 887,
+    "融資賣出(張)": 1047,
+    "融資現金償還(張)": 26,
+    "融資前日餘額(張)": 30421,
+    "margin_balance": 30235,
+    "融券買進(張)": 36,
+    "融券賣出(張)": 150,
+    "融券現券償還(張)": 0,
+    "融券前日餘額(張)": 1186,
+    "short_balance": 1300,
+    "資券互抵(張)": 41
   }
 }

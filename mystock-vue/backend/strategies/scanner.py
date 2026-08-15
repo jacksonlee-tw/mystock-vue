@@ -5,6 +5,7 @@
 """
 import asyncio
 import logging
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -30,7 +31,21 @@ _SUGGESTED_ACTION_TEMPLATES = {
     ("extreme_bias", "bearish"): "正乖離過大，短線過熱，留意獲利了結賣壓",
     ("extreme_bias", "bullish"): "負乖離過大，超跌可能醞釀反彈，留意止跌訊號",
     ("ma_pullback_support", "bullish"): "回踩均線支撐未破，為趨勢股拉回找買點的參考時機",
+    ("chip_bottom_turnover", "bullish"): "融資去化、法人同步進場，籌碼面止穩，留意底部反轉契機",
+    ("chip_short_squeeze", "bullish"): "券資比與融券同步走高，留意軋空行情，但反噬急殺風險亦高，不宜追高",
+    ("chip_distribution_top", "bearish"): "法人連續賣超、融資餘額創新高，留意高檔出貨風險，建議降低持股",
+    ("fundamental_revenue_decline", "bearish"): "營收年增率連續轉負，原始成長邏輯可能失效，建議重新評估持股並留意後續季報",
 }
+
+# 籌碼類策略（category="chip"）的最小可行選股池排除規則（籌碼選股策略 設計文件第 4.1 節的
+# 精簡版）：本階段沒有選股池模組可查證券類別，故先用代號規則排除台股 ETF/ETN
+# （00 開頭 4~6 碼，如 0050、0056、006208、00878、00981A），避免法人/信用交易語意
+# 不同的 ETF 污染籌碼型態警示訊號。均線策略（category="technical"）不受影響。
+_CHIP_EXCLUDED_SYMBOL_PATTERN = re.compile(r"^00\d{2,4}[A-Za-z]?$")
+
+
+def _is_chip_excluded(symbol: str) -> bool:
+    return bool(_CHIP_EXCLUDED_SYMBOL_PATTERN.match(symbol))
 
 
 def _strength(passed_filter_count: int) -> str:
@@ -84,6 +99,9 @@ async def scan_market(
         start_idx = max(0, ctx.length - lookback)
 
         for strategy in strategies:
+            if strategy.category == "chip" and _is_chip_excluded(symbol):
+                continue
+
             for condition_cfg in strategy.conditions:
                 spec = CONDITION_REGISTRY.get(condition_cfg.get("type"))
                 if not spec:

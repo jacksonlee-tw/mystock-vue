@@ -15,6 +15,14 @@
 .border-down { border-color: var(--down); }
 .hover\:border-up:hover { border-color: var(--up); }
 .hover\:border-down:hover { border-color: var(--down); }
+/* 柔和版多空底色／外框光暈：警示看板的重點卡片、HIGHLIGHT 用，半透明疊色不論淺色/深色底都能看。
+   加 !important 是為了套在同時帶 .card 的元素上：styles.scss 先 @use tailwind.css 再 @use layout.scss，
+   而 layout/_utils.scss 的 `.card { background: var(--surface-card) }` 與 tailwind utility 同權重(0,0,1,0)，
+   後定義者勝，所以 .card 上的任何 bg-* utility 都會失效，只能靠 !important 蓋回來。 */
+.bg-up-soft { background-color: color-mix(in srgb, var(--up) 14%, transparent) !important; }
+.bg-down-soft { background-color: color-mix(in srgb, var(--down) 14%, transparent) !important; }
+.ring-up { --tw-ring-color: var(--up); }
+.ring-down { --tw-ring-color: var(--down); }
 
 /* 數字專用等寬字體：股價、張數、百分比等直向排列比較的數值一律套用，
    讓小數點與位數對齊，並與敘述文字（系統預設 CJK 字體）明顯區隔。 */

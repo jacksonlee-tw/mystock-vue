@@ -11,6 +11,7 @@ load_dotenv(ENV_PATH)
 DEFAULT_STOCKS = ["0050", "2330", "006208", "2317"]
 DEFAULT_US_STOCKS = ["AAPL", "MSFT", "GOOGL", "TSLA"]
 DEFAULT_MONTHS_RANGE = 3
+DEFAULT_QUARTERS_RANGE = 4
 ENABLED_MARKETS_DEFAULT = ["tw", "us"]
 DEFAULT_DATA_SOURCE = "json"
 VALID_DATA_SOURCES = ("json", "postgres")
@@ -73,6 +74,14 @@ def get_months_range() -> int:
         return int(os.getenv("MONTHS_RANGE", str(DEFAULT_MONTHS_RANGE)))
     except ValueError:
         return DEFAULT_MONTHS_RANGE
+
+def get_quarters_range() -> int:
+    """季報 EPS 回溯抓取的季數（見 services/mops_eps_fetcher.py）。"""
+    load_dotenv(ENV_PATH, override=True)
+    try:
+        return int(os.getenv("QUARTERS_RANGE", str(DEFAULT_QUARTERS_RANGE)))
+    except ValueError:
+        return DEFAULT_QUARTERS_RANGE
 
 def get_data_source() -> str:
     load_dotenv(ENV_PATH, override=True)

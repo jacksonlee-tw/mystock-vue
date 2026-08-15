@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from indicators.moving_average import bias_series, sma
+from services.mops_fetcher import load_stock_revenue
 from services.stock_service import aggregate_stock_data, load_stock_data
 
 # 抓歷史資料的上限（月）。目前系統實際累積的資料量遠低於此，等同於「抓全部歷史」；
@@ -31,6 +32,10 @@ class ScanContext:
     ma: Dict[int, List[Optional[float]]] = field(default_factory=dict)
     bias: Dict[int, List[Optional[float]]] = field(default_factory=dict)
     volume_ma: List[Optional[float]] = field(default_factory=list)
+    # MOPS 月營收（賣股策略 設計文件第四節「成長動能衰竭」），key 為 "YYYY-MM"，值為
+    # services/mops_fetcher.py 落檔的原始記錄（含 yoy_percent）。僅台股有資料，美股恆為空 dict
+    # （見 mops_fetcher.py 僅支援 market="tw"），conditions_fund.py 據此判斷是否要跳過。
+    revenue: Dict[str, dict] = field(default_factory=dict)
 
     @property
     def length(self) -> int:
@@ -76,6 +81,11 @@ class ChipDataProvider:
         bias = {p: bias_series(closes, ma[p]) for p in ma_periods}
         volume_ma = sma(volumes, volume_ma_period)
 
+        # 月營收是 JSON-only 資料源（尚無 Postgres 表，見 docs/3.爬蟲開發 待辦清單），
+        # 與 DATA_SOURCE 無關，一律直接讀檔；讀取失敗（檔案不存在）回傳空 dict，
+        # 讓 conditions_fund.py 的資料充足度檢查自然跳過，不特別處理例外。
+        revenue = load_stock_revenue(symbol) if market == "tw" else {}
+
         return ScanContext(
             symbol=symbol,
             market=market,
@@ -90,4 +100,5 @@ class ChipDataProvider:
             ma=ma,
             bias=bias,
             volume_ma=volume_ma,
+            revenue=revenue,
         )

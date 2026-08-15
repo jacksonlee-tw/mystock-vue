@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>爬蟲開發.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="爬蟲開發整理">爬蟲開發整理</h1>
+<p>本文件整理原始討論內容中與資料抓取、落地儲存、資料庫匯入與排程執行相關的部分，作為後續實作資料供應鏈的基礎文件。</p>
+<h2 id="目標">目標</h2>
+<p>爬蟲模組的任務不是直接做策略判斷，而是穩定提供可被策略引擎使用的標準化資料。核心原則如下：</p>
+<ul>
+<li>抓取與分析解耦</li>
+<li>原始資料先落地，再匯入資料庫</li>
+<li>不同資料源透過統一介面封裝</li>
+<li>排程與執行環境容器化</li>
+</ul>
+<h2 id="一資料來源規劃">一、資料來源規劃</h2>
+<table>
+<thead>
+<tr>
+<th>資料類型</th>
+<th>對應用途</th>
+<th>建議來源</th>
+<th>備註</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OHLCV</td>
+<td>均線、乖離率、停損停利</td>
+<td>TWSE、TPEX、Yahoo Finance</td>
+<td>最基礎且最優先</td>
+</tr>
+<tr>
+<td>三大法人買賣超</td>
+<td>法人連續結帳、高檔出貨</td>
+<td>TWSE、FinMind</td>
+<td>需整理欄位名稱</td>
+</tr>
+<tr>
+<td>融資融券餘額</td>
+<td>籌碼面風險判斷</td>
+<td>TWSE</td>
+<td>需清理千分位格式</td>
+</tr>
+<tr>
+<td>月營收</td>
+<td>成長動能衰竭</td>
+<td>MOPS</td>
+<td>需 POST 與表格解析</td>
+</tr>
+<tr>
+<td>季財報 / EPS</td>
+<td>基本面出場</td>
+<td>MOPS</td>
+<td>表格結構較複雜</td>
+</tr>
+</tbody>
+</table>
+<h2 id="二主要端點整理">二、主要端點整理</h2>
+<table>
+<thead>
+<tr>
+<th>來源</th>
+<th>端點</th>
+<th>用途</th>
+<th>重點</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TWSE</td>
+<td><code>https://www.twse.com.tw/exchangeReport/STOCK_DAY</code></td>
+<td>台股上市 OHLCV</td>
+<td>參數為 <code>date</code> (如 20231001) 與 <code>stockNo</code>。需將回傳的民國年轉為西元年。</td>
+</tr>
+<tr>
+<td>TPEX</td>
+<td><code>https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_info/st43_result.php</code></td>
+<td>台股上櫃 OHLCV</td>
+<td>參數為 <code>d</code> (民國年如 112/10) 與 <code>stk_no</code>。格式與證交所略有不同。</td>
+</tr>
+<tr>
+<td>Yahoo Finance</td>
+<td><code>https://query1.finance.yahoo.com/v8/finance/chart/{symbol}</code></td>
+<td>美股與部分台股</td>
+<td>建議直接在 Python 中使用 <code>yfinance</code> 套件，底層即封裝此 API。</td>
+</tr>
+<tr>
+<td>TWSE</td>
+<td><code>https://www.twse.com.tw/exchangeReport/T86</code></td>
+<td>三大法人買賣超</td>
+<td>參數 <code>date</code>。可抓取外資、投信、自營商的每日買賣張數。</td>
+</tr>
+<tr>
+<td>TWSE</td>
+<td><code>https://www.twse.com.tw/exchangeReport/MI_MARGN</code></td>
+<td>融資融券餘額</td>
+<td>參數 <code>date</code> 與 <code>selectType=STOCK</code>。需注意千分位逗號清理。</td>
+</tr>
+<tr>
+<td>FinMind</td>
+<td><code>https://api.finmindtrade.com/api/v4/data</code></td>
+<td>籌碼替代來源</td>
+<td>參數帶入 <code>dataset=TaiwanStockInstitutionalInvestorsBuySell</code>。適合不想處理繁瑣官方爬蟲的替代方案。</td>
+</tr>
+<tr>
+<td>MOPS</td>
+<td><code>https://mops.twse.com.tw/mops/web/ajax_t05st10_ifrs</code></td>
+<td>月營收</td>
+<td>使用 <code>POST</code> 請求。需帶入參數 <code>encodeURIComponent=1</code>, <code>step=1</code>, <code>firstin=1</code>, <code>off=1</code>, <code>year</code>, <code>month</code>。</td>
+</tr>
+<tr>
+<td>MOPS</td>
+<td><code>https://mops.twse.com.tw/mops/web/ajax_t163sb04</code></td>
+<td>季財報 / EPS</td>
+<td>綜合損益表端點。同樣為 <code>POST</code> 請求，HTML 表格結構較複雜，需解析。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="三provider-架構設計">三、Provider 架構設計</h2>
+<p>建議以抽象基底類別管理所有資料來源，避免不同網站的欄位格式污染上層服務。</p>
+<h3 id="建議職責分工">建議職責分工</h3>
+<ul>
+<li>providers/base.py
+<ul>
+<li>定義 <code>fetch_ohlcv</code> 或對應 fetch 方法介面 (使用 <code>@abstractmethod</code>)</li>
+<li>檢查標準欄位是否存在</li>
+<li>統一日期與數值型別 (呼叫 <code>_validate_and_format</code>)</li>
+<li>回傳標準化 DataFrame，無副作用設計 (不碰資料庫與寫檔)</li>
+</ul>
+</li>
+<li>providers/twse.py
+<ul>
+<li>呼叫 TWSE API</li>
+<li>處理民國年、逗號分隔數字與欄位 mapping</li>
+</ul>
+</li>
+<li>providers/mops.py
+<ul>
+<li>發送 POST 請求與 Payload，設定正確 Headers 以避免防爬蟲機制</li>
+<li>解析 HTML 表格</li>
+<li>萃取月營收或 EPS 欄位</li>
+</ul>
+</li>
+<li>providers/finmind.py
+<ul>
+<li>封裝 token 與 dataset 參數</li>
+<li>補足官方資料源抓取成本較高的欄位</li>
+</ul>
+</li>
+</ul>
+<h3 id="標準欄位建議">標準欄位建議</h3>
+<pre class="hljs"><code><div>[<span class="hljs-string">&quot;date&quot;</span>, <span class="hljs-string">&quot;open&quot;</span>, <span class="hljs-string">&quot;high&quot;</span>, <span class="hljs-string">&quot;low&quot;</span>, <span class="hljs-string">&quot;close&quot;</span>, <span class="hljs-string">&quot;volume&quot;</span>]
+</div></code></pre>
+<p>若是非 OHLCV 資料，可延伸成各自的標準 schema，但仍應遵守欄位命名一致原則。</p>
+<h2 id="四資料落地策略-json-staging-pipeline">四、資料落地策略 (JSON Staging Pipeline)</h2>
+<p>建議採兩段式資料管線 (ELT 模式)：</p>
+<ol>
+<li>爬蟲抓取後先無腦落地成 JSON。</li>
+<li>匯入程序再讀取本地 JSON 寫入 PostgreSQL。</li>
+</ol>
+<h3 id="目錄建議">目錄建議</h3>
+<ul>
+<li>data/raw：存放爬下來的原始 JSON</li>
+<li>data/processed：已匯入完成或已清洗完成的檔案</li>
+</ul>
+<h3 id="這種設計的優點">這種設計的優點</h3>
+<ul>
+<li><strong>容錯率極高</strong>：資料庫暫時不可用時，原始資料不會遺失</li>
+<li><strong>斷點續傳</strong>：可以重跑匯入程序，不必重新爬取，降低防爬蟲封鎖風險</li>
+<li><strong>Schema 無痛升級</strong>：比較容易包容未來新增或變更的未知欄位</li>
+<li><strong>兼容 JSONB</strong>：方便之後保留 JSONB 或轉 Parquet 格式的彈性</li>
+</ul>
+<h2 id="五匯入-postgresql-的原則">五、匯入 PostgreSQL 的原則</h2>
+<p>匯入層建議單獨處理，不要混在 provider 內：</p>
+<ul>
+<li>provider 只負責抓資料與清洗</li>
+<li>insert service 只負責寫入資料庫</li>
+<li>實作 upsert，避免重複匯入造成主鍵衝突</li>
+<li>匯入成功後，可搬移 JSON 到 processed 目錄</li>
+</ul>
+<p>如果後續要支援更高效能的回測，除了 JSON staging，也可以保留整理後的 Parquet 檔案供分析模組直接讀取。</p>
+<h2 id="六防爬與穩定性處理">六、防爬與穩定性處理</h2>
+<h3 id="1-request-headers">1. Request Headers</h3>
+<ul>
+<li>TWSE 與 MOPS 請求建議帶瀏覽器 User-Agent。</li>
+<li>某些端點可能需要 Referer 或 Accept-Language 才較穩定。</li>
+</ul>
+<h3 id="2-throttling">2. Throttling</h3>
+<ul>
+<li>官方站點建議加入 3 到 5 秒的隨機延遲。</li>
+<li>避免短時間密集輪詢造成 IP 被封鎖。</li>
+</ul>
+<h3 id="3-例外處理">3. 例外處理</h3>
+<ul>
+<li>無資料日要明確跳過，不視為失敗</li>
+<li>回傳欄位變更時要記錄完整 response 或原始檔</li>
+<li>資料型別轉換失敗應寫入 log，避免靜默錯誤</li>
+</ul>
+<h2 id="七docker-執行與排程">七、Docker 執行與排程</h2>
+<p>建議把爬蟲與排程器打包成獨立容器，和 PostgreSQL 一起交由 Docker Compose 管理。</p>
+<h3 id="排程器職責">排程器職責</h3>
+<ul>
+<li>依交易日與時段定時啟動抓取</li>
+<li>逐一處理 target symbols</li>
+<li>每檔股票完成後再進行匯入</li>
+<li>發生錯誤時記錄 log 並繼續處理下一檔</li>
+</ul>
+<h3 id="排程建議">排程建議</h3>
+<ul>
+<li>台股可在每日收盤後執行</li>
+<li>美股資料可在次日台灣時間早晨批次更新</li>
+<li>先做全量歷史補資料，再切成每日增量更新</li>
+</ul>
+<h3 id="docker-架構建議">Docker 架構建議</h3>
+<ul>
+<li><code>postgres</code>：資料庫容器</li>
+<li><code>crawler_worker</code>：負責抓取與匯入，使用 <code>schedule</code> 持續監聽</li>
+<li>掛載 <code>data</code> 目錄，保留 JSON 與 log</li>
+<li>使用 Docker Compose 將兩者串聯，確保 <code>depends_on: postgres</code>。</li>
+</ul>
+<h2 id="八建議實作順序">八、建議實作順序</h2>
+<ol>
+<li>先完成 OHLCV provider，因為技術面策略最先依賴它。</li>
+<li>再補法人與融資融券資料，支援籌碼面策略。</li>
+<li>最後補 MOPS 月營收與 EPS，支援基本面策略。</li>
+<li>補上 scheduler 與 Docker Compose，讓每日更新自動化。</li>
+</ol>
+<h2 id="九與策略模組的邊界">九、與策略模組的邊界</h2>
+<p>爬蟲模組只提供資料，不應包含策略判斷。推薦的分工如下：</p>
+<ul>
+<li>providers：抓資料</li>
+<li>services/backfill.py：補歷史資料</li>
+<li>services/fetcher.py：執行日常抓取</li>
+<li>services/stock_service.py：整合資料供上層使用</li>
+<li>strategies 或 analyzer 模組：計算賣出條件</li>
+</ul>
+<p>這樣可以避免資料層與策略層耦合，後續新增市場或新增策略時維護成本較低。</p>
+
+</body>
+</html>

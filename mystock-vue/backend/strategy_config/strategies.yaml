@@ -90,6 +90,68 @@ strategies:
         proximity_percent: 1.0            # 距離均線 ±1%
         trend_lookback_days: 20           # 過去 N 天須在均線之上
 
+  # ══ 籌碼型態警示（籌碼選股策略 設計文件第 5.5 節）══════════════
+  # 只沿用現有追蹤清單（get_target_stocks），對應文件的 all_tracked 選股池；
+  # 大型權值波段/投信中小型作帳兩個核心策略需要市值分層選股池（文件第 4 節
+  # universe），尚未建立，暫不啟用。僅台股適用（美股無三大法人/信用交易資料）。
+  - id: "chip_bottom_turnover"
+    name: "底部換手（洗盤）"
+    category: "chip"
+    enabled: true
+    markets: ["tw"]
+    conditions:
+      - type: "chip_bottom_turnover"
+        ma_period: 20
+        lookback_below_days: 20           # C1：近 N 日內須曾跌破均線
+        margin_change_window: 20          # C2：融資增減率視窗
+        margin_change_max_pct: -5         # C2：融資須退場 ≥5%
+        institutional_window: 5           # C3：三大法人近 N 日累計買超
+        consec_buy_days: 3                # C3：外資或投信連續買超天數
+
+  - id: "chip_short_squeeze"
+    name: "高檔軋空（暴走）"
+    category: "chip"
+    enabled: true
+    markets: ["tw"]
+    conditions:
+      - type: "chip_short_squeeze"
+        ma_period: 20
+        ma_slope_window: 5                # C1：均線斜率觀察窗
+        institutional_window: 5           # C2：三大法人近 N 日累計買超
+        institutional_min_buy_days: 3     # C2：法人買超天數門檻
+        # C3 簡化：無市值分層資料前先用單一預設門檻（文件中型股門檻 5%），
+        # 待 universe 模組完成後改依 mcap_rank 分層覆寫（文件第 5.5 節）
+        short_margin_ratio_min_pct: 5
+        short_margin_ratio_percentile_window: 60
+        short_margin_ratio_percentile: 90
+        short_change_window: 5            # C4：融券增幅視窗
+        short_change_min_pct: 30          # C4：融券須激增 ≥30%
+
+  - id: "chip_distribution_top"
+    name: "高檔出貨（崩盤前）"
+    category: "chip"
+    enabled: true
+    markets: ["tw"]
+    conditions:
+      - type: "chip_distribution_top"
+        ma_period: 20
+        consec_sell_days: 3               # C2：法人連續賣超天數
+        margin_high_window: 60            # C3：融資餘額創新高視窗
+
+  # ══ 基本面出場警示（賣股策略 設計文件第四節 §1「成長動能衰竭」）══════════════
+  # 僅台股適用（MOPS 月營收僅涵蓋台股）。資料來源見 services/mops_fetcher.py，
+  # 需先呼叫 POST /api/v1/fundamentals/revenue/trigger 抓過月營收，才會有資料可供判斷；
+  # 尚未抓過的股票會因 ctx.revenue 為空而自然不觸發，不會報錯。
+  - id: "fundamental_revenue_decline"
+    name: "營收連續衰退出場"
+    category: "fundamental"
+    enabled: true
+    markets: ["tw"]
+    conditions:
+      - type: "revenue_yoy_decline"
+        consecutive_months: 2      # 連續衰退月數門檻
+        yoy_threshold: 0           # yoy_percent 須低於此值（%）才算衰退
+
 # ── 僅台股可用的濾網 ──────────────────────────
 filters_registry:
   - id: "institutional_buy"

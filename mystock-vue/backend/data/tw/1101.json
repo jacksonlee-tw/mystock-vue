@@ -1,4 +1,49 @@
 {
+  "2026-05-04": {
+    "close": 24.45,
+    "open": 24.55,
+    "high": 24.8,
+    "low": 24.3,
+    "volume": 30923171,
+    "amount": 758196599,
+    "trades": 8804
+  },
+  "2026-05-05": {
+    "close": 24.1,
+    "open": 24.45,
+    "high": 24.5,
+    "low": 24.05,
+    "volume": 28934916,
+    "amount": 700153690,
+    "trades": 11505
+  },
+  "2026-05-06": {
+    "close": 25.05,
+    "open": 24.25,
+    "high": 25.4,
+    "low": 24.1,
+    "volume": 44638336,
+    "amount": 1106608612,
+    "trades": 15304
+  },
+  "2026-05-07": {
+    "close": 25.5,
+    "open": 25.25,
+    "high": 25.7,
+    "low": 24.95,
+    "volume": 37443576,
+    "amount": 948016908,
+    "trades": 12989
+  },
+  "2026-05-08": {
+    "close": 25.0,
+    "open": 25.6,
+    "high": 25.7,
+    "low": 24.95,
+    "volume": 27759197,
+    "amount": 699541255,
+    "trades": 13950
+  },
   "2026-05-11": {
     "name": "台泥",
     "open": 25.15,
@@ -1699,10 +1744,10 @@
     "trades": 5264,
     "name": "台泥",
     "foreign_buy_sell": 44,
-    "trust_buy_sell": 0,
-    "dealer_buy_sell": -10,
-    "institutional_total": 81,
-    "institutional_amount_est": 198.05,
+    "trust_buy_sell": -10,
+    "dealer_buy_sell": 81,
+    "institutional_total": 115,
+    "institutional_amount_est": 281.18,
     "融資買進(張)": 745,
     "融資賣出(張)": 364,
     "融資現金償還(張)": 18,
@@ -1740,5 +1785,31 @@
     "融券前日餘額(張)": 67,
     "short_balance": 47,
     "資券互抵(張)": 0
+  },
+  "2026-08-14": {
+    "close": 24.25,
+    "open": 24.0,
+    "high": 24.3,
+    "low": 24.0,
+    "volume": 19242304,
+    "amount": 465493240,
+    "trades": 6012,
+    "name": "台泥",
+    "foreign_buy_sell": 5804,
+    "trust_buy_sell": -29,
+    "dealer_buy_sell": -64,
+    "institutional_total": 5711,
+    "institutional_amount_est": 13849.17,
+    "融資買進(張)": 65,
+    "融資賣出(張)": 2193,
+    "融資現金償還(張)": 81,
+    "融資前日餘額(張)": 34396,
+    "margin_balance": 32187,
+    "融券買進(張)": 2,
+    "融券賣出(張)": 10,
+    "融券現券償還(張)": 0,
+    "融券前日餘額(張)": 47,
+    "short_balance": 55,
+    "資券互抵(張)": 2
   }
 }

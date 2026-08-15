@@ -12,6 +12,7 @@ from api.v1.endpoints.fetch import router as fetch_router
 from api.v1.endpoints.markets import router as markets_router
 from api.v1.endpoints.alerts import router as alerts_router
 from api.v1.endpoints.strategies import router as strategies_router
+from api.v1.endpoints.fundamentals import router as fundamentals_router
 from core.exceptions import SymbolNotFoundException
 from db.session import dispose_engine
 from services.scheduler import create_scheduler
@@ -52,6 +53,7 @@ app.include_router(fetch_router)
 app.include_router(markets_router)
 app.include_router(alerts_router)
 app.include_router(strategies_router)
+app.include_router(fundamentals_router)
 
 @app.exception_handler(SymbolNotFoundException)
 async def symbol_not_found_handler(request, exc):
