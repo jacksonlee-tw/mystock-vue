@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import CORS_ORIGINS
 from api.v1.endpoints.stocks import router as stocks_router
 from api.v1.endpoints.fetch import router as fetch_router
+from api.v1.endpoints.schedule import router as schedule_router
 from api.v1.endpoints.markets import router as markets_router
 from api.v1.endpoints.alerts import router as alerts_router
 from api.v1.endpoints.strategies import router as strategies_router
@@ -88,6 +89,7 @@ app.add_middleware(
 # ── 註冊路由 ──────────────────────────────────────────────────────────────
 app.include_router(stocks_router)
 app.include_router(fetch_router)
+app.include_router(schedule_router)
 app.include_router(markets_router)
 app.include_router(alerts_router)
 app.include_router(strategies_router)

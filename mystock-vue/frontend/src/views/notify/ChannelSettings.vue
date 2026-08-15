@@ -39,10 +39,21 @@
         <div class="p-4 space-y-2">
           <div v-for="f in fieldsFor(ch)" :key="f.key" class="flex items-center justify-between gap-2 text-sm">
             <label class="text-surface-500 font-semibold">{{ f.label }}</label>
+            <Select
+              v-if="f.type === 'select'"
+              v-model="editing[ch.channel_code][f.key]"
+              :options="f.options"
+              optionLabel="label"
+              optionValue="value"
+              class="w-56"
+              size="small"
+            />
             <InputText
+              v-else
               v-model="editing[ch.channel_code][f.key]"
               :type="f.masked ? 'password' : 'text'"
               :placeholder="f.masked ? '未變更則留空' : ''"
+              :autocomplete="f.masked ? 'new-password' : 'off'"
               class="w-56"
               size="small"
             />
@@ -84,6 +95,14 @@ const FIELD_DEFS = {
   email: [
     { key: 'smtp_host', label: 'SMTP 主機' },
     { key: 'smtp_port', label: 'SMTP 埠' },
+    {
+      key: 'smtp_security', label: '加密方式', type: 'select',
+      options: [
+        { label: '自動（依埠號判斷）', value: '' },
+        { label: 'STARTTLS（587）', value: 'starttls' },
+        { label: 'SSL/TLS（465）', value: 'ssl' }
+      ]
+    },
     { key: 'smtp_user', label: '帳號' },
     { key: 'smtp_password', label: '密碼', masked: true },
     { key: 'sender_name', label: '寄件人名稱' },
@@ -108,11 +127,16 @@ function formatTime(t) {
   try { return new Date(t).toLocaleString('zh-TW'); } catch { return t; }
 }
 
-async function load() {
+/**
+ * preserveEditing：只更新管道狀態，不覆寫表單。
+ * 連線測試後若無條件重填表單，使用者還沒儲存的輸入會被靜默清掉（改了埠號卻跳回舊值）。
+ */
+async function load({ preserveEditing = false } = {}) {
   loading.value = true;
   try {
     channels.value = await notifyApi.admin.listChannels();
     for (const ch of channels.value) {
+      if (preserveEditing && editing[ch.channel_code]) continue;
       editing[ch.channel_code] = {};
       for (const f of fieldsFor(ch)) {
         editing[ch.channel_code][f.key] = f.masked ? '' : (ch.settings?.[f.key] ?? '');
@@ -159,7 +183,26 @@ async function save(ch) {
   }
 }
 
+/** 表單上是否有尚未儲存的變更（機敏欄位留空代表不變更，不列入比對） */
+function isDirty(ch) {
+  return fieldsFor(ch).some((f) => {
+    if (f.masked) return !!editing[ch.channel_code]?.[f.key];
+    return (editing[ch.channel_code]?.[f.key] ?? '') !== (ch.settings?.[f.key] ?? '');
+  });
+}
+
 async function test(ch) {
+  // 連線測試打的是「已儲存」的設定，不是表單上的值
+  if (isDirty(ch)) {
+    toast.add({
+      severity: 'warn',
+      summary: '有未儲存的變更',
+      detail: '連線測試使用的是已儲存的設定，請先按「儲存設定」再測試',
+      life: 5000
+    });
+    return;
+  }
+
   testingCode.value = ch.channel_code;
   try {
     const result = await notifyApi.admin.testChannel(ch.channel_code);
@@ -169,7 +212,7 @@ async function test(ch) {
       detail: result.detail,
       life: 4000
     });
-    await load();
+    await load({ preserveEditing: true });
   } catch (err) {
     toast.add({ severity: 'error', summary: '測試失敗', detail: err.message, life: 4000 });
   } finally {
@@ -177,5 +220,5 @@ async function test(ch) {
   }
 }
 
-onMounted(load);
+onMounted(() => load());
 </script>

@@ -86,5 +86,18 @@ export const stockApi = {
     async getFetchStatus() {
         const response = await apiClient.get('/fetch/status');
         return response.data;
+    },
+
+    // 查詢每日抓取排程設定與下次執行時間
+    async getSchedule() {
+        const response = await apiClient.get('/schedule');
+        return response.data;
+    },
+
+    // 更新排程時間；markets 形如 { tw: { time: '14:30', enabled: true } }
+    // 存檔後後端會即時套用到執行中的排程，不需重啟服務
+    async saveSchedule(markets) {
+        const response = await apiClient.put('/schedule', { markets });
+        return response.data;
     }
 };

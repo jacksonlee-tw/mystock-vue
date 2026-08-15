@@ -39,6 +39,29 @@ class EmailChannel(ChannelAdapter):
     def normalize_address(self, raw: str) -> str:
         return raw.strip().lower()
 
+    @staticmethod
+    def _tls_mode(settings: dict, port: int) -> tuple[bool, bool]:
+        """決定 (use_tls, starttls)。
+
+        SMTP 慣例：465 是 implicit TLS（連上即握手），587／25 是 STARTTLS（先明文再升級）。
+        對 465 送 STARTTLS 會在升級前就被伺服器切斷，症狀正是 "Unexpected EOF received"，
+        所以未明確指定加密方式時一律依埠號推導，不能固定用 STARTTLS。
+        """
+        security = str(settings.get("smtp_security", "")).strip().lower()
+        if security in ("ssl", "tls", "ssl/tls", "implicit", "smtps"):
+            return True, False
+        if security == "starttls":
+            return False, True
+
+        # 舊設定相容：曾明確寫入 use_tls / use_starttls 就照舊值
+        if "use_tls" in settings or "use_starttls" in settings:
+            use_tls = str(settings.get("use_tls", "false")).lower() == "true"
+            starttls = (not use_tls) and str(settings.get("use_starttls", "true")).lower() == "true"
+            return use_tls, starttls
+
+        # 未指定 → 依埠號推導
+        return (port == 465), (port != 465)
+
     def classify_failure(self, exc: Exception) -> FailureKind:
         exc_str = str(exc)
         if "535" in exc_str or "Authentication" in exc_str:
@@ -65,8 +88,7 @@ class EmailChannel(ChannelAdapter):
             smtp_pass = settings.get("smtp_password", "")
             sender_name  = settings.get("sender_name", "MyStock")
             sender_email = settings.get("sender_email", smtp_user)
-            use_tls  = str(settings.get("use_tls", "false")).lower() == "true"
-            starttls = str(settings.get("use_starttls", "true")).lower() == "true"
+            use_tls, starttls = self._tls_mode(settings, smtp_port)
 
             msg = EmailMessage()
             msg["Subject"] = (notify_config.get_email_subject_prefix() + (subject or "通知")).strip()
@@ -80,10 +102,11 @@ class EmailChannel(ChannelAdapter):
             else:
                 msg.set_content(body)
 
-            smtp = aiosmtplib.SMTP(hostname=smtp_host, port=smtp_port, use_tls=use_tls)
+            # start_tls 交給 aiosmtplib 在 connect() 內處理：它預設為 None（自動升級），
+            # 連線後再手動呼叫 starttls() 會得到 "Connection already using TLS"。
+            smtp = aiosmtplib.SMTP(hostname=smtp_host, port=smtp_port,
+                                   use_tls=use_tls, start_tls=starttls)
             await smtp.connect()
-            if starttls and not use_tls:
-                await smtp.starttls()
             await smtp.login(smtp_user, smtp_pass)
             result = await smtp.sendmail(sender_email, [address], msg.as_string())
             await smtp.quit()
@@ -107,15 +130,14 @@ class EmailChannel(ChannelAdapter):
             smtp_port = int(settings.get("smtp_port", 587))
             smtp_user = settings.get("smtp_user", "")
             smtp_pass = settings.get("smtp_password", "")
-            use_tls   = str(settings.get("use_tls", "false")).lower() == "true"
-            starttls  = str(settings.get("use_starttls", "true")).lower() == "true"
+            use_tls, starttls = self._tls_mode(settings, smtp_port)
 
-            smtp = aiosmtplib.SMTP(hostname=smtp_host, port=smtp_port, use_tls=use_tls)
+            smtp = aiosmtplib.SMTP(hostname=smtp_host, port=smtp_port,
+                                   use_tls=use_tls, start_tls=starttls)
             await smtp.connect()
-            if starttls and not use_tls:
-                await smtp.starttls()
             await smtp.login(smtp_user, smtp_pass)
             await smtp.quit()
-            return HealthResult(ok=True, detail="SMTP 連線與認證成功")
+            mode = "SSL/TLS" if use_tls else ("STARTTLS" if starttls else "無加密")
+            return HealthResult(ok=True, detail=f"SMTP 連線與認證成功（埠 {smtp_port}／{mode}）")
         except Exception as exc:
             return HealthResult(ok=False, detail=str(exc)[:200])

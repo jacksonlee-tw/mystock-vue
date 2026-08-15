@@ -67,6 +67,111 @@
       </div>
     </div>
 
+    <!-- 每日自動排程設定 -->
+    <div class="card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
+            <i class="pi pi-clock text-primary"></i> 每日自動排程
+          </h3>
+          <p class="text-sm text-surface-500 mt-1">
+            設定每日自動抓取＋策略掃描的執行時間；儲存後<b>立即生效</b>，不需重啟服務。
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span
+            v-if="schedule"
+            class="px-2.5 py-1 rounded-lg text-xs font-bold"
+            :class="schedule.scheduler_running
+              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+              : 'bg-surface-200 text-surface-600 dark:bg-surface-700 dark:text-surface-300'"
+          >
+            {{ schedule.scheduler_running ? '排程器運行中' : '排程器未啟動' }}
+          </span>
+          <span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-surface-100 dark:bg-surface-800 text-surface-500">
+            <i class="pi pi-globe"></i> {{ schedule?.timezone || 'Asia/Taipei' }}
+          </span>
+        </div>
+      </div>
+
+      <div v-if="scheduleLoading" class="flex items-center gap-2 text-surface-500 text-sm py-4">
+        <i class="pi pi-spin pi-spinner"></i> 載入排程設定...
+      </div>
+
+      <div v-else-if="scheduleError" class="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm flex items-center justify-between gap-3">
+        <span><i class="pi pi-exclamation-triangle"></i> 排程設定載入失敗：{{ scheduleError }}</span>
+        <button @click="loadSchedule" class="px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-900/40 font-bold text-xs">重試</button>
+      </div>
+
+      <div v-else-if="schedule" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div
+          v-for="m in SCHEDULE_MARKETS"
+          :key="m.key"
+          class="p-4 rounded-xl border border-surface-200 dark:border-surface-700 space-y-3"
+          :class="scheduleForm[m.key].enabled ? '' : 'opacity-60'"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div class="font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
+              <i :class="m.icon" class="text-primary"></i> {{ m.label }}
+            </div>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <span class="text-xs text-surface-500">{{ scheduleForm[m.key].enabled ? '啟用' : '停用' }}</span>
+              <input type="checkbox" v-model="scheduleForm[m.key].enabled" class="w-9 h-5 accent-primary cursor-pointer" />
+            </label>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <input
+              type="time"
+              v-model="scheduleForm[m.key].time"
+              :disabled="!scheduleForm[m.key].enabled"
+              class="px-3 py-2 border border-surface-300 dark:border-surface-600 rounded-xl bg-surface-0 dark:bg-surface-800 text-surface-900 dark:text-surface-0 text-lg font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+            />
+            <div class="text-xs text-surface-500 leading-relaxed">
+              <div>{{ m.hint }}</div>
+              <div v-if="scheduleForm[m.key].enabled && schedule.health_check_delay_minutes">
+                健康檢查 {{ healthCheckTime(m.key) }}
+              </div>
+            </div>
+          </div>
+
+          <div class="text-xs text-surface-500 flex items-center gap-1.5 pt-1 border-t border-surface-100 dark:border-surface-800">
+            <i class="pi pi-calendar-clock"></i>
+            <span v-if="!scheduleForm[m.key].enabled">已停用，不會自動執行</span>
+            <span v-else-if="scheduleDirty">設定已變更，儲存後計算下次執行時間</span>
+            <span v-else-if="schedule.markets[m.key].next_run_at">
+              下次執行：{{ formatNextRun(schedule.markets[m.key].next_run_at) }}
+            </span>
+            <span v-else>尚未排定</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="schedule && !scheduleLoading" class="flex items-center justify-between gap-3 flex-wrap pt-1">
+        <p class="text-xs text-surface-500">
+          <i class="pi pi-info-circle"></i>
+          抓取完成後會自動接著執行策略掃描；若當下已有抓取任務進行中，該次排程會直接跳過而非排隊等待。
+        </p>
+        <div class="flex items-center gap-2">
+          <button
+            v-if="scheduleDirty"
+            @click="resetSchedule"
+            class="px-4 py-2 rounded-xl border border-surface-300 dark:border-surface-600 text-sm font-bold text-surface-600 dark:text-surface-300"
+          >
+            還原
+          </button>
+          <button
+            @click="saveSchedule"
+            :disabled="!scheduleDirty || scheduleSaving"
+            class="px-5 py-2 font-bold text-white bg-primary hover:bg-primary-600 disabled:opacity-50 rounded-xl flex items-center gap-2 transition-all"
+          >
+            <i :class="['pi', scheduleSaving ? 'pi-spin pi-spinner' : 'pi-check']"></i>
+            {{ scheduleSaving ? '儲存中...' : '儲存排程' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 追蹤股票清單管理 -->
     <div class="card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900 space-y-4">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -208,9 +313,83 @@ const statusLabel = computed(() => {
   }
 });
 
+// ── 每日自動排程設定 ──────────────────────────────────────────
+const SCHEDULE_MARKETS = [
+  { key: 'tw', label: '台股', icon: 'pi pi-chart-line', hint: '建議設在台股盤後（14:30 以後）' },
+  { key: 'us', label: '美股', icon: 'pi pi-globe', hint: '美股收盤後的隔日台北時間（預設 06:00）' }
+];
+
+const schedule = ref(null);
+const scheduleLoading = ref(true);
+const scheduleSaving = ref(false);
+const scheduleError = ref('');
+const scheduleForm = ref({ tw: { time: '14:30', enabled: true }, us: { time: '06:00', enabled: true } });
+let scheduleSaved = JSON.stringify(scheduleForm.value);
+
+const scheduleDirty = computed(() => JSON.stringify(scheduleForm.value) !== scheduleSaved);
+
+function applyScheduleData(data) {
+  schedule.value = data;
+  scheduleForm.value = {
+    tw: { time: data.markets.tw.time, enabled: data.markets.tw.enabled },
+    us: { time: data.markets.us.time, enabled: data.markets.us.enabled }
+  };
+  scheduleSaved = JSON.stringify(scheduleForm.value);
+}
+
+async function loadSchedule() {
+  scheduleLoading.value = true;
+  scheduleError.value = '';
+  try {
+    const res = await stockApi.getSchedule();
+    if (!res.success) throw new Error(res.error?.message || '未知錯誤');
+    applyScheduleData(res.data);
+  } catch (err) {
+    scheduleError.value = err.message;
+  } finally {
+    scheduleLoading.value = false;
+  }
+}
+
+async function saveSchedule() {
+  scheduleSaving.value = true;
+  try {
+    const res = await stockApi.saveSchedule({
+      tw: { time: scheduleForm.value.tw.time, enabled: scheduleForm.value.tw.enabled },
+      us: { time: scheduleForm.value.us.time, enabled: scheduleForm.value.us.enabled }
+    });
+    if (!res.success) throw new Error(res.error?.message || '未知錯誤');
+    applyScheduleData(res.data);
+    toast.add({ severity: 'success', summary: '排程已更新', detail: '設定已立即套用，不需重啟服務', life: 3000 });
+  } catch (err) {
+    toast.add({ severity: 'error', summary: '排程儲存失敗', detail: err.message, life: 5000 });
+  } finally {
+    scheduleSaving.value = false;
+  }
+}
+
+function resetSchedule() {
+  scheduleForm.value = JSON.parse(scheduleSaved);
+}
+
+/** 健康檢查時間＝抓取時間 + 後端的延遲分鐘數（跨日會繞回） */
+function healthCheckTime(market) {
+  const [h, m] = (scheduleForm.value[market].time || '00:00').split(':').map(Number);
+  const total = h * 60 + m + (schedule.value?.health_check_delay_minutes || 0);
+  return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function formatNextRun(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 onMounted(async () => {
   await loadTrackedStocks();
   await checkStatus();
+  await loadSchedule();
 });
 
 watch(currentMarket, () => {

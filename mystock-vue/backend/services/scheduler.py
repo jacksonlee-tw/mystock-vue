@@ -1,4 +1,9 @@
-"""APScheduler 排程（phase3_5 設計文件第 3 節）：台股 14:30 / 美股 06:00（Asia/Taipei）。
+"""APScheduler 排程（phase3_5 設計文件第 3 節）：台股／美股每日抓取＋掃描。
+
+抓取時間不再寫死：由 config.get_schedule_config() 自 .env 讀取（預設台股 14:30、美股 06:00，
+Asia/Taipei），並可透過 `PUT /api/v1/schedule` 於執行中即時套用（apply_schedule_config()），
+不需重啟服務。各市場的健康檢查時間跟著抓取時間走（抓取後 HEALTH_CHECK_DELAY_MINUTES 分鐘），
+否則改了抓取時間會讓健康檢查跑在抓取之前，報出假警報。
 
 用 AsyncIOScheduler 而非 BackgroundScheduler：排程與 FastAPI 共用同一個 event loop 生命週期，
 job 函式本身是同步阻塞的（requests + time.sleep），APScheduler 預設用 ThreadPoolExecutor 執行，
@@ -17,12 +22,20 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+from config import get_schedule_config
 from services.fetcher import fetch_status, run_fetch_process
 from services.us_fetcher import run_us_fetch_process
 
 logger = logging.getLogger("mystock-backend")
 
 TAIPEI_TZ = "Asia/Taipei"
+
+FETCH_JOB_IDS = {"tw": "tw_daily_fetch", "us": "us_daily_fetch"}
+HEALTH_JOB_IDS = {"tw": "notify_health_tw", "us": "notify_health_us"}
+HEALTH_CHECK_DELAY_MINUTES = 60
+
+# 目前執行中的 scheduler 實例；供 API 端即時改排程用（單一 uvicorn 程序內只有一個）
+_scheduler: AsyncIOScheduler | None = None
 
 
 def _publish_after_scan(market: str, scan_result: dict) -> None:
@@ -196,16 +209,80 @@ async def _notify_purge_logs() -> None:
         logger.warning(f"[通知] 紀錄清理失敗（已靜默）: {e}")
 
 
+_FETCH_JOB_FUNCS = {"tw": _scheduled_tw, "us": _scheduled_us}
+_HEALTH_JOB_FUNCS = {"tw": _notify_health_check_tw, "us": _notify_health_check_us}
+
+
+def _sync_market_jobs(scheduler: AsyncIOScheduler, config: dict) -> None:
+    """依設定建立／改期／移除各市場的抓取 job 與其健康檢查 job。
+
+    停用的市場直接移除 job 而不是留著暫停的 job —— 這樣 get_schedule_status() 回報的
+    「下次執行時間」才不會留下誤導性的殘值。
+    """
+    tz = config["timezone"]
+    for market, job_id in FETCH_JOB_IDS.items():
+        setting = config["markets"][market]
+        health_id = HEALTH_JOB_IDS[market]
+
+        if not setting["enabled"]:
+            for jid in (job_id, health_id):
+                if scheduler.get_job(jid):
+                    scheduler.remove_job(jid)
+            logger.info(f"[排程] {market} 每日抓取已停用")
+            continue
+
+        trigger = CronTrigger(hour=setting["hour"], minute=setting["minute"], timezone=tz)
+        if scheduler.get_job(job_id):
+            scheduler.reschedule_job(job_id, trigger=trigger)
+        else:
+            scheduler.add_job(_FETCH_JOB_FUNCS[market], trigger, id=job_id)
+
+        # 健康檢查跟著抓取時間走，避免檢查跑在抓取之前而誤報
+        total = setting["hour"] * 60 + setting["minute"] + HEALTH_CHECK_DELAY_MINUTES
+        h_trigger = CronTrigger(hour=(total // 60) % 24, minute=total % 60, timezone=tz)
+        if scheduler.get_job(health_id):
+            scheduler.reschedule_job(health_id, trigger=h_trigger)
+        else:
+            scheduler.add_job(_HEALTH_JOB_FUNCS[market], h_trigger, id=health_id)
+
+        logger.info(f"[排程] {market} 每日抓取 {setting['time']}（健康檢查 +{HEALTH_CHECK_DELAY_MINUTES} 分）({tz})")
+
+
 def create_scheduler() -> AsyncIOScheduler:
-    scheduler = AsyncIOScheduler(timezone=TAIPEI_TZ)
-    scheduler.add_job(_scheduled_tw, CronTrigger(hour=14, minute=30, timezone=TAIPEI_TZ), id="tw_daily_fetch")
-    scheduler.add_job(_scheduled_us, CronTrigger(hour=6, minute=0, timezone=TAIPEI_TZ), id="us_daily_fetch")
+    global _scheduler
+    config = get_schedule_config()
+    scheduler = AsyncIOScheduler(timezone=config["timezone"])
+
+    # 每日抓取＋掃描，以及跟著它走的健康檢查（時間可由 UI 設定）
+    _sync_market_jobs(scheduler, config)
 
     # 整合訊息通知平台背景工作（§8.2）；NOTIFY_ENABLED=false 時每個工作自己直接返回，不消耗資源
     scheduler.add_job(_notify_digest_tick, IntervalTrigger(seconds=60), id="notify_digest_tick")
     scheduler.add_job(_notify_pause_recovery, IntervalTrigger(minutes=5), id="notify_pause_recovery")
     scheduler.add_job(_notify_stuck_recovery, IntervalTrigger(minutes=5), id="notify_stuck_recovery")
-    scheduler.add_job(_notify_health_check_tw, CronTrigger(hour=15, minute=30, timezone=TAIPEI_TZ), id="notify_health_tw")
-    scheduler.add_job(_notify_health_check_us, CronTrigger(hour=7, minute=0, timezone=TAIPEI_TZ), id="notify_health_us")
     scheduler.add_job(_notify_purge_logs, CronTrigger(hour=4, minute=0, timezone=TAIPEI_TZ), id="notify_purge_logs")
+
+    _scheduler = scheduler
     return scheduler
+
+
+def apply_schedule_config() -> dict:
+    """重新讀取設定並套用到執行中的排程，回傳套用後的狀態。
+    尚未建立 scheduler（例如測試情境）時只回報設定，不視為錯誤。"""
+    if _scheduler is None:
+        logger.warning("[排程] 尚無執行中的 scheduler，設定已儲存但未即時套用")
+    else:
+        _sync_market_jobs(_scheduler, get_schedule_config())
+    return get_schedule_status()
+
+
+def get_schedule_status() -> dict:
+    """目前排程設定 ＋ 各市場下次執行時間（供 UI 顯示）。"""
+    config = get_schedule_config()
+    for market, job_id in FETCH_JOB_IDS.items():
+        job = _scheduler.get_job(job_id) if _scheduler else None
+        next_run = getattr(job, "next_run_time", None) if job else None
+        config["markets"][market]["next_run_at"] = next_run.isoformat() if next_run else None
+    config["health_check_delay_minutes"] = HEALTH_CHECK_DELAY_MINUTES
+    config["scheduler_running"] = bool(_scheduler and _scheduler.running)
+    return config
