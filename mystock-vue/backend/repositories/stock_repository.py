@@ -95,6 +95,42 @@ class StockRepository:
             result = await session.execute(stmt.order_by(Symbol.symbol))
             return [_symbol_to_dict(row) for row in result.scalars().all()]
 
+    async def get_symbol_summaries(self, market_type: str) -> list[dict]:
+        """批次取得某市場所有「有歷史資料」symbol 的摘要（最新日期、最新收盤價、公司名稱、記錄筆數），
+        一次 SQL 查完（DISTINCT ON + window function）。
+
+        用途是取代 services/stock_service.py discover_available_stocks() 原本「對每個 symbol 各呼叫一次
+        get_daily_data()」的寫法：symbols 表在個股產業標籤同步（services/industry_fetcher.py）後會被灌入
+        整個市場的代碼（TW 兩千多檔），但真正有 daily_stock_data 的往往只有追蹤中的幾十檔，逐檔查詢等於
+        上千次序列 DB round trip，實測會讓 /api/v1/stocks 逾時（15s 都不夠）。這裡改成單一查詢，且因為
+        是從 daily_stock_data 出發（INNER JOIN symbols），本來就只會回傳「真的有資料」的 symbol，不需要
+        額外過濾。"""
+        async with self._session_factory() as session:
+            stmt = (
+                select(
+                    DailyStockData.symbol,
+                    DailyStockData.trade_date,
+                    DailyStockData.close_price,
+                    Symbol.name,
+                    func.count().over(partition_by=DailyStockData.symbol).label("total_records"),
+                )
+                .join(Symbol, Symbol.symbol == DailyStockData.symbol)
+                .where(DailyStockData.market_type == market_type)
+                .distinct(DailyStockData.symbol)
+                .order_by(DailyStockData.symbol, DailyStockData.trade_date.desc())
+            )
+            result = await session.execute(stmt)
+            return [
+                {
+                    "symbol": row.symbol,
+                    "name": row.name,
+                    "latest_date": row.trade_date,
+                    "latest_close": float(row.close_price) if row.close_price is not None else 0.0,
+                    "total_records": row.total_records,
+                }
+                for row in result.all()
+            ]
+
     async def upsert_symbol(
         self,
         symbol: str,

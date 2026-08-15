@@ -1,9 +1,9 @@
 <template>
-  <div class="p-6 max-w-7xl mx-auto space-y-6">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+  <div class="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
       <div>
-        <h1 class="text-2xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-3">
-          <i class="pi pi-th-large text-primary text-2xl"></i>
+        <h1 class="text-xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-2">
+          <i class="pi pi-th-large text-primary text-xl"></i>
           全市場個股動態熱力圖
         </h1>
         <p class="text-sm text-surface-500 mt-1 flex flex-wrap items-center gap-2">
@@ -51,59 +51,63 @@
     </div>
 
     <!-- 熱力圖網格 -->
-    <div v-else class="space-y-8">
+    <div v-else class="space-y-5">
       <div v-for="category in categories" :key="category.name" v-show="category.stocks.length > 0">
-        <h2 class="text-xl font-bold text-surface-900 dark:text-surface-0 mb-4 flex items-center gap-2">
-          <i :class="['pi text-primary', category.icon]"></i>
+        <h2 class="text-base font-bold text-surface-900 dark:text-surface-0 mb-2 flex items-center gap-2">
+          <i :class="['pi text-primary text-sm', category.icon]"></i>
           {{ category.name }}
+          <span class="text-xs font-medium text-surface-400">({{ category.stocks.length }})</span>
         </h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           <div
             v-for="stock in category.stocks"
             :key="stock.stock_id + '-' + selectedPeriod"
             @click="goToItem(stock)"
-            class="card p-4 rounded-xl border bg-surface-0 dark:bg-surface-900 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-lg transition-all"
+            class="card p-3 rounded-xl border bg-surface-0 dark:bg-surface-900 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-lg transition-all"
             :class="getCardBorderClass(stock)"
           >
-            <div class="flex justify-between items-start mb-2">
+            <div class="flex justify-between items-start mb-1.5">
               <div>
-                <div class="flex items-center gap-1.5">
-                  <span class="text-lg font-bold text-surface-900 dark:text-surface-0">{{ stock.stock_name }}</span>
-                  <span class="px-1.5 py-0.5 text-[10px] font-bold bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 rounded border border-surface-200 dark:border-surface-700">
-                    {{ selectedPeriodLabel }}
-                  </span>
+                <div class="flex items-center gap-1 flex-wrap">
+                  <span class="text-sm font-bold text-surface-900 dark:text-surface-0">{{ stock.stock_name }}</span>
                   <span
-                    class="px-1.5 py-0.5 text-[10px] font-bold rounded border"
+                    class="px-1 py-0.5 text-[9px] font-bold rounded border"
                     :class="stock.is_index
                       ? 'bg-amber-500 text-white border-amber-500'
                       : 'bg-primary text-primary-contrast border-primary'"
                   >
                     {{ stock.is_index ? '指數' : marketMeta.exchange }}
                   </span>
+                  <span
+                    v-if="stock.industry_tag"
+                    class="px-1 py-0.5 text-[9px] font-bold rounded border bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700"
+                  >
+                    {{ stock.industry_tag }}
+                  </span>
                 </div>
-                <div class="text-xs text-surface-500 font-medium">{{ stock.stock_id }}</div>
+                <div class="text-[11px] text-surface-500 font-medium">{{ stock.stock_id }}</div>
               </div>
               <div class="text-right">
-                <div class="text-lg font-black" :class="getPriceColorClass(stock)">
+                <div class="text-sm font-black" :class="getPriceColorClass(stock)">
                   <span v-if="!stock.is_index">{{ marketMeta.currency_symbol }}</span>{{ formatCardPrice(stock.latest_close) }}
                 </div>
-                <div class="text-xs font-bold" :class="getPriceColorClass(stock)">
+                <div class="text-[11px] font-bold" :class="getPriceColorClass(stock)">
                   {{ stock.change > 0 ? '+' : '' }}{{ stock.change.toFixed(2) }}
                   ({{ stock.change > 0 ? '+' : '' }}{{ stock.change_percent.toFixed(2) }}%)
                 </div>
               </div>
             </div>
 
-            <div class="h-16 mb-2">
+            <div class="h-10 mb-1.5">
               <v-chart :key="stock.stock_id + '-' + selectedPeriod" :option="getSparklineOption(stock)" :update-options="{ notMerge: true }" autoforesize />
             </div>
 
-            <div class="flex items-center justify-between text-xs text-surface-500 border-t border-surface-100 dark:border-surface-800 pt-2">
-              <span class="font-medium" title="資料起迄日期">
-                <i class="pi pi-calendar text-[10px] mr-1 text-primary"></i>
+            <div class="flex items-center justify-between text-[10px] text-surface-500 border-t border-surface-100 dark:border-surface-800 pt-1.5">
+              <span class="font-medium truncate" title="資料起迄日期">
+                <i class="pi pi-calendar mr-1 text-primary"></i>
                 {{ stock.start_date ? stock.start_date + ' ~ ' + stock.end_date : stock.latest_date }}
               </span>
-              <i class="pi pi-arrow-right" :class="getPriceColorClass(stock)"></i>
+              <i class="pi pi-arrow-right shrink-0 ml-1" :class="getPriceColorClass(stock)"></i>
             </div>
           </div>
         </div>
@@ -162,19 +166,40 @@ const generalStocksByIndustry = computed(() => {
   return entries.map(([name, list]) => ({ name, icon: 'pi-building', stocks: list }));
 });
 
+// 個人自選股清單通常每個產業只有 1~2 檔，若每個產業都各自起一個標題區塊，頁面會被大量
+// 「標題 + 一張卡片」的區塊撐得很長、卻沒有對應的資訊量。未達門檻的產業合併進單一
+// 「其他個股」區塊，並在卡片上補一個小產業標籤，維持可辨識度但不再逐一佔用整行標題。
+const INDUSTRY_MERGE_THRESHOLD = 3;
+
 // 指數放在最前面：先看大盤，再看 ETF，最後才是依產業分組的一般個股（見大盤指數功能規劃書 §5.2/§8.2）。
 // 產業對照表尚未載入或全查不到資料時，退回單一「一般個股」分類，不讓分組邏輯阻擋既有行為。
 const categories = computed(() => {
   const hasIndustryData = Object.keys(industries.value).length > 0;
-  const generalCategories = hasIndustryData
-    ? generalStocksByIndustry.value
-    : [{ name: '一般個股', icon: 'pi-building', stocks: generalStocks.value }];
 
-  return [
+  if (!hasIndustryData) {
+    return [
+      { name: '指數', icon: 'pi-globe', stocks: indexStocks.value },
+      { name: 'ETF', icon: 'pi-chart-pie', stocks: etfStocks.value },
+      { name: '一般個股', icon: 'pi-building', stocks: generalStocks.value }
+    ];
+  }
+
+  const groups = generalStocksByIndustry.value;
+  const bigGroups = groups.filter(g => g.stocks.length >= INDUSTRY_MERGE_THRESHOLD);
+  const smallGroups = groups.filter(g => g.stocks.length < INDUSTRY_MERGE_THRESHOLD);
+  const mergedStocks = smallGroups.flatMap(g =>
+    g.stocks.map(s => ({ ...s, industry_tag: g.name === '未分類' ? null : g.name }))
+  );
+
+  const result = [
     { name: '指數', icon: 'pi-globe', stocks: indexStocks.value },
     { name: 'ETF', icon: 'pi-chart-pie', stocks: etfStocks.value },
-    ...generalCategories
+    ...bigGroups
   ];
+  if (mergedStocks.length > 0) {
+    result.push({ name: '其他個股', icon: 'pi-building', stocks: mergedStocks });
+  }
+  return result;
 });
 
 function isEtf(stock) {

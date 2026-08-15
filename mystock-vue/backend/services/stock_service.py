@@ -81,6 +81,23 @@ async def load_stock_data(stock_id: str, market: str = "tw", source: Optional[st
         result[row["trade_date"].isoformat()] = record
     return result
 
+async def _discover_stocks_db(market: str, tracked_codes: set) -> List[Dict[str, Any]]:
+    """discover_available_stocks() 的 PostgreSQL 分支：見 StockRepository.get_symbol_summaries() 註解，
+    改用單一批次查詢取代逐 symbol 呼叫 load_stock_data() 的 N+1 寫法。"""
+    summaries = await StockRepository().get_symbol_summaries(market)
+    return [
+        {
+            "stock_id": s["symbol"],
+            "stock_name": s["name"] or s["symbol"],
+            "market": market,
+            "latest_date": s["latest_date"].isoformat(),
+            "latest_close": s["latest_close"],
+            "total_records": s["total_records"],
+            "is_tracked": s["symbol"] in tracked_codes
+        }
+        for s in summaries
+    ]
+
 async def discover_available_stocks() -> List[Dict[str, Any]]:
     """回傳系統中所有可用的股票清單與元資料（依 DATA_SOURCE 讀取 JSON 檔案或 PostgreSQL）。"""
     stocks = []
@@ -89,10 +106,10 @@ async def discover_available_stocks() -> List[Dict[str, Any]]:
         tracked_codes = set(get_target_stocks(market=market))
 
         if get_data_source() == "postgres":
-            stock_ids = await _list_stock_ids_db(market)
-        else:
-            stock_ids = _list_stock_ids_json(os.path.join(DATA_DIR, market))
+            stocks.extend(await _discover_stocks_db(market, tracked_codes))
+            continue
 
+        stock_ids = _list_stock_ids_json(os.path.join(DATA_DIR, market))
         for stock_id in stock_ids:
             try:
                 data = await load_stock_data(stock_id, market)

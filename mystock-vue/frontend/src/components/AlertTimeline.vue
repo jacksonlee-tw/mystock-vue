@@ -74,6 +74,7 @@
           </p>
 
           <button
+            v-if="showChartLink"
             type="button"
             class="text-sm font-bold text-primary hover:underline flex items-center gap-1"
             @click.stop="goToChart(alert)"
@@ -99,7 +100,9 @@ import { categoryMeta } from '@/utils/alertCategory';
 
 const props = defineProps({
   alerts: { type: Array, default: () => [] },
-  strategyList: { type: Array, default: () => [] }
+  strategyList: { type: Array, default: () => [] },
+  // 個股頁面內嵌顯示時（StockAlertsPanel）本來就已經在該股票的圖表頁，不需要再顯示自我導航的連結
+  showChartLink: { type: Boolean, default: true }
 });
 
 const router = useRouter();

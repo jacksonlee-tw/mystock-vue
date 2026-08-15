@@ -205,6 +205,9 @@
           </div>
         </div>
 
+        <!-- 策略警示：此股票目前符合哪些均線／籌碼策略條件（均線策略警示系統 設計文件第 6.2 節） -->
+        <StockAlertsPanel :stock-id="selectedStock" :market="market" :months="selectedMonths" />
+
         <!-- 視圖切換標籤 (圖表 / 表格) -->
         <div class="flex items-center justify-between border-b border-surface-200 dark:border-surface-700 pb-2">
           <div class="flex items-center gap-2">
@@ -332,6 +335,7 @@ import { colorForValue as colorForValueRaw } from '@/utils/marketColors';
 import { formatPrice, formatChange, formatLots, formatPercent } from '@/utils/format';
 import StockCharts from '@/components/StockCharts.vue';
 import VsIndexWidget from '@/components/VsIndexWidget.vue';
+import StockAlertsPanel from '@/components/StockAlertsPanel.vue';
 import { useMarket } from '@/composables/useMarket';
 
 const route = useRoute();
