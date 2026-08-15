@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>收件人與端點管理 — MyStock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .rcp-card { margin-bottom: 1rem; }
+    .rcp-head {
+      display: flex; align-items: center; gap: 0.85rem;
+      padding: 0.9rem 1.15rem;
+      border-bottom: 1px solid var(--surface-border);
+    }
+    .rcp-avatar {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: var(--brass-light); border: 1px solid var(--brass-border);
+      color: var(--brass); font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .ep-meta {
+      display: flex; flex-wrap: wrap; gap: 0.35rem 0.85rem;
+      font-size: 0.72rem; color: var(--text-muted);
+      margin-top: 3px;
+    }
+    .ep-meta b { color: var(--text-secondary); font-weight: 700; }
+    .selflink-row {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.65rem 1.15rem;
+      background: var(--surface-hover);
+      border-top: 1px solid var(--surface-border);
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div id="topbar-host"></div>
+
+  <main class="page-main">
+    <div class="content-wrap">
+
+      <div class="page-head flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <div class="page-title"><i class="pi pi-users" style="color:var(--brass)"></i>收件人與端點管理</div>
+          <div class="page-sub">新增收件對象是純資料操作 — 不需修改設定檔，也不需重啟系統</div>
+        </div>
+        <div class="flex gap-1">
+          <button class="btn btn-ghost" onclick="openModal('modal-group')"><i class="pi pi-folder"></i>收件群組</button>
+          <button class="btn btn-primary" onclick="openModal('modal-recipient')"><i class="pi pi-user-plus"></i>新增收件人</button>
+        </div>
+      </div>
+
+      <div class="grid-4 mb-3">
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--brass-light); color:var(--brass)"><i class="pi pi-users"></i></div>
+          <div><div class="kpi-label">收件人</div><div class="kpi-value">3</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--blue-light); color:var(--blue)"><i class="pi pi-envelope"></i></div>
+          <div><div class="kpi-label">Email 端點</div><div class="kpi-value">3</div><div class="kpi-sub">1 個待驗證</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--violet-light); color:var(--violet)"><i class="pi pi-send"></i></div>
+          <div><div class="kpi-label">Telegram 端點</div><div class="kpi-value">2</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--amber-light); color:var(--amber)"><i class="pi pi-pause"></i></div>
+          <div><div class="kpi-label">暫停中</div><div class="kpi-value">1</div><div class="kpi-sub">收件人自行設定</div></div>
+        </div>
+      </div>
+
+      <div class="banner banner-brass mb-3">
+        <i class="pi pi-link"></i>
+        <div>
+          每位收件人都有一組<b>專屬自助連結</b>，會附在每則訊息底部。收件人可自行調整訂閱範圍、暫停與退訂（規格 §6.3 M13）。
+          連結可隨時撤銷並重新產生。
+        </div>
+      </div>
+
+      <div id="recipient-list"></div>
+
+    </div>
+  </main>
+
+  <!-- 新增收件人 -->
+  <div class="modal-backdrop" id="modal-recipient">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">新增收件人</div>
+        <button class="icon-btn" onclick="closeModal('modal-recipient')"><i class="pi pi-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">顯示名稱</label>
+          <input class="form-input" placeholder="例如：家人 B">
+        </div>
+        <div class="form-group">
+          <label class="form-label">加入收件群組</label>
+          <select class="form-input form-select">
+            <option>本人</option><option>家人</option><option>同好</option><option>（不加入群組）</option>
+          </select>
+        </div>
+        <div class="banner banner-info">
+          <i class="pi pi-info-circle"></i>
+          <div>建立收件人後，再為其新增 Email 或 Telegram 端點。端點需完成驗證／綁定才會開始接收通知。</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-recipient')">取消</button>
+        <button class="btn btn-primary" onclick="closeModal('modal-recipient'); toast('已新增收件人（原型示意）')">建立</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新增 Email 端點 -->
+  <div class="modal-backdrop" id="modal-email">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title"><i class="pi pi-envelope" style="color:var(--blue)"></i> 新增 Email 收件端點</div>
+        <button class="icon-btn" onclick="closeModal('modal-email')"><i class="pi pi-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">收件信箱</label>
+          <input class="form-input" id="new-email" placeholder="name@example.com">
+          <div class="form-hint">同一管道下不可重複建立相同位址</div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">發送模式</label>
+            <select class="form-input form-select">
+              <option selected>每日摘要（建議）</option>
+              <option>即時</option>
+              <option>僅緊急</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">每日上限</label>
+            <input class="form-input" type="number" value="30">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">預設接收強度</label>
+          <div class="chip-group">
+            <span class="chip active"><i class="pi pi-check" style="font-size:0.6rem"></i>強</span>
+            <span class="chip active"><i class="pi pi-check" style="font-size:0.6rem"></i>中</span>
+            <span class="chip">弱（僅摘要）</span>
+          </div>
+          <div class="form-hint">依已確認決策 Q-03：strong＋moderate 即時推送，weak 只進摘要</div>
+        </div>
+        <div class="banner banner-warn">
+          <i class="pi pi-exclamation-triangle"></i>
+          <div>Email 採<b>個人信箱</b>寄送，有每日寄送量限制。建議使用<b>每日摘要</b>模式以「一天一封」取代「一則一封」。</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-email')">取消</button>
+        <button class="btn btn-primary" onclick="sendVerify()"><i class="pi pi-send"></i>建立並寄出驗證信</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新增 Telegram 端點（綁定碼） -->
+  <div class="modal-backdrop" id="modal-telegram">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title"><i class="pi pi-send" style="color:var(--violet)"></i> 綁定 Telegram</div>
+        <button class="icon-btn" onclick="closeModal('modal-telegram')"><i class="pi pi-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="token-box">
+          <div class="text-xs text-muted" style="font-weight:700">一次性綁定碼</div>
+          <div class="token-code" id="bind-code">7K4-9QX</div>
+          <div class="token-meta"><i class="pi pi-clock"></i> <span id="bind-timer">15:00</span> 後失效</div>
+        </div>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text">請收件人在 Telegram 搜尋機器人 <b class="mono">@MyStockAlertBot</b> 並點擊「開始」</div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text">在對話中直接送出上方的<b>綁定碼</b></div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-text">機器人回覆「綁定成功」後，系統會<b>自動建立端點</b>並開始接收通知</div>
+          </div>
+        </div>
+
+        <div class="banner banner-info">
+          <i class="pi pi-info-circle"></i>
+          <div>若要接收到<b>群組</b>，請先將機器人加入該群組，再於群組中送出綁定碼即可。</div>
+        </div>
+
+        <div id="bind-status"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="regenCode()"><i class="pi pi-refresh"></i>重新產生</button>
+        <button class="btn btn-primary" onclick="simulateBind()"><i class="pi pi-check"></i>模擬綁定完成</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 收件群組 -->
+  <div class="modal-backdrop" id="modal-group">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">收件群組</div>
+        <button class="icon-btn" onclick="closeModal('modal-group')"><i class="pi pi-times"></i></button>
+      </div>
+      <div class="modal-body" style="gap:0.5rem">
+        <div class="list-row" style="border:1px solid var(--surface-border); border-radius:10px">
+          <div class="list-avatar" style="background:var(--brass-light); color:var(--brass)"><i class="pi pi-user"></i></div>
+          <div class="list-main"><div class="list-title">本人</div><div class="list-sub">1 位成員 · Jackson（我）</div></div>
+        </div>
+        <div class="list-row" style="border:1px solid var(--surface-border); border-radius:10px">
+          <div class="list-avatar" style="background:var(--green-light); color:var(--green)"><i class="pi pi-home"></i></div>
+          <div class="list-main"><div class="list-title">家人</div><div class="list-sub">1 位成員 · 家人 A</div></div>
+        </div>
+        <div class="list-row" style="border:1px solid var(--surface-border); border-radius:10px">
+          <div class="list-avatar" style="background:var(--blue-light); color:var(--blue)"><i class="pi pi-users"></i></div>
+          <div class="list-main"><div class="list-title">同好</div><div class="list-sub">1 位成員 · 同好 B</div></div>
+        </div>
+        <button class="btn btn-ghost btn-block mt-1"><i class="pi pi-plus"></i>新增群組</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="shared.js"></script>
+  <script>
+    renderTopbar('recipients', 'admin');
+
+    function verifyTag(v) {
+      if (v === 'verified') return '<span class="tag tag-ok"><i class="pi pi-check" style="font-size:0.6rem"></i>已驗證</span>';
+      if (v === 'pending')  return '<span class="tag tag-warn"><i class="pi pi-clock" style="font-size:0.6rem"></i>待驗證</span>';
+      return '<span class="tag tag-err">已停用</span>';
+    }
+
+    const MODE_LABEL = { realtime: '即時', digest: '每日摘要', critical_only: '僅緊急' };
+
+    function renderRecipients() {
+      document.getElementById('recipient-list').innerHTML = MOCK_RECIPIENTS.map(r => {
+        const eps = r.endpoints.map(e => {
+          const m = CHANNEL_META[e.channel];
+          const color = e.channel === 'email' ? 'blue' : 'violet';
+          const strengths = e.strengths.map(s => `<span class="tag ${STRENGTH_META[s].tag}">${STRENGTH_META[s].label}</span>`).join('');
+          const markets = e.markets.map(k => `<span class="tag ${MARKET_META[k].tag}">${MARKET_META[k].label}</span>`).join('');
+          return `<div class="list-row">
+            <div class="list-avatar" style="background:var(--${color}-light); color:var(--${color})">
+              <i class="pi ${m.icon}"></i>
+            </div>
+            <div class="list-main">
+              <div class="list-title">
+                ${esc(e.address)}
+                ${verifyTag(e.verify)}
+                ${e.paused ? `<span class="tag tag-warn"><i class="pi pi-pause" style="font-size:0.6rem"></i>暫停至 ${e.pauseUntil}</span>` : ''}
+              </div>
+              <div class="ep-meta">
+                <span>模式 <b>${MODE_LABEL[e.mode]}</b></span>
+                <span>靜音 <b>${e.quiet}</b></span>
+                <span>上限 <b>${e.limit}</b> 則/日</span>
+                <span class="flex gap-1 items-center">強度 ${strengths}</span>
+                <span class="flex gap-1 items-center">市場 ${markets}</span>
+              </div>
+            </div>
+            <div class="list-actions">
+              <button class="btn btn-ghost btn-sm" onclick="testSend('${esc(e.address)}')" title="測試發送">
+                <i class="pi pi-send"></i><span class="hide-mobile">測試</span>
+              </button>
+              <button class="icon-btn" title="編輯"><i class="pi pi-pencil"></i></button>
+            </div>
+          </div>`;
+        }).join('');
+
+        return `<div class="card rcp-card">
+          <div class="rcp-head">
+            <div class="rcp-avatar">${esc(r.name.charAt(0))}</div>
+            <div style="flex:1; min-width:0">
+              <div class="list-title">${esc(r.name)}
+                ${r.groups.map(g => `<span class="tag tag-neu">${esc(g)}</span>`).join('')}
+              </div>
+              <div class="list-sub">${r.endpoints.length} 個收件端點</div>
+            </div>
+            <div class="flex gap-1">
+              <button class="btn btn-ghost btn-sm" onclick="openModal('modal-email')">
+                <i class="pi pi-envelope"></i><span class="hide-mobile">加 Email</span>
+              </button>
+              <button class="btn btn-ghost btn-sm" onclick="openBind()">
+                <i class="pi pi-send"></i><span class="hide-mobile">綁 Telegram</span>
+              </button>
+            </div>
+          </div>
+          <div class="row-list">${eps}</div>
+          <div class="selflink-row">
+            <i class="pi pi-link text-muted"></i>
+            <span class="text-xs text-muted" style="font-weight:700">自助設定連結</span>
+            <div class="link-box" style="flex:1; min-width:200px">
+              <span>https://mystock.local/n/s/${r.code}-a7f3d9e2c1b4</span>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="copyLink()"><i class="pi pi-copy"></i>複製</button>
+            <button class="btn btn-ghost btn-sm" onclick="revokeLink('${esc(r.name)}')"><i class="pi pi-refresh"></i>撤銷重產</button>
+            <a class="btn btn-ghost btn-sm" href="my-subscription.html"><i class="pi pi-external-link"></i>預覽</a>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function testSend(addr) { toast(`測試訊息已送往 ${addr}`, 'pi-send'); }
+    function copyLink() { toast('已複製自助設定連結'); }
+    function revokeLink(name) { toast(`已撤銷並重新產生 ${name} 的連結，舊連結立即失效`, 'pi-refresh'); }
+
+    function sendVerify() {
+      const v = document.getElementById('new-email').value.trim();
+      closeModal('modal-email');
+      toast(v ? `驗證信已寄至 ${v}，24 小時內有效` : '驗證信已寄出，24 小時內有效', 'pi-envelope');
+    }
+
+    // ── Telegram 綁定碼 ──
+    let timer = null, remain = 900;
+    function randCode() {
+      const s = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const pick = n => Array.from({ length: n }, () => s[Math.floor(Math.random() * s.length)]).join('');
+      return `${pick(3)}-${pick(3)}`;
+    }
+    function openBind() {
+      regenCode();
+      document.getElementById('bind-status').innerHTML = '';
+      openModal('modal-telegram');
+    }
+    function regenCode() {
+      document.getElementById('bind-code').textContent = randCode();
+      remain = 900;
+      clearInterval(timer);
+      timer = setInterval(() => {
+        remain--;
+        const el = document.getElementById('bind-timer');
+        if (!el) return clearInterval(timer);
+        if (remain <= 0) {
+          clearInterval(timer);
+          el.textContent = '已失效';
+          document.getElementById('bind-status').innerHTML =
+            `<div class="banner banner-err"><i class="pi pi-times-circle"></i><div>綁定碼已逾時失效，請重新產生。</div></div>`;
+          return;
+        }
+        el.textContent = `${String(Math.floor(remain / 60)).padStart(2, '0')}:${String(remain % 60).padStart(2, '0')}`;
+      }, 1000);
+    }
+    function simulateBind() {
+      clearInterval(timer);
+      document.getElementById('bind-status').innerHTML =
+        `<div class="banner banner-info" style="background:var(--green-light); border-color:rgba(22,163,74,0.25)">
+          <i class="pi pi-check-circle" style="color:var(--green)"></i>
+          <div><b>綁定成功</b> — 已自動建立端點「個人對話 · @familyA」，狀態為已驗證，即刻起開始接收通知。</div>
+        </div>`;
+      toast('Telegram 綁定成功，端點已自動建立');
+    }
+
+    renderRecipients();
+  </script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>訂閱規則 — MyStock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .rule {
+      display: grid;
+      grid-template-columns: 190px 1fr 210px;
+      gap: 0;
+      align-items: stretch;
+    }
+    .rule-seg { padding: 0.9rem 1.1rem; border-right: 1px solid var(--surface-border); }
+    .rule-seg:last-child { border-right: none; }
+    .rule-seg-label {
+      font-size: 0.66rem; font-weight: 800; color: var(--text-placeholder);
+      letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 0.4rem;
+      display: flex; align-items: center; gap: 0.3rem;
+    }
+    .cond-line { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.3rem; }
+    .cond-key { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; min-width: 52px; }
+    .cond-any { font-size: 0.74rem; color: var(--text-placeholder); font-style: italic; }
+    .target-box {
+      display: flex; align-items: center; gap: 0.55rem;
+      background: var(--surface-hover);
+      border: 1px solid var(--surface-border);
+      border-radius: 9px;
+      padding: 0.5rem 0.7rem;
+    }
+    .rule-card.off { opacity: 0.55; }
+    @media (max-width: 900px) {
+      .rule { grid-template-columns: 1fr; }
+      .rule-seg { border-right: none; border-bottom: 1px solid var(--surface-border); }
+      .rule-seg:last-child { border-bottom: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="topbar-host"></div>
+
+  <main class="page-main">
+    <div class="content-wrap">
+
+      <div class="page-head flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <div class="page-title"><i class="pi pi-filter" style="color:var(--brass)"></i>訂閱規則</div>
+          <div class="page-sub">以「事件類型 → 過濾條件 → 目標對象」三段式定義誰該收到什麼</div>
+        </div>
+        <div class="flex gap-1">
+          <button class="btn btn-ghost" onclick="openModal('modal-test')"><i class="pi pi-play"></i>規則測試</button>
+          <button class="btn btn-primary" onclick="openModal('modal-rule')"><i class="pi pi-plus"></i>新增規則</button>
+        </div>
+      </div>
+
+      <div class="banner banner-info mb-3">
+        <i class="pi pi-info-circle"></i>
+        <div>
+          <b>條件組合方式</b>：同一項目內多個值為 <b>OR</b>（台股 或 美股）；不同項目之間為 <b>AND</b>（台股 <b>且</b> 賣出 <b>且</b> 強訊號）；
+          未設定的項目視為<b>不過濾</b>。收件人可在自助頁進一步<b>收窄</b>，但無法放寬。
+        </div>
+      </div>
+
+      <div id="rule-list"></div>
+
+    </div>
+  </main>
+
+  <!-- 規則測試 -->
+  <div class="modal-backdrop" id="modal-test">
+    <div class="modal" style="max-width:620px">
+      <div class="modal-header">
+        <div class="modal-title"><i class="pi pi-play" style="color:var(--brass)"></i> 規則測試</div>
+        <button class="icon-btn" onclick="closeModal('modal-test')"><i class="pi pi-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-sm text-muted">選一筆模擬訊號，預覽它會命中哪些規則、最後送給誰。</p>
+        <div class="form-group">
+          <label class="form-label">模擬訊號</label>
+          <select class="form-input form-select" id="test-alert" onchange="runTest()"></select>
+        </div>
+        <div id="test-result"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-test')">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新增規則 -->
+  <div class="modal-backdrop" id="modal-rule">
+    <div class="modal" style="max-width:560px">
+      <div class="modal-header">
+        <div class="modal-title">新增訂閱規則</div>
+        <button class="icon-btn" onclick="closeModal('modal-rule')"><i class="pi pi-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">規則名稱</label>
+          <input class="form-input" placeholder="例如：家人：台股強訊號">
+        </div>
+        <div class="form-group">
+          <label class="form-label">① 事件類型</label>
+          <select class="form-input form-select" id="new-event"></select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">② 過濾條件</label>
+          <div class="stack-2" style="gap:0.6rem">
+            <div>
+              <div class="section-label">市場</div>
+              <div class="chip-group">
+                <span class="chip active"><i class="pi pi-check" style="font-size:0.6rem"></i>台股</span>
+                <span class="chip">美股</span>
+              </div>
+            </div>
+            <div>
+              <div class="section-label">訊號強度</div>
+              <div class="chip-group">
+                <span class="chip active"><i class="pi pi-check" style="font-size:0.6rem"></i>強</span>
+                <span class="chip active"><i class="pi pi-check" style="font-size:0.6rem"></i>中</span>
+                <span class="chip">弱</span>
+              </div>
+              <div class="form-hint mt-1">預設 strong＋moderate（已確認決策 Q-03）</div>
+            </div>
+            <div>
+              <div class="section-label">訊號類型</div>
+              <div class="chip-group">
+                <span class="chip active"><i class="pi pi-check" style="font-size:0.6rem"></i>買進</span>
+                <span class="chip active"><i class="pi pi-check" style="font-size:0.6rem"></i>賣出</span>
+                <span class="chip">警告</span>
+              </div>
+            </div>
+            <div>
+              <div class="section-label">策略分類</div>
+              <div class="chip-group">
+                <span class="chip active"><i class="pi pi-check" style="font-size:0.6rem"></i>技術面</span>
+                <span class="chip active"><i class="pi pi-check" style="font-size:0.6rem"></i>籌碼面</span>
+                <span class="chip">基本面</span>
+              </div>
+            </div>
+            <div>
+              <div class="section-label">指定個股（選填）</div>
+              <input class="form-input" placeholder="留空 = 不限定，例如 2330,2317">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">③ 目標對象</label>
+          <select class="form-input form-select">
+            <option>群組：本人</option>
+            <option>群組：家人</option>
+            <option>群組：同好</option>
+            <option>收件人：Jackson（我）</option>
+            <option>收件人：家人 A</option>
+            <option>單一端點：familyA@example.com</option>
+          </select>
+          <div class="form-hint">可指定群組、個人或單一端點；同一端點被多條規則命中時只會收到一則</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-rule')">取消</button>
+        <button class="btn btn-primary" onclick="closeModal('modal-rule'); toast('規則已建立（原型示意）')">建立規則</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="shared.js"></script>
+  <script>
+    renderTopbar('subscriptions', 'admin');
+
+    function condLine(key, vals, meta, tagFn) {
+      if (!vals || !vals.length) {
+        return `<div class="cond-line"><span class="cond-key">${key}</span><span class="cond-any">不過濾（全部）</span></div>`;
+      }
+      return `<div class="cond-line"><span class="cond-key">${key}</span>${vals.map(tagFn).join('')}</div>`;
+    }
+
+    function renderRules() {
+      document.getElementById('rule-list').innerHTML = MOCK_SUBSCRIPTIONS.map(s => {
+        const ev = EVENT_META[s.eventType];
+        const f = s.filters;
+
+        const conds = [
+          condLine('市場', f.markets, MARKET_META, v => `<span class="tag ${MARKET_META[v].tag}">${MARKET_META[v].label}</span>`),
+          condLine('強度', f.strengths, STRENGTH_META, v => `<span class="tag ${STRENGTH_META[v].tag}">${STRENGTH_META[v].label}</span>`),
+          condLine('類型', f.signals, SIGNAL_META, v => `<span class="tag ${SIGNAL_META[v].tag}">${SIGNAL_META[v].label}</span>`),
+          condLine('分類', f.categories, CATEGORY_META, v => `<span class="tag tag-neu">${CATEGORY_META[v].label}</span>`),
+          condLine('個股', f.symbols, null, v => `<span class="tag tag-neu mono">${v}</span>`)
+        ].join('');
+
+        const sev = ev.severity === 'critical'
+          ? '<span class="tag tag-err">critical</span>'
+          : '<span class="tag tag-neu">info</span>';
+
+        return `<div class="card rule-card ${s.enabled ? '' : 'off'}" style="margin-bottom:1rem">
+          <div class="card-header">
+            <div class="card-title">
+              <i class="pi pi-bookmark"></i>${esc(s.name)}
+              ${s.enabled ? '' : '<span class="tag tag-neu">已停用</span>'}
+            </div>
+            <div class="flex gap-1 items-center">
+              <span class="text-xs text-muted mono hide-mobile">${s.code}</span>
+              <label class="toggle">
+                <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleRule('${esc(s.name)}', this.checked)">
+                <span class="toggle-track"></span><span class="toggle-thumb"></span>
+              </label>
+            </div>
+          </div>
+          <div class="rule">
+            <div class="rule-seg">
+              <div class="rule-seg-label"><i class="pi pi-bolt"></i>① 事件類型</div>
+              <div style="font-weight:800; font-size:0.85rem">${ev.label}</div>
+              <div class="mt-1 flex gap-1 items-center">
+                ${sev}
+                <span class="text-xs text-muted mono">${s.eventType}</span>
+              </div>
+            </div>
+            <div class="rule-seg">
+              <div class="rule-seg-label"><i class="pi pi-filter"></i>② 過濾條件（項目間為 AND）</div>
+              ${conds}
+            </div>
+            <div class="rule-seg">
+              <div class="rule-seg-label"><i class="pi pi-users"></i>③ 目標對象</div>
+              <div class="target-box">
+                <i class="pi ${s.target.type === 'group' ? 'pi-folder' : 'pi-user'}" style="color:var(--brass)"></i>
+                <div style="min-width:0">
+                  <div class="text-xs text-muted">${s.target.type === 'group' ? '收件群組' : '收件人'}</div>
+                  <div style="font-weight:700; font-size:0.82rem">${esc(s.target.label)}</div>
+                </div>
+              </div>
+              <div class="flex gap-1 mt-2">
+                <button class="btn btn-ghost btn-sm flex-1"><i class="pi pi-pencil"></i>編輯</button>
+                <button class="btn btn-ghost btn-sm" onclick="openModal('modal-test')"><i class="pi pi-play"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function toggleRule(name, on) {
+      toast(on ? `已啟用規則「${name}」` : `已停用規則「${name}」`, on ? 'pi-check-circle' : 'pi-ban');
+    }
+
+    // ── 規則測試 ──
+    function initTest() {
+      document.getElementById('test-alert').innerHTML = MOCK_ALERTS.map((a, i) =>
+        `<option value="${i}">${a.stock_id} ${a.stock_name} · ${a.strategy_name} · ${STRENGTH_META[a.signal_strength].label}訊號</option>`
+      ).join('');
+      document.getElementById('new-event').innerHTML =
+        Object.entries(EVENT_META).map(([k, v]) => `<option>${v.label}（${k}）</option>`).join('');
+      runTest();
+    }
+
+    function runTest() {
+      const a = MOCK_ALERTS[+document.getElementById('test-alert').value];
+      const hits = MOCK_SUBSCRIPTIONS.filter(s => {
+        if (!s.enabled) return false;
+        if (s.eventType !== 'ALERT_SIGNAL') return false;
+        const f = s.filters;
+        if (f.markets && !f.markets.includes(a.market)) return false;
+        if (f.strengths && !f.strengths.includes(a.signal_strength)) return false;
+        if (f.signals && !f.signals.includes(a.signal_type)) return false;
+        if (f.categories && !f.categories.includes(a.category)) return false;
+        if (f.symbols && !f.symbols.includes(a.stock_id)) return false;
+        return true;
+      });
+
+      const sg = SIGNAL_META[a.signal_type], st = STRENGTH_META[a.signal_strength];
+      let html = `
+        <div class="card mt-2">
+          <div class="card-body" style="padding:0.85rem 1rem">
+            <div class="flex gap-1 items-center flex-wrap">
+              <span class="tag ${MARKET_META[a.market].tag}">${MARKET_META[a.market].label}</span>
+              <b>${a.stock_id} ${esc(a.stock_name)}</b>
+              <span class="tag ${sg.tag}">${sg.label}</span>
+              <span class="tag ${st.tag}">${st.label}</span>
+              <span class="tag tag-neu">${CATEGORY_META[a.category].label}</span>
+            </div>
+            <div class="text-sm text-muted mt-1">${esc(a.strategy_name)}</div>
+          </div>
+        </div>`;
+
+      if (!hits.length) {
+        html += `<div class="banner banner-warn mt-2">
+          <i class="pi pi-info-circle"></i>
+          <div>沒有任何規則命中，此訊號<b>不會發送給任何人</b>。這是正常結果，不視為錯誤（FR-RT-06）。</div>
+        </div>`;
+      } else {
+        html += `<div class="section-label mt-3">命中 ${hits.length} 條規則 → 送達對象</div>`;
+        html += hits.map(s => `
+          <div class="list-row" style="border:1px solid var(--surface-border); border-radius:10px; margin-bottom:0.5rem">
+            <div class="list-avatar" style="background:var(--green-light); color:var(--green)">
+              <i class="pi pi-check"></i>
+            </div>
+            <div class="list-main">
+              <div class="list-title text-sm">${esc(s.name)}</div>
+              <div class="list-sub">→ ${s.target.type === 'group' ? '群組' : '收件人'}：${esc(s.target.label)}</div>
+            </div>
+          </div>`).join('');
+        html += `<div class="banner banner-info">
+          <i class="pi pi-info-circle"></i>
+          <div>實際是否送達，還會再經過<b>通知政策檢核</b>（去重／每日上限／靜音時段／發送模式）與收件人的<b>個人偏好</b>。</div>
+        </div>`;
+      }
+      document.getElementById('test-result').innerHTML = html;
+    }
+
+    renderRules();
+    initTest();
+  </script>
+</body>
+</html>

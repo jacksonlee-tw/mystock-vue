@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管道設定 — MyStock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .ch-card { position: relative; }
+    .ch-head {
+      display: flex; align-items: center; gap: 0.9rem;
+      padding: 1rem 1.15rem;
+      border-bottom: 1px solid var(--surface-border);
+    }
+    .ch-icon {
+      width: 42px; height: 42px; border-radius: 11px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+    .ch-name { font-size: 1rem; font-weight: 800; display: flex; align-items: center; gap: 0.5rem; }
+    .ch-desc { font-size: 0.76rem; color: var(--text-muted); }
+    .kv-row {
+      display: flex; justify-content: space-between; gap: 1rem;
+      padding: 0.55rem 0;
+      border-bottom: 1px dashed var(--surface-border);
+      font-size: 0.79rem;
+    }
+    .kv-row:last-child { border-bottom: none; }
+    .kv-key { color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
+    .kv-val { text-align: right; word-break: break-all; font-weight: 600; }
+    .quota-bar {
+      height: 8px; border-radius: 100px;
+      background: var(--surface-border);
+      overflow: hidden; margin-top: 0.5rem;
+    }
+    .quota-fill { height: 100%; border-radius: 100px; transition: width 0.4s; }
+    .future-card { opacity: 0.72; border-style: dashed; }
+  </style>
+</head>
+<body>
+  <div id="topbar-host"></div>
+
+  <main class="page-main">
+    <div class="content-wrap">
+
+      <div class="page-head">
+        <div class="page-title"><i class="pi pi-send" style="color:var(--brass)"></i>管道設定</div>
+        <div class="page-sub">
+          啟用／停用各管道並維護必要設定。停用某管道時，其他管道完全不受影響（規格鐵則 R6）
+        </div>
+      </div>
+
+      <div class="banner banner-brass mb-3">
+        <i class="pi pi-sitemap"></i>
+        <div>
+          <b>擴充性驗證點</b>：未來新增 LINE 等管道時，只需「定義設定項目 ＋ 新增轉接單元 ＋ 補模板」三項，
+          既有的訂閱規則、收件人資料、路由與政策邏輯<b>零改動</b>（規格 §8.8）。
+        </div>
+      </div>
+
+      <div class="grid-2" id="channel-grid"></div>
+
+      <!-- 事件類型與嚴重度 -->
+      <div class="card mt-3">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-bolt"></i>事件類型與預設嚴重度</div>
+          <span class="card-desc">critical 事件不受靜音時段與頻率上限限制</span>
+        </div>
+        <div class="card-body tight">
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>事件類型</th><th>名稱</th><th>嚴重度</th><th>觸發時機</th><th>Email</th><th>Telegram</th>
+                </tr>
+              </thead>
+              <tbody id="event-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    renderTopbar('channels', 'admin');
+
+    const STATUS_TAG = {
+      enabled: '<span class="tag tag-ok"><span class="dot dot-ok"></span>正常</span>',
+      disabled: '<span class="tag tag-neu"><span class="dot dot-off"></span>已停用</span>',
+      misconfigured: '<span class="tag tag-warn"><span class="dot dot-warn"></span>設定不全</span>',
+      circuit_open: '<span class="tag tag-err"><span class="dot dot-err"></span>已熔斷</span>',
+      future: '<span class="tag tag-future">未啟用</span>'
+    };
+
+    const CH_COLOR = { email: 'blue', telegram: 'violet', line: 'green', discord: 'amber' };
+
+    function quotaHtml(q) {
+      if (!q) return '';
+      const pct = Math.round(q.used / q.limit * 100);
+      const budgetPct = Math.round(q.budget / q.limit * 100);
+      const color = q.used >= q.budget ? 'var(--red)' : (pct > 50 ? 'var(--amber)' : 'var(--green)');
+      return `
+        <div style="margin-top:0.9rem; padding-top:0.9rem; border-top:1px solid var(--surface-border)">
+          <div class="flex justify-between items-center">
+            <span class="text-xs" style="font-weight:700">今日寄送量</span>
+            <span class="text-xs text-muted"><b style="color:${color}">${q.used}</b> / 預算 ${q.budget}（信箱上限 ${q.limit}）</span>
+          </div>
+          <div class="quota-bar">
+            <div class="quota-fill" style="width:${pct}%; background:${color}"></div>
+          </div>
+          <div class="text-xs text-muted mt-1">
+            <i class="pi pi-info-circle"></i>
+            達到預算 ${budgetPct}% 門檻後，後續訊息自動改走 Telegram，並通知系統擁有者
+          </div>
+        </div>`;
+    }
+
+    function renderChannels() {
+      document.getElementById('channel-grid').innerHTML = MOCK_CHANNELS.map(c => {
+        const color = CH_COLOR[c.code] || 'blue';
+        const isFuture = c.status === 'future';
+        const settings = c.settings.length
+          ? c.settings.map(s => `
+              <div class="kv-row">
+                <span class="kv-key">${esc(s.label)}</span>
+                <span class="kv-val ${s.masked ? 'mono' : ''}">${esc(s.value)}
+                  ${s.masked ? '<i class="pi pi-eye-slash text-muted" style="margin-left:4px; font-size:0.7rem"></i>' : ''}
+                </span>
+              </div>`).join('')
+          : `<div class="empty" style="padding:1.25rem 0">
+               <i class="pi pi-plus-circle"></i>
+               <div class="empty-text">尚未設定 · 本階段不開發，架構已預留</div>
+             </div>`;
+
+        return `<div class="card ch-card ${isFuture ? 'future-card' : ''}">
+          <div class="ch-head">
+            <div class="ch-icon" style="background:var(--${color}-light); color:var(--${color})">
+              <i class="pi ${c.icon}"></i>
+            </div>
+            <div style="flex:1; min-width:0">
+              <div class="ch-name">${esc(c.name)} ${STATUS_TAG[c.status]}</div>
+              <div class="ch-desc">${esc(c.desc)}</div>
+            </div>
+            ${isFuture ? '' : `
+              <label class="toggle">
+                <input type="checkbox" ${c.status === 'enabled' ? 'checked' : ''} onchange="toggleChannel('${esc(c.name)}', this.checked)">
+                <span class="toggle-track"></span><span class="toggle-thumb"></span>
+              </label>`}
+          </div>
+          <div class="card-body">
+            ${settings}
+            ${quotaHtml(c.quota)}
+            <div class="banner banner-info mt-3" style="padding:0.6rem 0.8rem">
+              <i class="pi pi-info-circle"></i><div>${esc(c.note)}</div>
+            </div>
+            ${isFuture ? '' : `
+              <div class="flex gap-1 mt-3">
+                <button class="btn btn-ghost btn-sm flex-1" onclick="testChannel('${esc(c.name)}')">
+                  <i class="pi pi-bolt"></i>連線測試
+                </button>
+                <button class="btn btn-ghost btn-sm flex-1"><i class="pi pi-pencil"></i>編輯設定</button>
+              </div>`}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderEvents() {
+      const rows = [
+        { t: 'ALERT_SIGNAL',    when: '盤後掃描產出新訊號，逐筆',       email: '單筆詳細', tg: '精簡即時' },
+        { t: 'ALERT_DIGEST',    when: '每日掃描完成後彙整',             email: '表格彙整', tg: '條列摘要' },
+        { t: 'FETCH_COMPLETED', when: '爬蟲排程正常結束',               email: '簡短狀態', tg: '簡短狀態' },
+        { t: 'FETCH_FAILED',    when: '爬蟲異常或部分標的失敗',         email: '錯誤詳情', tg: '醒目告警' },
+        { t: 'SYSTEM_HEALTH',   when: '排程未執行、管道連續失敗',       email: '錯誤詳情', tg: '醒目告警' }
+      ];
+      document.getElementById('event-tbody').innerHTML = rows.map(r => {
+        const m = EVENT_META[r.t];
+        const sev = m.severity === 'critical'
+          ? '<span class="tag tag-err">critical</span>'
+          : '<span class="tag tag-neu">info</span>';
+        return `<tr>
+          <td class="mono text-xs">${r.t}</td>
+          <td style="font-weight:700">${m.label}</td>
+          <td>${sev}</td>
+          <td class="text-muted">${r.when}</td>
+          <td><span class="tag tag-email">${r.email}</span></td>
+          <td><span class="tag tag-telegram">${r.tg}</span></td>
+        </tr>`;
+      }).join('');
+    }
+
+    function toggleChannel(name, on) {
+      toast(on ? `已啟用 ${name}` : `已停用 ${name} — 其他管道不受影響`, on ? 'pi-check-circle' : 'pi-ban');
+    }
+    function testChannel(name) {
+      toast(`${name} 連線測試通過，測試訊息已送出`, 'pi-bolt');
+    }
+
+    renderChannels();
+    renderEvents();
+  </script>
+</body>
+</html>

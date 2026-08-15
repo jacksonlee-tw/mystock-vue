@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyStock — 整合訊息通知平台 Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .hero {
+      max-width: 860px;
+      margin: 3rem auto 0;
+      text-align: center;
+      padding: 2.5rem 2rem;
+      background: var(--surface-card);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+    .hero h1 { font-size: 1.75rem; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 0.35rem; }
+    .hero .subtitle { color: var(--text-muted); font-size: 0.88rem; margin-bottom: 0.4rem; }
+    .hero-icon {
+      width: 56px; height: 56px; border-radius: 14px;
+      background: var(--brass-light); border: 1px solid var(--brass-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; color: var(--brass); margin: 0 auto 1.15rem;
+    }
+    .group-label {
+      display: flex; align-items: center; gap: 0.6rem;
+      font-size: 0.75rem; font-weight: 800; color: var(--text-muted);
+      letter-spacing: 0.6px; text-transform: uppercase;
+      margin: 2rem 0 0.9rem;
+      text-align: left;
+    }
+    .group-label::after { content: ''; flex: 1; height: 1px; background: var(--surface-border); }
+    .page-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
+    .page-link {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem;
+      padding: 1.15rem;
+      background: var(--surface-hover);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      text-decoration: none; color: inherit;
+      transition: all 0.2s;
+      text-align: left;
+      position: relative;
+    }
+    .page-link:hover {
+      border-color: var(--brass);
+      background: var(--brass-light);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(143,100,19,0.12);
+    }
+    .page-link.featured { border-color: var(--brass); background: var(--brass-light); }
+    .plink-icon {
+      width: 38px; height: 38px; border-radius: 9px;
+      background: var(--brass-light); border: 1px solid var(--brass-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; color: var(--brass);
+    }
+    .link-title { font-size: 0.95rem; font-weight: 700; }
+    .link-desc { font-size: 0.77rem; color: var(--text-muted); line-height: 1.5; }
+    .star {
+      position: absolute; top: 0.8rem; right: 0.8rem;
+      font-size: 0.65rem; font-weight: 800;
+      background: var(--brass); color: #fff;
+      padding: 2px 8px; border-radius: 100px;
+    }
+    .decisions {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.7rem;
+      margin-top: 1.5rem; text-align: left;
+    }
+    .decision {
+      background: var(--green-light);
+      border: 1px solid rgba(22,163,74,0.22);
+      border-radius: 10px;
+      padding: 0.7rem 0.85rem;
+    }
+    .decision-q { font-size: 0.68rem; font-weight: 800; color: var(--green); letter-spacing: 0.4px; }
+    .decision-t { font-size: 0.78rem; font-weight: 700; margin-top: 2px; }
+    @media (max-width: 768px) {
+      .page-grid, .decisions { grid-template-columns: 1fr; }
+      .hero { margin-top: 1.5rem; padding: 2rem 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="topbar-host"></div>
+
+  <main style="padding-top: var(--topbar-height);">
+    <div class="hero">
+      <div class="hero-icon"><i class="pi pi-bell"></i></div>
+      <h1>整合訊息通知平台</h1>
+      <p class="subtitle">
+        將策略警示與系統事件，主動推送到 Email 與 Telegram<br>
+        Phase 9 · UI 原型 — 2026-08-15 · 需求規格書 v1.1
+      </p>
+
+      <div class="decisions">
+        <div class="decision">
+          <div class="decision-q"><i class="pi pi-check" style="font-size:0.6rem"></i> Q-01 已確認</div>
+          <div class="decision-t">Email 採個人信箱寄送</div>
+        </div>
+        <div class="decision">
+          <div class="decision-q"><i class="pi pi-check" style="font-size:0.6rem"></i> Q-03 已確認</div>
+          <div class="decision-t">strong＋moderate 即時<br>weak 只入摘要</div>
+        </div>
+        <div class="decision">
+          <div class="decision-q"><i class="pi pi-check" style="font-size:0.6rem"></i> Q-05 已確認</div>
+          <div class="decision-t">收件人可自助管理訂閱</div>
+        </div>
+      </div>
+
+      <div class="group-label">收件人自助端（免登入）</div>
+      <div class="page-grid">
+        <a href="my-subscription.html" class="page-link featured">
+          <span class="star">本次新增</span>
+          <div class="plink-icon"><i class="pi pi-user-edit"></i></div>
+          <div class="link-title">我的通知設定</div>
+          <div class="link-desc">收件人從訊息中的專屬連結進入，自行調整訂閱範圍、接收節奏、暫停與退訂，不需帳號密碼。</div>
+        </a>
+        <a href="message-preview.html" class="page-link">
+          <div class="plink-icon"><i class="pi pi-comment"></i></div>
+          <div class="link-title">訊息外觀預覽</div>
+          <div class="link-desc">Telegram 即時訊號、Email 每日摘要與系統異常告警的實際呈現樣式。</div>
+        </a>
+      </div>
+
+      <div class="group-label">系統擁有者管理端</div>
+      <div class="page-grid">
+        <a href="channels.html" class="page-link">
+          <div class="plink-icon"><i class="pi pi-send"></i></div>
+          <div class="link-title">管道設定</div>
+          <div class="link-desc">Email / Telegram 的啟用、設定與連線測試，含個人信箱每日寄送量預算。</div>
+        </a>
+        <a href="recipients.html" class="page-link">
+          <div class="plink-icon"><i class="pi pi-users"></i></div>
+          <div class="link-title">收件人與端點管理</div>
+          <div class="link-desc">新增信箱、Telegram 綁定碼流程、端點偏好設定與專屬連結管理。</div>
+        </a>
+        <a href="subscriptions.html" class="page-link">
+          <div class="plink-icon"><i class="pi pi-filter"></i></div>
+          <div class="link-title">訂閱規則</div>
+          <div class="link-desc">以「事件類型 → 過濾條件 → 目標對象」三段式定義誰該收到什麼。</div>
+        </a>
+        <a href="logs.html" class="page-link">
+          <div class="plink-icon"><i class="pi pi-history"></i></div>
+          <div class="link-title">發送紀錄</div>
+          <div class="link-desc">每則訊息的狀態、失敗原因與手動重送，含去重／超量／延後的完整軌跡。</div>
+        </a>
+      </div>
+
+      <p class="text-xs text-muted" style="margin-top:1.75rem;">
+        <i class="pi pi-info-circle" style="margin-right:4px;"></i>
+        所有資料皆為 Mock，僅供 UI 與流程評估使用；純 HTML／JavaScript，無需建置工具
+      </p>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>renderTopbar('index', 'admin');</script>
+</body>
+</html>

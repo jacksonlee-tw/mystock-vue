@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的通知設定 — MyStock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .greet-card {
+      background: linear-gradient(135deg, var(--brass-light), transparent);
+      border: 1px solid var(--brass-border);
+      border-radius: 14px;
+      padding: 1.15rem 1.25rem;
+      display: flex; align-items: center; gap: 0.9rem;
+    }
+    .greet-avatar {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--brass); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; font-weight: 800; flex-shrink: 0;
+    }
+    .greet-name { font-size: 1.05rem; font-weight: 800; }
+    .greet-sub { font-size: 0.76rem; color: var(--text-muted); }
+
+    /* 即時預覽 */
+    .preview-box {
+      position: sticky; bottom: 0;
+      background: var(--surface-card);
+      border: 1px solid var(--brass-border);
+      border-radius: 14px;
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+      margin-top: 1.25rem;
+    }
+    .preview-head {
+      padding: 0.8rem 1.1rem;
+      background: var(--brass-light);
+      border-bottom: 1px solid var(--brass-border);
+      display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    }
+    .preview-count { font-size: 1.5rem; font-weight: 900; color: var(--brass); line-height: 1; }
+    .preview-list { max-height: 210px; overflow-y: auto; }
+    .pv-row {
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.55rem 1.1rem;
+      border-bottom: 1px solid var(--surface-border);
+      font-size: 0.78rem;
+    }
+    .pv-row:last-child { border-bottom: none; }
+    .pv-code { font-weight: 800; min-width: 52px; }
+    .pv-name { color: var(--text-muted); min-width: 68px; }
+    .pv-strategy { flex: 1; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .locked-note {
+      font-size: 0.7rem; color: var(--text-placeholder);
+      display: inline-flex; align-items: center; gap: 0.25rem;
+    }
+
+    .pause-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
+    .pause-btn {
+      border: 1px solid var(--surface-border);
+      background: var(--surface-hover);
+      border-radius: 9px;
+      padding: 0.6rem 0.3rem;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .pause-btn:hover { border-color: var(--brass); color: var(--brass); background: var(--brass-light); }
+    .pause-btn.active { border-color: var(--brass); background: var(--brass-light); color: var(--brass); }
+    .pause-num { font-size: 1.05rem; font-weight: 900; line-height: 1.1; }
+    .pause-unit { font-size: 0.68rem; color: var(--text-muted); }
+    .pause-btn.active .pause-unit { color: var(--brass); }
+
+    .danger-zone {
+      border: 1px solid rgba(220,38,38,0.28);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .danger-zone .card-header { background: var(--red-light); border-bottom-color: rgba(220,38,38,0.22); }
+    .danger-zone .card-title .pi { color: var(--red); }
+
+    .save-bar {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      background: var(--surface-overlay);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid var(--surface-border);
+      padding: 0.7rem 1.25rem;
+      display: none;
+      align-items: center; justify-content: space-between; gap: 1rem;
+      z-index: 90;
+      box-shadow: 0 -4px 16px rgba(0,0,0,0.08);
+    }
+    .save-bar.show { display: flex; }
+    @media (max-width: 480px) {
+      .pause-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div id="topbar-host"></div>
+
+  <main class="page-main">
+    <div class="content-narrow" style="padding-bottom: 5rem;">
+
+      <!-- 身分 -->
+      <div class="greet-card mb-3">
+        <div class="greet-avatar">A</div>
+        <div style="flex:1; min-width:0;">
+          <div class="greet-name">家人 A</div>
+          <div class="greet-sub">你正透過訊息中的專屬連結進入，不需帳號密碼</div>
+        </div>
+        <i class="pi pi-lock text-muted hide-mobile" title="此連結僅顯示你自己的設定"></i>
+      </div>
+
+      <div class="banner banner-info mb-3">
+        <i class="pi pi-shield"></i>
+        <div>
+          此頁只會顯示與修改<b>你自己</b>的通知設定，看不到其他人的任何資料，
+          也無法變更系統層級的設定。若連結遺失，可請系統擁有者重新產生。
+        </div>
+      </div>
+
+      <!-- 我的收件方式 -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-inbox"></i>我的收件方式</div>
+          <span class="text-xs text-muted">2 個</span>
+        </div>
+        <div class="card-body tight">
+          <div class="row-list" id="endpoint-list"></div>
+        </div>
+      </div>
+
+      <!-- 訂閱範圍 -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-filter"></i>我要收到哪些訊號</div>
+          <span class="text-xs text-muted">可調整範圍</span>
+        </div>
+        <div class="card-body stack-2">
+
+          <div>
+            <div class="section-label">市場</div>
+            <div class="chip-group" id="grp-markets"></div>
+          </div>
+
+          <div>
+            <div class="section-label">訊號強度</div>
+            <div class="chip-group" id="grp-strengths"></div>
+            <div class="mt-1 locked-note">
+              <i class="pi pi-info-circle"></i>
+              系統預設：強、中訊號即時推送；弱訊號不即時推送，只會出現在每日摘要中
+            </div>
+          </div>
+
+          <div>
+            <div class="section-label">訊號類型</div>
+            <div class="chip-group" id="grp-signals"></div>
+          </div>
+
+          <div>
+            <div class="section-label">策略分類</div>
+            <div class="chip-group" id="grp-categories"></div>
+            <div class="mt-1 locked-note">
+              <i class="pi pi-lock"></i>
+              灰色項目表示系統擁有者尚未指派給你，你只能在被指派的範圍內縮小，無法自行放寬
+            </div>
+          </div>
+
+          <div>
+            <div class="section-label">只關注特定個股（選填）</div>
+            <div class="flex gap-1 items-center">
+              <input class="form-input" id="symbol-input" placeholder="輸入代號後按 Enter，例如 2330" style="flex:1">
+              <button class="btn btn-ghost btn-sm" onclick="addSymbol()"><i class="pi pi-plus"></i></button>
+            </div>
+            <div class="chip-group mt-2" id="grp-symbols"></div>
+            <div class="mt-1 locked-note">
+              <i class="pi pi-info-circle"></i>留空表示不限定，會收到所有符合上述條件的個股
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 接收節奏 -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-clock"></i>接收節奏</div>
+        </div>
+        <div class="card-body tight">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name">發送模式</div>
+              <div class="setting-desc" id="mode-desc">即時：訊號產生後立刻通知</div>
+            </div>
+            <div class="setting-control">
+              <div class="seg" id="seg-mode"></div>
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name">免打擾時段</div>
+              <div class="setting-desc">此期間的一般訊息延後送出；系統異常等緊急訊息不受限制</div>
+            </div>
+            <div class="setting-control flex gap-1 items-center">
+              <input type="time" class="form-input" id="quiet-start" value="22:00" style="width:110px">
+              <span class="text-muted">–</span>
+              <input type="time" class="form-input" id="quiet-end" value="08:00" style="width:110px">
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-name">每日最多接收</div>
+              <div class="setting-desc">超過上限的訊息會自動併入每日摘要，不會遺失</div>
+            </div>
+            <div class="setting-control flex gap-1 items-center">
+              <input type="number" class="form-input" id="daily-limit" value="10" min="1" max="100" style="width:80px">
+              <span class="text-sm text-muted">則</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 暫停 -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-pause"></i>暫時停止接收</div>
+          <span class="text-xs text-muted">到期自動恢復</span>
+        </div>
+        <div class="card-body">
+          <div id="pause-status" class="mb-2"></div>
+          <div class="pause-grid" id="pause-grid"></div>
+          <div class="mt-2 locked-note">
+            <i class="pi pi-info-circle"></i>暫停期間的訊息不會補送，但仍會保留在「我收到的通知」紀錄中
+          </div>
+        </div>
+      </div>
+
+      <!-- 通知紀錄 -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-history"></i>我收到的通知</div>
+          <span class="text-xs text-muted">近 7 天</span>
+        </div>
+        <div class="card-body tight">
+          <div class="row-list" id="my-logs"></div>
+        </div>
+      </div>
+
+      <!-- 退訂 -->
+      <div class="card danger-zone">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-times-circle"></i>不想再收到通知</div>
+        </div>
+        <div class="card-body">
+          <p class="text-sm text-muted mb-2">
+            退訂後將立即停止發送，且不需要經過系統擁有者。日後若想恢復，請向系統擁有者索取新的邀請。
+          </p>
+          <button class="btn btn-danger btn-block" onclick="openModal('modal-unsub')">
+            <i class="pi pi-times"></i>退訂所有通知
+          </button>
+        </div>
+      </div>
+
+      <!-- 即時預覽 -->
+      <div class="preview-box">
+        <div class="preview-head">
+          <div>
+            <div class="text-xs text-muted" style="font-weight:700">依目前設定，2026-08-14 你會收到</div>
+            <div class="flex items-center gap-1 mt-1">
+              <span class="preview-count" id="pv-count">0</span>
+              <span class="text-sm text-muted">則 · 其中即時 <b id="pv-realtime">0</b> 則、摘要 <b id="pv-digest">0</b> 則</span>
+            </div>
+          </div>
+          <i class="pi pi-eye" style="color:var(--brass); font-size:1.1rem"></i>
+        </div>
+        <div class="preview-list" id="pv-list"></div>
+      </div>
+
+      <p class="text-xs text-muted mt-3" style="text-align:center">
+        <i class="pi pi-info-circle"></i> 原型畫面，資料為 Mock；即時預覽以 2026-08-14 的模擬訊號計算
+      </p>
+    </div>
+  </main>
+
+  <!-- 儲存列 -->
+  <div class="save-bar" id="save-bar">
+    <span class="text-sm"><i class="pi pi-exclamation-circle" style="color:var(--amber)"></i> 設定尚未儲存</span>
+    <div class="flex gap-1">
+      <button class="btn btn-ghost btn-sm" onclick="resetState()">還原</button>
+      <button class="btn btn-primary btn-sm" onclick="saveState()"><i class="pi pi-check"></i>儲存設定</button>
+    </div>
+  </div>
+
+  <!-- 退訂確認 -->
+  <div class="modal-backdrop" id="modal-unsub">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <div class="modal-title">確認退訂所有通知？</div>
+        <button class="icon-btn" onclick="closeModal('modal-unsub')"><i class="pi pi-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="banner banner-err">
+          <i class="pi pi-exclamation-triangle"></i>
+          <div>退訂後你的 <b>Email</b> 與 <b>Telegram</b> 都將立即停止接收，包含系統異常等緊急通知。</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">退訂原因（選填，會回報給系統擁有者）</label>
+          <select class="form-input form-select" id="unsub-reason">
+            <option>通知太頻繁</option>
+            <option>內容不符合我的需求</option>
+            <option>改用其他方式接收</option>
+            <option>暫時不需要</option>
+            <option>其他</option>
+          </select>
+        </div>
+        <p class="text-xs text-muted">
+          若只是暫時不想收到，建議改用上方的「暫時停止接收」，到期會自動恢復。
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-unsub')">取消</button>
+        <button class="btn btn-danger" onclick="doUnsubscribe()">確認退訂</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="shared.js"></script>
+  <script>
+    renderTopbar('self', 'self');
+
+    // ── 系統擁有者指派給此收件人的範圍（只能收窄，不能放寬） ──
+    const ASSIGNED = {
+      markets:    ['tw', 'us'],
+      strengths:  ['strong', 'moderate', 'weak'],
+      signals:    ['BUY', 'SELL', 'WARNING'],
+      categories: ['technical', 'chip']   // fundamental 未指派 → 鎖定
+    };
+
+    const DEFAULT_STATE = {
+      markets:    ['tw'],
+      strengths:  ['strong', 'moderate'],
+      weakDigest: true,
+      signals:    ['BUY', 'SELL', 'WARNING'],
+      categories: ['technical', 'chip'],
+      symbols:    [],
+      mode:       'realtime',
+      pauseDays:  0
+    };
+
+    let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+    let saved = JSON.parse(JSON.stringify(DEFAULT_STATE));
+
+    const ALL = {
+      markets:    [{ v: 'tw', l: '台股' }, { v: 'us', l: '美股' }],
+      strengths:  [{ v: 'strong', l: '強訊號' }, { v: 'moderate', l: '中訊號' }],
+      signals:    [{ v: 'BUY', l: '買進' }, { v: 'SELL', l: '賣出' }, { v: 'WARNING', l: '警告' }],
+      categories: [{ v: 'technical', l: '技術面' }, { v: 'chip', l: '籌碼面' }, { v: 'fundamental', l: '基本面' }]
+    };
+
+    const MODES = [
+      { v: 'realtime',      l: '即時',   d: '即時：訊號產生後立刻通知' },
+      { v: 'digest',        l: '每日摘要', d: '每日摘要：一天彙整成一則，不逐則打擾' },
+      { v: 'critical_only', l: '僅緊急', d: '僅緊急：只有系統異常等緊急事件會即時通知，其餘進摘要' }
+    ];
+
+    // ── 渲染 ────────────────────────────────────
+    function renderChips(hostId, key) {
+      const host = document.getElementById(hostId);
+      host.innerHTML = ALL[key].map(o => {
+        const allowed = ASSIGNED[key].includes(o.v);
+        const on = state[key].includes(o.v);
+        return `<span class="chip ${on && allowed ? 'active' : ''} ${allowed ? '' : 'locked'}"
+                      onclick="${allowed ? `toggleVal('${key}','${o.v}')` : `lockedHint()`}">
+                  ${allowed ? (on ? '<i class="pi pi-check" style="font-size:0.6rem"></i>' : '') : '<i class="pi pi-lock" style="font-size:0.6rem"></i>'}
+                  ${o.l}
+                </span>`;
+      }).join('');
+    }
+
+    function renderStrengths() {
+      const host = document.getElementById('grp-strengths');
+      let html = ALL.strengths.map(o => {
+        const on = state.strengths.includes(o.v);
+        return `<span class="chip ${on ? 'active' : ''}" onclick="toggleVal('strengths','${o.v}')">
+                  ${on ? '<i class="pi pi-check" style="font-size:0.6rem"></i>' : ''}${o.l}
+                </span>`;
+      }).join('');
+      html += `<span class="chip ${state.weakDigest ? 'active' : ''}" onclick="toggleWeak()">
+                 ${state.weakDigest ? '<i class="pi pi-check" style="font-size:0.6rem"></i>' : ''}弱訊號
+                 <span class="text-xs" style="opacity:0.75">（僅摘要）</span>
+               </span>`;
+      host.innerHTML = html;
+    }
+
+    function renderSymbols() {
+      const host = document.getElementById('grp-symbols');
+      if (!state.symbols.length) {
+        host.innerHTML = '<span class="text-xs text-muted">未指定 · 目前接收所有符合條件的個股</span>';
+        return;
+      }
+      host.innerHTML = state.symbols.map(s =>
+        `<span class="chip active" onclick="removeSymbol('${s}')">${s}<i class="pi pi-times" style="font-size:0.6rem"></i></span>`
+      ).join('');
+    }
+
+    function renderMode() {
+      document.getElementById('seg-mode').innerHTML = MODES.map(m =>
+        `<button class="seg-item ${state.mode === m.v ? 'active' : ''}" onclick="setMode('${m.v}')">${m.l}</button>`
+      ).join('');
+      document.getElementById('mode-desc').textContent = MODES.find(m => m.v === state.mode).d;
+    }
+
+    function renderPause() {
+      const opts = [1, 3, 7, 30];
+      document.getElementById('pause-grid').innerHTML = opts.map(d =>
+        `<button class="pause-btn ${state.pauseDays === d ? 'active' : ''}" onclick="setPause(${d})">
+           <div class="pause-num">${d}</div><div class="pause-unit">天</div>
+         </button>`
+      ).join('');
+
+      const st = document.getElementById('pause-status');
+      if (state.pauseDays > 0) {
+        const until = new Date('2026-08-15');
+        until.setDate(until.getDate() + state.pauseDays);
+        const ds = `${until.getFullYear()}-${String(until.getMonth() + 1).padStart(2, '0')}-${String(until.getDate()).padStart(2, '0')}`;
+        st.innerHTML = `<div class="banner banner-warn">
+            <i class="pi pi-pause-circle"></i>
+            <div>目前為<b>暫停中</b>，將於 <b>${ds}</b> 自動恢復發送。
+            <button class="btn btn-ghost btn-sm" style="margin-left:0.5rem" onclick="setPause(0)">立即恢復</button></div>
+          </div>`;
+      } else {
+        st.innerHTML = `<div class="banner banner-info"><i class="pi pi-check-circle"></i><div>目前正常接收通知中</div></div>`;
+      }
+    }
+
+    function renderEndpoints() {
+      const eps = [
+        { channel: 'email', address: 'familyA@example.com', verify: 'verified', note: '每日摘要 · 15:00' },
+        { channel: 'telegram', address: '家庭群組 · MyStock 通知', verify: 'verified', note: '即時推送' }
+      ];
+      document.getElementById('endpoint-list').innerHTML = eps.map((e, i) => {
+        const m = CHANNEL_META[e.channel];
+        return `<div class="list-row">
+          <div class="list-avatar" style="background:var(--${e.channel === 'email' ? 'blue' : 'violet'}-light); color:var(--${e.channel === 'email' ? 'blue' : 'violet'})">
+            <i class="pi ${m.icon}"></i>
+          </div>
+          <div class="list-main">
+            <div class="list-title">${m.label}
+              <span class="tag tag-ok"><i class="pi pi-check" style="font-size:0.6rem"></i>已驗證</span>
+            </div>
+            <div class="list-sub">${esc(e.address)} · ${e.note}</div>
+          </div>
+          <div class="list-actions">
+            <button class="btn btn-ghost btn-sm" onclick="unsubOne(${i}, '${m.label}')">停止此管道</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderMyLogs() {
+      const logs = [
+        { t: '08-14 14:32', title: '2317 鴻海 均線死亡交叉', ch: 'telegram', st: 'sent' },
+        { t: '08-14 14:32', title: '2330 台積電 跌破 MA20', ch: 'telegram', st: 'sent' },
+        { t: '08-14 15:00', title: '2026-08-14 台股警示摘要', ch: 'email', st: 'sent' },
+        { t: '08-13 15:00', title: '2026-08-13 台股警示摘要', ch: 'email', st: 'sent' },
+        { t: '08-13 14:35', title: '1101 台泥 高檔出貨', ch: 'telegram', st: 'throttled' }
+      ];
+      document.getElementById('my-logs').innerHTML = logs.map(l => {
+        const s = STATUS_META[l.st];
+        const m = CHANNEL_META[l.ch];
+        return `<div class="list-row">
+          <div class="list-avatar" style="background:var(--surface-hover); color:var(--text-muted)">
+            <i class="pi ${m.icon}"></i>
+          </div>
+          <div class="list-main">
+            <div class="list-title text-sm">${esc(l.title)}</div>
+            <div class="list-sub">${l.t} · ${m.label}</div>
+          </div>
+          <span class="tag ${s.tag}">${s.label}</span>
+        </div>`;
+      }).join('');
+    }
+
+    // ── 即時預覽：依目前設定過濾模擬訊號 ────────
+    function renderPreview() {
+      const passed = MOCK_ALERTS.filter(a => {
+        if (!state.markets.includes(a.market)) return false;
+        if (!state.signals.includes(a.signal_type)) return false;
+        if (!state.categories.includes(a.category)) return false;
+        if (state.symbols.length && !state.symbols.includes(a.stock_id)) return false;
+        if (a.signal_strength === 'weak') return state.weakDigest;
+        return state.strengths.includes(a.signal_strength);
+      });
+
+      // 弱訊號一律只入摘要；模式為 digest 時全部進摘要
+      const digest = passed.filter(a => a.signal_strength === 'weak' || state.mode !== 'realtime');
+      const realtime = passed.length - digest.length;
+
+      document.getElementById('pv-count').textContent = passed.length;
+      document.getElementById('pv-realtime').textContent = state.pauseDays > 0 ? 0 : realtime;
+      document.getElementById('pv-digest').textContent = state.pauseDays > 0 ? 0 : digest.length;
+
+      const list = document.getElementById('pv-list');
+      if (state.pauseDays > 0) {
+        list.innerHTML = `<div class="empty"><i class="pi pi-pause-circle"></i>
+          <div class="empty-text">暫停中，期間不會收到任何通知</div></div>`;
+        return;
+      }
+      if (!passed.length) {
+        list.innerHTML = `<div class="empty"><i class="pi pi-inbox"></i>
+          <div class="empty-text">目前的條件過濾掉了所有訊號<br>放寬條件才會收到通知</div></div>`;
+        return;
+      }
+      list.innerHTML = passed.map(a => {
+        const st = STRENGTH_META[a.signal_strength];
+        const sg = SIGNAL_META[a.signal_type];
+        const isDigest = a.signal_strength === 'weak' || state.mode !== 'realtime';
+        return `<div class="pv-row">
+          <span class="tag ${sg.tag}">${sg.icon}</span>
+          <span class="pv-code">${a.stock_id}</span>
+          <span class="pv-name hide-mobile">${esc(a.stock_name)}</span>
+          <span class="pv-strategy">${esc(a.strategy_name)}</span>
+          <span class="tag ${st.tag}">${st.label}</span>
+          <span class="tag tag-neu">${isDigest ? '摘要' : '即時'}</span>
+        </div>`;
+      }).join('');
+    }
+
+    // ── 互動 ────────────────────────────────────
+    function toggleVal(key, val) {
+      const i = state[key].indexOf(val);
+      if (i >= 0) {
+        if (state[key].length === 1) { toast('至少要保留一項', 'pi-exclamation-circle'); return; }
+        state[key].splice(i, 1);
+      } else {
+        state[key].push(val);
+      }
+      renderAll();
+    }
+
+    function toggleWeak() { state.weakDigest = !state.weakDigest; renderAll(); }
+    function setMode(v) { state.mode = v; renderAll(); }
+    function setPause(d) {
+      state.pauseDays = d;
+      renderAll();
+      if (d > 0) toast(`已設定暫停 ${d} 天，到期自動恢復`, 'pi-pause-circle');
+      else toast('已恢復接收通知', 'pi-play');
+    }
+
+    function lockedHint() {
+      toast('此項目尚未開放給你，請洽系統擁有者', 'pi-lock');
+    }
+
+    function addSymbol() {
+      const el = document.getElementById('symbol-input');
+      const v = el.value.trim().toUpperCase();
+      if (!v) return;
+      if (state.symbols.includes(v)) { toast('已在清單中', 'pi-info-circle'); el.value = ''; return; }
+      state.symbols.push(v);
+      el.value = '';
+      renderAll();
+    }
+    function removeSymbol(s) {
+      state.symbols = state.symbols.filter(x => x !== s);
+      renderAll();
+    }
+    document.getElementById('symbol-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); addSymbol(); }
+    });
+
+    function unsubOne(i, label) {
+      toast(`已停止 ${label} 管道（原型示意）`, 'pi-ban');
+    }
+
+    function doUnsubscribe() {
+      closeModal('modal-unsub');
+      const reason = document.getElementById('unsub-reason').value;
+      toast(`已退訂所有通知 · 原因：${reason}`, 'pi-check-circle');
+    }
+
+    function saveState() {
+      saved = JSON.parse(JSON.stringify(state));
+      renderAll();
+      toast('設定已儲存，下次發送即套用');
+    }
+    function resetState() {
+      state = JSON.parse(JSON.stringify(saved));
+      renderAll();
+      toast('已還原為上次儲存的設定', 'pi-replay');
+    }
+
+    function syncSaveBar() {
+      const dirty = JSON.stringify(state) !== JSON.stringify(saved);
+      document.getElementById('save-bar').classList.toggle('show', dirty);
+    }
+
+    function renderAll() {
+      renderChips('grp-markets', 'markets');
+      renderStrengths();
+      renderChips('grp-signals', 'signals');
+      renderChips('grp-categories', 'categories');
+      renderSymbols();
+      renderMode();
+      renderPause();
+      renderPreview();
+      syncSaveBar();
+    }
+
+    ['quiet-start', 'quiet-end', 'daily-limit'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => {
+        document.getElementById('save-bar').classList.add('show');
+      });
+    });
+
+    renderEndpoints();
+    renderMyLogs();
+    renderAll();
+  </script>
+</body>
+</html>

@@ -4,3 +4,9 @@ backups/
 
 __pycache__/
 *.pyc
+
+# 爬蟲每日下載的個股資料快取，可隨時重新抓取，不需要版控
+# （見 docs/#Architecture/系統規格書/系統設計規格書.md 第 12 節；data/_alerts/ 是警示狀態，非爬蟲資料，維持版控）
+data/*.json
+data/tw/*.json
+data/us/*.json

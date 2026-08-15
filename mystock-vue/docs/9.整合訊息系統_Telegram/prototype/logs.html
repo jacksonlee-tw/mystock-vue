@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>發送紀錄 — MyStock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .filter-bar {
+      display: flex; align-items: center; gap: 0.75rem;
+      flex-wrap: wrap;
+      padding: 0.85rem 1.1rem;
+      border-bottom: 1px solid var(--surface-border);
+    }
+    .reason { font-size: 0.73rem; color: var(--text-muted); }
+    .state-flow {
+      display: flex; align-items: center; gap: 0.3rem;
+      flex-wrap: wrap;
+      font-size: 0.7rem;
+    }
+    .state-flow .pi { font-size: 0.6rem; color: var(--text-placeholder); }
+  </style>
+</head>
+<body>
+  <div id="topbar-host"></div>
+
+  <main class="page-main">
+    <div class="content-wrap">
+
+      <div class="page-head">
+        <div class="page-title"><i class="pi pi-history" style="color:var(--brass)"></i>發送紀錄</div>
+        <div class="page-sub">
+          每則訊息「送了沒、成功沒、為什麼失敗」都能查到 — 與「警示看板」呈現訊號本身不同，此頁呈現訊號<b>是否送達</b>
+        </div>
+      </div>
+
+      <div class="grid-4 mb-3">
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--brass-light); color:var(--brass)"><i class="pi pi-inbox"></i></div>
+          <div><div class="kpi-label">今日訊息</div><div class="kpi-value">12</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--green-light); color:var(--green)"><i class="pi pi-check-circle"></i></div>
+          <div><div class="kpi-label">送達率</div><div class="kpi-value">83<span class="text-sm">%</span></div><div class="kpi-sub">10 / 12</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--red-light); color:var(--red)"><i class="pi pi-times-circle"></i></div>
+          <div><div class="kpi-label">最終失敗</div><div class="kpi-value">1</div><div class="kpi-sub">位址無效</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--blue-light); color:var(--blue)"><i class="pi pi-envelope"></i></div>
+          <div><div class="kpi-label">Email 今日用量</div><div class="kpi-value">42</div><div class="kpi-sub">預算 350</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="filter-bar">
+          <div class="flex gap-1 items-center">
+            <i class="pi pi-calendar text-muted"></i>
+            <input type="date" class="form-input" value="2026-08-14" style="width:150px">
+          </div>
+          <div class="chip-group" id="filter-status"></div>
+          <div style="flex:1"></div>
+          <button class="btn btn-ghost btn-sm" onclick="toast('已重送 1 則失敗訊息', 'pi-replay')">
+            <i class="pi pi-replay"></i>重送全部失敗
+          </button>
+        </div>
+
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>時間</th>
+                <th>事件</th>
+                <th>訊息</th>
+                <th>收件人</th>
+                <th>管道</th>
+                <th>狀態</th>
+                <th class="num">嘗試</th>
+                <th>說明</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="log-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 狀態說明 -->
+      <div class="card mt-3">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-sitemap"></i>訊息狀態說明</div>
+          <span class="card-desc">對應規格 §8.5 訊息單狀態轉換圖</span>
+        </div>
+        <div class="card-body">
+          <div class="grid-3">
+            <div>
+              <div class="section-label">成功路徑</div>
+              <div class="stack-2" style="gap:0.5rem">
+                <div class="state-flow">
+                  <span class="tag tag-neu">待發送</span><i class="pi pi-arrow-right"></i>
+                  <span class="tag tag-neu">發送中</span><i class="pi pi-arrow-right"></i>
+                  <span class="tag tag-ok">已送達</span>
+                </div>
+                <div class="reason">正常發送流程。</div>
+              </div>
+            </div>
+            <div>
+              <div class="section-label">失敗與重試</div>
+              <div class="stack-2" style="gap:0.5rem">
+                <div class="state-flow">
+                  <span class="tag tag-warn">失敗待重試</span><i class="pi pi-arrow-right"></i>
+                  <span class="tag tag-warn">退避重試</span><i class="pi pi-arrow-right"></i>
+                  <span class="tag tag-err">最終失敗</span>
+                </div>
+                <div class="reason">
+                  可重試失敗（逾時、限流）依 1 → 5 → 30 分鐘退避；
+                  不可重試失敗（位址無效、遭封鎖）立即停止並自動停用該端點。
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="section-label">政策略過</div>
+              <div class="stack-2" style="gap:0.5rem">
+                <div class="state-flow">
+                  <span class="tag tag-neu">重複略過</span>
+                  <span class="tag tag-neu">超量轉摘要</span>
+                  <span class="tag tag-neu">延後</span>
+                  <span class="tag tag-neu">併入摘要</span>
+                </div>
+                <div class="reason">
+                  四道政策閘門的結果：去重、每日上限、靜音時段、發送模式。
+                  <b>訊息不會遺失</b>，只是改以摘要或延後送出。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    renderTopbar('logs', 'admin');
+
+    let activeFilter = 'all';
+    const FILTERS = [
+      { v: 'all', l: '全部' },
+      { v: 'sent', l: '已送達' },
+      { v: 'problem', l: '失敗' },
+      { v: 'policy', l: '政策略過' }
+    ];
+
+    function renderFilters() {
+      document.getElementById('filter-status').innerHTML = FILTERS.map(f =>
+        `<span class="chip ${activeFilter === f.v ? 'active' : ''}" onclick="setFilter('${f.v}')">${f.l}</span>`
+      ).join('');
+    }
+    function setFilter(v) { activeFilter = v; renderFilters(); renderLogs(); }
+
+    function matches(l) {
+      if (activeFilter === 'all') return true;
+      if (activeFilter === 'sent') return l.status === 'sent';
+      if (activeFilter === 'problem') return ['failed', 'dead'].includes(l.status);
+      if (activeFilter === 'policy') return ['digested', 'throttled', 'deferred', 'skipped_duplicate'].includes(l.status);
+      return true;
+    }
+
+    function renderLogs() {
+      const rows = MOCK_LOGS.filter(matches);
+      const tb = document.getElementById('log-tbody');
+      if (!rows.length) {
+        tb.innerHTML = `<tr><td colspan="9"><div class="empty"><i class="pi pi-inbox"></i>
+          <div class="empty-text">此條件下沒有紀錄</div></div></td></tr>`;
+        return;
+      }
+      tb.innerHTML = rows.map(l => {
+        const s = STATUS_META[l.status];
+        const c = CHANNEL_META[l.channel];
+        const ev = EVENT_META[l.event];
+        const canResend = ['dead', 'failed'].includes(l.status);
+        return `<tr>
+          <td class="mono text-xs" style="white-space:nowrap">${l.time}</td>
+          <td><span class="tag ${ev.severity === 'critical' ? 'tag-err' : 'tag-neu'}">${ev.label}</span></td>
+          <td style="font-weight:600; min-width:180px">${esc(l.title)}</td>
+          <td style="white-space:nowrap">${esc(l.recipient)}</td>
+          <td><span class="tag ${c.tag}"><i class="pi ${c.icon}" style="font-size:0.6rem"></i>${c.label}</span></td>
+          <td><span class="tag ${s.tag}"><i class="pi ${s.icon}" style="font-size:0.6rem"></i>${s.label}</span></td>
+          <td class="num">${l.attempts || '—'}</td>
+          <td class="reason" style="min-width:200px">${esc(l.reason) || '—'}</td>
+          <td>${canResend
+            ? `<button class="btn btn-ghost btn-sm" onclick="resend('${l.code}')"><i class="pi pi-replay"></i>重送</button>`
+            : ''}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function resend(code) { toast(`${code} 已重新排入發送佇列`, 'pi-replay'); }
+
+    renderFilters();
+    renderLogs();
+  </script>
+</body>
+</html>

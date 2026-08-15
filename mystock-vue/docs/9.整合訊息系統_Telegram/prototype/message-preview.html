@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>訊息外觀預覽 — MyStock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .preview-stage {
+      display: flex; gap: 1.5rem; align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .stage-col { display: flex; flex-direction: column; gap: 0.6rem; }
+    .stage-label {
+      font-size: 0.75rem; font-weight: 800; color: var(--text-muted);
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .digest-tbl { width: 100%; border-collapse: collapse; font-size: 0.74rem; margin: 0.4rem 0 0.8rem; }
+    .digest-tbl th {
+      text-align: left; padding: 0.35rem 0.5rem;
+      background: var(--surface-hover); color: var(--text-muted);
+      font-size: 0.68rem; font-weight: 700;
+      border-bottom: 1px solid var(--surface-border);
+    }
+    .digest-tbl td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--surface-border); }
+    .digest-sec { font-weight: 800; font-size: 0.8rem; margin-top: 0.9rem; display: flex; align-items: center; gap: 0.4rem; }
+    .mail-link { color: var(--brass); font-weight: 700; text-decoration: none; }
+    .tmpl-cell { text-align: center; }
+    .tmpl-ok { color: var(--green); }
+    .tmpl-default { color: var(--text-placeholder); }
+  </style>
+</head>
+<body>
+  <div id="topbar-host"></div>
+
+  <main class="page-main">
+    <div class="content-wrap">
+
+      <div class="page-head">
+        <div class="page-title"><i class="pi pi-comment" style="color:var(--brass)"></i>訊息外觀預覽</div>
+        <div class="page-sub">
+          同一個事件在不同管道會套用不同模板 — Telegram 求精簡即時，Email 求完整彙整
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-bolt"></i>選擇事件類型</div>
+          <div class="seg" id="seg-event"></div>
+        </div>
+        <div class="card-body">
+          <div class="preview-stage">
+            <div class="stage-col">
+              <div class="stage-label"><i class="pi pi-send" style="color:var(--violet)"></i>Telegram · 手機檢視</div>
+              <div class="phone">
+                <div class="phone-bar"><i class="pi pi-android"></i>MyStockAlertBot</div>
+                <div class="phone-body" id="tg-preview"></div>
+              </div>
+            </div>
+            <div class="stage-col" style="flex:1; min-width:320px">
+              <div class="stage-label"><i class="pi pi-envelope" style="color:var(--blue)"></i>Email · 收件匣檢視</div>
+              <div class="mail" id="mail-preview"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="banner banner-brass mb-3">
+        <i class="pi pi-check-circle"></i>
+        <div>
+          每則訊息都固定附上<b>免責聲明</b>與<b>「管理我的通知」專屬連結</b>，
+          收件人可自行調整訂閱、暫停或退訂，不需要透過系統擁有者（FR-SS-01、FR-MC-05）。
+        </div>
+      </div>
+
+      <!-- 模板矩陣 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-table"></i>模板矩陣（事件類型 × 管道）</div>
+          <span class="card-desc">缺少模板時自動回退至預設通用模板，不會漏發</span>
+        </div>
+        <div class="card-body tight">
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>事件類型</th><th>Email</th><th>Telegram</th>
+                  <th>LINE<span class="text-xs text-muted">（未來）</span></th>
+                </tr>
+              </thead>
+              <tbody id="tmpl-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    renderTopbar('preview', 'admin');
+
+    const SELF_LINK = 'https://mystock.local/n/s/rcp-002-a7f3d9e2c1b4';
+    const EVENTS = [
+      { v: 'signal',  l: '即時訊號' },
+      { v: 'digest',  l: '每日摘要' },
+      { v: 'failure', l: '系統異常' }
+    ];
+    let active = 'signal';
+
+    function renderSeg() {
+      document.getElementById('seg-event').innerHTML = EVENTS.map(e =>
+        `<button class="seg-item ${active === e.v ? 'active' : ''}" onclick="setEvent('${e.v}')">${e.l}</button>`
+      ).join('');
+    }
+    function setEvent(v) { active = v; renderSeg(); renderPreview(); }
+
+    const FOOT = '—— 本訊息由系統依既定規則自動產生，僅供參考，非投資建議';
+
+    // ── Telegram ──
+    function tgSignal() {
+      return `<div class="tg-bubble">🔴 <b>【賣出訊號】2317 鴻海</b>
+策略：均線死亡交叉（MA5 下穿 MA20）
+強度：<b>強</b>（通過 成交量確認、K 線確認）
+交易日：2026-08-14
+
+收盤 <b>205.0</b>　MA20 <b>211.3</b>　乖離 <b>-2.98%</b>
+
+參考動作：短線轉弱，可留意減碼或設定停損
+<span style="color:#8a8f94; font-size:0.68rem">${FOOT}</span></div>
+        <div class="tg-btn">📈 查看 2317 圖表</div>
+        <div class="tg-btn">⚙️ 管理我的通知</div>`;
+    }
+    function tgDigest() {
+      return `<div class="tg-bubble">📊 <b>2026-08-14 台股警示摘要</b>
+共 5 則訊號（賣出 3 · 買進 1 · 弱訊號 1）
+
+<b>賣出</b>
+▼ 2317 鴻海　均線死亡交叉　<b>強</b>
+▼ 2330 台積電　跌破 MA20　中
+▼ 1101 台泥　高檔出貨　中
+
+<b>買進</b>
+▲ 2884 玉山金　突破 MA60　中
+
+<b>弱訊號（僅摘要）</b>
+▲ 0050 元大台灣50　均線多頭排列
+
+<span style="color:#8a8f94; font-size:0.68rem">${FOOT}</span></div>
+        <div class="tg-btn">📋 開啟警示看板</div>
+        <div class="tg-btn">⚙️ 管理我的通知</div>`;
+    }
+    function tgFailure() {
+      return `<div class="tg-bubble">⚠️ <b>【系統異常】台股每日抓取失敗</b>
+發生時間：2026-08-14 14:32
+影響範圍：3 檔標的未更新
+　（2330、2317、1101）
+錯誤摘要：資料來源連線逾時
+
+提醒：今日策略掃描結果可能不完整，
+建議手動重新抓取。
+
+<span style="color:#8a8f94; font-size:0.68rem">此為緊急通知，不受免打擾時段限制</span></div>
+        <div class="tg-btn">🔧 開啟抓取管理頁</div>`;
+    }
+
+    // ── Email ──
+    function mailSignal() {
+      return `
+        <div class="mail-head">
+          <div class="mail-subject">【MyStock】賣出訊號 · 2317 鴻海 均線死亡交叉</div>
+          <div class="mail-from">MyStock 通知 &lt;jackson210@example.com&gt; · 2026-08-14 14:32</div>
+        </div>
+        <div class="mail-body">
+          <p><b style="color:var(--red)">▼ 賣出訊號</b>　<b>2317 鴻海</b>
+             <span class="tag tag-strong">強訊號</span> <span class="tag tag-tw">台股</span></p>
+          <table class="digest-tbl">
+            <tr><th>策略</th><td>均線死亡交叉（MA5 下穿 MA20）</td></tr>
+            <tr><th>交易日</th><td>2026-08-14</td></tr>
+            <tr><th>收盤價</th><td><b>205.0</b></td></tr>
+            <tr><th>MA20</th><td>211.3</td></tr>
+            <tr><th>乖離率</th><td style="color:var(--red)">-2.98%</td></tr>
+            <tr><th>通過濾網</th><td>成交量確認、K 線確認</td></tr>
+          </table>
+          <p><b>參考動作：</b>短線轉弱，可留意減碼或設定停損。</p>
+          <p class="mt-2"><a href="#" class="mail-link">▸ 查看 2317 完整圖表</a></p>
+        </div>
+        <div class="mail-foot">
+          ${FOOT}<br>
+          <a href="my-subscription.html" class="mail-link">管理我的通知</a> ·
+          <a href="my-subscription.html" class="mail-link">暫停</a> ·
+          <a href="my-subscription.html" class="mail-link">退訂</a>
+        </div>`;
+    }
+
+    function mailDigest() {
+      const sell = [
+        ['2317', '鴻海', '均線死亡交叉', '強', '205.0', 'MA5/MA20'],
+        ['2330', '台積電', '跌破 MA20', '中', '1085', 'MA20 1102.5'],
+        ['1101', '台泥', '高檔出貨', '中', '32.5', '法人連 3 賣']
+      ];
+      const buy = [['2884', '玉山金', '突破 MA60', '中', '28.4', 'MA60 27.9']];
+      const weak = [['0050', '元大台灣50', '均線多頭排列', '弱', '107.8', '—']];
+
+      const rows = arr => arr.map(r => `<tr>
+        <td class="mono"><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td>
+        <td><span class="tag ${r[3] === '強' ? 'tag-strong' : r[3] === '中' ? 'tag-moderate' : 'tag-weak'}">${r[3]}</span></td>
+        <td class="num">${r[4]}</td><td class="text-muted">${r[5]}</td>
+      </tr>`).join('');
+
+      const head = `<tr><th>代號</th><th>名稱</th><th>策略</th><th>強度</th><th>收盤</th><th>關鍵值</th></tr>`;
+
+      return `
+        <div class="mail-head">
+          <div class="mail-subject">【MyStock】2026-08-14 台股警示摘要（賣出 3 檔 / 買進 2 檔）</div>
+          <div class="mail-from">MyStock 通知 &lt;jackson210@example.com&gt; · 2026-08-14 15:00</div>
+        </div>
+        <div class="mail-body">
+          <p>當日掃描完成，共觸發 <b>5</b> 則訊號。</p>
+
+          <div class="digest-sec" style="color:var(--red)">■ 賣出訊號（3）</div>
+          <table class="digest-tbl">${head}${rows(sell)}</table>
+
+          <div class="digest-sec" style="color:var(--green)">■ 買進訊號（1）</div>
+          <table class="digest-tbl">${head}${rows(buy)}</table>
+
+          <div class="digest-sec text-muted">■ 弱訊號（僅摘要呈現，不即時推送）</div>
+          <table class="digest-tbl">${head}${rows(weak)}</table>
+
+          <p class="mt-2"><a href="#" class="mail-link">▸ 開啟警示看板查看完整內容</a></p>
+        </div>
+        <div class="mail-foot">
+          ${FOOT}<br>
+          <a href="my-subscription.html" class="mail-link">管理我的通知</a> ·
+          <a href="my-subscription.html" class="mail-link">暫停</a> ·
+          <a href="my-subscription.html" class="mail-link">退訂</a>
+        </div>`;
+    }
+
+    function mailFailure() {
+      return `
+        <div class="mail-head">
+          <div class="mail-subject" style="color:var(--red)">【MyStock】⚠️ 系統異常 · 台股每日抓取失敗</div>
+          <div class="mail-from">MyStock 通知 &lt;jackson210@example.com&gt; · 2026-08-14 14:32</div>
+        </div>
+        <div class="mail-body">
+          <div class="banner banner-err mb-2">
+            <i class="pi pi-exclamation-triangle"></i>
+            <div>今日策略掃描結果可能不完整，建議手動重新抓取。</div>
+          </div>
+          <table class="digest-tbl">
+            <tr><th>發生時間</th><td>2026-08-14 14:32</td></tr>
+            <tr><th>影響範圍</th><td>3 檔標的未更新</td></tr>
+            <tr><th>失敗標的</th><td class="mono">2330、2317、1101</td></tr>
+            <tr><th>錯誤摘要</th><td>資料來源連線逾時</td></tr>
+          </table>
+          <p class="mt-2"><a href="#" class="mail-link">▸ 開啟抓取管理頁</a></p>
+          <p class="text-xs text-muted mt-2">
+            <i class="pi pi-info-circle"></i>
+            此為 <b>critical</b> 事件，不受免打擾時段與每日上限限制，且同時發送至 Email 與 Telegram。
+          </p>
+        </div>
+        <div class="mail-foot">${FOOT}</div>`;
+    }
+
+    function renderPreview() {
+      const tg = { signal: tgSignal, digest: tgDigest, failure: tgFailure }[active];
+      const ml = { signal: mailSignal, digest: mailDigest, failure: mailFailure }[active];
+      document.getElementById('tg-preview').innerHTML = tg();
+      document.getElementById('mail-preview').innerHTML = ml();
+    }
+
+    function renderTemplates() {
+      const rows = [
+        { t: 'ALERT_SIGNAL',    email: '單筆詳細格式', tg: '精簡即時格式' },
+        { t: 'ALERT_DIGEST',    email: '表格彙整格式', tg: '條列摘要格式' },
+        { t: 'FETCH_COMPLETED', email: '簡短狀態格式', tg: '簡短狀態格式' },
+        { t: 'FETCH_FAILED',    email: '錯誤詳情格式', tg: '醒目告警格式' },
+        { t: 'SYSTEM_HEALTH',   email: '錯誤詳情格式', tg: '醒目告警格式' }
+      ];
+      document.getElementById('tmpl-tbody').innerHTML = rows.map(r => `<tr>
+        <td>
+          <div style="font-weight:700">${EVENT_META[r.t].label}</div>
+          <div class="mono text-xs text-muted">${r.t}</div>
+        </td>
+        <td class="tmpl-cell"><i class="pi pi-check-circle tmpl-ok"></i> <span class="text-xs">${r.email}</span></td>
+        <td class="tmpl-cell"><i class="pi pi-check-circle tmpl-ok"></i> <span class="text-xs">${r.tg}</span></td>
+        <td class="tmpl-cell"><span class="tag tag-future">回退至預設模板</span></td>
+      </tr>`).join('');
+    }
+
+    renderSeg();
+    renderPreview();
+    renderTemplates();
+  </script>
+</body>
+</html>
