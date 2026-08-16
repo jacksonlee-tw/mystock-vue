@@ -9,6 +9,11 @@ defaults:
   volume_ma_period: 5           # 均量計算天數
   lookback_days: 1              # 排程掃描時，每次檢查最近幾天（手動 /alerts/scan 可覆寫，方便回填測試）
   scan_frequency: "daily_close" # daily_close | intraday_15m（未來）
+  # ── KD（KD指標 設計規格書 §4.3）──────────────
+  kd_params:
+    - [9, 3, 3]                  # [fastk_period, slowk_period, slowd_period]
+  kd_warmup_bars: 25            # 遞迴平滑暖身根數，見設計規格書 §3.3 誤差推導
+  kd_smoothing: "wilder_1_3"    # 台股慣例，決議 D1：台股／美股一體適用，見設計規格書 §12
 
 strategies:
   # ── 突破 / 跌破策略 ──────────────────────────
@@ -137,6 +142,54 @@ strategies:
         ma_period: 20
         consec_sell_days: 3               # C2：法人連續賣超天數
         margin_high_window: 60            # C3：融資餘額創新高視窗
+
+  # ══ KD 隨機指標策略（KD指標 設計規格書 §5）══════════════
+  # 純 OHLC 指標，台股／美股皆適用。門檻與守衛全部在此調整，改完存檔即生效（不需重啟）。
+  - id: "kd_oversold_golden_cross"
+    name: "KD 超賣區黃金交叉"
+    category: "technical"
+    enabled: true
+    markets: ["tw", "us"]
+    cooldown_days: 10                  # 覆寫全域 ALERT_COOLDOWN_DAYS（設計規格書 §5.7）
+    conditions:
+      - type: "kd_cross"
+        kd_params: [9, 3, 3]
+        oversold_threshold: 20
+        overbought_threshold: 80
+        zone_rule: "both"
+        directions: ["golden_cross_oversold"]
+        trend_guard:
+          ma_period: 60
+          mode: "require_above"        # 只在季線之上做超賣反彈，避開下跌段接刀
+        blunt_guard:
+          window: 5
+          mode: "downgrade"            # 決議 D2：先標記不擋，見設計規格書 §9 P1.5 上線後檢核
+    filters:
+      - type: "volume_confirm"
+        params: { multiple: 1.2 }
+      - type: "candlestick_confirm"
+        params: { body_ratio: 0.4 }
+      - type: "institutional_buy"       # 僅台股會通過（美股恆 false，只影響強度）
+        params: { lookback_days: 3 }
+
+  - id: "kd_overbought_death_cross"
+    name: "KD 超買區死亡交叉"
+    category: "technical"
+    enabled: true
+    markets: ["tw", "us"]
+    cooldown_days: 10
+    conditions:
+      - type: "kd_cross"
+        kd_params: [9, 3, 3]
+        oversold_threshold: 20
+        overbought_threshold: 80
+        zone_rule: "both"
+        directions: ["death_cross_overbought"]
+        trend_guard:
+          mode: "off"                   # 出場訊號不設趨勢門檻，寧可多提醒
+        blunt_guard:
+          window: 5
+          mode: "downgrade"
 
   # ══ 基本面出場警示（賣股策略 設計文件第四節 §1「成長動能衰竭」）══════════════
   # 僅台股適用（MOPS 月營收僅涵蓋台股）。資料來源見 services/mops_fetcher.py，

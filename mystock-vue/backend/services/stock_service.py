@@ -3,11 +3,12 @@ import json
 import calendar
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
-from config import DATA_DIR, get_target_stocks, get_enabled_markets, get_data_source
+from config import DATA_DIR, MAX_HISTORY_MONTHS, get_target_stocks, get_enabled_markets, get_data_source
 from services.fetcher import load_stock_json
 from db.mapping import daily_row_to_record
 from repositories.stock_repository import StockRepository
 from indicators.moving_average import compute_ma_set
+from indicators.stochastic import stochastic
 
 # 定義欄位分類 (已轉換為英文鍵名)
 SUM_FIELDS = [
@@ -304,6 +305,60 @@ def aggregate_stock_data(data: Dict[str, Any], period: str = "daily", months: in
 
     return result
 
+def _build_kd_payload(full_records: List[Dict[str, Any]], display_dates: List[str]) -> Dict[str, Any]:
+    """KD 副圖資料（KD指標 設計規格書 §6.1／§6.3）。
+
+    在完整歷史（full_records，聚合時 months=MAX_HISTORY_MONTHS）上計算 K/D，再依日期把結果
+    切到目前顯示區間（display_dates）——刻意不用 full_records 前 len(display_dates) 筆這種
+    位置切法，是因為非交易日／缺值會讓筆數與日期範圍對不齊，必須以日期本身比對才準確。
+    這樣同一天的 K/D 值不會因為使用者選 1 個月或 1 年而不同，也才會跟策略引擎（scanner.py，
+    同樣用 MAX_HISTORY_MONTHS 全歷史計算）算出的數字一致。
+
+    刻意不比照套用在 moving_averages（見下方呼叫端註解、KD指標 設計規格書 §12 決議 D5）：
+    MA 若資料不足只會誠實斷線（None），KD 若不做這層切片則會算出「看起來正常但其實錯誤」
+    的數字，兩者錯誤等級不同，只有 KD 需要這道全歷史切片。
+    """
+    # 延遲匯入：strategies 套件的 __init__ 會匯入 conditions_tech -> services.chip_provider ->
+    # services.stock_service，若在檔案頂層 import 會形成循環匯入（本函式所在的模組正是被匯入的
+    # 那一個）。等到實際呼叫時（伺服器啟動流程早已把 strategies 套件匯入完畢）才 import 即可
+    # 避開這個問題，同樣手法見 notify/events.py 既有的 _get_strategy_category()。
+    from strategies.config_loader import load_strategy_config
+
+    cfg = load_strategy_config()
+    kd_params_list = cfg.defaults.get("kd_params") or [[9, 3, 3]]
+    params = tuple(kd_params_list[0])
+    warmup_bars = cfg.defaults.get("kd_warmup_bars", 25)
+    smoothing = cfg.defaults.get("kd_smoothing", "wilder_1_3")
+
+    # 超買／超賣門檻取自 KD 策略設定，讓「YAML 改門檻 → 圖上基準線跟著動」
+    # （策略管理架構 設計文件第 9 節「不寫死參數」）；策略未設定或找不到時退回預設 80/20。
+    oversold, overbought = 20, 80
+    kd_strategy = cfg.get("kd_oversold_golden_cross")
+    if kd_strategy:
+        kd_cond = next((c for c in kd_strategy.conditions if c.get("type") == "kd_cross"), None)
+        if kd_cond:
+            oversold = kd_cond.get("oversold_threshold", oversold)
+            overbought = kd_cond.get("overbought_threshold", overbought)
+
+    highs = [r.get("high") or None for r in full_records]
+    lows = [r.get("low") or None for r in full_records]
+    closes = [r.get("close") or None for r in full_records]
+    k_full, d_full = stochastic(highs, lows, closes, *params, warmup_bars=warmup_bars, smoothing=smoothing)
+
+    index_by_date = {r["date"]: i for i, r in enumerate(full_records)}
+    k_sliced = [k_full[index_by_date[d]] if d in index_by_date else None for d in display_dates]
+    d_sliced = [d_full[index_by_date[d]] if d in index_by_date else None for d in display_dates]
+
+    return {
+        "params": list(params),
+        "smoothing": smoothing,
+        "k": k_sliced,
+        "d": d_sliced,
+        "overbought": overbought,
+        "oversold": oversold,
+    }
+
+
 async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: int = 3, market: str = "tw",
                                    source: Optional[str] = None, kind: str = "stock") -> Dict[str, Any]:
     raw_data = await load_stock_data(stock_id, market, source=source, kind=kind)
@@ -346,8 +401,16 @@ async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: 
 
     # 均線由後端統一計算，確保策略掃描（strategies/）與前端繪圖使用同一組數值，避免精度不一致
     # （均線策略警示系統 設計文件第 6.1 節設計決策）。0 視為缺值（比照上方 kline_data 的處理）。
+    # 注意：這裡是「先依 months 截斷、再計算」，不像下面 KD 是在全歷史上算完才切片
+    # （KD指標 設計規格書 §12 決議 D5：MA 資料不足只會誠實斷線，不像 KD 會算出看似正常但
+    # 其實錯誤的數字，兩者錯誤等級不同，本次只有 KD 需要全歷史切片，MA 維持現狀）——因此短
+    # 區間（如 1 個月）會看不到 MA60／MA240 的線，這是已知限制，不是遺漏。
     closes_for_ma = [r.get("close") or None for r in aggregated_records]
     moving_averages = compute_ma_set(closes_for_ma, MA_PERIODS)
+
+    # KD（KD指標 設計規格書 §6.1／§6.3）：在完整歷史上計算後再依 dates 切片，見 _build_kd_payload()。
+    full_records = aggregate_stock_data(raw_data, period=period, months=MAX_HISTORY_MONTHS)
+    kd_payload = _build_kd_payload(full_records, dates)
 
     return {
         "stock_id": stock_id,
@@ -381,6 +444,7 @@ async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: 
         },
         "kline": kline_data,
         "moving_averages": moving_averages,
+        "kd": kd_payload,
         "institutional": {
             "foreign": foreign,
             "trust": trust,

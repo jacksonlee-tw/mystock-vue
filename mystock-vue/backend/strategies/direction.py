@@ -12,6 +12,7 @@ _BULLISH_PREFIXES = (
     "pullback_support",
     "bottom_turnover",
     "short_squeeze",
+    "kd_golden_cross",  # KD 超賣區黃金交叉（KD指標 設計規格書 §5.5，P2 背離上線時補 kd_bullish_divergence）
 )
 _BEARISH_PREFIXES = (
     "cross_under",
@@ -20,6 +21,10 @@ _BEARISH_PREFIXES = (
     "overbought",
     "distribution_top",
     "revenue_yoy_decline",
+    # KD 死亡交叉刻意顯式登記——classify_direction() 預設回傳 bullish，"kd_" 前綴不會被
+    # 上面既有的 "death_cross" 比對到（direction 字串是 kd_death_cross_overbought，不是
+    # death_cross_xxx），漏登記會讓死亡交叉被誤判成 BUY 而不會報錯（KD指標 設計規格書 §5.5）。
+    "kd_death_cross",
 )
 
 

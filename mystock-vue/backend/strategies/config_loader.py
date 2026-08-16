@@ -6,7 +6,7 @@
 """
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -24,6 +24,9 @@ class StrategyDef:
     markets: List[str]
     conditions: List[dict] = field(default_factory=list)
     filters: List[dict] = field(default_factory=list)
+    # 覆寫全域 ALERT_COOLDOWN_DAYS（KD指標 設計規格書 §5.7）。None 代表沿用全域值，
+    # 現有策略（未在 YAML 設定此欄位）行為完全不變。
+    cooldown_days: Optional[int] = None
 
 
 @dataclass
@@ -60,6 +63,7 @@ def load_strategy_config() -> StrategyConfig:
             markets=s.get("markets", ["tw", "us"]),
             conditions=s.get("conditions", []),
             filters=s.get("filters", []),
+            cooldown_days=s.get("cooldown_days"),
         )
         for s in raw.get("strategies", [])
     ]

@@ -40,7 +40,11 @@
 
     <template v-else-if="alerts.length > 0">
       <div class="px-5 pb-5 pt-1 space-y-3">
-        <AlertTimeline :alerts="visibleAlerts" :strategy-list="strategyList" :show-chart-link="false" />
+        <!-- show-chart-link 開啟（KD指標 設計規格書 §7.5「同場加映」）：早期認為「已經在該股票
+             頁面，自我導航連結多餘」而關閉，但「查看圖表」現在會帶 indicator=kd + highlight
+             跳去獨立的圖表明細頁（ChartDetailView.vue）並自動開 KD 副圖、標出訊號當天，
+             不再是原地打轉的無用連結，兩處（AlertDashboard/StockAlertsPanel）套用同一組 query 契約。 -->
+        <AlertTimeline :alerts="visibleAlerts" :strategy-list="strategyList" />
       </div>
       <div v-if="alerts.length > collapsedCount" class="px-5 pb-4 -mt-1">
         <button

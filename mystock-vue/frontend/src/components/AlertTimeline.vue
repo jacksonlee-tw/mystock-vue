@@ -86,7 +86,7 @@
             class="text-sm font-bold text-primary hover:underline flex items-center gap-1"
             @click.stop="goToChart(alert)"
           >
-            <i class="pi pi-chart-line"></i> 跳轉至 K 線圖
+            <i class="pi pi-chart-bar"></i> 查看圖表（含 KD）
           </button>
         </div>
       </div>
@@ -109,7 +109,10 @@ import WatchlistStarButton from '@/components/WatchlistStarButton.vue';
 const props = defineProps({
   alerts: { type: Array, default: () => [] },
   strategyList: { type: Array, default: () => [] },
-  // 個股頁面內嵌顯示時（StockAlertsPanel）本來就已經在該股票的圖表頁，不需要再顯示自我導航的連結
+  // 兩處呼叫端（AlertDashboard／StockAlertsPanel）預設都顯示：「查看圖表」會帶 indicator=kd+
+  // highlight 跳去獨立的圖表明細頁並自動開 KD 副圖、標出訊號當天（KD指標 設計規格書 §7.5），
+  // 即使 StockAlertsPanel 已經在該股票的頁面，這個跳轉仍有意義，故不再預設關閉；
+  // 保留這個 prop 是留給未來若有「摘要卡片」等更精簡的呈現情境時可以關閉。
   showChartLink: { type: Boolean, default: true }
 });
 
@@ -192,7 +195,14 @@ function formatDetailValue(val) {
   return val ?? '-';
 }
 
+// 導去該股票的 K 線圖頁面，並自動開啟 KD 副圖、標示出觸發訊號的當下日期
+// （KD指標 設計規格書 §7.5：警示看板 → 圖表跳轉，query 契約由 ChartDetailView.vue／
+// StockCharts.vue 的 route.query.indicator/highlight 消費）。不分策略種類一律帶上
+// indicator=kd，讓使用者點開任何一筆警示都能順手核對當下的 KD 狀態。
 function goToChart(alert) {
-  router.push(`/stock/${alert.market}/${alert.stock_id}`);
+  router.push({
+    path: `/stock/${alert.market}/${alert.stock_id}/chart/kline`,
+    query: { period: 'daily', months: 6, indicator: 'kd', highlight: alert.trade_date }
+  });
 }
 </script>

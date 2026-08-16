@@ -20,6 +20,12 @@ DEFAULT_STRATEGY_CONFIG_PATH = os.path.join(BASE_DIR, "strategy_config", "strate
 DEFAULT_ALERT_COOLDOWN_DAYS = 1
 DEFAULT_INDEX_CONFIG_PATH = os.path.join(BASE_DIR, "index_config", "indices.yaml")
 DEFAULT_INDEX_HISTORY_YEARS = 5
+# 抓歷史資料的上限（月）。目前系統實際累積的資料量遠低於此，等同於「抓全部歷史」；
+# 之所以不用 None／不限制，是沿用 aggregate_stock_data() 既有的 months 參數介面。
+# 集中放在這裡（而非各自散在 services/chip_provider.py、services/stock_service.py）是因為
+# 兩處都要用同一個值：KD 暖身切片（KD指標 設計規格書 §6.3）要求「先以完整歷史計算，再依
+# 顯示區間切片」，兩處若各自寫一個常數、之後改了忘記同步，切片基準就會跟策略引擎對不起來。
+MAX_HISTORY_MONTHS = 60
 
 # ── 每日抓取＋掃描排程（見 services/scheduler.py）─────────────────────────
 # 時間一律以 SCHEDULE_TIMEZONE 解讀；台股盤後 14:30、美股收盤後隔日台北時間 06:00。

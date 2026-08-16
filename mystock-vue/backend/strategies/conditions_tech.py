@@ -8,10 +8,13 @@ idx 是「當日」在 ctx.dates/ctx.closes/... 上的索引；回傳一份訊�
 不在這裡自己加減乘除或重算均線（策略管理架構 設計文件第 9 節鐵則）；
 遇到 None（資料不足）一律跳過該筆判斷，不拋例外（滿足 NF-2）。
 """
-from typing import List
+import logging
+from typing import List, Optional
 
-from services.chip_provider import ScanContext
+from services.chip_provider import KDSeries, ScanContext
 from strategies.registry import condition
+
+logger = logging.getLogger("mystock-backend")
 
 
 def _is_aligned(ctx: ScanContext, idx: int, periods: List[int], bullish: bool, require_slope: bool) -> bool:
@@ -232,4 +235,151 @@ def pullback(ctx: ScanContext, idx: int, params: dict) -> List[dict]:
                 "direction": f"pullback_support_MA{p}",
                 "details": {"close": close, "ma_period": p, "ma_value": ma_now, "distance_percent": round(distance_pct, 2)},
             })
+    return results
+
+
+# ══ KD 隨機指標（KD指標 設計規格書 §5.2）══════════════════════════════════
+# directions 參數值 → (完整 direction 字串, 是否為黃金交叉, 對應區間)。
+# 只支援區間限定的兩個方向——一般區（中間區）交叉刻意不支援（決議 D3：KD 在中間區的交叉
+# 極其頻繁，開放會直接淹沒警示看板；見 KD指標 設計規格書 §12 D3）。
+_KD_DIRECTION_MAP = {
+    "golden_cross_oversold": ("kd_golden_cross_oversold", True, "oversold"),
+    "death_cross_overbought": ("kd_death_cross_overbought", False, "overbought"),
+}
+_DEFAULT_KD_DIRECTIONS = ["golden_cross_oversold", "death_cross_overbought"]
+
+# 未知 directions 值 / 未登記在 ma_periods 的 trend_guard.ma_period，各自只記一次警告，
+# 避免同一個問題在逐標的、逐日的迴圈中洗版 log（比照 strategies/filters.py 的既有作法）。
+_warned_kd_direction: set = set()
+_warned_kd_trend_ma: set = set()
+
+
+def _kd_zone_ok(zone_rule: str, k: float, d: float, in_zone) -> bool:
+    """zone_rule 決定交叉點要滿足哪種區間條件（KD指標 設計規格書 §5.2 參數表）。"""
+    if zone_rule == "k_only":
+        return in_zone(k)
+    if zone_rule == "either":
+        return in_zone(k) or in_zone(d)
+    return in_zone(k) and in_zone(d)  # "both"（預設）
+
+
+def _kd_trend_guard(ctx: ScanContext, idx: int, guard: Optional[dict]) -> Optional[dict]:
+    """趨勢守衛（KD指標 設計規格書 §5.4）。回傳 None 代表未通過，訊號整筆擋掉；
+    回傳 dict（可能為空）代表通過，內容併入 details（key 沿用既有 MA 條件慣用的
+    ma_period／ma_value，讓 scanner._suggested_action() 不需另外改讀取邏輯）。
+    只能讀 ctx.ma[period]，不得自行計算均線（策略管理架構 設計文件第 9 節鐵則）。"""
+    if not guard:
+        return {}
+    mode = guard.get("mode", "off")
+    if mode == "off":
+        return {}
+
+    ma_period = guard.get("ma_period")
+    series = ctx.ma.get(ma_period)
+    if not series:
+        if ma_period not in _warned_kd_trend_ma:
+            logger.warning(f"[策略引擎] kd_cross 的 trend_guard.ma_period={ma_period} 不在 ma_periods 設定內，已略過")
+            _warned_kd_trend_ma.add(ma_period)
+        return None
+
+    ma_value = series[idx]
+    close = ctx.closes[idx]
+    if ma_value is None or close is None:
+        return None
+    if mode == "require_above" and close <= ma_value:
+        return None
+    if mode == "require_below" and close >= ma_value:
+        return None
+    return {"ma_period": ma_period, "ma_value": ma_value}
+
+
+def _kd_is_blunted(series: KDSeries, idx: int, window: int, zone: str, threshold: float) -> bool:
+    """鈍化判定（KD指標 設計規格書 §5.4）：交叉發生前 window 根內，K 值持續位於同側極端區
+    ——死亡交叉看 K > overbought_threshold、黃金交叉看 K < oversold_threshold（嚴格不等式）。
+    視窗內任一根缺值視為「無法判斷」，保守回傳未鈍化。"""
+    if idx - window < 0:
+        return False
+    for j in range(idx - window, idx):
+        k_j = series.k[j]
+        if k_j is None:
+            return False
+        if zone == "overbought" and k_j <= threshold:
+            return False
+        if zone == "oversold" and k_j >= threshold:
+            return False
+    return True
+
+
+@condition(type="kd_cross", min_bars=35, requires=("kd",))
+def kd_cross(ctx: ScanContext, idx: int, params: dict) -> List[dict]:
+    """KD 超賣區黃金交叉 / 超買區死亡交叉（KD指標 設計規格書 §5.2）。
+
+    min_bars=35：RSV 9 根 + 暖身 25 根 + 交叉需回看 1 根（同設計規格書 §3.3 誤差推導）。
+    只讀 ctx.kd（indicators/stochastic.py 預先算好的結果），不在這裡重算 KD。
+    """
+    if idx < 1:
+        return []
+
+    kd_params = tuple(params.get("kd_params", (9, 3, 3)))
+    series = ctx.kd.get(kd_params)
+    if series is None:
+        return []
+
+    k_now, k_prev = series.k[idx], series.k[idx - 1]
+    d_now, d_prev = series.d[idx], series.d[idx - 1]
+    if None in (k_now, k_prev, d_now, d_prev):
+        return []
+
+    golden = k_prev <= d_prev and k_now > d_now
+    death = k_prev >= d_prev and k_now < d_now
+    if not golden and not death:
+        return []
+
+    oversold = params.get("oversold_threshold", 20)
+    overbought = params.get("overbought_threshold", 80)
+    zone_rule = params.get("zone_rule", "both")
+
+    directions_wanted = []
+    for value in params.get("directions", _DEFAULT_KD_DIRECTIONS):
+        if value not in _KD_DIRECTION_MAP:
+            if value not in _warned_kd_direction:
+                logger.warning(f"[策略引擎] kd_cross 不支援的 directions 值，已略過: {value}")
+                _warned_kd_direction.add(value)
+            continue
+        directions_wanted.append(value)
+
+    close = ctx.closes[idx]
+    blunt_guard = params.get("blunt_guard")
+    results = []
+
+    for value in directions_wanted:
+        direction, is_golden, zone = _KD_DIRECTION_MAP[value]
+        if is_golden != golden:
+            continue
+
+        threshold = oversold if zone == "oversold" else overbought
+        in_zone = (lambda v, t=threshold: v <= t) if zone == "oversold" else (lambda v, t=threshold: v >= t)
+        if not _kd_zone_ok(zone_rule, k_now, d_now, in_zone):
+            continue
+
+        trend_extra = _kd_trend_guard(ctx, idx, params.get("trend_guard"))
+        if trend_extra is None:
+            continue  # 趨勢守衛未通過，訊號整筆擋掉（非缺值容錯，是策略層的刻意過濾）
+
+        blunted = False
+        if blunt_guard:
+            blunt_mode = blunt_guard.get("mode", "downgrade")
+            if blunt_mode != "off":
+                blunted = _kd_is_blunted(series, idx, blunt_guard.get("window", 5), zone, threshold)
+                if blunted and blunt_mode == "suppress":
+                    continue
+
+        details = {
+            "k": k_now, "d": d_now, "k_prev": k_prev, "d_prev": d_prev,
+            "close": close, "kd_params": list(kd_params),
+            "zone": zone, "threshold": threshold, "blunted": blunted,
+            **trend_extra,
+        }
+        results.append({"direction": direction, "details": details})
+
     return results

@@ -27,12 +27,32 @@
           <i :class="['pi', w.icon]"></i> {{ w.title }}
         </button>
 
+        <!-- KD 副圖開關（KD指標 設計規格書 §7.2）：只在 K 線頁籤顯示；資料筆數不足暖身期時停用並提示原因 -->
+        <button
+          v-if="activeId === 'kline'"
+          type="button"
+          @click="toggleKd"
+          :disabled="!kdAvailable"
+          :aria-pressed="kdVisible"
+          :title="kdAvailable ? 'KD 隨機指標副圖' : '資料筆數不足，無法計算 KD'"
+          :class="[
+            'ml-auto px-2.5 py-1 text-xs font-bold rounded-md flex items-center gap-1 transition-colors',
+            !kdAvailable
+              ? 'text-surface-300 dark:text-surface-600 cursor-not-allowed'
+              : kdVisible
+                ? 'bg-primary/10 text-primary'
+                : 'text-surface-500 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800'
+          ]"
+        >
+          <i class="pi pi-chart-line text-xs"></i> KD
+        </button>
+
         <!-- 放大：導去獨立的圖表明細頁（仍保留大圖檢視能力，只是不再是預設呈現方式） -->
         <button
           v-if="activeWidget?.route"
           type="button"
           @click="goToDetail(activeWidget.route)"
-          class="ml-auto p-1.5 text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800 rounded-md transition-colors"
+          :class="['p-1.5 text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800 rounded-md transition-colors', activeId === 'kline' ? '' : 'ml-auto']"
           title="放大檢視此圖表"
         >
           <i class="pi pi-window-maximize text-xs"></i>
@@ -47,7 +67,7 @@
 
         <v-chart
           v-if="activeWidget && !activeWidget.emptyPlaceholder"
-          class="chart-container-stage"
+          :class="['chart-container-stage', { 'chart-container-stage--kd': kdSubchartActive }]"
           :option="getOption(activeId)"
           :update-options="{ notMerge: true }"
           autoresize
@@ -57,6 +77,7 @@
         </div>
 
         <ChartExplanationBlock v-if="activeWidget && chartExplanations[activeId]" :explanation="chartExplanations[activeId]" />
+        <ChartExplanationBlock v-if="kdSubchartActive && chartExplanations.kd" :explanation="chartExplanations.kd" />
       </div>
     </div>
   </div>
@@ -73,11 +94,13 @@ import {
   LegendComponent,
   GridComponent,
   DataZoomComponent,
-  MarkPointComponent
+  MarkPointComponent,
+  MarkLineComponent,
+  MarkAreaComponent
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { getUpDownColor } from '@/utils/marketColors';
 import { buildMovingAverageSeries } from '@/utils/movingAverage';
 import { chartExplanations } from '@/utils/chartExplanations';
@@ -95,10 +118,13 @@ use([
   LegendComponent,
   GridComponent,
   DataZoomComponent,
-  MarkPointComponent
+  MarkPointComponent,
+  MarkLineComponent,
+  MarkAreaComponent
 ]);
 
 const router = useRouter();
+const route = useRoute();
 
 const props = defineProps({
   chartData: {
@@ -152,6 +178,38 @@ const activeId = computed({
 });
 
 const activeWidget = computed(() => availableWidgets.value.find((w) => w.id === activeId.value) || null);
+
+// KD 副圖開關（KD指標 設計規格書 §7.2）：預設關閉、狀態存 localStorage；網址帶
+// ?indicator=kd 時強制開啟（不寫回 localStorage），供警示看板跳轉使用（§7.5）。
+const KD_VISIBLE_STORAGE_KEY = 'mystock:chart:kd-visible';
+const kdVisible = ref(localStorage.getItem(KD_VISIBLE_STORAGE_KEY) === '1');
+
+const kdData = computed(() => props.chartData?.kd || null);
+// chartData.kd 一律會有 k/d 陣列（見 stock_service.get_stock_chart_payload()），但資料筆數
+// 不足暖身期時會整組是 null——此時誠實停用開關，而不是畫一張空的 KD 副圖。
+const kdAvailable = computed(() => !!kdData.value?.k?.some((v) => v != null));
+
+// 警示看板 → 圖表跳轉（KD指標 設計規格書 §7.5）：?indicator=kd 強制開啟 KD 並切到 K 線頁籤；
+// ?highlight=YYYY-MM-DD 在該日期畫一條貫穿主圖與 KD 副圖的垂直線。
+watch(
+  () => route.query.indicator,
+  (indicator) => {
+    if (indicator === 'kd') {
+      kdVisible.value = true;
+      activeId.value = 'kline';
+    }
+  },
+  { immediate: true }
+);
+const highlightDate = computed(() => route.query.highlight || null);
+
+function toggleKd() {
+  if (!kdAvailable.value) return;
+  kdVisible.value = !kdVisible.value;
+  localStorage.setItem(KD_VISIBLE_STORAGE_KEY, kdVisible.value ? '1' : '0');
+}
+
+const kdSubchartActive = computed(() => activeId.value === 'kline' && kdVisible.value && kdAvailable.value);
 
 function getOption(id) {
   switch (id) {
@@ -249,10 +307,119 @@ const institutionalOption = computed(() => {
   };
 });
 
-// K 線圖 (Candlestick) Option ── 疊加 5/20/60 期均線，標籤依目前聚合週期顯示「日/週/月均線」
+// KD 副圖顏色（KD指標 設計規格書 §7.1）：K 線 indigo、D 線 pink，與 K 棒漲跌色
+// （getUpDownColor）及三條均線色（#f59e0b/#0ea5e9/#8b5cf6）皆不重複。
+const KD_K_COLOR = '#6366f1';
+const KD_D_COLOR = '#ec4899';
+const KD_BAND_COLOR = 'rgba(148, 163, 184, 0.12)'; // 超買/超賣區背景，低透明度中性灰，明暗主題皆可讀
+const HIGHLIGHT_LINE_COLOR = '#7c3aed';
+
+// 貫穿主圖與 KD 副圖的策略觸發垂直線（KD指標 設計規格書 §7.5）：同一個 markLine 定義各自掛在
+// 兩個 grid 的其中一個 series 上；highlightDate 不在目前顯示區間內時，ECharts 對 category
+// x 軸找不到對應值會直接不畫，不會報錯或畫錯位置。
+function buildHighlightMarkLine() {
+  if (!highlightDate.value) return undefined;
+  return {
+    silent: true,
+    symbol: ['none', 'none'],
+    lineStyle: { type: 'solid', color: HIGHLIGHT_LINE_COLOR, width: 1.5 },
+    label: { show: false },
+    data: [{ xAxis: highlightDate.value }]
+  };
+}
+
+// K 線圖 (Candlestick) Option ── 疊加 5/20/60 期均線，標籤依目前聚合週期顯示「日/週/月均線」；
+// KD 開啟時在下方加一個副圖 grid（同一個 ECharts 實例，非另開頁籤，見 §7.1）。
 const klineOption = computed(() => {
   const kline = props.chartData?.kline || [];
   const ma = buildMovingAverageSeries(kline, props.period);
+  const showKd = kdSubchartActive.value;
+  const kd = kdData.value;
+
+  const grid = showKd
+    ? [
+        { left: '3%', right: '4%', top: '10%', height: '50%', containLabel: true },
+        { left: '3%', right: '4%', top: '68%', height: '16%', containLabel: true }
+      ]
+    : [{ left: '3%', right: '4%', top: '12%', bottom: '14%', containLabel: true }];
+
+  const xAxis = [{ type: 'category', data: dates.value, gridIndex: 0 }];
+  const yAxis = [{ type: 'value', scale: true, gridIndex: 0 }];
+  if (showKd) {
+    xAxis.push({ type: 'category', data: dates.value, gridIndex: 1, axisLabel: { show: false } });
+    yAxis.push({ type: 'value', gridIndex: 1, min: 0, max: 100, interval: 50 });
+  }
+
+  const series = [
+    {
+      type: 'candlestick',
+      xAxisIndex: 0,
+      yAxisIndex: 0,
+      data: kline,
+      itemStyle: {
+        color: upDown.value.up, // 陽線 (漲)
+        color0: upDown.value.down, // 陰線 (跌)
+        borderColor: upDown.value.up,
+        borderColor0: upDown.value.down
+      },
+      // 策略觸發標記（均線策略警示系統 設計文件第 9.2 節）：▲ 綠色=偏多方向，▼ 紅色=偏空方向
+      markPoint: {
+        symbolSize: 10,
+        data: alertMarkPoints.value,
+        tooltip: { trigger: 'item', formatter: (p) => p.name }
+      },
+      markLine: buildHighlightMarkLine()
+    },
+    ...ma.series
+  ];
+
+  if (showKd) {
+    series.push(
+      {
+        name: 'K',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: kd.k,
+        smooth: false,
+        showSymbol: false,
+        connectNulls: false,
+        lineStyle: { width: 1.5, color: KD_K_COLOR },
+        itemStyle: { color: KD_K_COLOR },
+        z: 3,
+        markArea: {
+          silent: true,
+          itemStyle: { color: KD_BAND_COLOR },
+          data: [
+            [{ yAxis: kd.overbought }, { yAxis: 100 }],
+            [{ yAxis: 0 }, { yAxis: kd.oversold }]
+          ]
+        },
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          label: { show: false },
+          lineStyle: { type: 'dashed', color: '#94a3b8', width: 1 },
+          data: [{ yAxis: kd.overbought }, { yAxis: kd.oversold }]
+        }
+      },
+      {
+        name: 'D',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: kd.d,
+        smooth: false,
+        showSymbol: false,
+        connectNulls: false,
+        lineStyle: { width: 1.5, color: KD_D_COLOR },
+        itemStyle: { color: KD_D_COLOR },
+        z: 3,
+        markLine: buildHighlightMarkLine()
+      }
+    );
+  }
+
   return {
     tooltip: {
       trigger: 'axis',
@@ -279,41 +446,39 @@ const klineOption = computed(() => {
           <div>最低價: <span style="color:${color}">${low}</span></div>
           <div>收盤價: <span style="color:${color}">${close}</span> (${change >= 0 ? '+' : ''}${change.toFixed(2)})</div>
         `;
-        params
-          .filter((p) => p.seriesType === 'line' && p.data != null)
-          .forEach((p) => {
-            html += `<div>${p.marker}${p.seriesName}: ${p.data}</div>`;
-          });
+
+        // 均線與 KD 分開分組顯示，避免混在一起難以區分（KD指標 設計規格書 §7.1 tooltip 規格）。
+        const maLines = params.filter((p) => p.seriesType === 'line' && p.data != null && p.seriesName !== 'K' && p.seriesName !== 'D');
+        const kdLines = params.filter((p) => (p.seriesName === 'K' || p.seriesName === 'D') && p.data != null);
+
+        if (maLines.length) {
+          html += '<div class="mt-1 pt-1" style="border-top:1px dashed rgba(148,163,184,0.4)">';
+          maLines.forEach((p) => { html += `${p.marker}${p.seriesName}: ${p.data}&nbsp;&nbsp;`; });
+          html += '</div>';
+        }
+        if (kdLines.length) {
+          html += '<div class="mt-1 pt-1" style="border-top:1px dashed rgba(148,163,184,0.4)">';
+          kdLines.forEach((p) => { html += `${p.marker}${p.seriesName} ${Number(p.data).toFixed(2)}&nbsp;&nbsp;`; });
+          const kVal = kdLines.find((p) => p.seriesName === 'K')?.data;
+          if (kVal != null && kd) {
+            if (kVal >= kd.overbought) html += '<span class="opacity-70">（超買）</span>';
+            else if (kVal <= kd.oversold) html += '<span class="opacity-70">（超賣）</span>';
+          }
+          html += '</div>';
+        }
         return html;
       }
     },
     legend: { data: ma.names, top: 0, right: 0, itemWidth: 14, itemHeight: 8, textStyle: { fontSize: 11 } },
+    axisPointer: { link: [{ xAxisIndex: 'all' }] },
     dataZoom: [
-      { type: 'inside', start: 0, end: 100 },
-      { type: 'slider', start: 0, end: 100, height: 18, bottom: 4 }
+      { type: 'inside', start: 0, end: 100, xAxisIndex: showKd ? [0, 1] : [0] },
+      { type: 'slider', start: 0, end: 100, height: 18, bottom: 4, xAxisIndex: showKd ? [0, 1] : [0] }
     ],
-    grid: { left: '3%', right: '4%', bottom: '14%', top: '12%', containLabel: true },
-    xAxis: { type: 'category', data: dates.value },
-    yAxis: { type: 'value', scale: true },
-    series: [
-      {
-        type: 'candlestick',
-        data: kline,
-        itemStyle: {
-          color: upDown.value.up, // 陽線 (漲)
-          color0: upDown.value.down, // 陰線 (跌)
-          borderColor: upDown.value.up,
-          borderColor0: upDown.value.down
-        },
-        // 策略觸發標記（均線策略警示系統 設計文件第 9.2 節）：▲ 綠色=偏多方向，▼ 紅色=偏空方向
-        markPoint: {
-          symbolSize: 10,
-          data: alertMarkPoints.value,
-          tooltip: { trigger: 'item', formatter: (p) => p.name }
-        }
-      },
-      ...ma.series
-    ]
+    grid,
+    xAxis,
+    yAxis,
+    series
   };
 });
 
@@ -438,5 +603,10 @@ const shortRatioOption = computed(() => {
 .chart-container-stage {
   width: 100%;
   height: 440px;
+}
+
+/* KD 副圖開啟時加高舞台，避免主圖被壓扁（KD指標 設計規格書 §7.1） */
+.chart-container-stage--kd {
+  height: 560px;
 }
 </style>

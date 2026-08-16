@@ -117,13 +117,40 @@
           <i :class="['pi text-primary', currentTabInfo?.icon]"></i>
           {{ currentTabInfo?.label }}
         </h3>
-        <span v-if="dateRangeText" class="text-xs font-semibold text-surface-600 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 px-3 py-1 rounded-lg border border-surface-200 dark:border-surface-700">
-          <i class="pi pi-calendar text-xs mr-1 text-primary"></i>資料區間：{{ dateRangeText }}
-        </span>
+        <div class="flex items-center gap-2">
+          <!-- KD 副圖開關（KD指標 設計規格書 §7.2/§7.4）：只在 K 線圖頁籤顯示 -->
+          <button
+            v-if="chartType === 'kline'"
+            type="button"
+            @click="toggleKd"
+            :disabled="!kdAvailable"
+            :aria-pressed="kdVisible"
+            :title="kdAvailable ? 'KD 隨機指標副圖' : '資料筆數不足，無法計算 KD'"
+            :class="[
+              'px-2.5 py-1 text-xs font-bold rounded-md flex items-center gap-1 border transition-colors',
+              !kdAvailable
+                ? 'text-surface-300 dark:text-surface-600 border-surface-200 dark:border-surface-700 cursor-not-allowed'
+                : kdVisible
+                  ? 'bg-primary/10 text-primary border-primary/30'
+                  : 'text-surface-500 border-surface-200 dark:border-surface-700 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800'
+            ]"
+          >
+            <i class="pi pi-chart-line text-xs"></i> KD
+          </button>
+          <span v-if="dateRangeText" class="text-xs font-semibold text-surface-600 dark:text-surface-300 bg-surface-100 dark:bg-surface-800 px-3 py-1 rounded-lg border border-surface-200 dark:border-surface-700">
+            <i class="pi pi-calendar text-xs mr-1 text-primary"></i>資料區間：{{ dateRangeText }}
+          </span>
+        </div>
       </div>
-      <v-chart class="chart-container-large" :option="currentChartOption" :update-options="{ notMerge: true }" autoresize />
+      <v-chart
+        :class="['chart-container-large', { 'chart-container-large--kd': kdSubchartActive }]"
+        :option="currentChartOption"
+        :update-options="{ notMerge: true }"
+        autoresize
+      />
 
       <ChartExplanationBlock :explanation="currentExplanation" />
+      <ChartExplanationBlock v-if="kdSubchartActive && chartExplanations.kd" :explanation="chartExplanations.kd" />
     </div>
     </div><!-- /內容區 -->
   </div><!-- /chart-detail-root -->
@@ -142,7 +169,9 @@ import {
   TooltipComponent,
   LegendComponent,
   GridComponent,
-  DataZoomComponent
+  DataZoomComponent,
+  MarkLineComponent,
+  MarkAreaComponent
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 import { getUpDownColor } from '@/utils/marketColors';
@@ -159,7 +188,9 @@ use([
   TooltipComponent,
   LegendComponent,
   GridComponent,
-  DataZoomComponent
+  DataZoomComponent,
+  MarkLineComponent,
+  MarkAreaComponent
 ]);
 
 const route = useRoute();
@@ -197,6 +228,31 @@ const indexChartTabs = [
 ];
 
 const chartTabs = computed(() => (kind.value === 'index' ? indexChartTabs : stockChartTabs));
+
+// KD 副圖開關（KD指標 設計規格書 §7.4，規格同 StockCharts.vue §7.1/§7.2）。
+const KD_VISIBLE_STORAGE_KEY = 'mystock:chart:kd-visible';
+const kdVisible = ref(localStorage.getItem(KD_VISIBLE_STORAGE_KEY) === '1');
+const kdData = computed(() => chartData.value?.kd || null);
+const kdAvailable = computed(() => !!kdData.value?.k?.some((v) => v != null));
+const kdSubchartActive = computed(() => chartType.value === 'kline' && kdVisible.value && kdAvailable.value);
+
+// 警示看板 → 圖表跳轉（KD指標 設計規格書 §7.5）：?indicator=kd 強制開啟 KD（chartType 本來就已經
+// 是路由的一部分，目標網址本身就是 .../chart/kline，不需要另外導頁切頁籤）；
+// ?highlight=YYYY-MM-DD 在該日期畫一條貫穿主圖與 KD 副圖的垂直線。
+watch(
+  () => route.query.indicator,
+  (indicator) => {
+    if (indicator === 'kd') kdVisible.value = true;
+  },
+  { immediate: true }
+);
+const highlightDate = computed(() => route.query.highlight || null);
+
+function toggleKd() {
+  if (!kdAvailable.value) return;
+  kdVisible.value = !kdVisible.value;
+  localStorage.setItem(KD_VISIBLE_STORAGE_KEY, kdVisible.value ? '1' : '0');
+}
 const currentTabInfo = computed(() => chartTabs.value.find(t => t.value === chartType.value));
 const currentExplanation = computed(() => chartExplanations[chartType.value] || null);
 const dates = computed(() => chartData.value?.dates || []);
@@ -332,6 +388,95 @@ const currentChartOption = computed(() => {
     case 'kline': {
       const kline = chartData.value?.kline || [];
       const ma = buildMovingAverageSeries(kline, period.value);
+      const showKd = kdSubchartActive.value;
+      const kd = kdData.value;
+
+      const highlightMarkLine = highlightDate.value
+        ? {
+            silent: true,
+            symbol: ['none', 'none'],
+            lineStyle: { type: 'solid', color: '#7c3aed', width: 1.5 },
+            label: { show: false },
+            data: [{ xAxis: highlightDate.value }]
+          }
+        : undefined;
+
+      const grid = showKd
+        ? [
+            { left: '3%', right: '4%', top: '8%', height: '50%', containLabel: true },
+            { left: '3%', right: '4%', top: '66%', height: '16%', containLabel: true }
+          ]
+        : [{ left: '3%', right: '4%', bottom: '15%', top: '12%', containLabel: true }];
+
+      const xAxis = [{ type: 'category', data: d, gridIndex: 0 }];
+      const yAxis = [{ type: 'value', scale: true, gridIndex: 0 }];
+      if (showKd) {
+        xAxis.push({ type: 'category', data: d, gridIndex: 1, axisLabel: { show: false } });
+        yAxis.push({ type: 'value', gridIndex: 1, min: 0, max: 100, interval: 50 });
+      }
+
+      const series = [
+        {
+          type: 'candlestick',
+          xAxisIndex: 0,
+          yAxisIndex: 0,
+          data: kline,
+          itemStyle: {
+            color: upDown.value.up,
+            color0: upDown.value.down,
+            borderColor: upDown.value.up,
+            borderColor0: upDown.value.down
+          },
+          markLine: highlightMarkLine
+        },
+        ...ma.series
+      ];
+
+      if (showKd) {
+        series.push(
+          {
+            name: 'K',
+            type: 'line',
+            xAxisIndex: 1,
+            yAxisIndex: 1,
+            data: kd.k,
+            showSymbol: false,
+            connectNulls: false,
+            lineStyle: { width: 1.5, color: '#6366f1' },
+            itemStyle: { color: '#6366f1' },
+            z: 3,
+            markArea: {
+              silent: true,
+              itemStyle: { color: 'rgba(148, 163, 184, 0.12)' },
+              data: [
+                [{ yAxis: kd.overbought }, { yAxis: 100 }],
+                [{ yAxis: 0 }, { yAxis: kd.oversold }]
+              ]
+            },
+            markLine: {
+              silent: true,
+              symbol: 'none',
+              label: { show: false },
+              lineStyle: { type: 'dashed', color: '#94a3b8', width: 1 },
+              data: [{ yAxis: kd.overbought }, { yAxis: kd.oversold }]
+            }
+          },
+          {
+            name: 'D',
+            type: 'line',
+            xAxisIndex: 1,
+            yAxisIndex: 1,
+            data: kd.d,
+            showSymbol: false,
+            connectNulls: false,
+            lineStyle: { width: 1.5, color: '#ec4899' },
+            itemStyle: { color: '#ec4899' },
+            z: 3,
+            markLine: highlightMarkLine
+          }
+        );
+      }
+
       return {
         tooltip: {
           trigger: 'axis',
@@ -358,32 +503,38 @@ const currentChartOption = computed(() => {
               <div>最低價: <span style="color:${color}">${low}</span></div>
               <div>收盤價: <span style="color:${color}">${close}</span> (${change >= 0 ? '+' : ''}${change.toFixed(2)})</div>
             `;
-            params
-              .filter((p) => p.seriesType === 'line' && p.data != null)
-              .forEach((p) => {
-                html += `<div>${p.marker}${p.seriesName}: ${p.data}</div>`;
-              });
+
+            const maLines = params.filter((p) => p.seriesType === 'line' && p.data != null && p.seriesName !== 'K' && p.seriesName !== 'D');
+            const kdLines = params.filter((p) => (p.seriesName === 'K' || p.seriesName === 'D') && p.data != null);
+
+            if (maLines.length) {
+              html += '<div class="mt-1 pt-1" style="border-top:1px dashed rgba(148,163,184,0.4)">';
+              maLines.forEach((p) => { html += `${p.marker}${p.seriesName}: ${p.data}&nbsp;&nbsp;`; });
+              html += '</div>';
+            }
+            if (kdLines.length) {
+              html += '<div class="mt-1 pt-1" style="border-top:1px dashed rgba(148,163,184,0.4)">';
+              kdLines.forEach((p) => { html += `${p.marker}${p.seriesName} ${Number(p.data).toFixed(2)}&nbsp;&nbsp;`; });
+              const kVal = kdLines.find((p) => p.seriesName === 'K')?.data;
+              if (kVal != null && kd) {
+                if (kVal >= kd.overbought) html += '<span class="opacity-70">（超買）</span>';
+                else if (kVal <= kd.oversold) html += '<span class="opacity-70">（超賣）</span>';
+              }
+              html += '</div>';
+            }
             return html;
           }
         },
         legend: { data: ma.names, top: 0, right: 0, itemWidth: 14, itemHeight: 8, textStyle: { fontSize: 11 } },
-        dataZoom: dataZoomConfig,
-        grid: { left: '3%', right: '4%', bottom: '15%', top: '12%', containLabel: true },
-        xAxis: { type: 'category', data: d },
-        yAxis: { type: 'value', scale: true },
-        series: [
-          {
-            type: 'candlestick',
-            data: kline,
-            itemStyle: {
-              color: upDown.value.up,
-              color0: upDown.value.down,
-              borderColor: upDown.value.up,
-              borderColor0: upDown.value.down
-            }
-          },
-          ...ma.series
-        ]
+        axisPointer: { link: [{ xAxisIndex: 'all' }] },
+        dataZoom: [
+          { type: 'inside', start: 0, end: 100, xAxisIndex: showKd ? [0, 1] : [0] },
+          { type: 'slider', start: 0, end: 100, xAxisIndex: showKd ? [0, 1] : [0] }
+        ],
+        grid,
+        xAxis,
+        yAxis,
+        series
       };
     }
     case 'amount':
@@ -453,5 +604,10 @@ const currentChartOption = computed(() => {
 .chart-container-large {
   width: 100%;
   height: 600px; /* 大圖表高度 */
+}
+
+/* KD 副圖開啟時加高，避免主圖被壓扁（KD指標 設計規格書 §7.1/§7.4） */
+.chart-container-large--kd {
+  height: 720px;
 }
 </style>

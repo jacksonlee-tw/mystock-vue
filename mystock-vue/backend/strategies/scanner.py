@@ -35,6 +35,9 @@ _SUGGESTED_ACTION_TEMPLATES = {
     ("chip_short_squeeze", "bullish"): "券資比與融券同步走高，留意軋空行情，但反噬急殺風險亦高，不宜追高",
     ("chip_distribution_top", "bearish"): "法人連續賣超、融資餘額創新高，留意高檔出貨風險，建議降低持股",
     ("fundamental_revenue_decline", "bearish"): "營收年增率連續轉負，原始成長邏輯可能失效，建議重新評估持股並留意後續季報",
+    # KD 隨機指標（KD指標 設計規格書 §5.5）
+    ("kd_oversold_golden_cross", "bullish"): "KD 於超賣區黃金交叉，短線動能可能轉強；建議確認是否站上 MA{ma_period} 再行進場",
+    ("kd_overbought_death_cross", "bearish"): "KD 於超買區死亡交叉，短線動能轉弱，留意獲利了結賣壓",
 }
 
 # 籌碼類策略（category="chip"）的最小可行選股池排除規則（籌碼選股策略 設計文件第 4.1 節的
@@ -61,10 +64,13 @@ def _suggested_action(strategy_id: str, direction: str, details: dict) -> str:
     template = _SUGGESTED_ACTION_TEMPLATES.get((strategy_id, classify_direction(direction)))
     if not template:
         return ""
+    # ma_period/ma_value 不是每個條件都會填（例如 KD 的 trend_guard 為 off 時就沒有），
+    # 缺值一律填「—」而不是空字串或 Python None 的字面量（KD指標 設計規格書 §5.5）。
     ma_period = details.get("ma_period")
     ma_value = details.get("ma_value")
-    stop_loss = round(ma_value * 0.97, 2) if ma_value else "-"
-    return template.format(ma_period=ma_period, stop_loss=stop_loss)
+    ma_period_display = ma_period if ma_period is not None else "—"
+    stop_loss = round(ma_value * 0.97, 2) if ma_value else "—"
+    return template.format(ma_period=ma_period_display, stop_loss=stop_loss)
 
 
 async def scan_market(
@@ -78,6 +84,11 @@ async def scan_market(
     ma_periods = cfg.defaults.get("ma_periods", [5, 10, 20, 60, 120, 240])
     volume_ma_period = cfg.defaults.get("volume_ma_period", 5)
     cooldown_days = get_alert_cooldown_days()
+    # KD（KD指標 設計規格書 §4.3）：kd_params 為空清單時 ctx.kd 會是空 dict，
+    # kd_cross 因 requires=("kd",) 自然被 scanner 略過，不需要另外判斷有沒有設定。
+    kd_params = [tuple(p) for p in cfg.defaults.get("kd_params", [])]
+    kd_warmup_bars = cfg.defaults.get("kd_warmup_bars", 25)
+    kd_smoothing = cfg.defaults.get("kd_smoothing", "wilder_1_3")
 
     target_symbols = symbols or get_target_stocks(market=market)
     strategies = cfg.enabled_for_market(market)
@@ -89,7 +100,10 @@ async def scan_market(
 
     for symbol in target_symbols:
         try:
-            ctx = await provider.get_bars(symbol, market, ma_periods, volume_ma_period)
+            ctx = await provider.get_bars(
+                symbol, market, ma_periods, volume_ma_period,
+                kd_params=kd_params, kd_warmup_bars=kd_warmup_bars, kd_smoothing=kd_smoothing,
+            )
         except Exception as e:
             logger.warning(f"[策略引擎] 取得 {symbol} 資料失敗，已略過: {e}")
             continue
@@ -102,10 +116,22 @@ async def scan_market(
             if strategy.category == "chip" and _is_chip_excluded(symbol):
                 continue
 
+            # 該策略若設定了 cooldown_days 則覆寫全域值（KD指標 設計規格書 §5.7）；
+            # 未設定的策略（多數既有均線/籌碼策略）行為不變。
+            effective_cooldown = strategy.cooldown_days if strategy.cooldown_days is not None else cooldown_days
+
             for condition_cfg in strategy.conditions:
                 spec = CONDITION_REGISTRY.get(condition_cfg.get("type"))
                 if not spec:
                     logger.warning(f"[策略引擎] 未知的條件類型，已略過: {condition_cfg.get('type')}")
+                    continue
+
+                # 強制資料預檢（策略管理架構 設計文件第 9 節鐵則；KD指標 設計規格書 §5.1）：
+                # 資料筆數不足，或 ScanContext 缺該條件宣告的必要欄位（如未設定 kd_params 時的
+                # ctx.kd 為空 dict），一律靜默略過整個 (symbol, condition) 組合，不進 idx 迴圈。
+                if ctx.length < spec.min_bars:
+                    continue
+                if any(not getattr(ctx, field_name, None) for field_name in spec.requires):
                     continue
 
                 for idx in range(start_idx, ctx.length):
@@ -125,7 +151,7 @@ async def scan_market(
                             continue
 
                         cd_key = cooldown_mod.cooldown_key(symbol, strategy.id, direction)
-                        if cooldown_mod.is_active(cooldown_state, cd_key, trade_date, cooldown_days):
+                        if cooldown_mod.is_active(cooldown_state, cd_key, trade_date, effective_cooldown):
                             continue
 
                         passed_filters = evaluate_filters(strategy.filters, ctx, idx)
