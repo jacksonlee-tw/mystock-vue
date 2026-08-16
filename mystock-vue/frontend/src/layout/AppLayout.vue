@@ -69,5 +69,6 @@ function isOutsideClicked(event) {
         </div>
         <div class="layout-mask animate-fadein"></div>
     </div>
+    <ScrollTop :threshold="150" icon="pi pi-arrow-up" />
     <Toast />
 </template>

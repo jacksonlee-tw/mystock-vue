@@ -591,6 +591,7 @@ class MarketRepository:
                 q_stmt = (
                     select(
                         DailyMarketQuote.symbol,
+                        Symbol.name.label("symbol_name"),
                         DailyMarketQuote.trade_date,
                         DailyMarketQuote.open_price,
                         DailyMarketQuote.high_price,
@@ -614,6 +615,10 @@ class MarketRepository:
                             DailyMarketChip.trade_date == DailyMarketQuote.trade_date,
                         ),
                     )
+                    .outerjoin(
+                        Symbol,
+                        Symbol.symbol == DailyMarketQuote.symbol,
+                    )
                     .where(
                         and_(
                             DailyMarketQuote.symbol.in_(chunk),
@@ -631,6 +636,7 @@ class MarketRepository:
                     item = {
                         "date": d_str,
                         "trade_date": d_str,
+                        "name": r.symbol_name or r.symbol,
                         "open": float(r.open_price) if r.open_price is not None else None,
                         "high": float(r.high_price) if r.high_price is not None else None,
                         "low": float(r.low_price) if r.low_price is not None else None,

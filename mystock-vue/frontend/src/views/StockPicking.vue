@@ -126,7 +126,7 @@
         class="p-datatable-sm"
       >
         <Column field="rank_value" header="排名" style="width: 4.5rem; text-align: center">
-          <template #body="{ data, index }">
+          <template #body="{ index }">
             <span
               class="w-7 h-7 rounded-full inline-flex items-center justify-center font-mono font-black text-xs"
               :class="index === 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' :
@@ -134,7 +134,7 @@
                       index === 2 ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300' :
                       'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400'"
             >
-              {{ data.rank_value || index + 1 }}
+              {{ index + 1 }}
             </span>
           </template>
         </Column>
@@ -152,7 +152,7 @@
 
         <Column field="stock_name" header="名稱" style="min-width: 7rem">
           <template #body="{ data }">
-            <span class="font-bold text-surface-900 dark:text-surface-0">{{ data.stock_name }}</span>
+            <span class="font-bold text-surface-900 dark:text-surface-0">{{ getStockName(data) }}</span>
           </template>
         </Column>
 
@@ -233,6 +233,9 @@
         </template>
       </DataTable>
     </div>
+
+    <!-- 捲動至最上方按鈕 -->
+    <ScrollTop :threshold="150" icon="pi pi-arrow-up" />
   </div>
 </template>
 
@@ -264,6 +267,17 @@ const allAlerts = ref([]);
 const loading = ref(false);
 const scanning = ref(false);
 const scanningRisk = ref(false);
+const stockNameMap = ref({});
+
+function getStockName(data) {
+  if (stockNameMap.value[data.stock_id]) {
+    return stockNameMap.value[data.stock_id];
+  }
+  if (data.stock_name && data.stock_name !== data.stock_id) {
+    return data.stock_name;
+  }
+  return data.stock_name || data.stock_id;
+}
 
 const currentStrategyDef = computed(() => {
   return pickingStrategies.find(s => s.id === activeStrategyId.value);
@@ -319,6 +333,25 @@ async function loadAlerts() {
     });
     if (res.success && res.data) {
       allAlerts.value = res.data;
+
+      // 補齊可能缺少中文名稱的標的
+      const symbolsToResolve = [...new Set(res.data.map(a => a.stock_id))];
+      if (symbolsToResolve.length > 0) {
+        try {
+          const searchRes = await stockApi.searchSymbols(symbolsToResolve.join(','), currentMarket.value);
+          if (searchRes.success && searchRes.data) {
+            const map = { ...stockNameMap.value };
+            for (const [sym, info] of Object.entries(searchRes.data)) {
+              if (info?.name) {
+                map[sym] = info.name;
+              }
+            }
+            stockNameMap.value = map;
+          }
+        } catch (e) {
+          console.warn('[StockPicking] 載入股票中文名稱失敗:', e);
+        }
+      }
     }
   } catch (err) {
     toast.add({ severity: 'error', summary: '載入失敗', detail: err.message || '無法取得選股記錄', life: 3000 });

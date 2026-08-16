@@ -29,6 +29,7 @@ import TabPanels from 'primevue/tabpanels';
 import Tabs from 'primevue/tabs';
 import Tag from 'primevue/tag';
 import Toast from 'primevue/toast';
+import ScrollTop from 'primevue/scrolltop';
 
 const app = createApp(App);
 
@@ -56,5 +57,6 @@ app.component('TabPanel', TabPanel);
 app.component('TabPanels', TabPanels);
 app.component('Toast', Toast);
 app.component('ConfirmDialog', ConfirmDialog);
+app.component('ScrollTop', ScrollTop);
 
 app.mount('#app');
