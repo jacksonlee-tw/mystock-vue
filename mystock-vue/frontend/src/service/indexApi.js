@@ -43,9 +43,9 @@ export const indexApi = {
         return response.data;
     },
 
-    // 類股指數當日表現排行／輪動（FR-IDX-30/31）
-    async getSectors(market = 'tw') {
-        const response = await apiClient.get('/indices/sectors', { params: { market } });
+    // 類股指數當日/多週期表現排行／輪動（FR-IDX-30/31）
+    async getSectors(market = 'tw', period = '1d') {
+        const response = await apiClient.get('/indices/sectors', { params: { market, period } });
         return response.data;
     },
 

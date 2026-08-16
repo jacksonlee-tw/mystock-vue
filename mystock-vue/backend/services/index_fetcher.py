@@ -235,27 +235,18 @@ def fetch_tw_index_history(code: str, name: str, months: List[tuple]) -> Dict[st
 
 # ── 美股：yfinance 擷取（與 services/us_fetcher.py 相同模式）───────────────────
 
-def fetch_us_index_history(code: str, external_symbol: str, name: str,
-                            start_date: Optional[str] = None, period: Optional[str] = None) -> Dict[str, dict]:
+def _fetch_yfinance_history(external_symbol: str, days: int = 365) -> Dict[str, dict]:
     ticker = yf.Ticker(external_symbol)
-    hist = ticker.history(start=start_date) if start_date else ticker.history(period=period or "5y")
-
-    result: Dict[str, dict] = {}
+    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    hist = ticker.history(start=start_date)
+    result = {}
     if hist is None or hist.empty:
         return result
-
     for date_obj, row in hist.iterrows():
         date_key = date_obj.strftime("%Y-%m-%d")
         result[date_key] = {
-            "date": date_key,
-            "symbol": code,
-            "name": name,
-            "open": float(row["Open"]),
-            "high": float(row["High"]),
-            "low": float(row["Low"]),
-            "close": float(row["Close"]),
-            # 部分美股指數（如 ^DJI、^SOX）的 Volume 恆為 0，屬資料來源本身限制，
-            # 如實記錄、不假造非零值（規劃書 R3）。
+            "open": float(row["Open"]), "high": float(row["High"]),
+            "low": float(row["Low"]), "close": float(row["Close"]),
             "volume": int(row["Volume"]),
             "amount": int(row["Volume"] * row["Close"]),
         }
@@ -265,14 +256,10 @@ def fetch_us_index_history(code: str, external_symbol: str, name: str,
 # ── 台股類股指數：MI_INDEX 當日快照（大盤指數功能規劃書 §8.1、R8）───────────────
 
 def fetch_and_store_sector_snapshot(trade_date: Optional[str] = None) -> Dict[str, List[str]]:
-    """類股指數當日快照。一次 MI_INDEX 請求取回全部 ~30 個類股指數，逐一比對名稱
+    """類股指數當日快照。一次 MI_INDEX 請求取回全部 ~35 個類股指數，逐一比對名稱
     寫入各自的 JSON 檔（TWSE_INDUSTRY_MAP 是產業代碼 <-> 指數名稱的單一事實來源）。
 
-    TWSE 這個端點只提供收盤指數，沒有日內開高低，因此以收盤價同時填入 open/high/low/close
-    （K 線會顯示成扁平的十字線，而不是假造一個看似合理的日內區間 —— 誠實反映資料來源限制）。
-    也因為沒有月表可以批次回補歷史，這裡只能一天一天累積，不支援 --mode repair 的完整重抓；
-    每日排程／腳本重複執行的效果就是「歷史逐漸累積」。
-
+    TWSE 這個端點提供收盤指數、漲跌點數、漲跌百分比，如實記錄收盤價、前日收盤與漲跌幅。
     trade_date 格式 YYYYMMDD（不含 '-'），預設今天。
     """
     date_param = trade_date or datetime.now().strftime("%Y%m%d")
@@ -280,10 +267,14 @@ def fetch_and_store_sector_snapshot(trade_date: Optional[str] = None) -> Dict[st
 
     url = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
     try:
-        res = requests.get(url, params={"date": date_param, "type": "IND", "response": "json"},
-                            headers=_HEADERS, timeout=_REQUEST_TIMEOUT).json()
+        res = requests.get(
+            url,
+            params={"date": date_param, "type": "IND", "response": "json"},
+            headers=_HEADERS,
+            timeout=_REQUEST_TIMEOUT,
+        ).json()
     except Exception as e:
-        logger.error(f"[指數] 類股指數快照抓取失敗: {e}")
+        logger.error(f"[指數] 類股指數快照抓取失敗 (date={date_param}): {e}")
         return result
 
     if res.get("stat") != "OK":
@@ -292,28 +283,58 @@ def fetch_and_store_sector_snapshot(trade_date: Optional[str] = None) -> Dict[st
 
     tables = res.get("tables") or []
     rows = tables[0].get("data", []) if tables else []
-    close_by_name: Dict[str, float] = {}
+    sector_data_by_name: Dict[str, dict] = {}
     for row in rows:
         if len(row) < 2:
             continue
+        name = row[0].strip()
         close = _parse_number(row[1])
-        if close is not None:
-            close_by_name[row[0].strip()] = close
+        if close is None:
+            continue
 
-    resp_date = res.get("date") or date_param  # 一律 YYYYMMDD（Gregorian，非 ROC，已實測確認）
+        sign_str = row[2] if len(row) > 2 else ""
+        diff = _parse_number(row[3]) if len(row) > 3 else None
+        pct = _parse_number(row[4]) if len(row) > 4 else None
+
+        is_down = ("-" in str(sign_str)) or (pct is not None and pct < 0) or (diff is not None and diff < 0)
+        if diff is not None:
+            diff = -abs(diff) if is_down else abs(diff)
+        if pct is not None:
+            pct = -abs(pct) if is_down else abs(pct)
+
+        prev_close = round(close - (diff or 0), 2) if diff is not None else close
+
+        sector_data_by_name[name] = {
+            "close": close,
+            "change": diff if diff is not None else 0.0,
+            "change_percent": pct if pct is not None else 0.0,
+            "prev_close": prev_close,
+        }
+
+    resp_date = res.get("date") or date_param
     date_key = f"{resp_date[:4]}-{resp_date[4:6]}-{resp_date[6:8]}"
 
     for industry_code, meta in TWSE_INDUSTRY_MAP.items():
         index_name = meta.get("index_name")
         code = sector_code(industry_code)
-        if not index_name or index_name not in close_by_name:
+        if not index_name or index_name not in sector_data_by_name:
             result["failed"].append(code)
             continue
 
-        close = close_by_name[index_name]
+        sdata = sector_data_by_name[index_name]
+        close = sdata["close"]
+        prev_close = sdata["prev_close"]
         record = {
-            "date": date_key, "symbol": code, "name": meta["name"],
-            "open": close, "high": close, "low": close, "close": close,
+            "date": date_key,
+            "symbol": code,
+            "name": meta["name"],
+            "open": prev_close if prev_close else close,
+            "high": max(close, prev_close) if prev_close else close,
+            "low": min(close, prev_close) if prev_close else close,
+            "close": close,
+            "change": sdata["change"],
+            "change_percent": sdata["change_percent"],
+            "prev_close": prev_close,
         }
         existing = load_index_json(code, "tw")
         existing[date_key] = record
@@ -322,6 +343,40 @@ def fetch_and_store_sector_snapshot(trade_date: Optional[str] = None) -> Dict[st
         result["success"].append(code)
 
     return result
+
+
+def backfill_sector_history(limit_days: int = 60) -> Dict[str, Any]:
+    """類股歷史數據回補。依據台股大盤 (TWII) 已存在的交易日期列表，
+    回補最近 limit_days 個交易日的 MI_INDEX 類股指數快照。"""
+    twii_data = load_index_json("TWII", "tw")
+    if not twii_data:
+        today = datetime.now()
+        dates_to_check = []
+        for d in range(limit_days * 2):
+            dt = today - timedelta(days=d)
+            if dt.weekday() < 5:
+                dates_to_check.append(dt.strftime("%Y%m%d"))
+                if len(dates_to_check) >= limit_days:
+                    break
+        dates_to_check.reverse()
+    else:
+        all_twii_dates = sorted(twii_data.keys())
+        target_dates = all_twii_dates[-limit_days:]
+        dates_to_check = [d.replace("-", "") for d in target_dates]
+
+    s01 = load_index_json(sector_code("01"), "tw")
+    s01_dates = set(s01.keys())
+
+    backfilled_dates = []
+    for date_str in dates_to_check:
+        iso_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+        if iso_date not in s01_dates:
+            res = fetch_and_store_sector_snapshot(date_str)
+            if res["success"]:
+                backfilled_dates.append(iso_date)
+            time.sleep(0.3)
+
+    return {"total_checked": len(dates_to_check), "backfilled_dates": backfilled_dates}
 
 
 # ── 主流程 ───────────────────────────────────────────────────────────────
@@ -372,12 +427,31 @@ def run_index_fetch_process(
                     continue
 
                 if need_full_range:
-                    days = m_range * 30
+                    months_list = _months_in_range(days=m_range * 30)
                 else:
-                    latest = datetime.strptime(existing_dates[-1], "%Y-%m-%d")
-                    days = max(1, min((datetime.now() - latest).days + 1, m_range * 30))
+                    last_dt = datetime.strptime(existing_dates[-1], "%Y-%m-%d")
+                    days_needed = (datetime.now() - last_dt).days + 2
+                    months_list = _months_in_range(days=days_needed)
 
-                fetched = fetch_tw_index_history(definition.code, definition.name, _months_in_range(days))
+                ohlc_dict = _fetch_twse_taiex_ohlc(months_list)
+                fmtqik_dict = _fetch_twse_fmtqik(months_list)
+
+                merged_dates = set(ohlc_dict.keys()) | set(fmtqik_dict.keys())
+                for d in merged_dates:
+                    ohlc = ohlc_dict.get(d, {})
+                    vol = fmtqik_dict.get(d, {})
+                    if d not in existing:
+                        existing[d] = {
+                            "date": d, "symbol": definition.code, "name": definition.name,
+                            "open": 0, "high": 0, "low": 0, "close": 0,
+                            "volume": 0, "amount": 0, "trades": 0,
+                        }
+                    existing[d].update(ohlc)
+                    existing[d].update(vol)
+
+                save_index_json(definition.code, definition.market, existing)
+                dual_write_daily_data(definition.code, definition.market, existing)
+                result["success"].append(definition.code)
 
             elif definition.source == "yfinance":
                 if need_full_range:
@@ -411,9 +485,13 @@ def run_index_fetch_process(
     # 涵蓋兩者：market 未指定或為 'tw'（類股是台股專屬概念），且沒有明確指定 codes
     # （指定 codes 代表呼叫端只想同步特定 headline 指數，不該連帶觸發額外的類股請求）。
     if codes is None and (market is None or market == "tw"):
-        sector_result = fetch_and_store_sector_snapshot()
-        result["success"].extend(sector_result["success"])
-        result["failed"].extend(sector_result["failed"])
+        try:
+            backfill_sector_history(limit_days=60)
+            sector_result = fetch_and_store_sector_snapshot()
+            result["success"].extend(sector_result["success"])
+            result["failed"].extend(sector_result["failed"])
+        except Exception as e:
+            logger.error(f"[指數] 類股指數同步/回補失敗: {e}")
 
     fetch_status.complete(
         f"大盤指數資料更新完畢：成功 {len(result['success'])}，失敗 {len(result['failed'])}，略過 {len(result['skipped'])}"

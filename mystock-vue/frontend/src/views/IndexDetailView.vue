@@ -19,7 +19,7 @@
             optionLabel="name"
             optionValue="code"
             placeholder="切換指數..."
-            class="w-60 sm:w-72 !bg-transparent !border-transparent hover:!bg-surface-100 dark:hover:!bg-surface-800 transition-colors"
+            class="w-64 sm:w-80 !bg-transparent !border-transparent hover:!bg-surface-100 dark:hover:!bg-surface-800 transition-colors"
           >
             <template #value="slotProps">
               <div v-if="slotProps.value" class="flex items-baseline gap-2.5 min-w-0">
@@ -196,8 +196,8 @@ const toast = useToast();
 const { currentMarket } = useMarket();
 
 const availableIndices = ref([]);
-const code = ref(route.params.code || 'TWII');
-const market = computed(() => chartData.value?.market || route.params.market || currentMarket.value);
+const code = ref(route.params.code || (route.params.market === 'us' ? 'GSPC' : 'TWII'));
+const market = computed(() => route.params.market || currentMarket.value || 'tw');
 const selectedPeriod = ref(route.query.period || 'daily');
 const selectedMonths = ref(Number(route.query.months) || 3);
 
@@ -228,9 +228,10 @@ const dateRangeText = computed(() => {
 });
 
 const currentIndexName = computed(() => {
-  if (chartData.value?.stock_name) return chartData.value.stock_name;
   const match = availableIndices.value.find((i) => i.code === code.value);
-  return match ? match.name : '';
+  if (match?.name) return match.name;
+  if (chartData.value?.stock_name) return chartData.value.stock_name;
+  return code.value;
 });
 
 const summary = computed(() => chartData.value?.latest_summary || {});
@@ -307,30 +308,37 @@ function formatTurnover(amount) {
   return `${(amount / 1e8).toLocaleString('zh-TW', { maximumFractionDigits: 2 })} 億元`;
 }
 
-async function fetchAvailableIndices() {
+async function fetchAvailableIndices(targetMarket = null) {
   try {
-    const res = await indexApi.getIndices(market.value);
-    if (res.success) availableIndices.value = res.data;
+    const activeMarket = targetMarket || route.params.market || currentMarket.value || 'tw';
+    const res = await indexApi.getIndices(activeMarket);
+    if (res.success && res.data) {
+      availableIndices.value = res.data.map((i) => ({
+        code: i.stock_id || i.code,
+        name: i.stock_name || i.name || i.short_name || i.stock_id || i.code,
+        short_name: i.short_name || i.stock_name || i.name,
+        market: i.market || activeMarket
+      }));
+    }
   } catch (err) {
-    // 靜默失敗：不影響主圖表載入，只是切換下拉選單會缺清單
+    // 靜默失敗：不影響主圖表載入
   }
 }
 
 async function loadIndexData() {
   loading.value = true;
   error.value = null;
-  // 切換週期/範圍時畫面會保留舊的 chartData 原地顯示（見 template，比照 StockDashboard.vue 與 CLAUDE.md
-  // 「Hard rules」），所以背景刷新失敗時走 toast 提示，不能只靠 error && !chartData 的整頁錯誤畫面。
   const isBackgroundRefresh = chartData.value !== null;
+  const activeMarket = route.params.market || currentMarket.value || 'tw';
   try {
-    const res = await indexApi.getChartData(code.value, selectedPeriod.value, selectedMonths.value, route.params.market || currentMarket.value);
-    if (res.success) {
+    const res = await indexApi.getChartData(code.value, selectedPeriod.value, selectedMonths.value, activeMarket);
+    if (res.success && res.data) {
       chartData.value = res.data;
     } else {
       error.value = '載入資料時發生未知錯誤';
     }
   } catch (err) {
-    error.value = err.response?.data?.error?.message || err.response?.data?.detail || err.message || '連線後端 API 失敗';
+    error.value = err.response?.data?.error?.message || err.response?.data?.detail || err.message || '連線後端 API失敗';
   } finally {
     loading.value = false;
     if (error.value && isBackgroundRefresh) {
@@ -340,14 +348,70 @@ async function loadIndexData() {
 }
 
 onMounted(async () => {
-  await fetchAvailableIndices();
+  const currentRouteMarket = route.params.market || currentMarket.value || 'tw';
+  if (currentRouteMarket !== currentMarket.value) {
+    setMarket(currentRouteMarket);
+  }
+  await fetchAvailableIndices(currentRouteMarket);
+  // 驗證初始 URL 代碼是否符合該市場
+  const isValid = availableIndices.value.some((i) => i.code === code.value);
+  if (!isValid && availableIndices.value.length > 0) {
+    const defaultCode = currentRouteMarket === 'us' ? 'GSPC' : 'TWII';
+    const match = availableIndices.value.find((i) => i.code === defaultCode) || availableIndices.value[0];
+    const targetCode = match ? match.code : defaultCode;
+    code.value = targetCode;
+    router.replace({
+      path: `/index/${currentRouteMarket}/${targetCode}`,
+      query: { ...route.query }
+    });
+    return;
+  }
   await loadIndexData();
 });
 
-watch(() => route.params.code, (newCode) => {
-  if (newCode && newCode !== code.value) {
+watch(
+  [() => route.params.market, () => route.params.code],
+  async ([newMarket, newCode]) => {
+    if (!newMarket || !newCode) return;
+    const activeMarket = newMarket;
+    if (activeMarket !== currentMarket.value) {
+      setMarket(activeMarket);
+    }
+    await fetchAvailableIndices(activeMarket);
+
+    // 檢查當前 code 是否屬於該市場，若不屬於則自動修正為該市場預設指數
+    const isValid = availableIndices.value.some((i) => i.code === newCode);
+    if (!isValid && availableIndices.value.length > 0) {
+      const defaultCode = activeMarket === 'us' ? 'GSPC' : 'TWII';
+      const match = availableIndices.value.find((i) => i.code === defaultCode) || availableIndices.value[0];
+      const targetCode = match ? match.code : defaultCode;
+      code.value = targetCode;
+      router.replace({
+        path: `/index/${activeMarket}/${targetCode}`,
+        query: { ...route.query }
+      });
+      return;
+    }
+
     code.value = newCode;
-    loadIndexData();
+    await loadIndexData();
+  }
+);
+
+watch(currentMarket, async (newMarket) => {
+  if (route.path.startsWith('/index/')) {
+    const currentRouteMarket = route.params.market || 'tw';
+    if (currentRouteMarket !== newMarket) {
+      await fetchAvailableIndices(newMarket);
+      const defaultCode = newMarket === 'us' ? 'GSPC' : 'TWII';
+      const match = availableIndices.value.find((i) => i.code === defaultCode) || availableIndices.value[0];
+      const targetCode = match ? match.code : defaultCode;
+      code.value = targetCode;
+      router.push({
+        path: `/index/${newMarket}/${targetCode}`,
+        query: { ...route.query }
+      });
+    }
   }
 });
 
@@ -376,8 +440,9 @@ function setMonths(m) {
 function handleIndexChange(newCode) {
   if (!newCode || newCode === code.value) return;
   const target = availableIndices.value.find((i) => i.code === newCode);
+  const targetMarket = target ? target.market : (route.params.market || currentMarket.value || 'tw');
   router.push({
-    path: `/index/${target ? target.market : currentMarket.value}/${newCode}`,
+    path: `/index/${targetMarket}/${newCode}`,
     query: { ...route.query }
   });
 }

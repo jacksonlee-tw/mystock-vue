@@ -102,11 +102,14 @@ async def compare_indices(
     return {"success": True, "data": result}
 
 
-@router.get("/sectors", summary="台股類股指數當日表現排行（輪動）")
-async def get_sectors(market: str = Query("tw", description="目前僅支援 tw")):
+@router.get("/sectors", summary="台股類股指數當日/多週期表現排行（輪動）")
+async def get_sectors(
+    market: str = Query("tw", description="目前僅支援 tw"),
+    period: str = Query("1d", description="時間週期: 1d (當日), 5d (近5日/週), 1m (近1月), 3m (近3月), 6m (近半年)"),
+):
     if market != "tw":
-        return {"success": True, "data": [], "message": "類股指數目前僅支援台股（規劃書 §8.1）"}
-    data = await get_sector_overview()
+        return {"success": True, "data": {"items": []}, "message": "類股指數目前僅支援台股（規劃書 §8.1）"}
+    data = await get_sector_overview(market=market, period=period)
     return {"success": True, "data": data}
 
 

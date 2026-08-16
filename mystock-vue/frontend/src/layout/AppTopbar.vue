@@ -3,6 +3,7 @@ import { useLayout } from '@/layout/composables/layout';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { stockApi } from '@/service/stockApi';
+import { indexApi } from '@/service/indexApi';
 import { useToast } from 'primevue/usetoast';
 import { useMarket } from '@/composables/useMarket';
 import Omnibox from '@/components/Omnibox.vue';
@@ -171,6 +172,9 @@ async function handleMarketSwitch(newMarket) {
         } catch (e) {
             router.push('/');
         }
+    } else if (route.path.startsWith('/index/')) {
+        const defaultCode = newMarket === 'us' ? 'GSPC' : 'TWII';
+        router.push(`/index/${newMarket}/${defaultCode}`);
     }
 }
 

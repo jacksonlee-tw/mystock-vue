@@ -2,15 +2,17 @@
 import { computed } from 'vue';
 import AppMenuItem from './AppMenuItem.vue';
 import { useCrawlerStatus } from '@/composables/useCrawlerStatus';
+import { useMarket } from '@/composables/useMarket';
 
 const { isRunning } = useCrawlerStatus();
+const { currentMarket } = useMarket();
 
 const model = computed(() => [
     {
         label: '市場大盤與總覽',
         items: [
             { label: '動態熱力圖', icon: 'pi pi-fw pi-th-large', to: '/' },
-            { label: '大盤指數分析', icon: 'pi pi-fw pi-globe', to: '/index/tw/TWII' },
+            { label: '大盤指數分析', icon: 'pi pi-fw pi-globe', to: currentMarket.value === 'us' ? '/index/us/GSPC' : '/index/tw/TWII' },
             { label: '類股輪動監控', icon: 'pi pi-fw pi-sync', to: '/indices/sectors' }
         ]
     },
