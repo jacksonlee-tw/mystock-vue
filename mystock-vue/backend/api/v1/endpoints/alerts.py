@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from repositories import alert_repository
 from strategies.direction import classify_direction
-from strategies.scanner import scan_market
+from strategies.scanner import scan_market, scan_positions
 
 router = APIRouter(prefix="/api/v1/alerts", tags=["Alerts"])
 
@@ -23,11 +23,13 @@ async def list_alerts(
     strategy: Optional[str] = Query(None, description="策略 ID 過濾"),
     symbol: Optional[str] = Query(None, description="股票代碼過濾"),
     strength: Optional[str] = Query(None, description="訊號強度過濾: strong/moderate/weak"),
+    category: Optional[str] = Query(None, description="策略分類過濾 (technical/chip/fundamental/stock_picking/risk)"),
 ):
     data = alert_repository.query_alerts(
-        market=market, days=days, strategy_id=strategy, symbol=symbol, strength=strength
+        market=market, days=days, strategy_id=strategy, symbol=symbol, strength=strength, category=category
     )
     return {"success": True, "data": data, "total": len(data)}
+
 
 
 @router.get("/summary", summary="今日策略摘要")
@@ -62,4 +64,12 @@ async def trigger_scan(req: ScanRequest):
     if req.market not in ("tw", "us"):
         raise HTTPException(status_code=400, detail="market 必須為 tw 或 us")
     result = await scan_market(req.market, lookback_days=req.lookback_days)
-    return {"success": True, "message": "掃描完成", "data": result}
+    return {"success": True, "data": result}
+
+
+@router.post("/scan/positions", summary="手動觸發持倉出場風控掃描")
+async def trigger_positions_scan(market: str = Query("tw", description="市場代碼 (tw, us)")):
+    if market not in ("tw", "us"):
+        raise HTTPException(status_code=400, detail="market 必須為 tw 或 us")
+    result = await scan_positions(market)
+    return {"success": True, "data": result}

@@ -14,9 +14,11 @@ import secrets
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any
+try:
+    import bcrypt
+except ImportError:
+    bcrypt = None
 
-import bcrypt
 from fastapi import Request
 from itsdangerous import TimestampSigner, SignatureExpired, BadSignature
 
@@ -86,6 +88,8 @@ def verify_owner_session_token(token: str) -> bool:
 
 
 def verify_owner_password(plain: str) -> bool:
+    if not bcrypt:
+        return False
     stored_hash = notify_config.get_owner_password_hash()
     if not stored_hash:
         # 未設定密碼：僅允許 Bearer Token 存取（dev 模式）

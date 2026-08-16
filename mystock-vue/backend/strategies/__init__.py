@@ -4,3 +4,6 @@
 from strategies import conditions_tech  # noqa: F401
 from strategies import conditions_chip  # noqa: F401
 from strategies import conditions_fund  # noqa: F401
+from strategies import conditions_pick  # noqa: F401
+from strategies import conditions_risk  # noqa: F401
+

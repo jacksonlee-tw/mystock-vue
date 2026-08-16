@@ -66,9 +66,24 @@ const router = createRouter({
                     component: () => import('@/views/StockSymbolBrowser.vue')
                 },
                 {
+                    path: '/market',
+                    name: 'market-screener',
+                    component: () => import('@/views/MarketScreener.vue')
+                },
+                {
                     path: '/alerts',
                     name: 'alert-dashboard',
                     component: () => import('@/views/AlertDashboard.vue')
+                },
+                {
+                    path: '/picking',
+                    name: 'stock-picking',
+                    component: () => import('@/views/StockPicking.vue')
+                },
+                {
+                    path: '/compare',
+                    name: 'stock-compare',
+                    component: () => import('@/views/StockCompare.vue')
                 },
                 {
                     path: '/notify/channels',

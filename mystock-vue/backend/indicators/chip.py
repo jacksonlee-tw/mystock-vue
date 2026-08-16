@@ -109,3 +109,21 @@ def rolling_percentile(
     pos = (percentile / 100) * (len(values) - 1)
     lo, hi = int(pos), min(int(pos) + 1, len(values) - 1)
     return values[lo] + (values[hi] - values[lo]) * (pos - lo)
+
+
+def net_buy_volume_ratio(records: Records, field: str, idx: int, window: int) -> Optional[float]:
+    """累計指定法人淨買超佔同期總成交量的百分比（%）（選股功能與爬蟲 規格書 §5.4）。
+    raw_records 的法人欄位單位為張（lots），成交量 volume 為股（shares），
+    在此統一換算為股後計算比率：(累計張數 × 1000) / 累計成交股數 × 100。
+    若成交量為 0 或視窗不足回傳 None。
+    """
+    values = _window(records, idx, window, field_value(field))
+    vol_values = _window(records, idx, window, field_value("volume"))
+    if values is None or vol_values is None:
+        return None
+    tot_vol = sum(vol_values)
+    if tot_vol <= 0:
+        return None
+    tot_net_shares = sum(values) * 1000.0
+    return (tot_net_shares / tot_vol) * 100.0
+

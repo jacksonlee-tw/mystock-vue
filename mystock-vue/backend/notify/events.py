@@ -145,11 +145,9 @@ def _get_strategy_category(strategy_id: str) -> str:
         return "unknown"
     try:
         from strategies.config_loader import load_strategy_config
-        from config import get_strategy_config_path
-        configs = load_strategy_config(get_strategy_config_path())
-        for cfg in configs:
-            if cfg.get("id") == strategy_id or cfg.get("strategy_id") == strategy_id:
-                return cfg.get("category", "unknown")
+        cfg = load_strategy_config().get(strategy_id)
+        if cfg and cfg.category:
+            return cfg.category
     except Exception:
         pass
     return "unknown"

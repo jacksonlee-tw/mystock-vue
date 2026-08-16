@@ -79,11 +79,14 @@ def query_alerts(
     strategy_id: Optional[str] = None,
     symbol: Optional[str] = None,
     strength: Optional[str] = None,
+    category: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     alerts = _load_alerts()
 
     if market:
         alerts = [a for a in alerts if a.get("market") == market]
+    if category:
+        alerts = [a for a in alerts if a.get("category") == category]
     if strategy_id:
         alerts = [a for a in alerts if a.get("strategy_id") == strategy_id]
     if symbol:

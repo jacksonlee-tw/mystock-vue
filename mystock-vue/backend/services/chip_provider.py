@@ -1,14 +1,14 @@
-"""策略引擎的唯一資料存取入口（策略管理架構 設計文件第 2 節「資料存取抽象化」）。
+"""策略引擎的唯一資料存取入口（策略管理架構 設計文件第 2 節「資料存取抽象化」、選股功能與爬蟲 規格書 §4）。
 
-不重新實作 JSON/Postgres 雙讀取邏輯 —— DATA_SOURCE 切換已經在 services/stock_service.py 的
-load_stock_data() / aggregate_stock_data() 做掉了，這裡只是包一層，把資料組成策略層要用的
-ScanContext（含預先算好的 MA/BIAS），讓 strategies/ 底下的模組完全不需要認識 JSON 或 SQL
-（策略管理架構 設計文件第 9 節「依賴隔離」鐵則）。
+支援既有逐檔載入（Watchlist）與批次預載載入（MarketPreload，全市場選股掃描）。
+組成策略層要用的 ScanContext（含 OHLC、MA、BIAS、KD、估值與月營收 Point-in-time 平行序列）。
 """
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
 from config import MAX_HISTORY_MONTHS
+from indicators.fundamental import latest_visible_month
 from indicators.moving_average import bias_series, sma
 from indicators.stochastic import compute_kd_set
 from services.mops_fetcher import load_stock_revenue
@@ -20,6 +20,27 @@ class KDSeries:
     """單一 KD 參數組（如 (9,3,3)）的 K/D 序列（KD指標 設計規格書 §4.1）。"""
     k: List[Optional[float]]
     d: List[Optional[float]]
+
+
+@dataclass
+class PositionContext:
+    """持倉風控上下文（進出場策略整合，選股功能與爬蟲 規格書 §6.2）。"""
+    symbol: str
+    market: str
+    shares: float
+    avg_cost: float
+    entry_date: str
+    holding_trading_days: int
+    peak_close_since_entry: float
+    unrealized_return_pct: float
+
+
+@dataclass
+class MarketPreload:
+    """批次預載數據結構（選股功能與爬蟲 規格書 §4.3）。"""
+    quotes: Dict[str, List[dict]] = field(default_factory=dict)
+    valuation: Dict[str, Dict[str, dict]] = field(default_factory=dict)
+    revenue: Dict[str, Dict[str, dict]] = field(default_factory=dict)
 
 
 @dataclass
@@ -37,14 +58,15 @@ class ScanContext:
     ma: Dict[int, List[Optional[float]]] = field(default_factory=dict)
     bias: Dict[int, List[Optional[float]]] = field(default_factory=dict)
     volume_ma: List[Optional[float]] = field(default_factory=list)
-    # key 為 (fastk_period, slowk_period, slowd_period)，比照 ctx.ma 以參數為 key 的作法
-    # （KD指標 設計規格書 §4.1 ADR-KD-02）。未設定 kd_params 時為空 dict，kd_cross 條件
-    # 因 requires=("kd",) 會被 scanner.py 自然略過，不會報錯。
     kd: Dict[Tuple[int, int, int], KDSeries] = field(default_factory=dict)
-    # MOPS 月營收（賣股策略 設計文件第四節「成長動能衰竭」），key 為 "YYYY-MM"，值為
-    # services/mops_fetcher.py 落檔的原始記錄（含 yoy_percent）。僅台股有資料，美股恆為空 dict
-    # （見 mops_fetcher.py 僅支援 market="tw"），conditions_fund.py 據此判斷是否要跳過。
     revenue: Dict[str, dict] = field(default_factory=dict)
+    # ── 估值與營收 Point-in-time 平行序列（選股功能與爬蟲 規格書 §4.1）──────────
+    valuation: Dict[str, List[Optional[float]]] = field(default_factory=dict)
+    revenue_visible_month: List[Optional[str]] = field(default_factory=list)
+    revenue_yoy: List[Optional[float]] = field(default_factory=list)
+    revenue_mom: List[Optional[float]] = field(default_factory=list)
+    # 出場風控專用；僅 scan_positions() 入口會填，選股掃描為 None
+    position: Optional[PositionContext] = None
 
     @property
     def length(self) -> int:
@@ -52,15 +74,14 @@ class ScanContext:
 
 
 def _clean(value: Any) -> Optional[float]:
-    """0 代表「當天沒回補到行情」（見 stock_service.get_stock_chart_payload 的既有處理），
-    一律視為缺值，避免均線被拉去撞 0。"""
+    """0 代表缺值，避免均線被拉去撞 0。"""
     if value is None or value == 0:
         return None
     return float(value)
 
 
 class ChipDataProvider:
-    """策略管理架構 設計文件第 6 節所稱的 ChipDataProvider 介面實作。"""
+    """策略管理架構 ChipDataProvider 介面實作。"""
 
     async def get_bars(
         self,
@@ -71,12 +92,19 @@ class ChipDataProvider:
         kd_params: Optional[List[Tuple[int, int, int]]] = None,
         kd_warmup_bars: int = 25,
         kd_smoothing: str = "wilder_1_3",
+        with_valuation: bool = False,
+        preloaded: Optional[MarketPreload] = None,
+        position: Optional[PositionContext] = None,
     ) -> Optional[ScanContext]:
-        raw = await load_stock_data(symbol, market)
-        if not raw:
-            return None
+        # 1. 取得原始歷史記錄 (從預載快取或既有 load_stock_data)
+        if preloaded and symbol in preloaded.quotes:
+            records = preloaded.quotes[symbol]
+        else:
+            raw = await load_stock_data(symbol, market)
+            if not raw:
+                return None
+            records = aggregate_stock_data(raw, period="daily", months=MAX_HISTORY_MONTHS)
 
-        records = aggregate_stock_data(raw, period="daily", months=MAX_HISTORY_MONTHS)
         if len(records) < 2:
             return None
 
@@ -93,15 +121,52 @@ class ChipDataProvider:
         bias = {p: bias_series(closes, ma[p]) for p in ma_periods}
         volume_ma = sma(volumes, volume_ma_period)
 
-        # KD（KD指標 設計規格書 §4.2）：MAX_HISTORY_MONTHS 已抓全部歷史，暖身期在策略路徑上
-        # 天然充足，不需要額外處理（暖身不足只發生在圖表路徑的短區間，見 stock_service.py）。
+        # KD 指標計算
         kd_raw = compute_kd_set(highs, lows, closes, kd_params or [], warmup_bars=kd_warmup_bars, smoothing=kd_smoothing)
         kd = {params: KDSeries(k=k_series, d=d_series) for params, (k_series, d_series) in kd_raw.items()}
 
-        # 月營收是 JSON-only 資料源（尚無 Postgres 表，見 docs/3.爬蟲開發 待辦清單），
-        # 與 DATA_SOURCE 無關，一律直接讀檔；讀取失敗（檔案不存在）回傳空 dict，
-        # 讓 conditions_fund.py 的資料充足度檢查自然跳過，不特別處理例外。
-        revenue = load_stock_revenue(symbol) if market == "tw" else {}
+        # 月營收字典載入 (MOPS 既有或預載)
+        if preloaded and symbol in preloaded.revenue:
+            revenue_dict = preloaded.revenue[symbol]
+        elif market == "tw":
+            revenue_dict = load_stock_revenue(symbol)
+        else:
+            revenue_dict = {}
+
+        # 估值與營收平行序列建構 (Point-in-time)
+        val_series: Dict[str, List[Optional[float]]] = {
+            "pe_ratio": [],
+            "pb_ratio": [],
+            "dividend_yield": [],
+        }
+        rev_visible_months: List[Optional[str]] = []
+        rev_yoy_series: List[Optional[float]] = []
+        rev_mom_series: List[Optional[float]] = []
+
+        if with_valuation and market == "tw":
+            val_lookup = (preloaded.valuation.get(symbol) if preloaded else None) or {}
+            for d_str in dates:
+                # 估值序列：該日有值填入，缺值留 None（不補 0、不沿用前一日，ADR-SP-08）
+                v_entry = val_lookup.get(d_str, {})
+                val_series["pe_ratio"].append(v_entry.get("pe_ratio"))
+                val_series["pb_ratio"].append(v_entry.get("pb_ratio"))
+                val_series["dividend_yield"].append(v_entry.get("dividend_yield"))
+
+                # 營收序列：Point-in-time 可見性計算
+                try:
+                    t_date = date.fromisoformat(d_str)
+                    vis_month = latest_visible_month(revenue_dict, t_date)
+                    rev_visible_months.append(vis_month)
+                    if vis_month and vis_month in revenue_dict:
+                        rev_yoy_series.append(revenue_dict[vis_month].get("yoy_percent"))
+                        rev_mom_series.append(revenue_dict[vis_month].get("mom_percent"))
+                    else:
+                        rev_yoy_series.append(None)
+                        rev_mom_series.append(None)
+                except Exception:
+                    rev_visible_months.append(None)
+                    rev_yoy_series.append(None)
+                    rev_mom_series.append(None)
 
         return ScanContext(
             symbol=symbol,
@@ -117,6 +182,11 @@ class ChipDataProvider:
             ma=ma,
             bias=bias,
             volume_ma=volume_ma,
-            revenue=revenue,
+            revenue=revenue_dict,
             kd=kd,
+            valuation=val_series,
+            revenue_visible_month=rev_visible_months,
+            revenue_yoy=rev_yoy_series,
+            revenue_mom=rev_mom_series,
+            position=position,
         )

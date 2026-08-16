@@ -46,7 +46,7 @@ class TaiwanMarketAdapter(MarketAdapter):
             price_adjusted=False,
             up_down_convention="red_up",
             timezone="Asia/Taipei",
-            panels=["institutional", "margin", "table"]
+            panels=["institutional", "margin", "valuation", "table"]
         )
 
     @property
@@ -58,7 +58,11 @@ class TaiwanMarketAdapter(MarketAdapter):
             Metric(key="institutional_total", label="三大法人合計", unit="張", frequency="daily", markets=["tw"], tile=True, panel="institutional"),
             Metric(key="institutional_amount_est", label="估算買賣超金額", unit="萬元", frequency="daily", markets=["tw"]),
             Metric(key="margin_balance", label="融資餘額", unit="張", frequency="daily", markets=["tw"], tile=True, panel="margin"),
-            Metric(key="short_balance", label="融券餘額", unit="張", frequency="daily", markets=["tw"], tile=True, panel="margin")
+            Metric(key="short_balance", label="融券餘額", unit="張", frequency="daily", markets=["tw"], tile=True, panel="margin"),
+            Metric(key="pe_ratio", label="本益比", unit="倍", frequency="daily", markets=["tw"], tile=True, panel="valuation"),
+            Metric(key="pb_ratio", label="股價淨值比", unit="倍", frequency="daily", markets=["tw"], tile=True, panel="valuation"),
+            Metric(key="dividend_yield", label="殖利率", unit="%", frequency="daily", markets=["tw"], tile=True, panel="valuation"),
+            Metric(key="market_cap", label="市值", unit="元", frequency="daily", markets=["tw"], tile=True, panel="valuation"),
         ]
 
     def normalize_symbol(self, symbol: str) -> str:

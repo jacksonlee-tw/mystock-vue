@@ -115,7 +115,29 @@ def _run_if_idle(market: str, fetch_fn) -> None:
 
 
 def _scheduled_tw() -> None:
+    # 1. 執行全市場每日資料作業鏈（選股功能與爬蟲 規格書 §3.3）
+    try:
+        from services.market_fetcher import market_fetcher
+        market_fetcher.run_daily_pipeline()
+    except Exception as e:
+        logger.warning(f"[排程] 全市場每日抓取作業鏈異常: {e}")
+
+    # 2. 既有追蹤清單抓取、通知與策略掃描
     _run_if_idle("tw", run_fetch_process)
+
+
+def _scheduled_monthly_revenue() -> None:
+    """每月 11 號 09:00 自動抓取上市月營收（選股功能與爬蟲 規格書 §3.3）。"""
+    try:
+        from services.revenue_market_fetcher import RevenueMarketFetcher
+        from repositories.market_repository import MarketRepository, run_async
+        fetcher = RevenueMarketFetcher()
+        records = fetcher.fetch_twse_monthly_revenue()
+        if records:
+            count = run_async(MarketRepository().upsert_revenue(records))
+            logger.info(f"[排程] 每月營收抓取完成，共寫入 {count} 筆")
+    except Exception as e:
+        logger.warning(f"[排程] 每月營收抓取失敗: {e}")
 
 
 def _scheduled_us() -> None:
@@ -261,6 +283,13 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(_notify_pause_recovery, IntervalTrigger(minutes=5), id="notify_pause_recovery")
     scheduler.add_job(_notify_stuck_recovery, IntervalTrigger(minutes=5), id="notify_stuck_recovery")
     scheduler.add_job(_notify_purge_logs, CronTrigger(hour=4, minute=0, timezone=TAIPEI_TZ), id="notify_purge_logs")
+
+    # 每月 11 號 09:00 執行全市場月營收抓取（選股功能與爬蟲 規格書 §3.3）
+    scheduler.add_job(
+        _scheduled_monthly_revenue,
+        CronTrigger(day=11, hour=9, minute=0, timezone=TAIPEI_TZ),
+        id="monthly_revenue_tw",
+    )
 
     _scheduler = scheduler
     return scheduler

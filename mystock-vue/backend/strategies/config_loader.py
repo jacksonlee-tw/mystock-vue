@@ -24,9 +24,12 @@ class StrategyDef:
     markets: List[str]
     conditions: List[dict] = field(default_factory=list)
     filters: List[dict] = field(default_factory=list)
-    # 覆寫全域 ALERT_COOLDOWN_DAYS（KD指標 設計規格書 §5.7）。None 代表沿用全域值，
-    # 現有策略（未在 YAML 設定此欄位）行為完全不變。
     cooldown_days: Optional[int] = None
+    # ── 選股與風控延伸欄位（選股功能與爬蟲 規格書 §7、§13）───────────
+    scope: str = "watchlist"  # "watchlist" 或 "universe"
+    max_picks_per_day: Optional[int] = None
+    sort_by: Optional[str] = None
+    universe_tier: Optional[str] = None
 
 
 @dataclass
@@ -64,9 +67,14 @@ def load_strategy_config() -> StrategyConfig:
             conditions=s.get("conditions", []),
             filters=s.get("filters", []),
             cooldown_days=s.get("cooldown_days"),
+            scope=s.get("scope", "watchlist"),
+            max_picks_per_day=s.get("max_picks_per_day"),
+            sort_by=s.get("sort_by"),
+            universe_tier=s.get("universe_tier"),
         )
         for s in raw.get("strategies", [])
     ]
+
 
     return StrategyConfig(
         defaults=raw.get("defaults", {}),

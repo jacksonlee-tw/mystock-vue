@@ -15,24 +15,14 @@ bias）。MOPS 規定次月 10 日前公告（見 services/mops_fetcher.py 的�
 from datetime import date
 from typing import List, Optional
 
+from indicators.fundamental import latest_visible_month, revenue_visible_from
 from services.chip_provider import ScanContext
 from strategies.registry import condition
 
 
-def _revenue_visible_from(month_key: str) -> date:
-    """月營收 "YYYY-MM" 在哪一天起視為市場已公開可用（見上方模組說明的簡化規則）。"""
-    year, month = (int(part) for part in month_key.split("-"))
-    if month == 12:
-        year, month = year + 1, 1
-    else:
-        month += 1
-    return date(year, month, 11)
-
-
-def _latest_visible_month(revenue: dict, as_of: date) -> Optional[str]:
-    """回傳 as_of 這天已經公開、最新一個月的 "YYYY-MM"；沒有任何已公開月份則回傳 None。"""
-    visible = [m for m in revenue if _revenue_visible_from(m) <= as_of]
-    return max(visible) if visible else None
+# 向下相容內部函式名稱
+_revenue_visible_from = revenue_visible_from
+_latest_visible_month = latest_visible_month
 
 
 @condition(type="revenue_yoy_decline", min_bars=2)

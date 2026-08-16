@@ -10,11 +10,14 @@ const model = computed(() => [
         label: 'MyStock 股市選股分析',
         items: [
             { label: '全市場個股動態熱力圖', icon: 'pi pi-fw pi-th-large', to: '/' },
+            { label: '全市場數據查詢', icon: 'pi pi-fw pi-table', to: '/market' },
+            { label: '策略選股清單', icon: 'pi pi-fw pi-filter', to: '/picking' },
+            { label: '多股綜合比較', icon: 'pi pi-fw pi-sliders-h', to: '/compare' },
             { label: '選股與圖表分析', icon: 'pi pi-fw pi-chart-line', to: '/stock/2330' },
             { label: '大盤指數', icon: 'pi pi-fw pi-globe', to: '/index/tw/TWII' },
             { label: '類股輪動', icon: 'pi pi-fw pi-sync', to: '/indices/sectors' },
             { label: '策略警示看板', icon: 'pi pi-fw pi-bell', to: '/alerts' },
-            { label: '全市場代碼查詢', icon: 'pi pi-fw pi-table', to: '/stocks/symbols' },
+            { label: '全市場代碼查詢', icon: 'pi pi-fw pi-search', to: '/stocks/symbols' },
             { label: '股票與爬蟲管理', icon: 'pi pi-fw pi-cog', to: '/stocks', loading: isRunning.value }
         ]
     },

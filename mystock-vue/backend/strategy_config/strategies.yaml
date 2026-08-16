@@ -192,9 +192,6 @@ strategies:
           mode: "downgrade"
 
   # ══ 基本面出場警示（賣股策略 設計文件第四節 §1「成長動能衰竭」）══════════════
-  # 僅台股適用（MOPS 月營收僅涵蓋台股）。資料來源見 services/mops_fetcher.py，
-  # 需先呼叫 POST /api/v1/fundamentals/revenue/trigger 抓過月營收，才會有資料可供判斷；
-  # 尚未抓過的股票會因 ctx.revenue 為空而自然不觸發，不會報錯。
   - id: "fundamental_revenue_decline"
     name: "營收連續衰退出場"
     category: "fundamental"
@@ -205,6 +202,93 @@ strategies:
         consecutive_months: 2      # 連續衰退月數門檻
         yoy_threshold: 0           # yoy_percent 須低於此值（%）才算衰退
 
+  # ══ 全市場選股策略（選股功能與爬蟲 規格書 §5、§13）═════════════════════════
+  - id: "pick_valuation_low_pe"
+    name: "低本益比高殖利率精選"
+    category: "stock_picking"
+    scope: "universe"
+    universe_tier: "top500"
+    max_picks_per_day: 10
+    sort_by: "pe_ratio"
+    enabled: true
+    markets: ["tw"]
+    cooldown_days: 10
+    conditions:
+      - type: "valuation_filter"
+        pe_max: 15.0
+        pe_min: 0.1
+        dividend_yield_min: 4.0
+
+  - id: "pick_revenue_growth_momentum"
+    name: "營收高成長動能精選"
+    category: "stock_picking"
+    scope: "universe"
+    universe_tier: "all_tracked"
+    max_picks_per_day: 10
+    sort_by: "revenue_yoy"
+    enabled: true
+    markets: ["tw"]
+    cooldown_days: 10
+    conditions:
+      - type: "revenue_growth"
+        yoy_min: 20.0
+        consecutive_months: 2
+
+  - id: "pick_chip_institutional_resonance"
+    name: "法人籌碼共振精選"
+    category: "stock_picking"
+    scope: "universe"
+    universe_tier: "all_tracked"
+    max_picks_per_day: 10
+    sort_by: "chip_ratio"
+    enabled: true
+    markets: ["tw"]
+    cooldown_days: 10
+    conditions:
+      - type: "chip_resonance"
+        foreign_consec_days: 2
+        trust_consec_days: 2
+        foreign_net_ratio_min: 5.0
+
+  - id: "pick_multi_factor_resonance"
+    name: "多因子共振旗艦精選"
+    category: "stock_picking"
+    scope: "universe"
+    universe_tier: "top500"
+    max_picks_per_day: 5
+    sort_by: "revenue_yoy"
+    enabled: true
+    markets: ["tw"]
+    cooldown_days: 10
+    conditions:
+      - type: "stock_pick_resonance"
+        pe_max: 20.0
+        dividend_yield_min: 3.0
+        revenue_yoy_min: 15.0
+
+  # ══ 持倉出場風控策略（選股功能與爬蟲 規格書 §6、§13）═══════════════════════
+  - id: "exit_trailing_stop"
+    name: "移動停利出場風控"
+    category: "risk"
+    scope: "watchlist"
+    enabled: true
+    markets: ["tw", "us"]
+    cooldown_days: 5
+    conditions:
+      - type: "trailing_stop"
+        drawdown_pct: 10.0
+
+  - id: "exit_fixed_stop_loss"
+    name: "固定停損出場風控"
+    category: "risk"
+    scope: "watchlist"
+    enabled: true
+    markets: ["tw", "us"]
+    cooldown_days: 5
+    conditions:
+      - type: "fixed_stop_loss"
+        stop_loss_pct: 8.0
+
 # ── 僅台股可用的濾網 ──────────────────────────
 filters_registry:
   - id: "institutional_buy"
@@ -213,3 +297,4 @@ filters_registry:
     params:
       lookback_days: 3
       require: "foreign_or_trust_net_buy"
+

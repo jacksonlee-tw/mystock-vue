@@ -66,6 +66,22 @@ async def load_stock_data(stock_id: str, market: str = "tw", source: Optional[st
 
     repo = StockRepository()
     rows = await repo.get_daily_data(stock_id)
+    if not rows and market == "tw" and kind != "index":
+        try:
+            from repositories.market_repository import MarketRepository
+            m_repo = MarketRepository()
+            m_rows = await m_repo.get_symbol_daily_series(stock_id)
+            if m_rows:
+                symbol_info = await repo.get_symbol(stock_id)
+                name = symbol_info["name"] if symbol_info else stock_id
+                result: Dict[str, Any] = {}
+                for r in m_rows:
+                    r["name"] = name
+                    result[r["date"]] = r
+                return result
+        except Exception as e:
+            logger.warning(f"[stock_service] 全市場資料庫 fallback 查詢失敗 ({stock_id}): {e}")
+
     if not rows:
         return {}
 

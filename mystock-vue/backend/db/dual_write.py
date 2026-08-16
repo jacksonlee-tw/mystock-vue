@@ -40,7 +40,7 @@ def dual_write_symbol_industry(rows: list) -> None:
         logger.warning(f"個股產業標籤 PostgreSQL 雙寫失敗: {e}")
 
 
-def dual_write_no_trading_days(market_type: str, dates) -> None:
+def dual_write_no_trading_days(market_type: str, dates, source: str = "probed") -> None:
     """把爬蟲探測到的非交易日寫入 market_no_trading_days（見 phase3_5 設計文件第 3.5 節）。"""
     if not dates:
         return
@@ -48,7 +48,7 @@ def dual_write_no_trading_days(market_type: str, dates) -> None:
         from repositories.stock_repository import StockRepository
 
         parsed = {date_cls.fromisoformat(d) if isinstance(d, str) else d for d in dates}
-        StockRepository().add_no_trading_days_sync(market_type, parsed)
+        StockRepository().add_no_trading_days_sync(market_type, parsed, source=source)
     except Exception as e:
         logger.warning(f"market_no_trading_days 寫入失敗 ({market_type}): {e}")
 
