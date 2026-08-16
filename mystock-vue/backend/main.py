@@ -40,6 +40,15 @@ logger = logging.getLogger("mystock-backend")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 全市場抓取是行程內的背景執行緒，不會跨行程存活：啟動時若還有 status='running' 的紀錄，
+    # 一定是上次行程留下的孤兒。不收掉的話 V10 的部分唯一索引會讓之後所有作業都建不起來，
+    # 前端的同步進度也會永遠卡在「進行中」。失敗不阻斷啟動（DATA_SOURCE=json 時本來就沒這張表）。
+    try:
+        from repositories.market_repository import MarketRepository
+        await MarketRepository().reap_orphaned_fetch_jobs()
+    except Exception as exc:
+        logger.warning("[全市場] 回收殘留抓取作業失敗（已略過）：%s", exc)
+
     scheduler = create_scheduler()
     scheduler.start()
     asyncio.create_task(run_startup_backfill())  # 背景執行，缺漏回補不阻塞服務啟動（見 phase3_5 設計文件第 3.1 節）

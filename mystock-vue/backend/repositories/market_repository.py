@@ -8,9 +8,10 @@ from datetime import date, datetime, timedelta
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import and_, desc, func, or_, select, text
+from sqlalchemy import and_, desc, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 from db.models import (
     DailyMarketChip,
@@ -22,9 +23,45 @@ from db.models import (
     Symbol,
     SymbolIndustry,
 )
-from db.session import get_session_factory
+from db.session import _database_url, get_session_factory
 
 logger = logging.getLogger("mystock-backend")
+
+
+# ── 背景執行緒專用連線池（跟 db/session.py 的主 loop 全域單例脫鉤）───────────
+# market_fetcher.py 的批次抓取是丟進 asyncio.to_thread() 背景執行緒跑的，跟 FastAPI 主
+# event loop 同時併發服務其他請求；若沿用 db/session.py 的全域 get_session_factory()，
+# run_async() 開的新 event loop 會拿到綁定在主 loop 上的 asyncpg 連線，直接炸
+# "attached to a different loop"，而且其 dispose_engine() 還會把主 loop 當下其他請求正在用
+# 的連線一併弄壞（見 stock_repository.py run_async() 的說明）。這裡另外維護一份只給背景
+# 執行緒同步呼叫用的獨立 engine，兩邊完全不共用。
+_bg_engine: Optional[AsyncEngine] = None
+_bg_session_factory: Optional[async_sessionmaker] = None
+
+
+def _get_bg_session_factory() -> async_sessionmaker:
+    global _bg_engine, _bg_session_factory
+    if _bg_session_factory is None:
+        _bg_engine = create_async_engine(_database_url(), pool_pre_ping=True)
+        _bg_session_factory = async_sessionmaker(_bg_engine, expire_on_commit=False)
+    return _bg_session_factory
+
+
+async def _dispose_bg_engine() -> None:
+    global _bg_engine, _bg_session_factory
+    if _bg_engine is not None:
+        await _bg_engine.dispose()
+    _bg_engine = None
+    _bg_session_factory = None
+
+
+class _BackgroundSessionFactory:
+    """傳給 MarketRepository(session_factory=...) 的 lazy 包裝：每次呼叫都重新取用（必要時
+    重建）背景專用 engine，而不是在 MarketFetcher.__init__() 當下就固定死一份——這樣才能在
+    每次 run_async() 呼叫結束 dispose 後，下一次呼叫自動接上重新建立的新連線池。"""
+
+    def __call__(self):
+        return _get_bg_session_factory()()
 
 
 class ActiveFetchJobError(Exception):
@@ -53,7 +90,13 @@ SORT_COLUMN_WHITELIST = {
 
 
 def run_async(coro):
-    """讓同步的爬蟲模組可以呼叫 async 版的 Repository 方法。"""
+    """讓同步的爬蟲模組可以呼叫 async 版的 Repository 方法。
+
+    注意：這裡 dispose 的是上面 _bg_engine（背景執行緒專用），不是 db/session.py 的主 loop
+    全域單例——後者跟 FastAPI 主 event loop 同時有其他請求在用，dispose 下去會把它們的連線
+    一併弄壞（見 stock_repository.py 的同名函式的說明）。呼叫端（market_fetcher.py）的
+    self.repo 必須是用 MarketRepository(session_factory=_BackgroundSessionFactory()) 建立的，
+    才會吃到這份獨立連線池；否則仍會沿用主 loop 的全域 engine 而重現同一個 bug。"""
     try:
         asyncio.get_running_loop()
     except RuntimeError:
@@ -65,8 +108,7 @@ def run_async(coro):
         try:
             return await coro
         finally:
-            from db.session import dispose_engine
-            await dispose_engine()
+            await _dispose_bg_engine()
 
     return asyncio.run(_runner())
 
@@ -218,6 +260,23 @@ class MarketRepository:
             logger.info(f"[代碼主檔] 自動補入 {len(records)} 筆未知代號: {[r['symbol'] for r in records[:5]]}...")
             return len(records)
 
+    async def filter_existing_symbols(self, symbols: List[str]) -> set:
+        """回傳 symbols 主檔中確實存在的代號集合。
+
+        籌碼／估值來源（T86、MI_MARGN、BWIBBU）的代號範圍跟行情不完全一致，落地前必須先濾掉
+        主檔沒有的代號——否則整批 UPSERT 會撞上 FK (daily_market_chip_symbol_fkey) 直接拋
+        IntegrityError，讓整個回補作業從中間斷掉。"""
+        if not symbols:
+            return set()
+        async with self._session_factory() as session:
+            found: set = set()
+            unique = list({s for s in symbols})
+            for i in range(0, len(unique), 1000):
+                chunk = unique[i : i + 1000]
+                res = await session.execute(select(Symbol.symbol).where(Symbol.symbol.in_(chunk)))
+                found.update(res.scalars().all())
+            return found
+
     # ── 6. 計算缺漏日期（Data-Driven Resume，§3.9.2）─────────────────
     async def get_missing_dates(self, target: str, start_date: date, end_date: date, market_type: str = "tw") -> List[date]:
         """計算期望交易日 - 休市日 - 已有記錄的日期。"""
@@ -243,16 +302,19 @@ class MarketRepository:
             else:
                 model = DailyMarketQuote
 
+            conditions = [
+                model.market_type == market_type,
+                model.trade_date >= start_date,
+                model.trade_date <= end_date,
+            ]
+            # DailyValuation 沒有 data_quality 欄位（PE/PB/殖利率/市值沒有品質標記概念），
+            # 只有 quote/chip 才需要這個過濾條件。
+            if hasattr(model, "data_quality"):
+                conditions.append(model.data_quality == "ok")
+
             existing_stmt = (
                 select(model.trade_date)
-                .where(
-                    and_(
-                        model.market_type == market_type,
-                        model.trade_date >= start_date,
-                        model.trade_date <= end_date,
-                        model.data_quality == "ok",
-                    )
-                )
+                .where(and_(*conditions))
                 .group_by(model.trade_date)
                 .having(func.count(model.symbol) >= 500)
             )
@@ -752,38 +814,58 @@ class MarketRepository:
     async def update_job_progress(
         self, job_id: int, cursor_date: date, done_days: int, failed_days: int, last_error: Optional[str] = None
     ) -> None:
+        """更新既有作業的進度。
+
+        必須是單純的 UPDATE，不能用 INSERT ... ON CONFLICT (id) DO UPDATE：PostgreSQL 是先檢查
+        NOT NULL 約束才做衝突判定，而這裡的 values 沒有（也不該有）start_date/end_date，所以那種
+        寫法無論該筆是否存在都會直接拋 NotNullViolationError，等於每次回報進度都會炸掉整個作業。
+        作業紀錄一定是先由 create_fetch_job() 建好才會有 job_id，本來就不需要 upsert。"""
+        values: Dict[str, Any] = {
+            "cursor_date": cursor_date,
+            "done_days": done_days,
+            "failed_days": failed_days,
+            "updated_at": func.now(),
+        }
+        # 只有真的有新錯誤才覆寫，避免每次回報進度就把先前記下的失敗原因洗成 NULL
+        if last_error is not None:
+            values["last_error"] = last_error
+
         async with self._session_factory() as session:
-            stmt = (
-                pg_insert(MarketFetchJob)
-                .values(
-                    id=job_id,
-                    cursor_date=cursor_date,
-                    done_days=done_days,
-                    failed_days=failed_days,
-                    last_error=last_error,
-                    updated_at=func.now(),
-                )
-                .on_conflict_do_update(
-                    index_elements=["id"],
-                    set_={
-                        "cursor_date": cursor_date,
-                        "done_days": done_days,
-                        "failed_days": failed_days,
-                        "last_error": last_error,
-                        "updated_at": func.now(),
-                    },
-                )
-            )
-            await session.execute(stmt)
+            stmt = update(MarketFetchJob).where(MarketFetchJob.id == job_id).values(**values)
+            res = await session.execute(stmt)
+            if res.rowcount == 0:
+                logger.warning(f"[MarketFetchJob] 更新進度時找不到作業 id={job_id}")
             await session.commit()
 
-    async def complete_fetch_job(self, job_id: int, status: str = "completed") -> None:
+    async def complete_fetch_job(self, job_id: int, status: str = "completed", last_error: Optional[str] = None) -> None:
+        """結束作業並寫回終態。status 不得留在 'running'，否則 V10 的部分唯一索引會讓之後
+        所有作業都建不起來（前端也會一直顯示「進行中」）。"""
         async with self._session_factory() as session:
             job = await session.get(MarketFetchJob, job_id)
             if job:
                 job.status = status
+                if last_error is not None:
+                    job.last_error = last_error
                 job.updated_at = datetime.now()
                 await session.commit()
+
+    async def reap_orphaned_fetch_jobs(self) -> int:
+        """把殘留的 status='running' 作業標記為 interrupted，回傳筆數。
+
+        抓取工作是跑在行程內的背景執行緒，不會跨行程存活：服務啟動的當下若還有 running 的
+        紀錄，一定是上次行程被關掉／崩潰留下的孤兒。不清掉的話，V10 的部分唯一索引會讓所有
+        新作業（含每日排程）永遠 INSERT 失敗，前端也會卡在「進行中」。"""
+        async with self._session_factory() as session:
+            stmt = select(MarketFetchJob).where(MarketFetchJob.status == "running")
+            jobs = (await session.execute(stmt)).scalars().all()
+            for job in jobs:
+                job.status = "interrupted"
+                job.last_error = "服務重啟時偵測到殘留的執行中作業，已自動中止"
+                job.updated_at = datetime.now()
+            if jobs:
+                await session.commit()
+                logger.warning(f"[MarketFetchJob] 已回收 {len(jobs)} 筆殘留的執行中作業: {[j.id for j in jobs]}")
+            return len(jobs)
 
     async def get_active_fetch_job(self) -> Optional[dict]:
         async with self._session_factory() as session:

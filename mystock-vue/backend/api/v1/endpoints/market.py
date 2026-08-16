@@ -22,6 +22,19 @@ market_repo = MarketRepository()
 _background_tasks: Set[asyncio.Task] = set()
 
 
+def _on_background_task_done(task: asyncio.Task) -> None:
+    """背景任務結束時卸下強參照，並把例外記錄出來。
+
+    沒人 await 這個 task，例外預設會被完全吞掉（要等 GC 才可能印出 "Task exception was never
+    retrieved"），現象就是抓取無聲無息停住、log 什麼都沒有。這裡主動取出例外並記錄。"""
+    _background_tasks.discard(task)
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.error("[Market] 背景抓取任務異常結束: %s", exc, exc_info=exc)
+
+
 class MarketFetchRequest(BaseModel):
     start: str = Field(..., description="起始交易日 YYYY-MM-DD")
     end: str = Field(..., description="結束交易日 YYYY-MM-DD")
@@ -233,7 +246,7 @@ async def trigger_market_fetch(payload: MarketFetchRequest):
         )
     )
     _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
+    task.add_done_callback(_on_background_task_done)
 
     return {
         "success": True,
@@ -243,9 +256,27 @@ async def trigger_market_fetch(payload: MarketFetchRequest):
 
 @router.post("/fetch/cancel")
 async def cancel_market_fetch():
-    """主動取消正在進行的全市場抓取作業。"""
-    market_fetcher.request_cancel()
+    """主動取消正在進行的全市場抓取作業。
+
+    取消旗標只有「這個行程裡真的還活著的工作執行緒」看得到。若 DB 留著 status='running' 但行程
+    內沒有對應的工作執行緒（行程重啟或工作執行緒異常結束留下的孤兒），光設旗標永遠沒人理會，
+    前端就會一直卡在「進行中」、按取消也沒反應——這種情況直接把該筆紀錄收掉。"""
+    active = await market_repo.get_active_fetch_job()
+    if not active:
+        return {"success": True, "message": "目前沒有進行中的作業"}
+
+    if market_fetcher.active_job_id == active["id"]:
+        market_fetcher.request_cancel()
+        return {
+            "success": True,
+            "message": "已發送取消請求，將在完成目前的抓取單元後安全中斷",
+        }
+
+    await market_repo.complete_fetch_job(
+        active["id"], "interrupted", "作業已無執行中的工作執行緒（殘留紀錄），由使用者手動中止"
+    )
+    logger.warning("[Market] 作業 %s 無對應的工作執行緒，已直接標記為 interrupted", active["id"])
     return {
         "success": True,
-        "message": "已發送取消請求，將在完成當日單位後安全中斷",
+        "message": f"作業 {active['id']} 已無實際執行中的工作，已直接中止並解除鎖定",
     }

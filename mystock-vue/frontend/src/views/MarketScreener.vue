@@ -90,6 +90,68 @@
       </div>
     </div>
 
+    <!-- 資料同步：目前唯一能手動觸發／查看全市場批次抓取（market/fetch）進度的入口 -->
+    <div class="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 p-4 shadow-sm space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <i class="pi pi-sync text-primary text-lg"></i>
+          <div>
+            <div class="text-sm font-bold text-surface-900 dark:text-surface-0">全市場資料同步</div>
+            <div class="text-xs text-surface-500">
+              <template v-if="isJobRunning">
+                進行中：{{ jobInfo.scope === 'backfill' ? '批次回補' : '每日排程' }}
+                <span v-if="jobInfo.cursor_date">，目前處理到 {{ jobInfo.cursor_date }}</span>
+              </template>
+              <template v-else-if="jobInfo && jobInfo.status === 'failed'">
+                <span class="text-red-500">上次同步失敗：{{ jobInfo.last_error || '未知錯誤' }}</span>
+              </template>
+              <template v-else-if="jobInfo && jobInfo.status === 'interrupted'">
+                <span class="text-amber-500">上次同步已中止（{{ jobInfo.done_days }}/{{ jobInfo.total_days }} 天）：{{ jobInfo.last_error || '使用者主動取消' }}</span>
+              </template>
+              <template v-else-if="jobInfo && jobInfo.status === 'completed_with_errors'">
+                <span class="text-amber-500">上次同步完成但有失敗（成功 {{ jobInfo.done_days }} 天／失敗 {{ jobInfo.failed_days }} 天）</span>
+              </template>
+              <template v-else-if="jobInfo && jobInfo.status === 'completed'">
+                上次同步完成於 {{ jobInfo.created_at }}（{{ jobInfo.done_days }}/{{ jobInfo.total_days }} 天）
+              </template>
+              <template v-else>
+                尚無同步紀錄，選擇日期區間後點擊「立即同步」
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <DatePicker v-model="syncStart" placeholder="起始日期" dateFormat="yy-mm-dd" showIcon iconDisplay="input" class="w-44" inputClass="text-sm" :disabled="isJobRunning" />
+          <span class="text-surface-400 text-xs">~</span>
+          <DatePicker v-model="syncEnd" placeholder="結束日期" dateFormat="yy-mm-dd" showIcon iconDisplay="input" class="w-44" inputClass="text-sm" :disabled="isJobRunning" />
+          <Button
+            v-if="!isJobRunning"
+            label="立即同步"
+            icon="pi pi-cloud-download"
+            size="small"
+            :loading="triggering"
+            @click="triggerSync"
+          />
+          <Button
+            v-else
+            label="取消同步"
+            icon="pi pi-times"
+            size="small"
+            severity="danger"
+            outlined
+            :loading="cancelling"
+            @click="cancelSync"
+          />
+        </div>
+      </div>
+
+      <div v-if="isJobRunning" class="space-y-1">
+        <ProgressBar :value="jobProgressPercent" :showValue="true" style="height: 8px" />
+        <div class="text-xs text-surface-500 text-right">{{ jobInfo.done_days }} / {{ jobInfo.total_days }} 天（失敗 {{ jobInfo.failed_days }} 天）</div>
+      </div>
+    </div>
+
     <!-- 篩選器與控制列 -->
     <div class="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 p-4 shadow-sm space-y-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -370,7 +432,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { marketApi } from '@/service/marketApi';
@@ -506,14 +568,131 @@ async function fetchDates() {
   fetchStatus();
 }
 
+// ── 資料同步（手動觸發全市場批次抓取 + 進度輪詢）──────────────────────────
+const syncStart = ref(null);
+const syncEnd = ref(null);
+const triggering = ref(false);
+const cancelling = ref(false);
+let pollTimer = null;
+
+const jobInfo = computed(() => statusInfo.value?.last_job || null);
+const isJobRunning = computed(() => jobInfo.value?.status === 'running');
+const jobProgressPercent = computed(() => {
+  const j = jobInfo.value;
+  if (!j || !j.total_days) return 0;
+  return Math.round((j.done_days / j.total_days) * 100);
+});
+
+function toDateStr(d) {
+  if (!d) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// 預設區間：從目前最新資料日的隔天補到昨天；若完全沒有資料，回補最近 30 天。
+function initDefaultSyncRange() {
+  if (syncStart.value || syncEnd.value) return;
+  const end = new Date();
+  end.setDate(end.getDate() - 1);
+  let start;
+  if (statusInfo.value?.latest_trade_date) {
+    start = new Date(statusInfo.value.latest_trade_date);
+    start.setDate(start.getDate() + 1);
+  } else {
+    start = new Date(end);
+    start.setDate(start.getDate() - 30);
+  }
+  syncStart.value = start;
+  syncEnd.value = end;
+}
+
+let lastSeenJobStatus = null;
+
 async function fetchStatus() {
   try {
     const res = await marketApi.getMarketStatus(currentMarket.value);
     if (res.success) {
+      const prevStatus = lastSeenJobStatus;
       statusInfo.value = res.data;
+      initDefaultSyncRange();
+
+      const newStatus = jobInfo.value?.status;
+      const justFinished = prevStatus === 'running' && newStatus && newStatus !== 'running';
+      lastSeenJobStatus = newStatus || null;
+
+      if (justFinished) {
+        stopPolling();
+        if (newStatus === 'completed') {
+          toast.add({ severity: 'success', summary: '同步完成', detail: `已完成 ${jobInfo.value.done_days}/${jobInfo.value.total_days} 天`, life: 4000 });
+        } else if (newStatus === 'completed_with_errors') {
+          toast.add({ severity: 'warn', summary: '同步完成（部分失敗）', detail: `成功 ${jobInfo.value.done_days} 天，失敗 ${jobInfo.value.failed_days} 天`, life: 5000 });
+        } else if (newStatus === 'interrupted') {
+          // 中止是取消／熔斷的正常結果，不是錯誤，不該報紅
+          toast.add({ severity: 'info', summary: '同步已中止', detail: jobInfo.value?.last_error || `已完成 ${jobInfo.value.done_days}/${jobInfo.value.total_days} 天`, life: 4000 });
+        } else {
+          toast.add({ severity: 'error', summary: '同步失敗', detail: jobInfo.value?.last_error || '未知錯誤', life: 5000 });
+        }
+        fetchDates();
+      } else if (isJobRunning.value) {
+        startPolling();
+      } else {
+        stopPolling();
+      }
     }
   } catch (e) {
     console.error('Fetch status failed', e);
+  }
+}
+
+function startPolling() {
+  if (pollTimer) return;
+  pollTimer = setInterval(fetchStatus, 3000);
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+async function triggerSync() {
+  if (!syncStart.value || !syncEnd.value) {
+    toast.add({ severity: 'warn', summary: '請選擇日期區間', life: 3000 });
+    return;
+  }
+  triggering.value = true;
+  try {
+    const res = await marketApi.triggerMarketFetch({
+      start: toDateStr(syncStart.value),
+      end: toDateStr(syncEnd.value)
+    });
+    if (res.success) {
+      toast.add({ severity: 'success', summary: '已啟動同步', detail: res.message, life: 3000 });
+      await fetchStatus();
+      startPolling();
+    }
+  } catch (err) {
+    toast.add({ severity: 'error', summary: '啟動同步失敗', detail: err.response?.data?.detail || err.message, life: 4000 });
+  } finally {
+    triggering.value = false;
+  }
+}
+
+async function cancelSync() {
+  cancelling.value = true;
+  try {
+    const res = await marketApi.cancelMarketFetch();
+    // 顯示後端實際的處理結果：作業可能是「已送出取消旗標」，也可能是殘留紀錄被直接收掉，
+    // 兩者對使用者的意義不同，不能一律報「已送出取消請求」。
+    toast.add({ severity: 'info', summary: '取消同步', detail: res.message || '已送出取消請求', life: 4000 });
+    await fetchStatus(); // 立刻回抓一次，殘留紀錄被收掉時進度卡才會馬上恢復
+  } catch (err) {
+    toast.add({ severity: 'error', summary: '取消失敗', detail: err.response?.data?.detail || err.message, life: 3000 });
+  } finally {
+    cancelling.value = false;
   }
 }
 
@@ -582,7 +761,7 @@ function goToCompare() {
 
 async function addToWatchlist(symbol) {
   try {
-    await stockApi.addStock(symbol, currentMarket.value);
+    await stockApi.addTrackedStock(symbol, currentMarket.value);
     toast.add({ severity: 'success', summary: '已加入追蹤', detail: `股票 ${symbol} 已加入追蹤清單`, life: 3000 });
   } catch (err) {
     toast.add({ severity: 'warn', summary: '提醒', detail: err.message || '加入追蹤失敗或已在清單中', life: 3000 });
@@ -609,5 +788,9 @@ async function exportCsv() {
 
 onMounted(() => {
   fetchDates();
+});
+
+onUnmounted(() => {
+  stopPolling();
 });
 </script>

@@ -371,7 +371,7 @@ async function runRiskScan() {
 
 async function addToWatchlist(symbol) {
   try {
-    await stockApi.addStock(symbol, currentMarket.value);
+    await stockApi.addTrackedStock(symbol, currentMarket.value);
     toast.add({ severity: 'success', summary: '已加入追蹤', detail: `股票 ${symbol} 已加入追蹤清單`, life: 3000 });
   } catch (err) {
     toast.add({ severity: 'warn', summary: '提醒', detail: err.message || '加入追蹤失敗', life: 3000 });

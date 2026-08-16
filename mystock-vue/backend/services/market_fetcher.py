@@ -23,7 +23,7 @@ from config import (
     is_market_fetch_enabled,
 )
 from db.dual_write import dual_write_no_trading_days, log_crawler_run
-from repositories.market_repository import ActiveFetchJobError, MarketRepository, run_async
+from repositories.market_repository import ActiveFetchJobError, MarketRepository, _BackgroundSessionFactory, run_async
 from services.revenue_market_fetcher import RevenueMarketFetcher
 from services.symbol_master_fetcher import sync_tw_symbol_master
 from services.valuation_fetcher import ValuationFetcher
@@ -121,16 +121,32 @@ def _locate_t86_columns(fields: list) -> Optional[dict]:
 class MarketFetcher:
     def __init__(self, throttle_seconds: Optional[int] = None):
         self.throttle_seconds = throttle_seconds if throttle_seconds is not None else get_market_fetch_throttle_seconds()
-        self.repo = MarketRepository()
+        # 這裡的方法都是透過 run_async()（背景執行緒）呼叫，不能用 db/session.py 的主 loop
+        # 全域單例（會跟 FastAPI 主 event loop 併發的其他請求互相弄壞連線，見
+        # market_repository.py run_async() 的說明），改用獨立的背景專用連線池。
+        self.repo = MarketRepository(session_factory=_BackgroundSessionFactory())
         self.valuation_fetcher = ValuationFetcher(throttle_seconds=self.throttle_seconds)
         self.revenue_fetcher = RevenueMarketFetcher()
         self._cancel_requested = False
         self._lock = threading.Lock()
+        # 目前這個行程內真的有工作執行緒在跑的 job id。DB 裡的 status='running' 只代表「有人開過
+        # 這筆作業」，行程重啟或工作執行緒異常結束都會留下孤兒紀錄；要判斷作業是否真的還活著，
+        # 必須看這個行程內的狀態，不能只信 DB。
+        self._active_job_id: Optional[int] = None
+
+    @property
+    def active_job_id(self) -> Optional[int]:
+        with self._lock:
+            return self._active_job_id
+
+    def _set_active_job(self, job_id: Optional[int]) -> None:
+        with self._lock:
+            self._active_job_id = job_id
 
     def request_cancel(self):
-        """設定取消旗標，於當日完成後乾淨結束（§3.9.5）。"""
+        """設定取消旗標，於當前 target 完成後乾淨結束（§3.9.5）。"""
         self._cancel_requested = True
-        logger.info("[MarketFetcher] 收到取消請求，將在當日單元完成後中止")
+        logger.info("[MarketFetcher] 收到取消請求，將在目前的抓取單元完成後中止")
 
     # ── 1. 抓取 TWSE 全市場收盤行情 ───────────────────────────────────
     def fetch_twse_quotes(self, trade_date: date) -> Tuple[List[Dict[str, Any]], bool]:
@@ -254,7 +270,10 @@ class MarketFetcher:
     # ── 2. 抓取 TWSE 全市場三大法人與融資融券 ─────────────────────────
     def fetch_twse_chips(self, trade_date: date) -> Tuple[List[Dict[str, Any]], bool]:
         date_str = trade_date.strftime("%Y%m%d")
-        t86_url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={date_str}&selectType=ALL&response=json"
+        # T86 必須用 ALLBUT0999（不含權證、牛熊證、可展延牛熊證），跟行情 MI_INDEX 取的範圍一致。
+        # 用 selectType=ALL 會一次帶回 1.5 萬筆、其中 1.4 萬筆是權證代號，這些代號不在 symbols
+        # 主檔裡，落地時整批 UPSERT 會撞 FK 而讓回補作業從中間斷掉（實際發生過）。
+        t86_url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={date_str}&selectType=ALLBUT0999&response=json"
         margn_url = f"https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date_str}&selectType=ALL&response=json"
 
         # 1. 抓取 T86 法人買賣超
@@ -361,6 +380,25 @@ class MarketFetcher:
         return records, False
 
     # ── 3. 單日作業單元執行（Atomic Unit: 交易日 × Targets）───────────
+    def _drop_unknown_symbols(self, records: List[Dict[str, Any]], label: str, date_str: str) -> List[Dict[str, Any]]:
+        """濾掉 symbols 主檔沒有的代號再落地。
+
+        daily_market_chip / daily_valuation 都有 symbol -> symbols 的 FK（ON DELETE RESTRICT），
+        來源多帶了一檔主檔沒有的代號，整批 UPSERT 就會拋 IntegrityError 讓整個回補作業從中間
+        斷掉。寧可少寫幾檔並留下警告，也不要讓一檔雜訊代號炸掉整批。"""
+        if not records:
+            return records
+        symbols = [r["symbol"] for r in records]
+        known = run_async(self.repo.filter_existing_symbols(symbols))
+        kept = [r for r in records if r["symbol"] in known]
+        dropped = len(records) - len(kept)
+        if dropped:
+            unknown = sorted({s for s in symbols if s not in known})
+            logger.warning(
+                f"[MarketFetcher] {date_str} {label} 有 {dropped} 筆代號不在代碼主檔中，已略過: {unknown[:10]}"
+            )
+        return kept
+
     def fetch_day_market(self, trade_date: date, targets: List[str]) -> Dict[str, Any]:
         """單一交易日抓取與落地，失敗自動退避重試（3次）。
         回傳 {"success": bool, "is_holiday": bool, "counts": {target: 落地筆數}}，
@@ -389,8 +427,12 @@ class MarketFetcher:
             time.sleep(self.throttle_seconds)
 
         # 2. 抓取籌碼 (Chips)
-        if "chip" in targets:
+        # 每個 target 前都檢查取消旗標：單日三個 target 加上節流／重試動輒好幾分鐘，只在「換日」
+        # 時才看旗標的話，使用者按下取消後會很久都沒反應（前端就是卡在這裡）。各 target 的落地
+        # 本身是獨立交易，中途停在 target 邊界仍是乾淨狀態，缺的部分下次由 missing_dates() 補回。
+        if "chip" in targets and not self._cancel_requested:
             chips, _ = self._retry_fetch(lambda: self.fetch_twse_chips(trade_date), default=([], False))
+            chips = self._drop_unknown_symbols(chips, "籌碼", date_str)
             if chips:
                 count = run_async(self.repo.upsert_chips(chips))
                 result["counts"]["chip"] = count
@@ -398,8 +440,9 @@ class MarketFetcher:
             time.sleep(self.throttle_seconds)
 
         # 3. 抓取估值 (Valuation)
-        if "valuation" in targets:
+        if "valuation" in targets and not self._cancel_requested:
             val_records = self._retry_fetch(lambda: self.valuation_fetcher.fetch_twse_valuation(trade_date), default=[])
+            val_records = self._drop_unknown_symbols(val_records, "估值", date_str)
             if val_records:
                 count = run_async(self.repo.upsert_valuation(val_records))
                 result["counts"]["valuation"] = count
@@ -463,6 +506,7 @@ class MarketFetcher:
             logger.warning(f"[MarketFetcher] {e}，本次每日排程略過")
             return {"status": "already_running"}
 
+        self._set_active_job(job_id)
         started_at = datetime.now()
         success = False
         try:
@@ -492,9 +536,11 @@ class MarketFetcher:
             )
             return {"status": status_str, "date": str(t_date), "counts": fetch_result["counts"]}
         except Exception as e:
-            logger.error(f"[MarketFetcher] 每日作業鏈例外: {e}")
-            run_async(self.repo.complete_fetch_job(job_id, "failed"))
+            logger.exception(f"[MarketFetcher] 每日作業鏈例外: {e}")
+            run_async(self.repo.complete_fetch_job(job_id, "failed", str(e)[:500]))
             return {"status": "error", "error": str(e)}
+        finally:
+            self._set_active_job(None)
 
     # ── 5. 批次回補與中斷續傳（Backfill & Resume，§3.8、§3.9）────────
     def backfill_market(
@@ -538,45 +584,67 @@ class MarketFetcher:
             logger.warning(f"[MarketFetcher] {e}，本次回補請求已略過")
             return {"status": "already_running"}
 
+        self._set_active_job(job_id)
         done_count = 0
         failed_count = 0
         consecutive_failures = 0
+        final_status = "completed"
+        final_error: Optional[str] = None
 
         logger.info(f"[MarketFetcher] 開始批量回補：共缺 {total_days} 個交易日 ({start_date} ~ {end_date})")
 
-        for d in sorted_missing:
-            if self._cancel_requested:
-                logger.info("[MarketFetcher] 使用者主動取消，停止後續回補作業")
-                run_async(self.repo.complete_fetch_job(job_id, "interrupted"))
-                return {"status": "interrupted", "done_days": done_count, "failed_days": failed_count}
+        # 整個迴圈必須包在 try/finally 裡：任何一步拋出例外（例如整批 UPSERT 撞到 FK）而沒有寫回
+        # 終態的話，這筆紀錄會永遠停在 status='running'——前端的進度卡會一直顯示「進行中」且按取消
+        # 也沒用，V10 的部分唯一索引更會讓之後所有作業（含每日排程）都建不起來。
+        try:
+            for d in sorted_missing:
+                if self._cancel_requested:
+                    logger.info("[MarketFetcher] 使用者主動取消，停止後續回補作業")
+                    final_status = "interrupted"
+                    final_error = "使用者主動取消"
+                    break
 
-            ok = self.fetch_day_market(d, targets)
-            if ok["success"] or ok["is_holiday"]:
-                done_count += 1
-                consecutive_failures = 0
-            else:
-                failed_count += 1
-                consecutive_failures += 1
+                ok = self.fetch_day_market(d, targets)
+                if ok["success"] or ok["is_holiday"]:
+                    done_count += 1
+                    consecutive_failures = 0
+                else:
+                    failed_count += 1
+                    consecutive_failures += 1
 
-            run_async(
-                self.repo.update_job_progress(
-                    job_id=job_id,
-                    cursor_date=d,
-                    done_days=done_count,
-                    failed_days=failed_count,
+                run_async(
+                    self.repo.update_job_progress(
+                        job_id=job_id,
+                        cursor_date=d,
+                        done_days=done_count,
+                        failed_days=failed_count,
+                    )
                 )
-            )
 
-            # 連續 5 天失敗觸發熔斷（§3.9.5）
-            if consecutive_failures >= 5:
-                logger.error("[MarketFetcher] 連續 5 天抓取失敗，疑似遭來源限流，觸發熔斷保護中止作業")
-                run_async(self.repo.complete_fetch_job(job_id, "interrupted"))
-                return {"status": "interrupted", "error": "連續5天失敗觸發熔斷", "done_days": done_count}
+                # 連續 5 天失敗觸發熔斷（§3.9.5）
+                if consecutive_failures >= 5:
+                    logger.error("[MarketFetcher] 連續 5 天抓取失敗，疑似遭來源限流，觸發熔斷保護中止作業")
+                    final_status = "interrupted"
+                    final_error = "連續5天失敗觸發熔斷"
+                    break
+            else:
+                final_status = "completed" if failed_count == 0 else "completed_with_errors"
+        except Exception as e:
+            logger.exception(f"[MarketFetcher] 批量回補發生未預期例外，作業中止: {e}")
+            final_status = "failed"
+            final_error = str(e)[:500]
+        finally:
+            try:
+                run_async(self.repo.complete_fetch_job(job_id, final_status, final_error))
+            except Exception as e:  # 連終態都寫不回去只能記錄，交由服務啟動時的孤兒回收兜底
+                logger.error(f"[MarketFetcher] 寫回作業終態失敗 (job_id={job_id}, status={final_status}): {e}")
+            self._set_active_job(None)
 
-        final_status = "completed" if failed_count == 0 else "completed_with_errors"
-        run_async(self.repo.complete_fetch_job(job_id, final_status))
-        logger.info(f"[MarketFetcher] 批量回補完成：成功 {done_count} 天，失敗 {failed_count} 天")
-        return {"status": final_status, "total_days": total_days, "done_days": done_count, "failed_days": failed_count}
+        logger.info(f"[MarketFetcher] 批量回補結束（{final_status}）：成功 {done_count} 天，失敗 {failed_count} 天")
+        result = {"status": final_status, "total_days": total_days, "done_days": done_count, "failed_days": failed_count}
+        if final_error:
+            result["error"] = final_error
+        return result
 
 
 # 單例物件
