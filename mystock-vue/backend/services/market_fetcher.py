@@ -542,6 +542,25 @@ class MarketFetcher:
         finally:
             self._set_active_job(None)
 
+    # ── 4b. 全市場月營收抓取（§3.2 M、§3.3）───────────────────────────
+    def fetch_revenue_now(self, trigger_type: str = "manual") -> Dict[str, Any]:
+        """抓取 TWSE 最新一批全市場月營收並落地 monthly_revenue（選股/多因子共振精選依賴此表）。
+
+        月營收是「最新一批快照」而非逐日資料，不比照 fetch_day_market() 走逐日回補管線；
+        原本只掛在 scheduler.py 的每月 11 號排程，未上線前／排程失敗後只能等下個月，
+        這裡補上可重入的手動觸發路徑（market.py 的 /fetch/revenue）。
+        必須用 self.repo（背景專用連線池）呼叫 run_async()，直接 new 一個
+        MarketRepository() 會沿用主 loop 的全域 engine，被 run_async() 的新事件迴圈把連線
+        綁死後弄壞 FastAPI 主 loop（見 market_repository.py run_async() 的說明）。"""
+        logger.info(f"[MarketFetcher] 開始抓取全市場最新月營收 (trigger={trigger_type})...")
+        records = self.revenue_fetcher.fetch_twse_monthly_revenue()
+        if not records:
+            logger.warning("[MarketFetcher] 月營收抓取無資料")
+            return {"success": False, "count": 0}
+        count = run_async(self.repo.upsert_revenue(records))
+        logger.info(f"[MarketFetcher] 月營收抓取完成，共寫入 {count} 筆")
+        return {"success": True, "count": count}
+
     # ── 5. 批次回補與中斷續傳（Backfill & Resume，§3.8、§3.9）────────
     def backfill_market(
         self,

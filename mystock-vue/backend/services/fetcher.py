@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import random
 import calendar
 import logging
 import requests
@@ -87,6 +88,44 @@ class FetchStatusManager:
             }
 
 fetch_status = FetchStatusManager()
+
+# ── TWSE 請求（含重試）──────────────────────────────────────────
+# 證交所對高頻爬蟲會直接 drop 連線或延遲回應，單純拉長 timeout 不夠，
+# 需搭配 Session（重用連線 + 固定 Referer）與指數退避重試。
+
+_TWSE_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Referer": "https://www.twse.com.tw/zh/trading/historical/stock-day.html",
+}
+_TWSE_TIMEOUT = (5, 20)  # (連線 timeout, 讀取 timeout)
+
+_twse_session = requests.Session()
+_twse_session.headers.update(_TWSE_HEADERS)
+
+
+def _twse_get_json(url: str, max_retries: int = 3) -> dict:
+    """對 TWSE API 發送請求，遇到逾時/連線錯誤時以指數退避 + jitter 重試。
+    重試耗盡後拋出例外，由呼叫端既有的 try/except 決定該筆資料視為抓取失敗。"""
+    last_exc: Optional[Exception] = None
+    for attempt in range(max_retries):
+        try:
+            resp = _twse_session.get(url, timeout=_TWSE_TIMEOUT)
+            resp.raise_for_status()
+            return resp.json()
+        except (requests.exceptions.Timeout, requests.exceptions.RequestException) as e:
+            last_exc = e
+            if attempt == max_retries - 1:
+                break
+            backoff = (2 ** attempt) * 5 + random.uniform(1, 3)
+            logger.warning(
+                f"[TWSE] 請求逾時/失敗（第 {attempt + 1}/{max_retries} 次），"
+                f"{backoff:.1f}s 後重試: {url} ({e})"
+            )
+            time.sleep(backoff)
+    raise last_exc
 
 # ── 輔助函式 ──────────────────────────────────────────────────
 
@@ -198,7 +237,6 @@ def _parse_quote_field(row: list, index: int, cast):
         return None
 
 def fetch_daily_quotes(target_stocks: list, days_by_stock: dict) -> dict:
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     quote_lookup = {stock_id: {} for stock_id in target_stocks}
     
     months_by_stock = {}
@@ -218,7 +256,7 @@ def fetch_daily_quotes(target_stocks: list, days_by_stock: dict) -> dict:
             url = f"https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date={date_param}&stockNo={stock_id}&response=json"
             fetch_status.update(n, total * 2, f"行情抓取 [{n}/{total}]: {stock_id} {year}-{month:02d} | URL: {url}")
             try:
-                res = requests.get(url, headers=headers, timeout=10).json()
+                res = _twse_get_json(url)
                 if res.get("stat") == "OK":
                     rows = res.get("data", [])
                     for row in rows:
@@ -238,7 +276,7 @@ def fetch_daily_quotes(target_stocks: list, days_by_stock: dict) -> dict:
             except Exception as e:
                 fetch_status.update(n, total * 2, f"⚠️ 行情抓取失敗 ({stock_id} {year}-{month:02d}): {e}")
 
-            time.sleep(3)
+            time.sleep(random.uniform(3.5, 5.5))
 
     return quote_lookup
 
@@ -370,7 +408,6 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
         record = existing_data[stock_id].get(date_key)
         return record is not None and _field(record, "margin_balance") is not None
 
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     skipped_count = 0
 
     valid_days = [today - timedelta(days=i) for i in range(days) if (today - timedelta(days=i)).weekday() < 5]
@@ -396,7 +433,7 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
 
         margin_by_stock = {}
         try:
-            res_margn = requests.get(margn_url, headers=headers, timeout=10).json()
+            res_margn = _twse_get_json(margn_url)
             if res_margn.get("stat") == "OK":
                 tables = res_margn.get("tables", [])
                 stock_rows = tables[1].get("data", []) if len(tables) > 1 else []
@@ -409,10 +446,10 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
         except Exception as e:
             pass
 
-        time.sleep(3)
+        time.sleep(random.uniform(3.5, 5.5))
 
         try:
-            res_t86 = requests.get(t86_url, headers=headers, timeout=10).json()
+            res_t86 = _twse_get_json(t86_url)
             if res_t86.get("stat") == "OK":
                 columns = _locate_t86_columns(res_t86.get("fields", []))
                 if columns is None:
@@ -484,7 +521,7 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
         except Exception:
             pass
 
-        time.sleep(3)
+        time.sleep(random.uniform(3.5, 5.5))
 
     if newly_confirmed_no_trading:
         save_no_trading_days(no_trading_days | newly_confirmed_no_trading)

@@ -70,7 +70,7 @@
       </div>
 
       <!-- 執行日誌控制框 -->
-      <div class="bg-surface-950 text-surface-200 p-4 rounded-xl font-mono text-xs max-h-48 overflow-y-auto space-y-1">
+      <div ref="logContainerEl" class="bg-surface-950 text-surface-200 p-4 rounded-xl font-mono text-xs max-h-48 overflow-y-auto space-y-1">
         <div v-if="!fetchStatus.logs || fetchStatus.logs.length === 0" class="text-surface-500 italic">
           目前無運行中的日誌記錄...
         </div>
@@ -327,7 +327,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import RefetchStockDialog from '@/components/RefetchStockDialog.vue';
 import { stockApi } from '@/service/stockApi';
@@ -351,6 +351,7 @@ const { currentMarket, marketMeta } = useMarket();
 const toast = useToast();
 const confirm = useConfirm();
 const router = useRouter();
+const logContainerEl = ref(null);
 
 const statusLabel = computed(() => {
   if (!fetchStatus.value) return '未執行';
@@ -443,6 +444,13 @@ onMounted(async () => {
 
 watch(currentMarket, () => {
   loadTrackedStocks();
+});
+
+watch(() => fetchStatus.value?.logs?.length, async () => {
+  await nextTick();
+  if (logContainerEl.value) {
+    logContainerEl.value.scrollTop = logContainerEl.value.scrollHeight;
+  }
 });
 
 function getStockName(code) {

@@ -552,6 +552,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { indexApi } from '@/service/indexApi';
+import { stockApi } from '@/service/stockApi';
 import { useMarket } from '@/composables/useMarket';
 import { getUpDownColor } from '@/utils/marketColors';
 import { use } from 'echarts/core';
@@ -724,28 +725,46 @@ function setPeriod(p) {
   fetchData();
 }
 
-// 手動觸發背景同步
+// 手動觸發背景同步：先請後端比對資料日期是否已是最新交易日（見 indices.py 的 /sync 端點），
+// 已是最新就不必再打 TWSE；否則等待背景抓取任務真正跑完再刷新，而非猜一個固定的等待秒數。
 async function handleSync() {
   if (syncing.value) return;
   syncing.value = true;
   try {
-    await indexApi.triggerSync(null, 'tw', null, 'incremental');
+    const res = await indexApi.triggerSync(null, 'tw', null, 'incremental');
+    if (!res.success) {
+      throw new Error(res.error?.message || '無法觸發指數同步任務');
+    }
+
+    if (res.skipped) {
+      toast?.add({
+        severity: 'info',
+        summary: '資料已是最新',
+        detail: res.message || `類股資料已經是最新（${dataDate.value}），無需重新抓取`,
+        life: 3000
+      });
+      syncing.value = false;
+      return;
+    }
+
     toast?.add({
       severity: 'info',
       summary: '已啟動資料同步',
-      detail: '正在背景同步類股最新快照與歷史，數秒後自動刷新...',
+      detail: '偵測到資料落後最新交易日，正在背景抓取類股最新快照與歷史，請稍候...',
       life: 4000
     });
-    setTimeout(async () => {
-      await fetchData();
-      syncing.value = false;
-      toast?.add({
-        severity: 'success',
-        summary: '同步完成',
-        detail: `類股資料已更新至 ${dataDate.value}`,
-        life: 3000
-      });
-    }, 3500);
+
+    const finished = await waitForSyncToFinish();
+    await fetchData();
+    syncing.value = false;
+    toast?.add({
+      severity: finished ? 'success' : 'warn',
+      summary: finished ? '同步完成' : '仍在背景執行中',
+      detail: finished
+        ? `類股資料已更新至 ${dataDate.value}`
+        : '抓取任務尚未結束，稍後可再次按重新整理查看最新資料',
+      life: finished ? 3000 : 4000
+    });
   } catch (err) {
     syncing.value = false;
     toast?.add({
@@ -755,6 +774,22 @@ async function handleSync() {
       life: 3000
     });
   }
+}
+
+// 輪詢共用的背景抓取狀態（/fetch/status，與個股/大盤抓取共用同一個 fetch_status 單例，
+// 見 CLAUDE.md 爬蟲章節）直到任務完成；先讓一小段時間給背景任務真正啟動，避免把「尚未開始」誤判成「已完成」。
+async function waitForSyncToFinish(maxAttempts = 90, intervalMs = 2000) {
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const res = await stockApi.getFetchStatus();
+      if (res?.success && res.data && !res.data.is_running) return true;
+    } catch (err) {
+      // 查詢失敗時繼續輪詢，直到達到上限
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return false;
 }
 
 onMounted(() => {

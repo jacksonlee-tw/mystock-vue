@@ -254,6 +254,29 @@ async def trigger_market_fetch(payload: MarketFetchRequest):
     }
 
 
+@router.post("/fetch/revenue")
+async def trigger_market_revenue_fetch():
+    """手動觸發全市場最新月營收抓取（monthly_revenue）。
+
+    月營收原本只掛在每月 11 號 09:00 的排程（scheduler.py _scheduled_monthly_revenue），沒有
+    手動觸發入口 —— 功能剛上線時或排程當天服務未啟動／執行失敗，都只能乾等到下個月 11 號，
+    「營收高成長動能精選」「多因子共振旗艦精選」兩個選股策略也會因此一直是空清單。這裡補上
+    一個可重入的手動觸發端點，行為與排程完全相同（見 market_fetcher.fetch_revenue_now()）。
+    單次只是一支 TWSE OpenAPI 請求＋一次批次 UPSERT，秒級完成，故不比照 /fetch 走背景任務，
+    但仍用 asyncio.to_thread 讓阻塞的 requests 呼叫不卡住主 event loop。"""
+    result = await asyncio.to_thread(market_fetcher.fetch_revenue_now, "manual")
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": {"code": "REVENUE_FETCH_EMPTY", "message": "TWSE 月營收 API 未回傳資料，請稍後再試"},
+        }
+    return {
+        "success": True,
+        "message": f"已寫入全市場月營收 {result['count']} 筆",
+        "data": result,
+    }
+
+
 @router.post("/fetch/cancel")
 async def cancel_market_fetch():
     """主動取消正在進行的全市場抓取作業。

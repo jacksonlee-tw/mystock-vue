@@ -16,7 +16,12 @@ from typing import List, Optional
 
 from core.exceptions import SymbolNotFoundException
 from services.fetcher import fetch_status
-from services.index_fetcher import get_index_definition, run_index_fetch_process
+from services.index_fetcher import (
+    get_index_definition,
+    get_latest_expected_tw_trading_date,
+    get_latest_synced_tw_sector_date,
+    run_index_fetch_process,
+)
 from services.index_service import (
     build_rebased_series,
     discover_available_indices,
@@ -53,7 +58,7 @@ async def get_overview(
     return {"success": True, "data": data}
 
 
-@router.post("/sync", summary="手動觸發指數資料同步（背景執行）")
+@router.post("/sync", summary="手動觸發指數資料同步（背景執行；先檢查資料日期是否已是最新）")
 def trigger_index_sync(req: IndexSyncRequest, background_tasks: BackgroundTasks):
     snapshot = fetch_status.get_snapshot()
     if snapshot["is_running"]:
@@ -64,6 +69,21 @@ def trigger_index_sync(req: IndexSyncRequest, background_tasks: BackgroundTasks)
         }
 
     mode = req.mode if req.mode in ("incremental", "repair") else "incremental"
+
+    # 增量模式下的台股全量同步（前端「同步類股」按鈕的預設呼叫方式：未指定 codes）先比對
+    # 現有類股資料日期與預期最新交易日，已是最新就不再觸發背景任務——避免每次點擊都重打一輪
+    # TWSE。repair 模式代表使用者明確要求重抓，或呼叫端指定了特定 codes，兩者都略過此檢查。
+    if mode == "incremental" and req.market in (None, "tw") and not req.codes:
+        expected_date = get_latest_expected_tw_trading_date()
+        latest_synced_date = get_latest_synced_tw_sector_date()
+        if latest_synced_date and latest_synced_date >= expected_date:
+            return {
+                "success": True,
+                "skipped": True,
+                "message": f"類股資料已經是最新（{latest_synced_date}），本次略過抓取",
+                "data": {**snapshot, "latest_date": latest_synced_date, "expected_date": expected_date},
+            }
+
     background_tasks.add_task(
         run_index_fetch_process,
         market=req.market, codes=req.codes, months=req.months, mode=mode, trigger_type="manual",
@@ -72,6 +92,7 @@ def trigger_index_sync(req: IndexSyncRequest, background_tasks: BackgroundTasks)
     mode_label = "重新抓取" if mode == "repair" else "增量更新"
     return {
         "success": True,
+        "skipped": False,
         "message": f"已在背景啟動指數{mode_label}任務" + (f"（市場: {req.market}）" if req.market else ""),
         "data": fetch_status.get_snapshot(),
     }

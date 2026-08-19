@@ -127,15 +127,16 @@ def _scheduled_tw() -> None:
 
 
 def _scheduled_monthly_revenue() -> None:
-    """每月 11 號 09:00 自動抓取上市月營收（選股功能與爬蟲 規格書 §3.3）。"""
+    """每月 11 號 09:00 自動抓取上市月營收（選股功能與爬蟲 規格書 §3.3）。
+
+    透過 market_fetcher 單例的 fetch_revenue_now()（而非直接 new 一個 MarketRepository()）—— 這裡是
+    APScheduler 的 ThreadPoolExecutor 執行緒，直接 new 預設 MarketRepository() 會沿用主 loop 的全域
+    engine，被 run_async() 內開的新事件迴圈把連線綁死，弄壞 FastAPI 主 loop（見
+    market_repository.py run_async() 的說明）；market_fetcher.repo 已是背景專用連線池。"""
     try:
-        from services.revenue_market_fetcher import RevenueMarketFetcher
-        from repositories.market_repository import MarketRepository, run_async
-        fetcher = RevenueMarketFetcher()
-        records = fetcher.fetch_twse_monthly_revenue()
-        if records:
-            count = run_async(MarketRepository().upsert_revenue(records))
-            logger.info(f"[排程] 每月營收抓取完成，共寫入 {count} 筆")
+        from services.market_fetcher import market_fetcher
+        result = market_fetcher.fetch_revenue_now(trigger_type="scheduled")
+        logger.info(f"[排程] 每月營收抓取完成: {result}")
     except Exception as e:
         logger.warning(f"[排程] 每月營收抓取失敗: {e}")
 

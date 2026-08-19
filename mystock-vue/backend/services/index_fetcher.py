@@ -27,8 +27,10 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from datetime import time as dt_time
 from typing import Any, Dict, List, Optional
 
+import pytz
 import requests
 import yaml
 import yfinance as yf
@@ -36,7 +38,7 @@ import yfinance as yf
 from config import DATA_DIR, get_index_config_path, get_months_range
 from db.dual_write import dual_write_daily_data, log_crawler_run
 from markets.tw_industries import TWSE_INDUSTRY_MAP, sector_code
-from services.fetcher import fetch_status
+from services.fetcher import fetch_status, load_no_trading_days
 
 logger = logging.getLogger("mystock-backend")
 
@@ -45,6 +47,10 @@ _REQUEST_TIMEOUT = 10
 _THROTTLE_SECONDS = 3  # 沿用 services/fetcher.py 對 TWSE 端點的既有節流間隔
 
 INDEX_SUBDIR = "_indices"
+
+_TW_TZ = pytz.timezone("Asia/Taipei")
+# 與 services/scheduler.py 的台股排程時間一致：假設 TWSE 收盤後要到 14:30 資料才穩定可抓
+_TW_DATA_READY_CUTOFF = dt_time(14, 30)
 
 
 # ── 指數定義檔（比照 strategies/config_loader.py 的設計：每次呼叫重新解析，
@@ -377,6 +383,38 @@ def backfill_sector_history(limit_days: int = 60) -> Dict[str, Any]:
             time.sleep(0.3)
 
     return {"total_checked": len(dates_to_check), "backfilled_dates": backfilled_dates}
+
+
+# ── 資料新鮮度判斷（供 /api/v1/indices/sync 在觸發抓取前先行判斷，見該端點註解）─────────
+
+def get_latest_synced_tw_sector_date() -> Optional[str]:
+    """目前已落地的台股類股指數最新日期，找不到資料回傳 None。
+    以 01 塑膠工業類股為代表，與 backfill_sector_history() 判斷回補進度用的是同一份基準
+    （該函式的 s01 變數），兩處保持一致。"""
+    existing = load_index_json(sector_code("01"), "tw")
+    return max(existing.keys()) if existing else None
+
+
+def get_latest_expected_tw_trading_date(now: Optional[datetime] = None) -> str:
+    """回傳台股「預期」應已有資料的最新交易日（YYYY-MM-DD，Asia/Taipei）。
+
+    僅用週末 + 已知非交易日快取（services/fetcher.py 的 `_no_trading_days.json`，由歷史抓取
+    邏輯逐步累積）做保守判斷，不是完整的證交所行事曆——尚未探測過的未來國定假日不會被排除。
+    這對「同步按鈕先判斷資料是否已是最新」已經足夠：判斷錯誤的後果最多是多打一次 TWSE
+    （仍會被 fetch_status 的互斥鎖與各爬蟲自身的增量比對保護），不會漏抓。"""
+    current = now or datetime.now(_TW_TZ)
+    if current.tzinfo is None:
+        current = _TW_TZ.localize(current)
+
+    candidate = current.date()
+    if current.weekday() >= 5 or current.time() < _TW_DATA_READY_CUTOFF:
+        candidate -= timedelta(days=1)
+
+    no_trading_days = load_no_trading_days()
+    while candidate.weekday() >= 5 or candidate.strftime("%Y-%m-%d") in no_trading_days:
+        candidate -= timedelta(days=1)
+
+    return candidate.strftime("%Y-%m-%d")
 
 
 # ── 主流程 ───────────────────────────────────────────────────────────────

@@ -124,6 +124,8 @@
         :value="currentPicks"
         responsiveLayout="scroll"
         class="p-datatable-sm"
+        sortMode="single"
+        removableSort
       >
         <Column field="rank_value" header="排名" style="width: 4.5rem; text-align: center">
           <template #body="{ index }">
@@ -139,7 +141,7 @@
           </template>
         </Column>
 
-        <Column field="stock_id" header="股票代號" style="min-width: 6rem">
+        <Column field="stock_id" header="股票代號" :sortable="true" style="min-width: 6rem">
           <template #body="{ data }">
             <router-link
               :to="`/stock/${currentMarket}/${data.stock_id}`"
@@ -150,13 +152,13 @@
           </template>
         </Column>
 
-        <Column field="stock_name" header="名稱" style="min-width: 7rem">
+        <Column field="stock_display_name" header="名稱" :sortable="true" style="min-width: 7rem">
           <template #body="{ data }">
-            <span class="font-bold text-surface-900 dark:text-surface-0">{{ getStockName(data) }}</span>
+            <span class="font-bold text-surface-900 dark:text-surface-0">{{ data.stock_display_name }}</span>
           </template>
         </Column>
 
-        <Column field="signal_strength" header="強度" style="min-width: 5rem; text-align: center">
+        <Column field="strength_rank" header="強度" :sortable="true" style="min-width: 5rem; text-align: center">
           <template #body="{ data }">
             <Tag
               :value="data.signal_strength === 'strong' ? '強烈' : data.signal_strength === 'moderate' ? '中等' : '一般'"
@@ -165,25 +167,48 @@
           </template>
         </Column>
 
-        <Column header="關鍵指標與條件細節" style="min-width: 14rem">
+        <Column v-if="showPeCol" field="details.pe_ratio" header="本益比" :sortable="true" style="min-width: 6rem; text-align: center">
           <template #body="{ data }">
-            <div class="flex flex-wrap gap-2 text-xs">
-              <span v-if="data.details?.pe_ratio" class="px-2 py-0.5 rounded bg-surface-100 dark:bg-surface-800 font-mono">
-                PE: <b>{{ data.details.pe_ratio.toFixed(1) }}</b>x
-              </span>
-              <span v-if="data.details?.dividend_yield" class="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 font-mono">
-                殖利率: <b>{{ data.details.dividend_yield.toFixed(2) }}%</b>
-              </span>
-              <span v-if="data.details?.yoy_percent != null || data.details?.revenue_yoy != null" class="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 font-mono">
-                YoY: <b>{{ (data.details.yoy_percent ?? data.details.revenue_yoy).toFixed(1) }}%</b>
-              </span>
-              <span v-if="data.details?.foreign_consec_days" class="px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 font-mono">
-                外資連買 <b>{{ data.details.foreign_consec_days }}</b> 天
-              </span>
-              <span v-if="data.details?.trust_consec_days" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 font-mono">
-                投信連買 <b>{{ data.details.trust_consec_days }}</b> 天
-              </span>
-            </div>
+            <span v-if="data.details?.pe_ratio" class="px-2 py-0.5 rounded bg-surface-100 dark:bg-surface-800 font-mono text-xs">
+              {{ data.details.pe_ratio.toFixed(1) }}x
+            </span>
+            <span v-else class="text-surface-300 text-xs">—</span>
+          </template>
+        </Column>
+
+        <Column v-if="showYieldCol" field="details.dividend_yield" header="殖利率" :sortable="true" style="min-width: 6rem; text-align: center">
+          <template #body="{ data }">
+            <span v-if="data.details?.dividend_yield" class="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 font-mono text-xs">
+              {{ data.details.dividend_yield.toFixed(2) }}%
+            </span>
+            <span v-else class="text-surface-300 text-xs">—</span>
+          </template>
+        </Column>
+
+        <Column v-if="showYoyCol" field="yoy_sort" header="營收YoY" :sortable="true" style="min-width: 6rem; text-align: center">
+          <template #body="{ data }">
+            <span v-if="data.yoy_sort != null" class="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 font-mono text-xs">
+              {{ data.yoy_sort.toFixed(1) }}%
+            </span>
+            <span v-else class="text-surface-300 text-xs">—</span>
+          </template>
+        </Column>
+
+        <Column v-if="showForeignCol" field="details.foreign_consec_days" header="外資連買" :sortable="true" style="min-width: 6rem; text-align: center">
+          <template #body="{ data }">
+            <span v-if="data.details?.foreign_consec_days" class="px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 font-mono text-xs">
+              {{ data.details.foreign_consec_days }} 天
+            </span>
+            <span v-else class="text-surface-300 text-xs">—</span>
+          </template>
+        </Column>
+
+        <Column v-if="showTrustCol" field="details.trust_consec_days" header="投信連買" :sortable="true" style="min-width: 6rem; text-align: center">
+          <template #body="{ data }">
+            <span v-if="data.details?.trust_consec_days" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 font-mono text-xs">
+              {{ data.details.trust_consec_days }} 天
+            </span>
+            <span v-else class="text-surface-300 text-xs">—</span>
           </template>
         </Column>
 
@@ -195,7 +220,7 @@
           </template>
         </Column>
 
-        <Column field="trade_date" header="觸發日期" style="min-width: 6rem; text-align: right">
+        <Column field="trade_date" header="觸發日期" :sortable="true" style="min-width: 6rem; text-align: right">
           <template #body="{ data }">
             <span class="font-mono text-xs text-surface-400">{{ data.trade_date }}</span>
           </template>
@@ -292,8 +317,22 @@ const countsByStrategy = computed(() => {
 });
 
 const currentPicks = computed(() => {
-  return allAlerts.value.filter(a => a.strategy_id === activeStrategyId.value);
+  return allAlerts.value
+    .filter(a => a.strategy_id === activeStrategyId.value)
+    .map(a => ({
+      ...a,
+      stock_display_name: getStockName(a),
+      // 排序用：強度轉數值（弱<中<強），YoY 合併兩種欄位來源
+      strength_rank: a.signal_strength === 'strong' ? 3 : a.signal_strength === 'moderate' ? 2 : 1,
+      yoy_sort: a.details?.yoy_percent ?? a.details?.revenue_yoy ?? null
+    }));
 });
+
+const showPeCol = computed(() => currentPicks.value.some(p => p.details?.pe_ratio != null));
+const showYieldCol = computed(() => currentPicks.value.some(p => p.details?.dividend_yield != null));
+const showYoyCol = computed(() => currentPicks.value.some(p => p.yoy_sort != null));
+const showForeignCol = computed(() => currentPicks.value.some(p => p.details?.foreign_consec_days != null));
+const showTrustCol = computed(() => currentPicks.value.some(p => p.details?.trust_consec_days != null));
 
 const latestScanDate = computed(() => {
   if (currentPicks.value.length > 0) {
