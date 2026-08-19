@@ -1,7 +1,7 @@
 import pytest
 from datetime import date
-from services.chip_provider import ScanContext, PositionContext
-from strategies.conditions_pick import valuation_filter, revenue_growth, chip_resonance, stock_pick_resonance
+from services.chip_provider import ScanContext, KDSeries, PositionContext
+from strategies.conditions_pick import valuation_filter, revenue_growth, chip_resonance, stock_pick_resonance, relative_low_zone
 from strategies.conditions_risk import trailing_stop, fixed_stop_loss, time_stop
 
 
@@ -98,6 +98,115 @@ def test_stock_pick_resonance():
     short_ctx = make_sample_context()
     res_short = stock_pick_resonance(short_ctx, 2, {"pe_max": 20.0, "revenue_yoy_min": 15.0})
     assert res_short == []
+
+
+def make_relative_low_zone_context():
+    """建構一組「洗盤打底後右側確認」情境（股價相對低點 需求規格書 §4.2）：
+    前 50 日持平、中段 20 日下探（拉出季線負乖離）、末 20 日回升並在最後一天帶量站回月線。
+    """
+    n = 90
+    idx = n - 1
+    closes = []
+    for i in range(n):
+        if i < 50:
+            closes.append(100.0)
+        elif i < 70:
+            closes.append(100.0 - (i - 49) * ((100.0 - 63.0) / 20))
+        else:
+            closes.append(63.0 + (i - 69) * ((82.0 - 63.0) / 20))
+
+    dates = [f"2026-{1 + i // 28:02d}-{1 + i % 28:02d}" for i in range(n)]
+    volumes = [10000] * n
+    volumes[idx] = 30000  # C6：末日爆量
+
+    raw_records = []
+    for i in range(n):
+        raw_records.append({
+            "date": dates[i],
+            "volume": volumes[i],
+            # C5：近 10 日融資減 10%（浮額清洗）
+            "margin_balance": 100.0 if i < n - 10 else 100.0 - (i - (n - 10) + 1) * 1.0,
+            # C5：近 5 日外資皆買超
+            "foreign_buy_sell": 50 if i >= idx - 4 else 0,
+            "trust_buy_sell": 0,
+        })
+
+    def sma(vals, w):
+        out, s = [], 0.0
+        for i, v in enumerate(vals):
+            s += v
+            if i >= w:
+                s -= vals[i - w]
+            out.append(s / w if i >= w - 1 else None)
+        return out
+
+    def bias_series(cl, ma):
+        return [None if m is None else (c - m) / m * 100 for c, m in zip(cl, ma)]
+
+    ma20, ma60 = sma(closes, 20), sma(closes, 60)
+    volume_ma = sma(volumes, 5)
+
+    # C4：K 值近 10 日內曾探至 12（超賣），末日回升至 24
+    kd_k = [50.0] * n
+    for i in range(idx - 9, idx - 3):
+        kd_k[i] = 12.0
+    for i in range(idx - 3, n):
+        kd_k[i] = 12.0 + (i - (idx - 3)) * 4
+
+    return ScanContext(
+        symbol="9999", market="tw", name="測試股",
+        dates=dates, opens=closes, highs=closes, lows=closes, closes=closes, volumes=volumes,
+        raw_records=raw_records,
+        ma={20: ma20, 60: ma60},
+        bias={60: bias_series(closes, ma60), 20: bias_series(closes, ma20)},
+        volume_ma=volume_ma,
+        kd={(9, 3, 3): KDSeries(k=kd_k, d=list(kd_k))},
+        valuation={"pe_ratio": [10.0] * n, "pb_ratio": [1.0] * n, "dividend_yield": [5.0] * n},
+        revenue={"2026-05": {"yoy_percent": 3.0, "mom_percent": 1.0}, "2026-06": {"yoy_percent": 2.0, "mom_percent": 1.0}},
+        revenue_visible_month=["2026-06"] * n,
+        revenue_yoy=[2.0] * n,
+        revenue_mom=[1.0] * n,
+    ), idx
+
+
+def test_relative_low_zone_fires_when_all_conditions_met():
+    ctx, idx = make_relative_low_zone_context()
+    res = relative_low_zone(ctx, idx, {})
+    assert len(res) == 1
+    assert res[0]["direction"] == "pick_relative_low"
+
+    # §5.2：details 必須包含建議動作模板與前端欄位所需的全部鍵
+    details = res[0]["details"]
+    expected_keys = {
+        "close", "pe_ratio", "pb_ratio", "dividend_yield", "yoy_percent", "visible_month",
+        "bias_percent", "bias_min_in_window", "kd_k_min_in_window", "margin_change_pct",
+        "foreign_buy_days", "trust_buy_days", "ma_period", "ma_value", "volume_ratio",
+    }
+    assert expected_keys.issubset(details.keys())
+    assert details["ma_period"] == 20
+    assert details["foreign_buy_days"] == 5
+
+
+@pytest.mark.parametrize("label,override", [
+    ("C1 估值不達標", {"pe_max": 5.0}),
+    ("C2 營收守衛不達標", {"revenue_yoy_min": 50.0}),
+    ("C3 未達超跌狀態", {"bias_max": -90.0}),
+    ("C4 未達動能超賣", {"kd_oversold": 1.0}),
+    ("C5 籌碼未洗盤", {"margin_change_max_pct": -50.0}),
+    ("C6 未完成右側確認", {"volume_multiple": 100.0}),
+])
+def test_relative_low_zone_and_short_circuit(label, override):
+    """AND 短路回歸測試（§2.2-1／ADR-RL-01）：任一條件不成立，整體不得觸發訊號。"""
+    ctx, idx = make_relative_low_zone_context()
+    assert relative_low_zone(ctx, idx, override) == [], label
+
+
+def test_relative_low_zone_requires_and_min_bars_registered():
+    """確認條件已依規格 §5.2 註冊正確的 min_bars/requires（scanner.py 的預檢依據）。"""
+    from strategies.registry import CONDITION_REGISTRY
+    spec = CONDITION_REGISTRY["relative_low_zone"]
+    assert spec.min_bars == 60
+    assert set(spec.requires) == {"valuation", "revenue_yoy", "raw_records", "kd"}
 
 
 def test_trailing_stop():

@@ -53,6 +53,8 @@ _SUGGESTED_ACTION_TEMPLATES = {
     ("pick_revenue_growth_momentum", "bullish"): "營收連續高成長，營運動能充沛，可搭配技術面均線支撐逢低買進",
     ("pick_chip_institutional_resonance", "bullish"): "外資與投信法人同步連續買超，籌碼集中度高，留意波段起漲機會",
     ("pick_multi_factor_resonance", "bullish"): "估值、營收與籌碼多因子共振精選標的，多頭排列成形，優先關注",
+    # ── 相對低點承接（股價相對低點 需求規格書 §10.1）────────────────────
+    ("pick_relative_low_zone", "bullish"): "已帶量站回 {ma_period}MA，可分批建立第一筆部位（建議 1/3），跌破 {stop_loss} 停損。",
     # ── 出場風控策略範本（選股功能與爬蟲 規格書 §6、§13）────────────────────
     ("exit_trailing_stop", "bearish"): "自持股最高點回檔超過停利門檻，建議執行移動停利、分批出場鎖定獲利",
     ("exit_fixed_stop_loss", "bearish"): "跌破平均持股成本達停損門檻，建議嚴格執行停損控制下檔風險",
@@ -210,6 +212,14 @@ async def scan_market(
             effective_cooldown = strategy.cooldown_days if strategy.cooldown_days is not None else cooldown_days
 
             for condition_cfg in strategy.conditions:
+                # 防呆（股價相對低點 需求規格書 §2.3-1／AC-10）：conditions 若被誤寫成 dict
+                # （例如三個面向各自一個 key），迭代出的會是字串 key，下面 .get("type") 會
+                # 拋 AttributeError 且中斷整個 scan_market()。改為記警告後略過該筆設定，
+                # 不讓單一策略的設定錯誤拖垮當日所有策略的掃描。
+                if not isinstance(condition_cfg, dict):
+                    logger.warning(f"[策略引擎] 策略 {strategy.id} 的 condition 設定格式錯誤（非物件，型別={type(condition_cfg).__name__}），已略過: {condition_cfg!r}")
+                    continue
+
                 spec = CONDITION_REGISTRY.get(condition_cfg.get("type"))
                 if not spec:
                     continue
@@ -381,6 +391,10 @@ async def scan_positions(market: str = "tw") -> Dict[str, Any]:
         for strategy in risk_strategies:
             effective_cooldown = strategy.cooldown_days or 5
             for condition_cfg in strategy.conditions:
+                if not isinstance(condition_cfg, dict):
+                    logger.warning(f"[風控掃描] 策略 {strategy.id} 的 condition 設定格式錯誤（非物件，型別={type(condition_cfg).__name__}），已略過: {condition_cfg!r}")
+                    continue
+
                 spec = CONDITION_REGISTRY.get(condition_cfg.get("type"))
                 if not spec or ctx.length < spec.min_bars:
                     continue

@@ -176,6 +176,15 @@
           </template>
         </Column>
 
+        <Column v-if="showPbCol" field="details.pb_ratio" header="股價淨值比" :sortable="true" style="min-width: 6rem; text-align: center">
+          <template #body="{ data }">
+            <span v-if="data.details?.pb_ratio" class="px-2 py-0.5 rounded bg-surface-100 dark:bg-surface-800 font-mono text-xs">
+              {{ data.details.pb_ratio.toFixed(2) }}
+            </span>
+            <span v-else class="text-surface-300 text-xs">—</span>
+          </template>
+        </Column>
+
         <Column v-if="showYieldCol" field="details.dividend_yield" header="殖利率" :sortable="true" style="min-width: 6rem; text-align: center">
           <template #body="{ data }">
             <span v-if="data.details?.dividend_yield" class="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 font-mono text-xs">
@@ -194,19 +203,47 @@
           </template>
         </Column>
 
-        <Column v-if="showForeignCol" field="details.foreign_consec_days" header="外資連買" :sortable="true" style="min-width: 6rem; text-align: center">
+        <!-- BIAS60／KD低點／融資變動：相對低點承接精選新增（股價相對低點 需求規格書 §4.2 C3~C5） -->
+        <Column v-if="showBiasCol" field="details.bias_min_in_window" header="BIAS60" :sortable="true" style="min-width: 6rem; text-align: center">
           <template #body="{ data }">
-            <span v-if="data.details?.foreign_consec_days" class="px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 font-mono text-xs">
-              {{ data.details.foreign_consec_days }} 天
+            <span v-if="data.details?.bias_min_in_window != null" class="px-2 py-0.5 rounded bg-red-50 dark:bg-red-900/30 text-red-600 font-mono text-xs" v-tooltip.top="'近期最低季線負乖離（§4.2 C3）'">
+              {{ data.details.bias_min_in_window.toFixed(1) }}%
             </span>
             <span v-else class="text-surface-300 text-xs">—</span>
           </template>
         </Column>
 
-        <Column v-if="showTrustCol" field="details.trust_consec_days" header="投信連買" :sortable="true" style="min-width: 6rem; text-align: center">
+        <Column v-if="showKdCol" field="details.kd_k_min_in_window" header="KD低點" :sortable="true" style="min-width: 6rem; text-align: center">
           <template #body="{ data }">
-            <span v-if="data.details?.trust_consec_days" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 font-mono text-xs">
-              {{ data.details.trust_consec_days }} 天
+            <span v-if="data.details?.kd_k_min_in_window != null" class="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-600 font-mono text-xs" v-tooltip.top="'近期最低 K 值（§4.2 C4）'">
+              {{ data.details.kd_k_min_in_window.toFixed(1) }}
+            </span>
+            <span v-else class="text-surface-300 text-xs">—</span>
+          </template>
+        </Column>
+
+        <Column v-if="showMarginCol" field="details.margin_change_pct" header="融資變動" :sortable="true" style="min-width: 6rem; text-align: center">
+          <template #body="{ data }">
+            <span v-if="data.details?.margin_change_pct != null" class="px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 font-mono text-xs" v-tooltip.top="'融資餘額近期變動率（§4.2 C5）'">
+              {{ data.details.margin_change_pct.toFixed(1) }}%
+            </span>
+            <span v-else class="text-surface-300 text-xs">—</span>
+          </template>
+        </Column>
+
+        <Column v-if="showForeignCol" field="foreign_buy_sort" header="外資買超" :sortable="true" style="min-width: 6rem; text-align: center">
+          <template #body="{ data }">
+            <span v-if="data.foreign_buy_sort != null" class="px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 font-mono text-xs">
+              {{ data.foreign_buy_sort }} 天
+            </span>
+            <span v-else class="text-surface-300 text-xs">—</span>
+          </template>
+        </Column>
+
+        <Column v-if="showTrustCol" field="trust_buy_sort" header="投信買超" :sortable="true" style="min-width: 6rem; text-align: center">
+          <template #body="{ data }">
+            <span v-if="data.trust_buy_sort != null" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 font-mono text-xs">
+              {{ data.trust_buy_sort }} 天
             </span>
             <span v-else class="text-surface-300 text-xs">—</span>
           </template>
@@ -284,7 +321,10 @@ const pickingStrategies = [
   { id: 'pick_valuation_low_pe', name: '低本益比高殖利率精選', icon: 'pi pi-percentage', description: '篩選本益比低於 15 倍、殖利率高於 4% 之價值型投資標的，具備高度安全邊際。' },
   { id: 'pick_revenue_growth_momentum', name: '營收高成長動能精選', icon: 'pi pi-bolt', description: '篩選月營收年增率 (YoY) 超過 20% 且連續 2 個月維持高度成長之營運動能強勢股。' },
   { id: 'pick_chip_institutional_resonance', name: '法人籌碼共振精選', icon: 'pi pi-users', description: '外資與投信兩大主力法人連續買超且買超佔成交量達 5% 以上，籌碼面高度集中。' },
-  { id: 'pick_multi_factor_resonance', name: '多因子共振旗艦精選', icon: 'pi pi-star-fill', description: '同時兼具低估值、營收成長超過 15% 與主力買超，多因子全方位共振之旗艦精選。' }
+  { id: 'pick_multi_factor_resonance', name: '多因子共振旗艦精選', icon: 'pi pi-star-fill', description: '同時兼具低估值、營收成長超過 15% 與主力買超，多因子全方位共振之旗艦精選。' },
+  // 股價相對低點 需求規格書 §4：低估值 + 營收未衰退 + 季線極端負乖離 + KD 超賣
+  // + 融資洗盤法人低接 + 帶量站回月線，六項條件全部 AND 成立才入選（不猜最低點、不接價值陷阱）。
+  { id: 'pick_relative_low_zone', name: '相對低點承接精選', icon: 'pi pi-arrow-down-right', description: '低估值、營收未衰退、季線極端負乖離、KD 超賣、融資洗盤法人低接，並已帶量站回月線完成右側確認，六項條件全部成立才入選。' }
 ];
 
 const activeStrategyId = ref('pick_valuation_low_pe');
@@ -324,15 +364,24 @@ const currentPicks = computed(() => {
       stock_display_name: getStockName(a),
       // 排序用：強度轉數值（弱<中<強），YoY 合併兩種欄位來源
       strength_rank: a.signal_strength === 'strong' ? 3 : a.signal_strength === 'moderate' ? 2 : 1,
-      yoy_sort: a.details?.yoy_percent ?? a.details?.revenue_yoy ?? null
+      yoy_sort: a.details?.yoy_percent ?? a.details?.revenue_yoy ?? null,
+      // 外資/投信買超天數：不同策略用不同指標函式產生（consec_net_buy 連續天數 vs
+      // net_buy_days 視窗內買超天數，股價相對低點 需求規格書 §4.2 C5），欄位名不同但
+      // 顯示語意相同，合併成單一排序/顯示欄位，避免每個策略都要各開一組欄位。
+      foreign_buy_sort: a.details?.foreign_consec_days ?? a.details?.foreign_buy_days ?? null,
+      trust_buy_sort: a.details?.trust_consec_days ?? a.details?.trust_buy_days ?? null
     }));
 });
 
 const showPeCol = computed(() => currentPicks.value.some(p => p.details?.pe_ratio != null));
+const showPbCol = computed(() => currentPicks.value.some(p => p.details?.pb_ratio != null));
 const showYieldCol = computed(() => currentPicks.value.some(p => p.details?.dividend_yield != null));
 const showYoyCol = computed(() => currentPicks.value.some(p => p.yoy_sort != null));
-const showForeignCol = computed(() => currentPicks.value.some(p => p.details?.foreign_consec_days != null));
-const showTrustCol = computed(() => currentPicks.value.some(p => p.details?.trust_consec_days != null));
+const showBiasCol = computed(() => currentPicks.value.some(p => p.details?.bias_min_in_window != null));
+const showKdCol = computed(() => currentPicks.value.some(p => p.details?.kd_k_min_in_window != null));
+const showMarginCol = computed(() => currentPicks.value.some(p => p.details?.margin_change_pct != null));
+const showForeignCol = computed(() => currentPicks.value.some(p => p.foreign_buy_sort != null));
+const showTrustCol = computed(() => currentPicks.value.some(p => p.trust_buy_sort != null));
 
 const latestScanDate = computed(() => {
   if (currentPicks.value.length > 0) {

@@ -14,8 +14,14 @@ def test_strategy_config_loader():
     assert "pick_revenue_growth_momentum" in strat_ids
     assert "pick_chip_institutional_resonance" in strat_ids
     assert "pick_multi_factor_resonance" in strat_ids
+    assert "pick_relative_low_zone" in strat_ids
     assert "exit_trailing_stop" in strat_ids
     assert "exit_fixed_stop_loss" in strat_ids
+
+    relative_low = next(s for s in cfg.strategies if s.id == "pick_relative_low_zone")
+    assert relative_low.category == "stock_picking"
+    assert relative_low.scope == "universe"
+    assert relative_low.conditions[0]["type"] == "relative_low_zone"
 
 
 def test_direction_classification():

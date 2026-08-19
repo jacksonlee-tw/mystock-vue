@@ -93,7 +93,7 @@
     </div>
 
     <!-- ══════ 新增／編輯交易 ══════ -->
-    <Dialog v-model:visible="showModal" :header="editingId ? '編輯交易紀錄' : '新增交易紀錄'" modal style="width: 34rem">
+    <Dialog v-model:visible="showModal" :header="editingId ? '編輯交易紀錄' : '新增交易紀錄'" modal style="width: 37rem">
       <div class="space-y-4">
         <div class="flex gap-3">
           <label class="flex-1 flex items-center justify-center gap-2 cursor-pointer font-bold px-4 py-2.5 rounded-lg border-2 transition-colors"
@@ -111,16 +111,16 @@
           <span>零股交易<span class="text-xs text-surface-400 ml-1">（未滿 1 張 ＝ {{ marketMeta.tw.lotSize }} 股；勾選後股數不受整張限制）</span></span>
         </label>
 
-        <div class="grid grid-cols-2 gap-4">
-          <div>
+        <div class="grid grid-cols-5 gap-4">
+          <div class="col-span-2">
             <label class="block text-xs font-bold text-surface-500 mb-1">市場</label>
             <Select v-model="form.market" :options="marketOptions" optionLabel="label" optionValue="value" class="w-full" />
           </div>
-          <div>
+          <div class="col-span-3">
             <label class="block text-xs font-bold text-surface-500 mb-1">交易日期 / 時間</label>
             <div class="flex gap-1.5">
-              <DatePicker v-model="form.trade_date" dateFormat="yy-mm-dd" showIcon class="w-full" />
-              <InputText v-model="form.trade_time" placeholder="HH:MM" class="w-24" />
+              <DatePicker v-model="form.trade_date" dateFormat="yy-mm-dd" showIcon class="flex-1 min-w-0" />
+              <InputText v-model="form.trade_time" placeholder="HH:MM" class="w-20 shrink-0" />
             </div>
           </div>
         </div>
@@ -128,10 +128,17 @@
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-xs font-bold text-surface-500 mb-1">股票代碼</label>
-            <div class="flex gap-1.5">
-              <InputText v-model="form.symbol" @blur="lookupName" :placeholder="form.market === 'tw' ? '例如: 2330' : '例如: AAPL'" class="w-full" />
-              <Button icon="pi pi-search" outlined @click="lookupName" title="查詢名稱" />
-            </div>
+            <AutoComplete
+              v-model="symbolModel"
+              :suggestions="symbolSuggestions"
+              optionLabel="label"
+              dropdown
+              dropdownIcon="pi pi-search"
+              class="w-full"
+              inputClass="w-full"
+              :placeholder="form.market === 'tw' ? '例如: 2330' : '例如: AAPL'"
+              @complete="onSymbolComplete"
+            />
           </div>
           <div>
             <label class="block text-xs font-bold text-surface-500 mb-1">股票名稱</label>
@@ -209,6 +216,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import { portfolioApi } from '@/service/portfolioApi';
+import { stockApi } from '@/service/stockApi';
 import { usePortfolioPrefill } from '@/composables/usePortfolioPrefill';
 import { marketMeta, fmtNum, fmtAmt, lotLabel, isTwEtfSymbol, toIsoDate, fromIsoDate, todayDate } from '@/composables/usePortfolioFormat';
 
@@ -276,8 +284,35 @@ function blankForm() {
 }
 const form = reactive(blankForm());
 
+// ── 股票代碼自動完成（AutoComplete）─────────────────────────────
+// v-model 打字時是純字串，選取建議項後元件會把 model 換成整個建議物件——
+// 用一個 watcher 統一同步回 form.symbol / form.name，同 StockManagement.vue 的混合型別慣例。
+const symbolModel = ref('');
+const symbolSuggestions = ref([]);
+watch(symbolModel, (val) => {
+  if (typeof val === 'string') {
+    form.symbol = val.trim().toUpperCase();
+  } else if (val && typeof val === 'object') {
+    form.symbol = val.symbol;
+    form.name = val.name || val.symbol;
+  } else {
+    form.symbol = '';
+  }
+});
+async function onSymbolComplete(event) {
+  try {
+    const res = await stockApi.suggestSymbols(event.query, form.market, 10);
+    symbolSuggestions.value = res.success
+      ? res.data.map((s) => ({ ...s, label: s.name ? `${s.symbol} ${s.name}` : s.symbol }))
+      : [];
+  } catch {
+    symbolSuggestions.value = [];
+  }
+}
+
 function openAddModal() {
   Object.assign(form, blankForm());
+  symbolModel.value = '';
   editingId.value = null;
   showModal.value = true;
 }
@@ -288,20 +323,9 @@ function openEditModal(tx) {
     price: tx.price, shares: tx.shares, odd_lot: tx.odd_lot, fee: tx.fee, tax: tx.tax,
     manualOverride: tx.fee_is_manual || tx.tax_is_manual, pendingWatchId: null
   });
+  symbolModel.value = tx.symbol;
   editingId.value = tx.id;
   showModal.value = true;
-}
-
-async function lookupName() {
-  if (!form.symbol) return;
-  try {
-    const res = await portfolioApi.searchSymbol(form.symbol, form.market);
-    const found = res.data?.[form.symbol.toUpperCase()];
-    if (found?.name) {
-      form.name = found.name;
-      toast.add({ severity: 'success', summary: '已帶入股票名稱', life: 2000 });
-    }
-  } catch { /* 查無代號時保留手動輸入，不阻擋流程 */ }
 }
 
 const sellPreview = computed(() => {
@@ -424,6 +448,7 @@ onMounted(async () => {
       price: pending.price, shares: pending.market === 'tw' ? marketMeta.tw.lotSize : 1,
       pendingWatchId: pending.watchId
     });
+    symbolModel.value = pending.symbol;
     editingId.value = null;
     showModal.value = true;
   }

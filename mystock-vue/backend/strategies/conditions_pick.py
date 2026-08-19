@@ -1,17 +1,18 @@
-"""選股專用條件函式實作（選股功能與爬蟲 規格書 §5、§13）。
+"""選股專用條件函式實作（選股功能與爬蟲 規格書 §5、§13；股價相對低點 需求規格書 §5）。
 
 包含：
 1. `valuation_filter`：本益比 (PE)、股價淨值比 (PB)、殖利率條件
 2. `revenue_growth`：月營收年增率 (YoY)、月增率 (MoM) 成長條件
 3. `chip_resonance`：外資與投信籌碼共振（連續買超、佔成交量比例）條件
 4. `stock_pick_resonance`：基本面 + 籌碼面 + 技術面多因子共振選股條件
+5. `relative_low_zone`：相對低點承接精選（估值 + 營收守衛 + 超跌狀態 + 籌碼洗盤 + 右側確認）
 
-`stock_pick_resonance` 內部直接呼叫本檔 `_eval_valuation_filter`/`_eval_revenue_growth`/
-`_eval_chip_resonance` 三個私有判斷函式做 AND 組合，不重複實作各面向的判斷邏輯（§5.5 鐵則）。
+`stock_pick_resonance`／`relative_low_zone` 內部直接呼叫本檔既有的 `_eval_*` 私有判斷函式
+做 AND 組合，不重複實作各面向的判斷邏輯（§5.5 鐵則／股價相對低點 規格書 ADR-RL-01）。
 """
 from typing import Any, Dict, List, Optional
 
-from indicators.chip import consec_net_buy, cum_net, net_buy_volume_ratio
+from indicators.chip import change_pct, consec_net_buy, cum_net, net_buy_days, net_buy_volume_ratio
 from services.chip_provider import ScanContext
 from strategies.registry import condition
 
@@ -194,5 +195,124 @@ def stock_pick_resonance(ctx: ScanContext, idx: int, params: dict) -> List[dict]
             **valuation_details,
             **revenue_details,
             "institutional_cum_net_lots": f_cum + t_cum,
+        },
+    }]
+
+
+def _eval_oversold_window(series: List[Optional[float]], idx: int, lookback_days: int, threshold: float) -> Optional[float]:
+    """近 lookback_days 日（含當日）序列是否「曾經」達到門檻（狀態式，非既有 bias/kd_cross
+    條件的跨越式語意 —— 股價相對低點 需求規格書 §2.2-4）。BIAS／KD 皆是「值越低代表越超跌／
+    超賣」，故統一取窗內最小值與門檻比較；未達門檻或資料不足回傳 None，達門檻回傳窗內最小值。
+    供 C3（季線負乖離）與 C4（KD 超賣）共用，亦供 P1 其餘「近 N 日曾達門檻」條件重用（§5.2）。
+    """
+    start = max(0, idx - lookback_days + 1)
+    window = [v for v in series[start:idx + 1] if v is not None]
+    if not window:
+        return None
+    extreme = min(window)
+    return extreme if extreme <= threshold else None
+
+
+@condition(
+    type="relative_low_zone",
+    min_bars=60,
+    requires=("valuation", "revenue_yoy", "raw_records", "kd"),
+)
+def relative_low_zone(ctx: ScanContext, idx: int, params: dict) -> List[dict]:
+    """相對低點承接精選（股價相對低點 需求規格書 §4.2、§5.2）：
+    C1 估值低檔 + C2 基本面守衛 + C3 超跌狀態(BIAS60) + C4 動能超賣(KD) + C5 籌碼洗盤
+    + C6 右側止跌確認，六項全部 AND 成立才觸發（ADR-RL-01：AND 寫在單一複合條件內）。
+    C1/C2 直接重用既有 `_eval_valuation_filter`/`_eval_revenue_growth`，不重複實作
+    （《策略架構》§9 鐵則）；短路順序把過濾力最強、成本最低的 C1 放最前（規格 AC-8）。
+    """
+    # C1 估值低檔
+    valuation_details = _eval_valuation_filter(ctx, idx, {
+        "pe_max": params.get("pe_max", 15.0),
+        "pe_min": params.get("pe_min", 0.1),
+        "pb_max": params.get("pb_max", 1.5),
+        "dividend_yield_min": params.get("dividend_yield_min", 4.0),
+    })
+    if valuation_details is None:
+        return []
+
+    # C2 基本面守衛（避開價值陷阱；point-in-time 由 _eval_revenue_growth 內共用規則保證）
+    revenue_details = _eval_revenue_growth(ctx, idx, {
+        "yoy_min": params.get("revenue_yoy_min", 0.0),
+        "consecutive_months": params.get("revenue_consecutive_months", 2),
+    })
+    if revenue_details is None:
+        return []
+
+    # C3 超跌狀態：近 N 日內曾出現 BIAS(ma_period) ≤ 門檻（狀態式，只讀 ctx.bias，不自算）
+    bias_period = params.get("bias_ma_period", 60)
+    bias_series = ctx.bias.get(bias_period)
+    if not bias_series:
+        return []
+    bias_min = _eval_oversold_window(
+        bias_series, idx,
+        params.get("bias_lookback_days", 10),
+        params.get("bias_max", -15.0),
+    )
+    if bias_min is None:
+        return []
+
+    # C4 動能超賣：近 N 日內曾出現 K ≤ 門檻（狀態式，只讀 ctx.kd，不自算；取代 v1.0 的 RSI）
+    kd_key = tuple(params.get("kd_params", (9, 3, 3)))
+    kd_series = ctx.kd.get(kd_key)
+    if not kd_series:
+        return []
+    k_min = _eval_oversold_window(
+        kd_series.k, idx,
+        params.get("kd_lookback_days", 10),
+        params.get("kd_oversold", 20),
+    )
+    if k_min is None:
+        return []
+
+    # C5 籌碼洗盤：融資 N 日變動 ≤ 門檻（浮額清洗）+ 外資或投信 N 日內至少 M 日淨買超
+    margin_change = change_pct(
+        ctx.raw_records, "margin_balance", idx, params.get("margin_change_window", 10),
+    )
+    if margin_change is None or margin_change > params.get("margin_change_max_pct", -5.0):
+        return []
+    inst_window = params.get("institutional_window", 5)
+    min_buy_days = params.get("institutional_min_buy_days", 3)
+    foreign_days = net_buy_days(ctx.raw_records, "foreign_buy_sell", idx, inst_window)
+    trust_days = net_buy_days(ctx.raw_records, "trust_buy_sell", idx, inst_window)
+    foreign_ok = foreign_days is not None and foreign_days >= min_buy_days
+    trust_ok = trust_days is not None and trust_days >= min_buy_days
+    if not foreign_ok and not trust_ok:
+        return []
+
+    # C6 右側止跌確認（必要條件，不得降級為濾網 —— ADR-RL-03）：
+    # 收盤價站上月線 且 量能達 N 倍 5 日均量
+    ma_period = params.get("above_ma_period", 20)
+    ma_series = ctx.ma.get(ma_period)
+    ma_val = ma_series[idx] if ma_series else None
+    close = ctx.closes[idx]
+    if close is None or ma_val is None or close < ma_val:
+        return []
+    volume_multiple = params.get("volume_multiple", 1.5)
+    vol = ctx.volumes[idx]
+    vol_ma = ctx.volume_ma[idx] if ctx.volume_ma else None
+    if vol is None or not vol_ma or vol < vol_ma * volume_multiple:
+        return []
+    volume_ratio = vol / vol_ma
+
+    return [{
+        "direction": "pick_relative_low",
+        "details": {
+            "close": close,
+            **valuation_details,
+            **revenue_details,
+            "bias_percent": bias_series[idx],
+            "bias_min_in_window": bias_min,
+            "kd_k_min_in_window": k_min,
+            "margin_change_pct": round(margin_change, 2),
+            "foreign_buy_days": foreign_days,
+            "trust_buy_days": trust_days,
+            "ma_period": ma_period,
+            "ma_value": ma_val,
+            "volume_ratio": round(volume_ratio, 2),
         },
     }]

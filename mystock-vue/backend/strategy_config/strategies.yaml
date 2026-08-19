@@ -266,6 +266,49 @@ strategies:
         dividend_yield_min: 3.0
         revenue_yoy_min: 15.0
 
+  # ══ 相對低點承接（股價相對低點 需求規格書 §4、§7；P0）══════════════════════
+  # 低估值 + 營收未衰退 + 季線極端負乖離 + KD 超賣 + 融資洗盤法人低接 + 帶量站回月線，
+  # 六項條件全部 AND 成立才入選（不猜最低點、不接價值陷阱）。全部門檻可調、不需重啟服務。
+  - id: "pick_relative_low_zone"
+    name: "相對低點承接精選"
+    category: "stock_picking"
+    scope: "universe"
+    universe_tier: "top500"
+    max_picks_per_day: 10
+    sort_by: "dividend_yield"
+    enabled: true
+    markets: ["tw"]
+    cooldown_days: 20               # 底部條件會連續多日成立，冷卻拉長避免同一段底部天天上榜
+    conditions:
+      - type: "relative_low_zone"
+        # C1 估值
+        pe_max: 15.0
+        pe_min: 0.1
+        pb_max: 1.5
+        dividend_yield_min: 4.0     # 單位為百分比數值，不是 0.04
+        # C2 基本面守衛
+        revenue_yoy_min: 0.0
+        revenue_consecutive_months: 2
+        # C3 超跌狀態
+        bias_ma_period: 60
+        bias_max: -15.0
+        bias_lookback_days: 10
+        # C4 動能超賣
+        kd_params: [9, 3, 3]
+        kd_oversold: 20
+        kd_lookback_days: 10
+        # C5 籌碼洗盤
+        margin_change_window: 10
+        margin_change_max_pct: -5.0
+        institutional_window: 5
+        institutional_min_buy_days: 3
+        # C6 右側確認（必要條件，不得改放 filters）
+        above_ma_period: 20
+        volume_multiple: 1.5
+    filters:
+      - type: "institutional_buy"   # 只影響 signal_strength，不擋訊號
+        params: { lookback_days: 3 }
+
   # ══ 持倉出場風控策略（選股功能與爬蟲 規格書 §6、§13）═══════════════════════
   - id: "exit_trailing_stop"
     name: "移動停利出場風控"

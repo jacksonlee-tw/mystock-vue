@@ -6,15 +6,21 @@
 // （賣股策略）——這四個既有方向字串一直沒登記在這裡：前兩個因為 classifyDirection() 預設就是
 // bullish，缺漏不影響顯示；但後兩個是空方訊號，缺漏會讓看板把它們畫成多方（箭頭/顏色錯誤），
 // 是既有 bug，藉這次同步一併修正（見 backend/strategies/direction.py 對照）。
+// pick_ / exit_ 補上明確前綴（股價相對低點 需求規格書 §10.2）：兩者原本只靠下方
+// classifyDirection() 的預設值（bullish）湊巧命中正確結果 —— pick_ 剛好該是 bullish，
+// 但 exit_ 該是 bearish 卻沒有任何前綴會命中，只是尚未被任何既有 exit_ 方向字串觸發到而已。
+// 明確登記，維持與 backend/strategies/direction.py 的規則一致（本檔開頭註解即為此約定）。
 const BULLISH_PREFIXES = [
     'cross_above', 'golden_cross', 'bullish_alignment', 'squeeze_breakout', 'oversold', 'pullback_support',
     'bottom_turnover', 'short_squeeze',
-    'kd_golden_cross'
+    'kd_golden_cross',
+    'pick_'
 ];
 const BEARISH_PREFIXES = [
     'cross_under', 'death_cross', 'bearish_alignment', 'overbought',
     'distribution_top', 'revenue_yoy_decline',
-    'kd_death_cross'
+    'kd_death_cross',
+    'exit_'
 ];
 
 export function classifyDirection(direction) {
@@ -44,7 +50,10 @@ const LABEL_PATTERNS = [
     [/^oversold$/, () => '負乖離過大（超賣）'],
     [/^pullback_support_MA(\d+)$/, (m) => `回踩 ${m[1]} 日均線支撐`],
     [/^kd_golden_cross_oversold$/, () => 'KD 超賣區黃金交叉'],
-    [/^kd_death_cross_overbought$/, () => 'KD 超買區死亡交叉']
+    [/^kd_death_cross_overbought$/, () => 'KD 超買區死亡交叉'],
+    // 選股策略方向文案（股價相對低點 需求規格書 §10.2；其餘既有 pick_ 方向沿用原始字串，
+    // 屬既有技術債，見《選股爬蟲》§5.6，本次僅補登本模組新增的方向）
+    [/^pick_relative_low$/, () => '相對低點承接精選']
 ];
 
 export function formatDirectionLabel(direction) {
