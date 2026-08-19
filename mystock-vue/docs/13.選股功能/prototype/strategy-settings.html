@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>策略門檻設定 — 相對低點承接精選 | MyStock Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .settings-layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+    .sticky-col { position: sticky; top: calc(var(--topbar-height) + 1.25rem); }
+    .unsupported-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+      padding: 0.5rem 0.7rem; border-radius: 8px;
+      border: 1px dashed var(--surface-border); background: var(--surface-hover);
+      font-family: var(--mono); font-size: 0.74rem;
+    }
+    .impact-bar { display: flex; align-items: center; gap: 0.5rem; }
+    @media (max-width: 1050px) {
+      .settings-layout { grid-template-columns: 1fr; }
+      .sticky-col { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">股價相對低點選股</span>
+    </div>
+    <nav class="topbar-nav">
+      <a href="index.html" class="nav-link"><i class="pi pi-home"></i>導覽</a>
+      <a href="picks.html" class="nav-link"><i class="pi pi-list"></i>選股名單</a>
+      <a href="condition-detail.html" class="nav-link"><i class="pi pi-check-square"></i>條件檢核</a>
+      <a href="strategy-settings.html" class="nav-link active"><i class="pi pi-sliders-h"></i>策略設定</a>
+      <a href="data-readiness.html" class="nav-link"><i class="pi pi-database"></i>資料就緒度</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="toggleTheme()" title="切換深色模式">
+        <i class="pi pi-moon" id="theme-icon"></i>
+      </button>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <div class="content-wrap stack">
+
+      <div class="page-head">
+        <div>
+          <h1 class="page-title"><i class="pi pi-sliders-h"></i>策略門檻設定</h1>
+          <p class="page-desc">
+            調整門檻只改 YAML、不改程式、不需重啟服務（<code style="font-family:var(--mono)">config_loader</code> 每次呼叫重新解析）
+            <span class="spec-ref">§7 / AC-9</span>
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-ghost" onclick="resetParams()"><i class="pi pi-replay"></i>還原預設</button>
+          <button class="btn btn-primary" onclick="copyYaml()"><i class="pi pi-copy"></i>複製 YAML</button>
+        </div>
+      </div>
+
+      <div class="notebox note-warn">
+        <i class="pi pi-exclamation-triangle"></i>
+        <div>
+          <b>單位陷阱：</b><code>dividend_yield_min</code> 是<b>百分比數值</b>（<code>4.0</code> = 4%）。
+          v1.0 規格寫成 <code>0.05</code> 等於門檻 0.05%，形同沒有門檻（§2.2-5）。
+          同理 <code>stop_loss_pct</code> 在既有 YAML 是 <code>8.0</code> 而非 <code>-0.08</code>。
+        </div>
+      </div>
+
+      <div class="settings-layout">
+        <!-- 左：參數表單 -->
+        <div class="stack">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i class="pi pi-sitemap"></i>條件門檻（C1~C6）</div>
+              <span class="card-sub">條件參數<b>平鋪</b>在 condition 節點，不包在 params: 內</span>
+            </div>
+            <div id="param-blocks"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i class="pi pi-list"></i>名單語意</div>
+              <span class="spec-ref">§9</span>
+            </div>
+            <div class="param-block">
+              <div class="field-row">
+                <div class="form-group">
+                  <label class="form-label">max_picks_per_day <span class="form-hint">每日名單上限</span></label>
+                  <input class="form-input" type="number" min="1" max="50" data-param="max_picks_per_day">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">cooldown_days <span class="form-hint">per-strategy 冷卻覆寫</span></label>
+                  <input class="form-input" type="number" min="0" max="90" data-param="cooldown_days">
+                </div>
+              </div>
+              <div class="field-row mt-2">
+                <div class="form-group">
+                  <label class="form-label">sort_by <span class="form-hint">排序鍵</span></label>
+                  <select class="form-input" data-param="sort_by">
+                    <option value="dividend_yield">dividend_yield</option>
+                    <option value="pe_ratio">pe_ratio</option>
+                    <option value="revenue_yoy">revenue_yoy</option>
+                    <option value="chip_ratio">chip_ratio</option>
+                    <option value="bias_ma60">bias_ma60（不在白名單）</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">universe_tier <span class="form-hint">選股池層別</span></label>
+                  <select class="form-input" data-param="universe_tier">
+                    <option value="top500">top500</option>
+                    <option value="all_tracked">all_tracked（universe 未建置時的降級值）</option>
+                  </select>
+                </div>
+              </div>
+              <div id="sortby-note" class="mt-2"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i class="pi pi-ban"></i>不支援的欄位（寫了會被靜默丟棄）</div>
+              <span class="spec-ref">§2.2-2 / §7</span>
+            </div>
+            <div class="card-body stack" style="gap:0.5rem;">
+              <div class="text-xs text-muted">
+                <code style="font-family:var(--mono)">config_loader.StrategyDef</code> 只解析
+                id / name / category / enabled / markets / conditions / filters / cooldown_days / scope / max_picks_per_day / sort_by / universe_tier。
+                以下欄位不會報錯、也不會生效 —— 最容易誤以為「已設好風控」的坑。
+              </div>
+              <div class="unsupported-row"><span>risk_level: "NORMAL"</span><span class="tag tag-red">丟棄</span></div>
+              <div class="unsupported-row"><span>capital_weight: 0.5</span><span class="tag tag-red">丟棄</span></div>
+              <div class="unsupported-row"><span>universe: "large_cap_tw"</span><span class="tag tag-red">丟棄（應用 universe_tier）</span></div>
+              <div class="unsupported-row"><span>timeframe: "1D"</span><span class="tag tag-red">丟棄</span></div>
+              <div class="unsupported-row"><span>risk_management: { ... }</span><span class="tag tag-red">丟棄（出場走獨立 risk 策略）</span></div>
+              <div class="notebox note-danger mt-1">
+                <i class="pi pi-times-circle"></i>
+                <div>
+                  <b>更嚴重：</b><code>conditions</code> 若寫成 dict（如 <code>fundamental:</code> / <code>technical:</code> / <code>chips:</code> 三個 key），
+                  <code>scanner.py</code> 迭代出的是字串 key，<code>condition_cfg.get("type")</code> 會拋 <code>AttributeError</code> 且不在 try 內 ——
+                  <b>整個 scan_market() 會中斷，當日所有策略都不出訊號</b>（§2.3-1、AC-10）。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右：YAML 預覽 + 影響 -->
+        <div class="stack sticky-col">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i class="pi pi-file-edit"></i>strategy_config/strategies.yaml</div>
+              <span class="tag tag-brass">即時產生</span>
+            </div>
+            <div class="card-body">
+              <div class="yaml-box" id="yaml-preview"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title"><i class="pi pi-bolt"></i>門檻影響（以本次 Mock 名單試算）</div>
+              <span class="card-sub">7 檔候選</span>
+            </div>
+            <div class="card-body stack" style="gap:0.85rem;">
+              <div class="impact-bar">
+                <div class="meter" style="flex:1;">
+                  <div class="meter-fill meter-brass" id="impact-fill" style="width:0%"></div>
+                </div>
+                <span class="mono fw-900" id="impact-count">0 / 7</span>
+              </div>
+              <div id="impact-list" class="stack" style="gap:0.4rem;"></div>
+              <div class="notebox note-info">
+                <i class="pi pi-info-circle"></i>
+                <div>試算只跑本原型的 7 檔 Mock 候選；實際掃描為全市場（約 1,800 檔）扣除 ETF／ETN／TDR／特別股後的 <code>top500</code> 選股池。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    let params = { ...DEFAULT_PARAMS };
+
+    const PARAM_BLOCKS = [
+      {
+        code: 'C1', title: '估值低檔', icon: 'pi-percentage', spec: '§4.2 C1',
+        fields: [
+          { key: 'pe_max', label: 'pe_max', hint: '本益比上限', step: 0.5 },
+          { key: 'pe_min', label: 'pe_min', hint: '排除異常小值', step: 0.1 },
+          { key: 'pb_max', label: 'pb_max', hint: '股價淨值比上限', step: 0.1 },
+          { key: 'dividend_yield_min', label: 'dividend_yield_min', hint: '殖利率下限（%）', step: 0.5 }
+        ]
+      },
+      {
+        code: 'C2', title: '基本面守衛', icon: 'pi-shield', spec: '§4.2 C2',
+        fields: [
+          { key: 'revenue_yoy_min', label: 'revenue_yoy_min', hint: '月營收 YoY 下限（%）', step: 1 },
+          { key: 'revenue_consecutive_months', label: 'revenue_consecutive_months', hint: '連續月數', step: 1 }
+        ]
+      },
+      {
+        code: 'C3', title: '超跌狀態', icon: 'pi-arrow-down-right', spec: '§4.2 C3',
+        fields: [
+          { key: 'bias_ma_period', label: 'bias_ma_period', hint: '乖離基準均線', step: 1 },
+          { key: 'bias_max', label: 'bias_max', hint: '負乖離門檻（%）', step: 1 },
+          { key: 'bias_lookback_days', label: 'bias_lookback_days', hint: '回看視窗（日）', step: 1 }
+        ]
+      },
+      {
+        code: 'C4', title: '動能超賣（KD）', icon: 'pi-chart-line', spec: '§4.2 C4',
+        fields: [
+          { key: 'kd_oversold', label: 'kd_oversold', hint: 'K 值超賣門檻', step: 1 },
+          { key: 'kd_lookback_days', label: 'kd_lookback_days', hint: '回看視窗（日）', step: 1 }
+        ]
+      },
+      {
+        code: 'C5', title: '籌碼洗盤', icon: 'pi-users', spec: '§4.2 C5',
+        fields: [
+          { key: 'margin_change_window', label: 'margin_change_window', hint: '融資視窗（日）', step: 1 },
+          { key: 'margin_change_max_pct', label: 'margin_change_max_pct', hint: '融資變動上限（%）', step: 1 },
+          { key: 'institutional_window', label: 'institutional_window', hint: '法人視窗（日）', step: 1 },
+          { key: 'institutional_min_buy_days', label: 'institutional_min_buy_days', hint: '買超天數門檻', step: 1 }
+        ]
+      },
+      {
+        code: 'C6', title: '右側止跌確認', icon: 'pi-check-circle', spec: '§4.2 C6',
+        fields: [
+          { key: 'above_ma_period', label: 'above_ma_period', hint: '須站上的均線', step: 1 },
+          { key: 'volume_multiple', label: 'volume_multiple', hint: '量能倍數（× 5 日均量）', step: 0.1 }
+        ]
+      }
+    ];
+
+    function renderParamBlocks() {
+      document.getElementById('param-blocks').innerHTML = PARAM_BLOCKS.map(b => `
+        <div class="param-block">
+          <div class="param-head">
+            <div class="param-title">
+              <span class="cond-code">${b.code}</span>
+              <i class="pi ${b.icon}" style="color:var(--brass);font-size:0.8rem;"></i>
+              ${b.title}
+            </div>
+            <span class="spec-ref">${b.spec}</span>
+          </div>
+          <div class="field-row">
+            ${b.fields.map(f => `
+              <div class="form-group">
+                <label class="form-label">${f.label}<span class="form-hint">${f.hint}</span></label>
+                <input class="form-input" type="number" step="${f.step}" data-param="${f.key}">
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+      bindInputs();
+    }
+
+    function bindInputs() {
+      document.querySelectorAll('[data-param]').forEach(el => {
+        const key = el.dataset.param;
+        el.value = params[key];
+        el.oninput = el.onchange = () => {
+          if (el.tagName === 'SELECT') {
+            params[key] = el.value;
+          } else {
+            const v = parseFloat(el.value);
+            if (Number.isNaN(v)) return;   // 清空輸入框時保留前一個值，避免條件比較拿到空字串
+            params[key] = v;
+          }
+          update();
+        };
+      });
+    }
+
+    function esc(v) { return String(v); }
+
+    function buildYaml() {
+      const p = params;
+      const k = (s) => `<span class="yaml-key">${s}</span>`;
+      const str = (s) => `<span class="yaml-str">"${s}"</span>`;
+      const num = (n) => `<span class="yaml-num">${n}</span>`;
+      const bool = (b) => `<span class="yaml-bool">${b}</span>`;
+      const cmt = (s) => `<span class="yaml-cmt">${s}</span>`;
+      const dash = `<span class="yaml-dash">-</span>`;
+
+      return [
+`  ${cmt('# ══ 相對低點承接（股價相對低點 需求規格書 §4）══════════════')}`,
+`  ${dash} ${k('id')}: ${str('pick_relative_low_zone')}`,
+`    ${k('name')}: ${str('相對低點承接精選')}`,
+`    ${k('category')}: ${str('stock_picking')}   ${cmt('# 自動排除 ETF/ETN/TDR/特別股')}`,
+`    ${k('scope')}: ${str('universe')}`,
+`    ${k('universe_tier')}: ${str(p.universe_tier)}`,
+`    ${k('max_picks_per_day')}: ${num(p.max_picks_per_day)}`,
+`    ${k('sort_by')}: ${str(p.sort_by)}`,
+`    ${k('enabled')}: ${bool('true')}`,
+`    ${k('markets')}: [${str('tw')}]   ${cmt('# 美股無等價估值／法人／信用交易來源')}`,
+`    ${k('cooldown_days')}: ${num(p.cooldown_days)}`,
+`    ${k('conditions')}:`,
+`      ${dash} ${k('type')}: ${str('relative_low_zone')}`,
+`        ${cmt('# C1 估值')}`,
+`        ${k('pe_max')}: ${num(esc(p.pe_max))}`,
+`        ${k('pe_min')}: ${num(esc(p.pe_min))}`,
+`        ${k('pb_max')}: ${num(esc(p.pb_max))}`,
+`        ${k('dividend_yield_min')}: ${num(esc(p.dividend_yield_min))}     ${cmt('# 百分比數值，不是 0.04')}`,
+`        ${cmt('# C2 基本面守衛')}`,
+`        ${k('revenue_yoy_min')}: ${num(esc(p.revenue_yoy_min))}`,
+`        ${k('revenue_consecutive_months')}: ${num(p.revenue_consecutive_months)}`,
+`        ${cmt('# C3 超跌狀態')}`,
+`        ${k('bias_ma_period')}: ${num(p.bias_ma_period)}`,
+`        ${k('bias_max')}: ${num(esc(p.bias_max))}`,
+`        ${k('bias_lookback_days')}: ${num(p.bias_lookback_days)}`,
+`        ${cmt('# C4 動能超賣')}`,
+`        ${k('kd_params')}: [${num(9)}, ${num(3)}, ${num(3)}]`,
+`        ${k('kd_oversold')}: ${num(p.kd_oversold)}`,
+`        ${k('kd_lookback_days')}: ${num(p.kd_lookback_days)}`,
+`        ${cmt('# C5 籌碼洗盤')}`,
+`        ${k('margin_change_window')}: ${num(p.margin_change_window)}`,
+`        ${k('margin_change_max_pct')}: ${num(esc(p.margin_change_max_pct))}`,
+`        ${k('institutional_window')}: ${num(p.institutional_window)}`,
+`        ${k('institutional_min_buy_days')}: ${num(p.institutional_min_buy_days)}`,
+`        ${cmt('# C6 右側確認（必要條件，不得放 filters）')}`,
+`        ${k('above_ma_period')}: ${num(p.above_ma_period)}`,
+`        ${k('volume_multiple')}: ${num(esc(p.volume_multiple))}`,
+`    ${k('filters')}:`,
+`      ${dash} ${k('type')}: ${str('institutional_buy')}   ${cmt('# 只影響 signal_strength，不擋訊號')}`,
+`        ${k('params')}: { ${k('lookback_days')}: ${num(3)} }`
+      ].join('\n');
+    }
+
+    function plainYaml() {
+      return buildYaml().replace(/<[^>]+>/g, '');
+    }
+
+    function copyYaml() {
+      navigator.clipboard.writeText(plainYaml())
+        .then(() => showToast('已複製', 'YAML 片段已複製到剪貼簿（貼到 backend/strategy_config/strategies.yaml 的 strategies: 之下）', 'success'))
+        .catch(() => showToast('複製失敗', '瀏覽器阻擋剪貼簿存取，請手動選取複製', 'warn'));
+    }
+
+    function renderSortNote() {
+      const sb = params.sort_by;
+      const known = ['pe', 'yield', 'yoy', 'chip', 'ratio'].some(t => sb.includes(t));
+      document.getElementById('sortby-note').innerHTML = known
+        ? `<div class="notebox note-info"><i class="pi pi-info-circle"></i><div>
+             <code>${sb}</code> 命中 <code>_extract_sort_metric()</code> 的白名單子字串，可正常排序（排序恆為 ascending，「越大越好」的欄位在 metric 內取負值）。
+           </div></div>`
+        : `<div class="notebox note-warn"><i class="pi pi-exclamation-triangle"></i><div>
+             <b><code>${sb}</code> 不會生效。</b>後端只用子字串比對 <code>pe</code>／<code>yield</code>／<code>yoy</code>／<code>chip</code>／<code>ratio</code>，
+             其餘一律回傳 <code>0.0</code>（等同不排序）。P1 若要用分位數排序，須先擴充該函式（§9）。
+           </div></div>`;
+    }
+
+    function renderImpact() {
+      const results = MOCK_PICKS.map(p => ({ pick: p, res: evaluateConditions(p, params) }));
+      const passed = results.filter(r => r.res.every(x => x.state === 'pass'));
+      const pct = Math.round((passed.length / results.length) * 100);
+      document.getElementById('impact-fill').style.width = pct + '%';
+      document.getElementById('impact-count').textContent = `${passed.length} / ${results.length}`;
+      document.getElementById('impact-list').innerHTML = results.map(r => {
+        const ok = r.res.every(x => x.state === 'pass');
+        const firstFail = r.res.find(x => x.state === 'fail');
+        return `
+          <div class="flex items-center justify-between gap-2" style="padding:0.4rem 0.6rem;border-radius:8px;background:var(--surface-hover);border:1px solid var(--surface-border);">
+            <span class="text-xs"><span class="mono fw-900">${r.pick.stock_id}</span> ${r.pick.stock_name}</span>
+            ${ok
+              ? '<span class="and-node pass"><i class="pi pi-check"></i> 入選</span>'
+              : `<span class="and-node fail">卡在 ${firstFail.code}</span>`}
+          </div>`;
+      }).join('');
+    }
+
+    function resetParams() {
+      params = { ...DEFAULT_PARAMS };
+      bindInputs();
+      update();
+      showToast('已還原', '所有門檻已回到規格 §7 的預設值', 'info');
+    }
+
+    function update() {
+      document.getElementById('yaml-preview').innerHTML = buildYaml();
+      renderSortNote();
+      renderImpact();
+    }
+
+    renderParamBlocks();
+    update();
+  </script>
+</body>
+</html>

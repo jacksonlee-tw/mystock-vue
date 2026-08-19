@@ -6515,5 +6515,30 @@
     "rank_value": 5,
     "id": "alert-20260819-2542-002",
     "timestamp": "2026-08-19T23:51:01+08:00"
+  },
+  {
+    "stock_id": "AAPL",
+    "stock_name": "Apple Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-08-19",
+    "details": {
+      "close": 315.875,
+      "ma_period": 20,
+      "ma_value": 315.8259,
+      "bias_percent": 0.0155
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（306.35）",
+    "rank_value": 1,
+    "id": "alert-20260819-AAPL-001",
+    "timestamp": "2026-08-20T00:40:53+08:00"
   }
 ]

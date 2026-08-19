@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>條件檢核詳情 — 相對低點承接精選 | MyStock Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .chart { width: 100%; height: 300px; }
+    .chart-sm { width: 100%; height: 190px; }
+    .stat-row { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 0.75rem; }
+    .stat {
+      padding: 0.7rem 0.85rem; border-radius: 10px;
+      background: var(--surface-hover); border: 1px solid var(--surface-border);
+      margin: 0 !important;
+    }
+    .stat .l { font-size: 0.68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
+    .stat .v { font-family: var(--mono); font-size: 1.1rem; font-weight: 900; margin-top: 2px; }
+    @media (max-width: 900px) { .stat-row { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">股價相對低點選股</span>
+    </div>
+    <nav class="topbar-nav">
+      <a href="index.html" class="nav-link"><i class="pi pi-home"></i>導覽</a>
+      <a href="picks.html" class="nav-link"><i class="pi pi-list"></i>選股名單</a>
+      <a href="condition-detail.html" class="nav-link active"><i class="pi pi-check-square"></i>條件檢核</a>
+      <a href="strategy-settings.html" class="nav-link"><i class="pi pi-sliders-h"></i>策略設定</a>
+      <a href="data-readiness.html" class="nav-link"><i class="pi pi-database"></i>資料就緒度</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="toggleTheme()" title="切換深色模式">
+        <i class="pi pi-moon" id="theme-icon"></i>
+      </button>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <div class="content-wrap stack">
+
+      <div class="page-head">
+        <div>
+          <h1 class="page-title"><i class="pi pi-check-square"></i><span id="head-symbol">—</span></h1>
+          <p class="page-desc" id="head-desc">—</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <select class="form-input" style="width:auto;" id="symbol-select" onchange="switchSymbol()"></select>
+          <a class="btn btn-ghost" href="picks.html"><i class="pi pi-arrow-left"></i>回名單</a>
+        </div>
+      </div>
+
+      <!-- 四項摘要 -->
+      <div class="stat-row" id="stat-row"></div>
+
+      <!-- AND 鏈 + 逐條檢核 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-sitemap"></i>C1~C6 條件檢核（AND 短路）</div>
+          <span class="spec-ref">§4.2 / §5.2</span>
+        </div>
+        <div style="padding:0.9rem 1.25rem;border-bottom:1px solid var(--surface-border);">
+          <div class="and-chain" id="and-chain"></div>
+          <div class="text-xs text-muted mt-2">
+            條件依序評估，任一不成立即短路回傳 <code style="font-family:var(--mono)">[]</code>（後續條件標為略過）。
+            短路順序把過濾力最強的 C1 放最前，對應驗收準則 AC-8。
+          </div>
+        </div>
+        <div class="cond-list" id="cond-list"></div>
+      </div>
+
+      <!-- 圖表 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-chart-bar"></i>走勢與指標</div>
+          <div class="flex items-center gap-1">
+            <button class="chip active" onclick="setRange(this,120)">近 120 日</button>
+            <button class="chip" onclick="setRange(this,60)">近 60 日</button>
+            <button class="chip" onclick="setRange(this,30)">近 30 日</button>
+          </div>
+        </div>
+        <div class="card-body relative" id="chart-area">
+          <div id="chart-overlay" class="refresh-overlay" style="display:none;"><div class="spinner"></div></div>
+          <div class="text-xs text-muted mb-2">
+            <i class="pi pi-info-circle"></i>
+            切換區間時保留既有圖表、僅覆蓋半透明遮罩，不整頁重繪、不重置捲動位置（<code style="font-family:var(--mono)">CLAUDE.md</code> 硬規則 1）
+          </div>
+          <div id="chart-price" class="chart"></div>
+          <div class="grid-2 mt-3">
+            <div>
+              <div class="text-xs fw-700 mb-1">C3 · 季線乖離率 BIAS60</div>
+              <div id="chart-bias" class="chart-sm"></div>
+            </div>
+            <div>
+              <div class="text-xs fw-700 mb-1">C4 · KD (9,3,3)</div>
+              <div id="chart-kd" class="chart-sm"></div>
+            </div>
+          </div>
+          <div class="mt-3">
+            <div class="text-xs fw-700 mb-1">C5 · 融資餘額變動與法人買賣超</div>
+            <div id="chart-chip" class="chart-sm"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 建議動作 / 出場 -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><i class="pi pi-comment"></i>建議動作（suggested_action）</div>
+            <span class="spec-ref">§10.1</span>
+          </div>
+          <div class="card-body stack" style="gap:0.85rem;">
+            <div class="notebox note-brass">
+              <i class="pi pi-megaphone"></i>
+              <div id="action-text">—</div>
+            </div>
+            <div class="text-xs text-muted" style="line-height:1.7;">
+              模板僅支援 <code style="font-family:var(--mono)">{ma_period}</code> 與 <code style="font-family:var(--mono)">{stop_loss}</code> 兩個佔位符，
+              且 <code style="font-family:var(--mono)">stop_loss</code> 由 <code style="font-family:var(--mono)">details["ma_value"] × 0.97</code> 推算 ——
+              因此 <code style="font-family:var(--mono)">details</code> 必須提供 <code style="font-family:var(--mono)">ma_period</code> 與 <code style="font-family:var(--mono)">ma_value</code>，否則會填成「—」。
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="tag tag-bull">direction: pick_relative_low</span>
+              <span class="tag tag-neu">signal_type: BUY</span>
+              <span class="tag tag-brass">category: stock_picking</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><i class="pi pi-shield"></i>出場與風控</div>
+            <span class="spec-ref">§8</span>
+          </div>
+          <div class="card-body stack" style="gap:0.75rem;">
+            <div class="flex items-center justify-between gap-2" style="padding:0.55rem 0.75rem;border:1px solid var(--surface-border);border-radius:9px;">
+              <span class="text-sm fw-700">固定停損 <code style="font-family:var(--mono);font-size:0.7rem;">exit_fixed_stop_loss</code></span>
+              <span class="cell-pill pill-red">−8.0%</span>
+            </div>
+            <div class="flex items-center justify-between gap-2" style="padding:0.55rem 0.75rem;border:1px solid var(--surface-border);border-radius:9px;">
+              <span class="text-sm fw-700">移動停利 <code style="font-family:var(--mono);font-size:0.7rem;">exit_trailing_stop</code></span>
+              <span class="cell-pill pill-amber">回落 10.0%</span>
+            </div>
+            <div class="flex items-center justify-between gap-2" style="padding:0.55rem 0.75rem;border:1px dashed var(--surface-border);border-radius:9px;opacity:0.75;">
+              <span class="text-sm fw-700">時間停損 <code style="font-family:var(--mono);font-size:0.7rem;">time_stop</code></span>
+              <span class="tag tag-neu">條件已實作，YAML 尚未啟用</span>
+            </div>
+            <div class="notebox note-warn">
+              <i class="pi pi-exclamation-triangle"></i>
+              <div>
+                <b>架構限制：</b>出場規則<b>無法依進場策略區分</b>。<code>scan_positions()</code> 對<b>所有</b>持股一律套用所有
+                <code>category ∈ {risk, fundamental}</code> 的策略，因此不能「只對本策略買進的部位設 −6% 停損」（§2.2-9、§8.3，列 P2）。
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="notebox note-info">
+        <i class="pi pi-info-circle"></i>
+        <div>圖表與數據皆為 <b>Mock</b>（以代號為種子產生的示意走勢），僅供版面與互動評估，不代表任何實際行情。</div>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <script src="shared.js"></script>
+  <script>
+    const P = DEFAULT_PARAMS;
+    let currentSymbol = new URLSearchParams(location.search).get('symbol') || MOCK_PICKS[0].stock_id;
+    let range = 120;
+    let charts = {};
+
+    function pickOf(sym) { return MOCK_PICKS.find(p => p.stock_id === sym) || MOCK_PICKS[0]; }
+
+    // ── 籌碼 mock 序列（融資餘額 + 法人買賣超）──────────
+    function mockChipSeries(sym, n) {
+      const pick = pickOf(sym);
+      let seed = 7;
+      for (const ch of sym) seed += ch.charCodeAt(0) * 3;
+      const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+      const margin = [];
+      const foreign = [];
+      const trust = [];
+      let m = 100;
+      for (let i = 0; i < n; i++) {
+        const t = i / (n - 1);
+        // 融資：前段緩增（散戶加碼攤平）、末段急殺（斷頭洗盤）
+        const drift = t < 0.7 ? 0.12 : -(1.3 + rnd() * 0.7);
+        m = Math.max(55, m + drift + (rnd() - 0.5) * 0.35);
+        margin.push(+m.toFixed(1));
+        // 法人：末段轉為買超
+        const bias = t > 0.86 ? 1 : t > 0.7 ? -0.4 : 0;
+        foreign.push(+(((rnd() - 0.5) * 2 + bias * 2.4) * 1200).toFixed(0));
+        trust.push(+(((rnd() - 0.5) * 2 + bias * 1.1) * 380).toFixed(0));
+      }
+      return { margin, foreign, trust, pick };
+    }
+
+    // ── 主題色 ────────────────────────────────
+    function themeColors() {
+      const cs = getComputedStyle(document.documentElement);
+      const v = (name) => cs.getPropertyValue(name).trim();
+      return {
+        text: v('--text-secondary'), muted: v('--text-muted'),
+        border: v('--surface-border'), brass: v('--brass'),
+        red: v('--red'), green: v('--green'), blue: v('--blue'),
+        amber: v('--amber'), purple: v('--purple'), card: v('--surface-card')
+      };
+    }
+
+    function baseGrid(c) {
+      return { left: 52, right: 18, top: 26, bottom: 26, borderColor: c.border };
+    }
+    function axisStyle(c) {
+      return {
+        axisLine: { lineStyle: { color: c.border } },
+        axisLabel: { color: c.muted, fontSize: 10 },
+        splitLine: { lineStyle: { color: c.border, opacity: 0.5 } }
+      };
+    }
+
+    function renderCharts() {
+      const c = themeColors();
+      const pick = pickOf(currentSymbol);
+      const full = mockSeries(currentSymbol, 120);
+      const ma20full = sma(full.closes, 20);
+      const ma60full = sma(full.closes, 60);
+      const biasFull = biasSeries(full.closes, ma60full);
+      const kdFull = kdSeries(full.ohlc, full.closes, 9, 3, 3);
+      const chipFull = mockChipSeries(currentSymbol, 120);
+
+      const s = 120 - range;
+      const dates = full.dates.slice(s);
+      const ohlc = full.ohlc.slice(s);
+      const ma20 = ma20full.slice(s);
+      const ma60 = ma60full.slice(s);
+      const bias = biasFull.slice(s);
+      const kdK = kdFull.k.slice(s);
+      const kdD = kdFull.d.slice(s);
+      const vols = full.volumes.slice(s);
+      const margin = chipFull.margin.slice(s);
+      const foreign = chipFull.foreign.slice(s);
+      const trust = chipFull.trust.slice(s);
+
+      // 1) K 線 + MA20/MA60 + 量
+      charts.price = charts.price || echarts.init(document.getElementById('chart-price'));
+      charts.price.setOption({
+        backgroundColor: 'transparent',
+        animation: false,
+        tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+        legend: { data: ['K線', 'MA20', 'MA60', '成交量'], textStyle: { color: c.muted, fontSize: 10 }, top: 0, right: 8 },
+        grid: [
+          { left: 52, right: 18, top: 26, height: 175 },
+          { left: 52, right: 18, top: 218, height: 52 }
+        ],
+        xAxis: [
+          { type: 'category', data: dates, gridIndex: 0, axisLabel: { show: false }, axisLine: { lineStyle: { color: c.border } } },
+          { type: 'category', data: dates, gridIndex: 1, axisLabel: { color: c.muted, fontSize: 9 }, axisLine: { lineStyle: { color: c.border } } }
+        ],
+        yAxis: [
+          { scale: true, gridIndex: 0, ...axisStyle(c) },
+          { gridIndex: 1, splitLine: { show: false }, axisLabel: { show: false }, axisLine: { show: false } }
+        ],
+        series: [
+          {
+            name: 'K線', type: 'candlestick', data: ohlc,
+            itemStyle: { color: c.red, color0: c.green, borderColor: c.red, borderColor0: c.green }
+          },
+          { name: 'MA20', type: 'line', data: ma20, smooth: true, showSymbol: false, lineStyle: { width: 1.4, color: c.blue } },
+          { name: 'MA60', type: 'line', data: ma60, smooth: true, showSymbol: false, lineStyle: { width: 1.4, color: c.amber } },
+          {
+            name: '成交量', type: 'bar', data: vols, xAxisIndex: 1, yAxisIndex: 1,
+            itemStyle: { color: c.brass, opacity: 0.45 }
+          }
+        ]
+      }, true);
+
+      // 2) BIAS60 + 門檻線
+      charts.bias = charts.bias || echarts.init(document.getElementById('chart-bias'));
+      charts.bias.setOption({
+        backgroundColor: 'transparent', animation: false,
+        tooltip: { trigger: 'axis', valueFormatter: v => (v == null ? '—' : v + '%') },
+        grid: baseGrid(c),
+        xAxis: { type: 'category', data: dates, ...axisStyle(c) },
+        yAxis: { type: 'value', axisLabel: { color: c.muted, fontSize: 10, formatter: '{value}%' }, ...axisStyle(c) },
+        series: [{
+          type: 'line', data: bias, smooth: true, showSymbol: false,
+          lineStyle: { width: 1.6, color: c.purple },
+          areaStyle: { color: c.purple, opacity: 0.1 },
+          markLine: {
+            symbol: 'none', silent: true,
+            data: [{ yAxis: P.bias_max, lineStyle: { color: c.red, type: 'dashed' }, label: { formatter: `門檻 ${P.bias_max}%`, color: c.red, fontSize: 10 } }]
+          }
+        }]
+      }, true);
+
+      // 3) KD + 超賣線
+      charts.kd = charts.kd || echarts.init(document.getElementById('chart-kd'));
+      charts.kd.setOption({
+        backgroundColor: 'transparent', animation: false,
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['K', 'D'], textStyle: { color: c.muted, fontSize: 10 }, top: 0, right: 8 },
+        grid: baseGrid(c),
+        xAxis: { type: 'category', data: dates, ...axisStyle(c) },
+        yAxis: { type: 'value', min: 0, max: 100, ...axisStyle(c) },
+        series: [
+          {
+            name: 'K', type: 'line', data: kdK, smooth: true, showSymbol: false,
+            lineStyle: { width: 1.6, color: c.brass },
+            markLine: {
+              symbol: 'none', silent: true,
+              data: [{ yAxis: P.kd_oversold, lineStyle: { color: c.green, type: 'dashed' }, label: { formatter: `超賣 ${P.kd_oversold}`, color: c.green, fontSize: 10 } }]
+            }
+          },
+          { name: 'D', type: 'line', data: kdD, smooth: true, showSymbol: false, lineStyle: { width: 1.3, color: c.blue } }
+        ]
+      }, true);
+
+      // 4) 融資餘額 + 法人買賣超
+      charts.chip = charts.chip || echarts.init(document.getElementById('chart-chip'));
+      charts.chip.setOption({
+        backgroundColor: 'transparent', animation: false,
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['融資餘額（指數化）', '外資買賣超', '投信買賣超'], textStyle: { color: c.muted, fontSize: 10 }, top: 0, right: 8 },
+        grid: baseGrid(c),
+        xAxis: { type: 'category', data: dates, ...axisStyle(c) },
+        yAxis: [
+          { type: 'value', name: '融資', nameTextStyle: { color: c.muted, fontSize: 9 }, ...axisStyle(c) },
+          { type: 'value', name: '張', nameTextStyle: { color: c.muted, fontSize: 9 }, splitLine: { show: false }, axisLabel: { color: c.muted, fontSize: 9 } }
+        ],
+        series: [
+          { name: '外資買賣超', type: 'bar', yAxisIndex: 1, data: foreign, itemStyle: { color: c.blue, opacity: 0.6 } },
+          { name: '投信買賣超', type: 'bar', yAxisIndex: 1, data: trust, itemStyle: { color: c.green, opacity: 0.6 } },
+          { name: '融資餘額（指數化）', type: 'line', data: margin, smooth: true, showSymbol: false, lineStyle: { width: 2, color: c.red } }
+        ]
+      }, true);
+    }
+
+    // ── 條件檢核 ──────────────────────────────
+    function renderConditions() {
+      const pick = pickOf(currentSymbol);
+      const res = evaluateConditions(pick, P);
+      document.getElementById('and-chain').innerHTML =
+        res.map(r => `<span class="and-node ${r.state}">${r.code}</span>`).join('<span class="and-op">AND</span>')
+        + `<span class="and-op">→</span><span class="and-node ${res.every(r => r.state === 'pass') ? 'pass' : 'fail'}">
+            ${res.every(r => r.state === 'pass') ? '入選' : '不成立'}</span>`;
+
+      document.getElementById('cond-list').innerHTML = CONDITION_DEFS.map((c, i) => {
+        const r = res[i];
+        const cls = r.state === 'pass' ? 'cond-pass' : r.state === 'fail' ? 'cond-fail' : 'cond-na';
+        const mark = r.state === 'pass' ? '<i class="pi pi-check"></i>' : r.state === 'fail' ? '<i class="pi pi-times"></i>' : '–';
+        return `
+          <div class="cond-row ${cls}">
+            <div class="cond-mark">${mark}</div>
+            <div>
+              <div class="flex items-center gap-1 flex-wrap">
+                <span class="cond-code">${c.code}</span>
+                <span class="cond-name">${c.name}</span>
+                <span class="spec-ref">${c.spec}</span>
+              </div>
+              <div class="cond-desc">${c.desc}</div>
+              <div class="cond-meta">資料來源：${c.source}</div>
+              <div class="cond-meta">門檻：${r.thresh}</div>
+            </div>
+            <div class="cond-values">
+              <div class="cond-actual" style="font-size:0.8rem;white-space:normal;max-width:230px;">${r.actual}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function renderHead() {
+      const pick = pickOf(currentSymbol);
+      const d = pick.details;
+      document.getElementById('head-symbol').innerHTML =
+        `<span class="mono">${pick.stock_id}</span> ${pick.stock_name}
+         <span class="tag ${strengthClass(pick.signal_strength)}" style="font-size:0.7rem;vertical-align:middle;">${strengthLabel(pick.signal_strength)}</span>`;
+      document.getElementById('head-desc').textContent =
+        `${pick.industry}｜策略 pick_relative_low_zone｜觸發日 ${pick.trade_date}｜濾網通過 ${pick.filters_passed.length} 項（濾網只影響訊號強度，不擋訊號）`;
+
+      document.getElementById('stat-row').innerHTML = `
+        <div class="stat"><div class="l">收盤 / MA20</div><div class="v">${fmt(d.close, 2)} <span class="text-muted" style="font-size:0.75rem;">/ ${fmt(d.ma_value, 2)}</span></div></div>
+        <div class="stat"><div class="l">近 10 日最低 BIAS60</div><div class="v text-red">${fmt(d.bias_min_in_window, 1)}%</div></div>
+        <div class="stat"><div class="l">殖利率 / 本益比</div><div class="v text-green">${fmt(d.dividend_yield, 2)}% <span class="text-muted" style="font-size:0.75rem;">/ ${fmt(d.pe_ratio, 1)}x</span></div></div>
+        <div class="stat"><div class="l">融資 10 日變動</div><div class="v text-amber">${fmt(d.margin_change_pct, 1)}%</div></div>
+      `;
+      document.getElementById('action-text').innerHTML = `<b>建議動作</b><br>${suggestedAction(pick)}`;
+    }
+
+    function renderSelect() {
+      document.getElementById('symbol-select').innerHTML = MOCK_PICKS.map(p =>
+        `<option value="${p.stock_id}" ${p.stock_id === currentSymbol ? 'selected' : ''}>${p.stock_id} ${p.stock_name}</option>`
+      ).join('');
+    }
+
+    function switchSymbol() {
+      currentSymbol = document.getElementById('symbol-select').value;
+      history.replaceState(null, '', `?symbol=${currentSymbol}`);
+      softRefresh();
+    }
+
+    function setRange(btn, days) {
+      btn.parentElement.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      range = days;
+      softRefresh();
+    }
+
+    // 保留既有內容 + 半透明遮罩，不整頁重繪（CLAUDE.md 硬規則 1）
+    function softRefresh() {
+      const overlay = document.getElementById('chart-overlay');
+      overlay.style.display = 'flex';
+      setTimeout(() => {
+        renderHead();
+        renderConditions();
+        renderCharts();
+        overlay.style.display = 'none';
+      }, 260);
+    }
+
+    // init
+    renderSelect();
+    renderHead();
+    renderConditions();
+    renderCharts();
+
+    window.addEventListener('resize', () => Object.values(charts).forEach(ch => ch && ch.resize()));
+    document.addEventListener('proto-theme-change', () => {
+      Object.values(charts).forEach(ch => ch && ch.dispose());
+      charts = {};
+      renderCharts();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyStock — 股價相對低點選股 Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .hero {
+      max-width: 900px; margin: 2.5rem auto 0; text-align: center;
+      padding: 2.5rem 2rem 2rem;
+      background: var(--surface-card); border: 1px solid var(--surface-border);
+      border-radius: 16px; box-shadow: var(--shadow-sm);
+    }
+    .hero-icon {
+      width: 56px; height: 56px; border-radius: 14px;
+      background: var(--brass-light); border: 1px solid var(--brass-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; color: var(--brass); margin: 0 auto 1.1rem;
+    }
+    .hero h1 { font-size: 1.75rem; font-weight: 900; letter-spacing: -0.6px; }
+    .hero .subtitle { color: var(--text-muted); font-size: 0.88rem; margin-top: 0.4rem; line-height: 1.7; }
+    .page-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.75rem; text-align: left; }
+    .page-link {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem;
+      padding: 1.15rem; background: var(--surface-hover);
+      border: 1px solid var(--surface-border); border-radius: 12px;
+      text-decoration: none; color: inherit; transition: all 0.2s;
+    }
+    .page-link:hover { border-color: var(--brass); background: var(--brass-light); transform: translateY(-2px); box-shadow: 0 4px 16px rgba(143,100,19,0.12); }
+    .plink-icon {
+      width: 38px; height: 38px; border-radius: 9px;
+      background: var(--brass-light); border: 1px solid var(--brass-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; color: var(--brass);
+    }
+    .link-title { font-size: 0.95rem; font-weight: 800; display: flex; align-items: center; gap: 0.4rem; }
+    .link-desc { font-size: 0.77rem; color: var(--text-muted); line-height: 1.55; }
+    .cond-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.5rem; margin-top: 1.75rem; }
+    .cond-pill {
+      padding: 0.6rem 0.5rem; border-radius: 10px; text-align: center;
+      background: var(--surface-hover); border: 1px solid var(--surface-border);
+    }
+    .cond-pill .c { font-family: var(--mono); font-size: 0.75rem; font-weight: 900; color: var(--brass); }
+    .cond-pill .n { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; line-height: 1.3; }
+    .stage-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-top: 1rem; text-align: left; }
+    @media (max-width: 860px) {
+      .page-grid, .stage-row { grid-template-columns: 1fr; }
+      .cond-strip { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">股價相對低點選股</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="toggleTheme()" title="切換深色模式">
+        <i class="pi pi-moon" id="theme-icon"></i>
+      </button>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <div class="content-wrap">
+      <div class="hero">
+        <div class="hero-icon"><i class="pi pi-arrow-down-right"></i></div>
+        <h1>股價相對低點選股</h1>
+        <p class="subtitle">
+          低估值 ＋ 營收未衰退 ＋ 季線極端負乖離 ＋ KD 超賣 ＋ 融資洗盤法人低接 ＋ <b>帶量站回月線</b><br>
+          六項條件全部 <b>AND</b> 成立才入選 —— 不猜最低點、不接價值陷阱
+        </p>
+
+        <div class="cond-strip" id="cond-strip"></div>
+
+        <div class="page-grid">
+          <a href="picks.html" class="page-link">
+            <div class="plink-icon"><i class="pi pi-list"></i></div>
+            <div class="link-title">選股名單 <span class="tag tag-new">主畫面</span></div>
+            <div class="link-desc">延續現行「策略選股與風控中心」（/picks）版面，新增「相對低點承接精選」分頁：KPI 卡、可排序名單、落選原因面板。</div>
+          </a>
+          <a href="condition-detail.html" class="page-link">
+            <div class="plink-icon"><i class="pi pi-check-square"></i></div>
+            <div class="link-title">條件檢核詳情</div>
+            <div class="link-desc">單一標的的 C1~C6 逐條檢核、K 線／BIAS60／KD／籌碼四張圖，以及建議動作與出場規則。</div>
+          </a>
+          <a href="strategy-settings.html" class="page-link">
+            <div class="plink-icon"><i class="pi pi-sliders-h"></i></div>
+            <div class="link-title">策略門檻設定</div>
+            <div class="link-desc">六組條件參數即時產生符合現行 schema 的 YAML，並標示會被靜默丟棄的不支援欄位與單位陷阱。</div>
+          </a>
+          <a href="data-readiness.html" class="page-link">
+            <div class="plink-icon"><i class="pi pi-database"></i></div>
+            <div class="link-title">資料就緒度</div>
+            <div class="link-desc">五個資料來源的覆蓋天數與可回補性、估值歷史深度（P1 阻塞項）、DATA_SOURCE 降級行為與分階段狀態。</div>
+          </a>
+        </div>
+
+        <div class="stage-row">
+          <div class="stage-card current">
+            <span class="stage-badge stage-p0">P0</span>
+            <div class="text-sm fw-700">C1~C6 全部條件</div>
+            <div class="text-xs text-muted">皆可用現有資料與指標算出；需 DATA_SOURCE=postgres</div>
+          </div>
+          <div class="stage-card">
+            <span class="stage-badge stage-p1">P1</span>
+            <div class="text-sm fw-700">估值分位數</div>
+            <div class="text-xs text-muted">近 3 年 ≤ 20% 分位；卡在估值歷史只有 3 個月</div>
+          </div>
+          <div class="stage-card">
+            <span class="stage-badge stage-p2">P2</span>
+            <div class="text-sm fw-700">型態與結構性停損</div>
+            <div class="text-xs text-muted">二次探底、下影線、頸線；進場 K 棒最低點停損</div>
+          </div>
+          <div class="stage-card">
+            <span class="stage-badge stage-p3">P3</span>
+            <div class="text-sm fw-700">RSI 指標</div>
+            <div class="text-xs text-muted">若審核後仍認為 KD 不足以替代（ADR-RL-02）</div>
+          </div>
+        </div>
+
+        <p class="text-xs text-muted" style="margin-top:1.75rem;">
+          <i class="pi pi-info-circle" style="margin-right:4px;"></i>
+          所有資料皆為 Mock，僅供 UI 原型評估。規格來源：<code style="font-family:var(--mono);">docs/13.選股功能/股價相對低點.md</code>（v2.0 · 2026-08-20）
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <script>
+    document.getElementById('cond-strip').innerHTML = CONDITION_DEFS.map(c => `
+      <div class="cond-pill">
+        <div class="c">${c.code}</div>
+        <div class="n">${c.name.replace(/（.*）/, '')}</div>
+      </div>
+    `).join('');
+  </script>
+</body>
+</html>

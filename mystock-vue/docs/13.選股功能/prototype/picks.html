@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>選股名單 — 相對低點承接精選 | MyStock Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons@7.0.0/primeicons.css">
+  <link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="brand-icon"><i class="pi pi-chart-line"></i></div>
+      <span class="brand-name">MyStock</span>
+      <span class="brand-sep">|</span>
+      <span class="brand-sub">股價相對低點選股</span>
+    </div>
+    <nav class="topbar-nav">
+      <a href="index.html" class="nav-link"><i class="pi pi-home"></i>導覽</a>
+      <a href="picks.html" class="nav-link active"><i class="pi pi-list"></i>選股名單</a>
+      <a href="condition-detail.html" class="nav-link"><i class="pi pi-check-square"></i>條件檢核</a>
+      <a href="strategy-settings.html" class="nav-link"><i class="pi pi-sliders-h"></i>策略設定</a>
+      <a href="data-readiness.html" class="nav-link"><i class="pi pi-database"></i>資料就緒度</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="toggleTheme()" title="切換深色模式">
+        <i class="pi pi-moon" id="theme-icon"></i>
+      </button>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <div class="content-wrap stack">
+
+      <!-- 頁首 -->
+      <div class="page-head">
+        <div>
+          <h1 class="page-title"><i class="pi pi-filter"></i>策略選股與風控中心</h1>
+          <p class="page-desc">
+            全市場多因子選股模型與持倉出場風控掃描。本原型新增「相對低點承接精選」策略分頁
+            <span class="spec-ref">股價相對低點 §4</span>
+          </p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <div class="segmented">
+            <button class="active">台股 (TW)</button>
+            <button disabled title="美股無等價估值／法人／信用交易來源（規格 §2.2-10）">美股 (US)</button>
+          </div>
+          <button class="btn btn-primary" id="btn-scan" onclick="runScan()">
+            <i class="pi pi-search"></i>全市場選股掃描
+          </button>
+          <button class="btn btn-warn" onclick="showToast('風控掃描完成','檢查 12 檔持倉，觸發 1 筆出場警示（exit_trailing_stop）','warn')">
+            <i class="pi pi-shield"></i>持倉風控掃描
+          </button>
+        </div>
+      </div>
+
+      <!-- 策略分頁 -->
+      <div class="strategy-tabs" id="strategy-tabs"></div>
+
+      <!-- KPI 卡（同列等高，對應 CLAUDE.md 硬規則 2） -->
+      <div class="kpi-grid" id="kpi-grid"></div>
+
+      <!-- 條件摘要 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i class="pi pi-sitemap"></i>進場條件（六項全部 AND 成立）</div>
+          <div class="flex items-center gap-2">
+            <span class="card-sub">同一策略的多個 conditions 在後端是 OR，AND 必須寫在單一複合條件內</span>
+            <span class="spec-ref">§2.2-1 / ADR-RL-01</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="and-chain" id="and-chain-summary"></div>
+          <div class="grid-3 mt-3" id="cond-summary"></div>
+        </div>
+      </div>
+
+      <!-- 名單 -->
+      <div class="card relative">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="pi pi-list"></i>入選名單
+            <span class="tag tag-neu" id="list-date">交易日 2026-08-20</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-xs text-muted">排序（sort_by）</label>
+            <select class="form-input" style="width:auto;padding:0.3rem 0.6rem;font-size:0.76rem;" id="sort-select" onchange="onSortChange()">
+              <option value="dividend_yield">dividend_yield（殖利率高者優先）</option>
+              <option value="pe_ratio">pe_ratio（本益比低者優先）</option>
+              <option value="revenue_yoy">revenue_yoy（YoY 高者優先）</option>
+              <option value="bias_ma60">bias_ma60（不在白名單 → 等同不排序）</option>
+            </select>
+            <span class="spec-ref">§9</span>
+          </div>
+        </div>
+
+        <div id="sort-warning" style="display:none;padding:0 1.25rem;margin-top:0.9rem;">
+          <div class="notebox note-warn">
+            <i class="pi pi-exclamation-triangle"></i>
+            <div>
+              <b>此排序鍵不會生效。</b><code>scanner._extract_sort_metric()</code> 只用子字串比對
+              <code>pe</code>／<code>yield</code>／<code>yoy</code>／<code>chip</code>／<code>ratio</code>，其餘一律回傳 <code>0.0</code>（等同不排序）。
+              另注意比對順序上 <code>pe</code> 最先 —— 任何含 "pe" 的欄位名（如 <code>pe_percentile</code>）都會落入 PE 分支。
+            </div>
+          </div>
+        </div>
+
+        <div id="refresh-overlay" style="display:none;" class="refresh-overlay"><div class="spinner"></div></div>
+
+        <div class="table-wrap">
+          <table class="data" id="picks-table">
+            <thead>
+              <tr>
+                <th class="td-center" style="width:3.6rem;">排名</th>
+                <th class="sortable" data-sort="stock_id">代號<span class="sort-ind">▲</span></th>
+                <th>名稱</th>
+                <th class="hide-mobile">產業</th>
+                <th class="td-center">強度</th>
+                <th class="td-right sortable" data-sort="close">收盤<span class="sort-ind">▲</span></th>
+                <th class="td-center sortable" data-sort="pe_ratio">本益比<span class="sort-ind">▲</span></th>
+                <th class="td-center sortable" data-sort="pb_ratio">股價淨值比<span class="sort-ind">▲</span></th>
+                <th class="td-center sortable" data-sort="dividend_yield">殖利率<span class="sort-ind">▲</span></th>
+                <th class="td-center sortable" data-sort="yoy_percent">營收YoY<span class="sort-ind">▲</span></th>
+                <th class="td-center sortable" data-sort="bias_min_in_window">BIAS60<span class="sort-ind">▲</span></th>
+                <th class="td-center sortable" data-sort="kd_k_min_in_window">KD低點<span class="sort-ind">▲</span></th>
+                <th class="td-center sortable" data-sort="margin_change_pct">融資變動<span class="sort-ind">▲</span></th>
+                <th class="td-center">法人連買</th>
+                <th class="td-center sortable" data-sort="volume_ratio">量能<span class="sort-ind">▲</span></th>
+                <th class="td-center">操作</th>
+              </tr>
+            </thead>
+            <tbody id="picks-tbody"></tbody>
+          </table>
+        </div>
+
+        <div style="padding:0.85rem 1.25rem;border-top:1px solid var(--surface-border);" class="flex items-center justify-between gap-2 flex-wrap">
+          <span class="text-xs text-muted">
+            <i class="pi pi-info-circle"></i>
+            名單依 <code style="font-family:var(--mono)">max_picks_per_day = 10</code> 截斷；只有截斷後真正入選的標的才寫入冷卻（<code style="font-family:var(--mono)">cooldown_days = 20</code>）
+          </span>
+          <span class="text-xs text-muted">點擊任一列可展開該標的的 C1~C6 檢核</span>
+        </div>
+      </div>
+
+      <!-- 落選原因 -->
+      <div class="card">
+        <button class="collapse-head" onclick="toggleCollapse(this)">
+          <span><i class="pi pi-angle-right chev" style="margin-right:0.4rem;"></i>本次掃描落選原因（示範 AND 語意與排除規則）</span>
+          <span class="tag tag-neu" id="rejected-count"></span>
+        </button>
+        <div class="collapse-body">
+          <div class="table-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>代號</th><th>名稱</th><th class="hide-mobile">產業</th>
+                  <th class="td-center">卡在</th><th>實際值</th><th class="hide-mobile">說明</th>
+                </tr>
+              </thead>
+              <tbody id="rejected-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="notebox note-info">
+        <i class="pi pi-info-circle"></i>
+        <div>
+          本頁所有數據皆為 <b>Mock</b>。策略 <code>pick_relative_low_zone</code> 目前為<b>規格階段（P0 規劃中）</b>，尚未實作；
+          條件函式 <code>relative_low_zone</code> 需新增於 <code>strategies/conditions_pick.py</code>（規格 §5.2、§14）。
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 條件檢核抽屜 -->
+  <div class="drawer-mask" id="drawer-mask" onclick="closeDrawer()"></div>
+  <aside class="drawer" id="drawer">
+    <div class="drawer-header">
+      <div>
+        <div class="card-title" id="drawer-title">—</div>
+        <div class="card-sub" id="drawer-sub">—</div>
+      </div>
+      <div class="flex items-center gap-1">
+        <a class="btn btn-ghost btn-sm" id="drawer-detail-link" href="condition-detail.html">
+          <i class="pi pi-external-link"></i>完整檢核
+        </a>
+        <button class="icon-btn" onclick="closeDrawer()"><i class="pi pi-times"></i></button>
+      </div>
+    </div>
+    <div class="drawer-body" id="drawer-body"></div>
+  </aside>
+
+  <script src="shared.js"></script>
+  <script>
+    const P = DEFAULT_PARAMS;
+    let sortBy = 'dividend_yield';
+    let tableSort = { key: null, dir: 1 };
+    let rows = [];
+
+    // ── 策略分頁 ──────────────────────────────
+    function renderTabs() {
+      document.getElementById('strategy-tabs').innerHTML = STRATEGIES.map(s => `
+        <button class="strategy-tab ${s.id === 'pick_relative_low_zone' ? 'active planned' : ''}"
+                onclick="${s.id === 'pick_relative_low_zone' ? '' : `showToast('原型範圍','本原型僅實作「相對低點承接精選」分頁，其餘為現行既有策略','info')`}">
+          <i class="pi ${s.icon}"></i>
+          <span>${s.name}</span>
+          ${s.status === 'planned' ? '<span class="tag tag-new">NEW</span>' : ''}
+          <span class="count">${MOCK_COUNTS[s.id]}</span>
+        </button>
+      `).join('');
+    }
+
+    // ── KPI ───────────────────────────────────
+    function renderKpi() {
+      const picks = rows;
+      const avg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+      const avgYield = avg(picks.map(p => p.details.dividend_yield).filter(v => v != null));
+      const avgPe = avg(picks.map(p => p.details.pe_ratio).filter(v => v != null));
+      const avgBias = avg(picks.map(p => p.details.bias_min_in_window).filter(v => v != null));
+      const strong = picks.filter(p => p.signal_strength === 'strong').length;
+
+      document.getElementById('kpi-grid').innerHTML = `
+        <div class="kpi-card span-2">
+          <div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="kpi-label text-brass">策略邏輯說明</span>
+              <span class="tag tag-blue">全市場選股池 · top500</span>
+            </div>
+            <div class="fw-900" style="font-size:1.05rem;margin-top:2px;">相對低點承接精選</div>
+            <div class="text-xs text-muted mt-1" style="line-height:1.55;">
+              ${STRATEGIES.find(s => s.id === 'pick_relative_low_zone').description}
+            </div>
+          </div>
+          <div class="flex items-center gap-3 text-xs text-muted" style="padding-top:0.5rem;border-top:1px solid var(--surface-border);">
+            <span>每日上限 <b class="text-brass">${P.max_picks_per_day} 檔</b></span>
+            <span>冷卻 <b class="text-brass">${P.cooldown_days} 天</b></span>
+            <span>市場 <b class="text-brass">TW</b></span>
+            <span class="hide-mobile">category <b class="text-brass">stock_picking</b></span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--green-light);color:var(--green);"><i class="pi pi-check-circle"></i></div>
+          <div>
+            <div class="kpi-label">最新入選標的數</div>
+            <div class="kpi-value num">${picks.length} 檔</div>
+            <div class="kpi-sub">強烈訊號 ${strong} 檔 · 交易日 ${TRADE_DATE}</div>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--blue-light);color:var(--blue);"><i class="pi pi-chart-pie"></i></div>
+          <div>
+            <div class="kpi-label">選股平均殖利率</div>
+            <div class="kpi-value num">${avgYield != null ? avgYield.toFixed(2) + '%' : '—'}</div>
+            <div class="kpi-sub">平均本益比 ${avgPe != null ? avgPe.toFixed(1) + 'x' : '—'}</div>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:var(--red-light);color:var(--red);"><i class="pi pi-arrow-down-right"></i></div>
+          <div>
+            <div class="kpi-label">平均季線負乖離</div>
+            <div class="kpi-value num text-red">${avgBias != null ? avgBias.toFixed(1) + '%' : '—'}</div>
+            <div class="kpi-sub">近 ${P.bias_lookback_days} 日最低 BIAS60 平均</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ── 條件摘要 ───────────────────────────────
+    function renderCondSummary() {
+      document.getElementById('and-chain-summary').innerHTML =
+        CONDITION_DEFS.map(c => `<span class="and-node pass">${c.code}</span>`).join('<span class="and-op">AND</span>')
+        + '<span class="and-op">→</span><span class="and-node pass"><i class="pi pi-check"></i> 入選</span>';
+
+      document.getElementById('cond-summary').innerHTML = CONDITION_DEFS.map(c => `
+        <div style="padding:0.75rem 0.9rem;border:1px solid var(--surface-border);border-radius:10px;background:var(--surface-hover);">
+          <div class="flex items-center justify-between gap-2">
+            <span class="cond-code">${c.code}</span>
+            <span class="spec-ref">${c.spec}</span>
+          </div>
+          <div class="cond-name mt-1"><i class="pi ${c.icon}" style="color:var(--brass);margin-right:4px;font-size:0.8rem;"></i>${c.name}</div>
+          <div class="cond-meta">${c.thresholdText(P)}</div>
+        </div>
+      `).join('');
+    }
+
+    // ── 名單 ──────────────────────────────────
+    function computeRows() {
+      rows = rankPicks(MOCK_PICKS, sortBy, P.max_picks_per_day);
+    }
+
+    function sortedRows() {
+      if (!tableSort.key) return rows;
+      const k = tableSort.key;
+      return [...rows].sort((a, b) => {
+        const av = k === 'stock_id' ? a.stock_id : a.details[k];
+        const bv = k === 'stock_id' ? b.stock_id : b.details[k];
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        if (typeof av === 'string') return av.localeCompare(bv) * tableSort.dir;
+        return (av - bv) * tableSort.dir;
+      });
+    }
+
+    function renderTable() {
+      const list = sortedRows();
+      document.getElementById('picks-tbody').innerHTML = list.map(p => {
+        const d = p.details;
+        const rankCls = p.rank_value === 1 ? 'rank-1' : p.rank_value === 2 ? 'rank-2' : p.rank_value === 3 ? 'rank-3' : '';
+        return `
+          <tr class="clickable" onclick="openDrawer('${p.stock_id}')">
+            <td class="td-center"><span class="rank-badge ${rankCls}">${p.rank_value}</span></td>
+            <td><a class="sym-link" href="condition-detail.html?symbol=${p.stock_id}" onclick="event.stopPropagation()">${p.stock_id}</a></td>
+            <td class="fw-700">${p.stock_name}</td>
+            <td class="hide-mobile text-xs text-muted">${p.industry}</td>
+            <td class="td-center"><span class="tag ${strengthClass(p.signal_strength)}">${strengthLabel(p.signal_strength)}</span></td>
+            <td class="td-right num">${fmt(d.close, 2)}</td>
+            <td class="td-center"><span class="cell-pill pill-neutral">${fmt(d.pe_ratio, 1)}x</span></td>
+            <td class="td-center"><span class="cell-pill pill-neutral">${fmt(d.pb_ratio, 2)}</span></td>
+            <td class="td-center"><span class="cell-pill pill-green">${fmt(d.dividend_yield, 2)}%</span></td>
+            <td class="td-center"><span class="cell-pill ${d.yoy_percent >= 0 ? 'pill-blue' : 'pill-red'}">${fmt(d.yoy_percent, 1)}%</span></td>
+            <td class="td-center"><span class="cell-pill pill-red">${fmt(d.bias_min_in_window, 1)}%</span></td>
+            <td class="td-center"><span class="cell-pill pill-amber">${fmt(d.kd_k_min_in_window, 1)}</span></td>
+            <td class="td-center"><span class="cell-pill pill-purple">${fmt(d.margin_change_pct, 1)}%</span></td>
+            <td class="td-center text-xs">
+              <span class="cell-pill pill-indigo">外 ${d.foreign_buy_days}</span>
+              <span class="cell-pill pill-indigo">投 ${d.trust_buy_days}</span>
+            </td>
+            <td class="td-center"><span class="cell-pill ${d.volume_ratio >= P.volume_multiple ? 'pill-green' : 'pill-neutral'}">${fmt(d.volume_ratio, 2)}×</span></td>
+            <td class="td-center">
+              <button class="icon-btn" title="加入追蹤清單" onclick="event.stopPropagation();showToast('已加入追蹤','股票 ${p.stock_id} ${p.stock_name} 已加入追蹤清單','success')"><i class="pi pi-plus"></i></button>
+              <button class="icon-btn" title="加入比較報表" onclick="event.stopPropagation();showToast('已送出','已將 ${p.stock_id} 帶入 /compare 比較報表','info')"><i class="pi pi-sliders-h"></i></button>
+            </td>
+          </tr>`;
+      }).join('');
+    }
+
+    function renderRejected() {
+      document.getElementById('rejected-count').textContent = `${MOCK_REJECTED.length} 檔`;
+      document.getElementById('rejected-tbody').innerHTML = MOCK_REJECTED.map(r => `
+        <tr>
+          <td><span class="mono fw-900">${r.stock_id}</span></td>
+          <td class="fw-700">${r.stock_name}</td>
+          <td class="hide-mobile text-xs text-muted">${r.industry}</td>
+          <td class="td-center">
+            <span class="and-node ${r.failed === 'EXCLUDE' ? 'skip' : 'fail'}">
+              ${r.failed === 'EXCLUDE' ? 'ETF 排除' : r.failed}
+            </span>
+          </td>
+          <td class="text-xs" style="white-space:normal;">${r.reason}</td>
+          <td class="hide-mobile text-xs text-muted" style="white-space:normal;max-width:320px;">${r.note}</td>
+        </tr>
+      `).join('');
+    }
+
+    // ── 排序互動 ───────────────────────────────
+    function bindSort() {
+      document.querySelectorAll('#picks-table thead th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+          const key = th.dataset.sort;
+          if (tableSort.key === key) tableSort.dir *= -1;
+          else tableSort = { key, dir: 1 };
+          document.querySelectorAll('#picks-table thead th').forEach(t => t.classList.remove('sorted'));
+          th.classList.add('sorted');
+          th.querySelector('.sort-ind').textContent = tableSort.dir === 1 ? '▲' : '▼';
+          renderTable();
+        });
+      });
+    }
+
+    function onSortChange() {
+      sortBy = document.getElementById('sort-select').value;
+      const known = ['pe', 'yield', 'yoy', 'chip', 'ratio'].some(k => sortBy.includes(k));
+      document.getElementById('sort-warning').style.display = known ? 'none' : 'block';
+      tableSort = { key: null, dir: 1 };
+      document.querySelectorAll('#picks-table thead th').forEach(t => t.classList.remove('sorted'));
+      computeRows();
+      renderKpi();
+      renderTable();
+    }
+
+    // ── 掃描（保留既有內容，只蓋半透明遮罩，不整頁 refresh）──
+    function runScan() {
+      const btn = document.getElementById('btn-scan');
+      const overlay = document.getElementById('refresh-overlay');
+      btn.classList.add('loading');
+      overlay.style.display = 'flex';
+      setTimeout(() => {
+        btn.classList.remove('loading');
+        overlay.style.display = 'none';
+        showToast('選股掃描完成', `掃描 1,842 檔，產生 ${rows.length} 筆精選標的（相對低點承接精選）`, 'success');
+      }, 1100);
+    }
+
+    // ── 抽屜：條件檢核 ─────────────────────────
+    function openDrawer(symbol) {
+      const pick = MOCK_PICKS.find(p => p.stock_id === symbol);
+      if (!pick) return;
+      const res = evaluateConditions(pick, P);
+      document.getElementById('drawer-title').innerHTML =
+        `<span class="mono">${pick.stock_id}</span> ${pick.stock_name}
+         <span class="tag ${strengthClass(pick.signal_strength)}">${strengthLabel(pick.signal_strength)}</span>`;
+      document.getElementById('drawer-sub').textContent =
+        `${pick.industry}｜收盤 ${fmt(pick.details.close, 2)}｜觸發日 ${pick.trade_date}`;
+      document.getElementById('drawer-detail-link').href = `condition-detail.html?symbol=${symbol}`;
+
+      const rowsHtml = CONDITION_DEFS.map((c, i) => {
+        const r = res[i];
+        const cls = r.state === 'pass' ? 'cond-pass' : r.state === 'fail' ? 'cond-fail' : 'cond-na';
+        const mark = r.state === 'pass' ? '<i class="pi pi-check"></i>' : r.state === 'fail' ? '<i class="pi pi-times"></i>' : '–';
+        return `
+          <div class="cond-row ${cls}">
+            <div class="cond-mark">${mark}</div>
+            <div>
+              <div class="flex items-center gap-1">
+                <span class="cond-code">${c.code}</span>
+                <span class="cond-name">${c.name}</span>
+              </div>
+              <div class="cond-desc">${c.desc}</div>
+              <div class="cond-meta">門檻：${r.thresh}</div>
+            </div>
+            <div class="cond-values">
+              <div class="cond-actual" style="font-size:0.78rem;white-space:normal;max-width:190px;">${r.actual}</div>
+              <div class="cond-thresh mt-1">${c.spec}</div>
+            </div>
+          </div>`;
+      }).join('');
+
+      document.getElementById('drawer-body').innerHTML = `
+        <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--surface-border);">
+          <div class="and-chain">
+            ${res.map(r => `<span class="and-node ${r.state}">${r.code}</span>`).join('<span class="and-op">AND</span>')}
+          </div>
+        </div>
+        <div class="cond-list">${rowsHtml}</div>
+        <div style="padding:1.1rem 1.25rem;display:flex;flex-direction:column;gap:0.85rem;">
+          <div class="notebox note-brass">
+            <i class="pi pi-comment"></i>
+            <div><b>建議動作</b><br>${suggestedAction(pick)}</div>
+          </div>
+          <div class="notebox note-info">
+            <i class="pi pi-shield"></i>
+            <div>
+              <b>出場沿用既有風控策略</b>：<code>exit_fixed_stop_loss</code>（8%）、<code>exit_trailing_stop</code>（10%）。
+              現行架構<b>無法</b>只對本策略買進的部位設不同停損（規格 §8.3）。
+            </div>
+          </div>
+          <a class="btn btn-ghost" href="condition-detail.html?symbol=${symbol}">
+            <i class="pi pi-chart-bar"></i>查看走勢與完整檢核
+          </a>
+        </div>`;
+
+      document.getElementById('drawer').classList.add('open');
+      document.getElementById('drawer-mask').classList.add('open');
+    }
+
+    function closeDrawer() {
+      document.getElementById('drawer').classList.remove('open');
+      document.getElementById('drawer-mask').classList.remove('open');
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+    // ── init ──────────────────────────────────
+    renderTabs();
+    computeRows();
+    renderKpi();
+    renderCondSummary();
+    renderTable();
+    renderRejected();
+    bindSort();
+  </script>
+</body>
+</html>
