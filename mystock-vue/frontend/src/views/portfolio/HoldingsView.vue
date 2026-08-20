@@ -52,11 +52,11 @@
                 <div v-if="lotLabel(h.shares, h.market)" class="text-[11px] text-surface-400">{{ lotLabel(h.shares, h.market) }}</div>
               </td>
               <td class="p-3 text-right num">
-                {{ h.avg_cost.toFixed(2) }}
+                {{ marketMeta[h.market].symbol }} {{ h.avg_cost.toFixed(2) }}
                 <div v-if="h.dividend_offset > 0" class="text-[11px] text-emerald-600">含息還原 -{{ (h.dividend_offset / h.shares).toFixed(2) }}</div>
               </td>
               <td class="p-3 text-right num font-medium">
-                <span v-if="!h.quote_missing">{{ h.price.toFixed(2) }}</span>
+                <span v-if="!h.quote_missing">{{ marketMeta[h.market].symbol }} {{ h.price.toFixed(2) }}</span>
                 <span v-else class="text-surface-300 text-xs">待報價</span>
               </td>
               <td class="p-3 text-right num">{{ marketMeta[h.market].symbol }} {{ fmtAmt(h.market_value, h.market) }}</td>
@@ -64,7 +64,7 @@
                 <div class="h-1.5 rounded-full bg-surface-200 dark:bg-surface-700 overflow-hidden"><div class="h-full bg-primary rounded-full" :style="{ width: Math.min(100, h.weight_pct).toFixed(1) + '%' }"></div></div>
                 <div class="text-xs text-surface-400 num mt-0.5">{{ h.weight_pct.toFixed(1) }}%</div>
               </td>
-              <td class="p-3 text-right num font-bold" :data-market="h.market" :class="h.pnl >= 0 ? 'text-up' : 'text-down'">{{ signed(h.pnl, h.market) }}</td>
+              <td class="p-3 text-right num font-bold" :data-market="h.market" :class="h.pnl >= 0 ? 'text-up' : 'text-down'">{{ marketMeta[h.market].symbol }} {{ signed(h.pnl, h.market) }}</td>
               <td class="p-3 text-right num font-bold" :data-market="h.market" :class="h.pnl >= 0 ? 'text-up' : 'text-down'">{{ fmtPct(h.pnl_pct) }}</td>
             </tr>
             <tr v-if="!holdings.length">

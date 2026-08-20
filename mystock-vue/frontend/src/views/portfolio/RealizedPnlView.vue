@@ -123,10 +123,10 @@
                   <td class="p-3"><span class="px-2 py-0.5 text-xs font-bold rounded bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300">{{ marketMeta[lot.market].label }}</span></td>
                   <td class="p-3 font-medium text-surface-800 dark:text-surface-100">{{ lot.symbol }} <span class="text-surface-400 font-normal">{{ lot.name }}</span></td>
                   <td class="p-3 text-right num">{{ fmtNum(lot.shares) }}</td>
-                  <td class="p-3 text-right num">{{ lot.sell_avg.toFixed(2) }}</td>
-                  <td class="p-3 text-right num">{{ lot.cost_avg.toFixed(2) }}</td>
-                  <td class="p-3 text-right num text-surface-400">{{ fmtAmt(lot.cost, lot.market) }}</td>
-                  <td class="p-3 text-right num font-bold" :class="lot.pnl >= 0 ? 'text-emerald-600' : 'text-red-600'">{{ signed(lot.pnl, lot.market) }} ({{ fmtPct(lot.pnl_pct) }})</td>
+                  <td class="p-3 text-right num">{{ marketMeta[lot.market].symbol }} {{ lot.sell_avg.toFixed(2) }}</td>
+                  <td class="p-3 text-right num">{{ marketMeta[lot.market].symbol }} {{ lot.cost_avg.toFixed(2) }}</td>
+                  <td class="p-3 text-right num text-surface-400">{{ marketMeta[lot.market].symbol }} {{ fmtAmt(lot.cost, lot.market) }}</td>
+                  <td class="p-3 text-right num font-bold" :class="lot.pnl >= 0 ? 'text-emerald-600' : 'text-red-600'">{{ marketMeta[lot.market].symbol }} {{ signed(lot.pnl, lot.market) }} ({{ fmtPct(lot.pnl_pct) }})</td>
                   <td class="p-3 text-center">
                     <button v-if="lot.matches.length" @click="expandedId = expandedId === lot.id ? null : lot.id" class="text-surface-400 hover:text-primary transition-colors">
                       <i :class="expandedId === lot.id ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"></i>
@@ -143,8 +143,8 @@
                         <tr v-for="(m, i) in lot.matches" :key="i" class="border-t border-surface-100 dark:border-surface-800">
                           <td class="py-1 pr-3 num">{{ m.buy_date }}</td>
                           <td class="py-1 px-3 text-right num">{{ fmtNum(m.shares) }}</td>
-                          <td class="py-1 px-3 text-right num">{{ m.buy_price.toFixed(2) }}</td>
-                          <td class="py-1 pl-3 text-right num font-bold" :class="m.pnl >= 0 ? 'text-emerald-600' : 'text-red-600'">{{ signed(m.pnl, lot.market) }}</td>
+                          <td class="py-1 px-3 text-right num">{{ marketMeta[lot.market].symbol }} {{ m.buy_price.toFixed(2) }}</td>
+                          <td class="py-1 pl-3 text-right num font-bold" :class="m.pnl >= 0 ? 'text-emerald-600' : 'text-red-600'">{{ marketMeta[lot.market].symbol }} {{ signed(m.pnl, lot.market) }}</td>
                         </tr>
                       </tbody>
                     </table>

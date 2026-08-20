@@ -22,6 +22,7 @@ from api.v1.endpoints.performance import router as performance_router
 from api.v1.endpoints.cashflow import dividend_router as dividends_router, cashflow_router as cashflow_router
 from api.v1.endpoints.watchlist import router as watchlist_router
 from api.v1.endpoints.portfolio_settings import router as portfolio_settings_router
+from api.v1.endpoints.exchange_rates import router as exchange_rates_router
 from api.v1.endpoints.notify_admin import router as notify_admin_router, session_router as notify_session_router
 from api.v1.endpoints.notify_self import router as notify_self_router
 from api.v1.endpoints.notify_public import router as notify_public_router
@@ -52,6 +53,10 @@ async def lifespan(app: FastAPI):
     scheduler = create_scheduler()
     scheduler.start()
     asyncio.create_task(run_startup_backfill())  # 背景執行，缺漏回補不阻塞服務啟動（見 phase3_5 設計文件第 3.1 節）
+
+    # 啟動時自動抓一次每日匯率（USD/JPY/CNY），失敗不阻塞服務啟動（見 services/exchange_rate_fetcher.py）
+    from services.exchange_rate_fetcher import fetch_exchange_rates_startup
+    asyncio.create_task(fetch_exchange_rates_startup())
 
     # ── 整合訊息通知平台（僅在 NOTIFY_ENABLED=true 時啟動；失敗不得拖垮既有服務，鐵則 R7）──
     try:
@@ -121,6 +126,7 @@ app.include_router(dividends_router)
 app.include_router(cashflow_router)
 app.include_router(watchlist_router)
 app.include_router(portfolio_settings_router)
+app.include_router(exchange_rates_router)
 app.include_router(notify_admin_router)
 app.include_router(notify_session_router)
 app.include_router(notify_self_router)

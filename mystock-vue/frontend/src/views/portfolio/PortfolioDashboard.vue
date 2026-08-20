@@ -96,13 +96,13 @@
                     <div class="text-xs text-surface-400">{{ h.name }}</div>
                   </td>
                   <td class="py-2.5 px-3 text-right num">{{ fmtNum(h.shares) }}</td>
-                  <td class="py-2.5 px-3 text-right num">{{ h.avg_cost.toFixed(2) }}</td>
+                  <td class="py-2.5 px-3 text-right num">{{ marketMeta[h.market].symbol }} {{ h.avg_cost.toFixed(2) }}</td>
                   <td class="py-2.5 px-3 text-right num font-medium">
-                    <span v-if="!h.quote_missing">{{ h.price.toFixed(2) }}</span>
+                    <span v-if="!h.quote_missing">{{ marketMeta[h.market].symbol }} {{ h.price.toFixed(2) }}</span>
                     <span v-else class="text-surface-300 text-xs">待報價</span>
                   </td>
                   <td class="py-2.5 px-3 text-right num font-bold" :data-market="h.market" :class="h.pnl >= 0 ? 'text-up' : 'text-down'">
-                    {{ signed(h.pnl, h.market) }}
+                    {{ marketMeta[h.market].symbol }} {{ signed(h.pnl, h.market) }}
                     <div class="text-xs font-normal">({{ fmtPct(h.pnl_pct) }})</div>
                   </td>
                 </tr>
@@ -164,7 +164,7 @@ import { PieChart } from 'echarts/charts';
 import { TooltipComponent, LegendComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 import { portfolioApi } from '@/service/portfolioApi';
-import { fmtNum, fmtPct, signed } from '@/composables/usePortfolioFormat';
+import { marketMeta, fmtNum, fmtPct, signed } from '@/composables/usePortfolioFormat';
 
 use([CanvasRenderer, PieChart, TooltipComponent, LegendComponent]);
 

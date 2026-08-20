@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from services.fetcher import fetch_status, run_fetch_process
 from services.us_fetcher import run_us_fetch_process
+from services.index_fetcher import get_index_definitions, run_index_fetch_process
 from config import get_target_stocks, get_months_range
 
 router = APIRouter(prefix="/api/v1/fetch", tags=["Fetcher"])
@@ -31,12 +32,25 @@ def trigger_fetch_task(req: FetchTriggerRequest, background_tasks: BackgroundTas
 
     mode = req.mode if req.mode in ("incremental", "repair") else "incremental"
 
-    if req.market == "us":
-        background_tasks.add_task(run_us_fetch_process, target_stocks=target_stocks,
-                                  months=months, mode=mode)
-    else:
-        background_tasks.add_task(run_fetch_process, target_stocks=target_stocks,
-                                  months=months, mode=mode)
+    # 單股重抓彈窗（前端 RefetchStockDialog）不曉得目前看的是個股還是大盤指數，可能把指數代號
+    # （例如 IXIC、TWII）當成一般股票代號送進來。指數不能走個股爬蟲：少了 external_symbol 的
+    # '^' 前綴（yfinance 查不到對應標的）、JSON 落地目錄也不同（data/{market}/_indices/），
+    # 這裡先過濾出真正屬於指數定義檔的代號，改導去指數抓取流程，其餘才視為一般股票代號。
+    index_codes = {d.code for d in get_index_definitions(req.market)}
+    requested_index_codes = [s for s in target_stocks if s in index_codes]
+    stock_only = [s for s in target_stocks if s not in index_codes]
+
+    if requested_index_codes:
+        background_tasks.add_task(run_index_fetch_process, market=req.market,
+                                  codes=requested_index_codes, months=months, mode=mode)
+
+    if stock_only:
+        if req.market == "us":
+            background_tasks.add_task(run_us_fetch_process, target_stocks=stock_only,
+                                      months=months, mode=mode)
+        else:
+            background_tasks.add_task(run_fetch_process, target_stocks=stock_only,
+                                      months=months, mode=mode)
 
     mode_label = "重新抓取" if mode == "repair" else "增量更新"
     return {

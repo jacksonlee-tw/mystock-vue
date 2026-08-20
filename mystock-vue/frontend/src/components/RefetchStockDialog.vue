@@ -97,7 +97,7 @@ const monthOptions = [
   { label: '12 個月', value: 12 }
 ];
 
-const selectedMonths = ref(3);
+const selectedMonths = ref(1);
 
 const exchangeLabel = ref('TWSE');
 watch(
@@ -112,7 +112,7 @@ watch(
 watch(
   () => props.visible,
   (isOpen) => {
-    if (isOpen) selectedMonths.value = props.missingDays > 0 ? 6 : 3;
+    if (isOpen) selectedMonths.value = props.missingDays > 0 ? 6 : 1;
   }
 );
 

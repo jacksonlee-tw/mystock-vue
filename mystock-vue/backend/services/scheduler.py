@@ -122,7 +122,14 @@ def _scheduled_tw() -> None:
     except Exception as e:
         logger.warning(f"[排程] 全市場每日抓取作業鏈異常: {e}")
 
-    # 2. 既有追蹤清單抓取、通知與策略掃描
+    # 2. 每日匯率（USD/JPY/CNY）：跟台股排程順便抓一次，避免服務長時間不重啟時只靠啟動時那次會變舊
+    try:
+        from services.exchange_rate_fetcher import fetch_exchange_rates_now
+        fetch_exchange_rates_now(trigger_type="scheduled")
+    except Exception as e:
+        logger.warning(f"[排程] 每日匯率抓取失敗: {e}")
+
+    # 3. 既有追蹤清單抓取、通知與策略掃描
     _run_if_idle("tw", run_fetch_process)
 
 

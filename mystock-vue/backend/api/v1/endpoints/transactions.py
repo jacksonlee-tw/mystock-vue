@@ -10,7 +10,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from decimal import Decimal
+
 from db.session import get_db
+from repositories.exchange_rate_repository import ExchangeRateRepository
 from repositories.portfolio_repository import PortfolioRepository
 from services.portfolio_ledger import D, Settings, compute_fee, compute_tax, to_float, validate_no_oversell
 
@@ -34,19 +37,42 @@ class TransactionIn(BaseModel):
     note: Optional[str] = None
 
 
-def _tx_out(row: dict) -> dict:
+def _tx_out(row: dict, fx_rate: Optional[Decimal] = None) -> dict:
+    net = row["price"] * row["shares"] + (row["fee"] + row["tax"]) * (1 if row["side"] == "buy" else -1)
+    # 美股「折算台幣」欄位：用交易當天的台灣銀行歷史即期匯率（非記帳設定頁的手動 fx_rate），
+    # 查不到歷史匯率（例如尚未爬過那個日期）時維持 None，前端顯示「—」，不用手動值頂替
+    # （見 docs/8.個人投資記帳功能/個人投資記帳功能_design.md 補充章節的範圍邊界說明）。
+    price_twd = net_twd = None
+    if row["market"] == "us" and fx_rate is not None:
+        price_twd = to_float(row["price"] * fx_rate)
+        net_twd = to_float(net * fx_rate)
     return {
         "id": row["id"], "market": row["market"], "symbol": row["symbol"], "name": row["name"], "side": row["side"],
         "trade_date": row["trade_date"].isoformat(), "trade_time": row["trade_time"].isoformat() if row["trade_time"] else None,
         "shares": to_float(row["shares"]), "price": to_float(row["price"]), "odd_lot": row["odd_lot"],
         "fee": to_float(row["fee"]), "tax": to_float(row["tax"]),
         "fee_is_manual": row["fee_is_manual"], "tax_is_manual": row["tax_is_manual"], "note": row["note"],
-        "net": to_float(row["price"] * row["shares"] + (row["fee"] + row["tax"]) * (1 if row["side"] == "buy" else -1)),
+        "net": to_float(net),
+        "price_twd": price_twd, "net_twd": net_twd,
     }
 
 
 async def _current_settings(db) -> Settings:
     return Settings.from_row(await PortfolioRepository(db).get_settings())
+
+
+async def _usd_rate_for(db, trade_date) -> Optional[Decimal]:
+    """單筆交易用：create/update 回傳單一列時查一次當天（或最近更早）的美元即期匯率。"""
+    return await ExchangeRateRepository(db).get_rate_for_date("USD", trade_date)
+
+
+async def _usd_rates_for_rows(db, rows: list[dict]) -> dict:
+    """清單查詢用：把所有美股交易的交易日彙整成一批唯一日期，各查一次最近可用匯率
+    （見 ExchangeRateRepository.get_rates_for_dates 的說明）。"""
+    dates = {r["trade_date"] for r in rows if r["market"] == "us"}
+    if not dates:
+        return {}
+    return await ExchangeRateRepository(db).get_rates_for_dates("USD", dates)
 
 
 def _validate_shape(market: str, side: str, shares: float, price: float, odd_lot: bool) -> None:
@@ -99,7 +125,8 @@ async def list_transactions(
     db=Depends(get_db),
 ):
     rows = await PortfolioRepository(db).list_transactions(market, side, keyword, date_from, date_to)
-    return {"success": True, "data": [_tx_out(r) for r in rows], "total": len(rows)}
+    fx_by_date = await _usd_rates_for_rows(db, rows)
+    return {"success": True, "data": [_tx_out(r, fx_by_date.get(r["trade_date"])) for r in rows], "total": len(rows)}
 
 
 @router.post("", summary="新增交易紀錄")
@@ -109,7 +136,8 @@ async def create_transaction(payload: TransactionIn, db=Depends(get_db)):
     prepared = await _prepare_tx_row(payload, settings)
     await _validate_symbol_ledger(repo, prepared["market"], prepared["symbol"], prepared, exclude_id=None)
     row = await repo.create_transaction({k: v for k, v in prepared.items() if k != "id"})
-    return {"success": True, "data": _tx_out(row), "message": "交易紀錄已新增"}
+    fx_rate = await _usd_rate_for(db, row["trade_date"]) if row["market"] == "us" else None
+    return {"success": True, "data": _tx_out(row, fx_rate), "message": "交易紀錄已新增"}
 
 
 @router.put("/{tx_id}", summary="編輯交易紀錄")
@@ -128,7 +156,8 @@ async def update_transaction(tx_id: int, payload: TransactionIn, db=Depends(get_
     await _validate_symbol_ledger(repo, prepared["market"], prepared["symbol"], candidate=prepared, exclude_id=tx_id)
 
     row = await repo.update_transaction(tx_id, {k: v for k, v in prepared.items() if k != "id"})
-    return {"success": True, "data": _tx_out(row), "message": "交易紀錄已更新"}
+    fx_rate = await _usd_rate_for(db, row["trade_date"]) if row["market"] == "us" else None
+    return {"success": True, "data": _tx_out(row, fx_rate), "message": "交易紀錄已更新"}
 
 
 @router.delete("/{tx_id}", summary="刪除交易紀錄")

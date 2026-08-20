@@ -119,4 +119,26 @@
 
 ---
 
+## 七、每日匯率資料（交易紀錄頁「折算台幣」欄位）
+
+* **來源沿革**：原規劃抓台灣銀行牌告即期匯率（`https://rate.bot.com.tw/xrt/flcsv/0/day`），但實測發現
+  該端點對一般伺服器環境的自動化請求一律回傳需要執行 JS 才能過關的 bot-challenge 頁面（HTTP 200，body
+  是 "Challenge Validation" 頁面而非 CSV）——不是能靠調整 User-Agent／header 解決的簡易過濾，屬於刻意
+  阻擋自動化請求的機制，因此不嘗試繞過，改用公開、免金鑰的 `fawazahmed0/currency-api`
+  （<https://github.com/fawazahmed0/exchange-api>）：透過 jsDelivr CDN 為主、Cloudflare Pages 為備援，
+  每日更新 USD/JPY/CNY 對 TWD 的市場參考匯率。**這不是台灣銀行牌告匯率**，只有單一參考匯率，沒有現金/
+  即期、買入/賣出的區分，見 `services/exchange_rate_fetcher.py` 開頭註解。
+* 每日抓取 USD/JPY/CNY 對 TWD 匯率，資料存於獨立的 `exchange_rate` 表（`db/exchange_rate_models.py` /
+  `V11__Create_exchange_rate.sql`），只有一個 `rate` 欄位（1 單位外幣兌換多少 TWD）。
+* 抓取時機：服務啟動時（`main.py` lifespan）與每日台股排程（`services/scheduler.py` 的 `_scheduled_tw()`）
+  都會各跑一次，並可在「股票與爬蟲管理」頁手動觸發（`POST /api/v1/exchange-rates/trigger`）。
+* **用途範圍刻意限定**：這份歷史匯率只餵給交易紀錄頁（`TransactionList.vue`）美股列新增的「台幣單價」
+  「台幣淨收付」欄位——用該筆交易 `trade_date` 當天（或往前找最近一個有資料的營業日）的匯率換算
+  （`ExchangeRateRepository.get_rate_for_date()`），查不到資料時顯示「—」。
+* **與既有 `portfolio_settings.fx_rate` 的分工**：dashboard／已實現損益／現金流頁的跨市場 TWD 彙總 KPI
+  （帳戶總值、未實現/已實現損益、IRR/TWR 等，見 `services/portfolio_ledger.py` 的 `to_twd()`）繼續使用
+  使用者可調整的手動匯率，不受這份每日歷史匯率影響——兩者服務不同目的，刻意不合併。
+
+---
+
 您希望先從資料庫 Schema 設計（如交易表與持股表的欄位規劃）開始討論，還是先定義 **FastAPI 的 RESTful API 規格**呢？

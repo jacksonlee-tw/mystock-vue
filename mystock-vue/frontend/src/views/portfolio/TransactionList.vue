@@ -39,8 +39,10 @@
               <th class="p-3">股票</th>
               <th class="p-3 text-right">股數</th>
               <th class="p-3 text-right">單價</th>
+              <th class="p-3 text-right">台幣單價</th>
               <th class="p-3 text-right">手續費/稅</th>
               <th class="p-3 text-right">淨收付</th>
+              <th class="p-3 text-right">台幣淨收付</th>
               <th class="p-3 text-center">操作</th>
             </tr>
           </thead>
@@ -64,13 +66,21 @@
                 {{ fmtNum(tx.shares) }}
                 <div v-if="lotLabel(tx.shares, tx.market)" class="text-[11px] text-surface-400">{{ lotLabel(tx.shares, tx.market) }}</div>
               </td>
-              <td class="p-3 text-right num">{{ tx.price.toFixed(2) }}</td>
+              <td class="p-3 text-right num">{{ marketMeta[tx.market].symbol }} {{ tx.price.toFixed(2) }}</td>
               <td class="p-3 text-right num text-surface-400 text-xs">
-                {{ fmtAmt(tx.fee, tx.market) }} / {{ fmtAmt(tx.tax, tx.market) }}
+                <span v-if="tx.market === 'us' && tx.price_twd != null">≈ NT$ {{ fmtAmt(tx.price_twd, 'tw') }}</span>
+                <span v-else>—</span>
+              </td>
+              <td class="p-3 text-right num text-surface-400 text-xs">
+                {{ marketMeta[tx.market].symbol }} {{ fmtAmt(tx.fee, tx.market) }} / {{ marketMeta[tx.market].symbol }} {{ fmtAmt(tx.tax, tx.market) }}
                 <div v-if="tx.fee_is_manual || tx.tax_is_manual" class="text-[10px] text-amber-600 font-bold">手動</div>
               </td>
               <td class="p-3 text-right font-bold num" :class="tx.side === 'buy' ? 'text-surface-800 dark:text-surface-100' : 'text-primary-700 dark:text-primary-300'">
-                {{ tx.side === 'buy' ? '-' : '+' }}{{ fmtAmt(tx.net, tx.market) }}
+                {{ tx.side === 'buy' ? '-' : '+' }}{{ marketMeta[tx.market].symbol }} {{ fmtAmt(tx.net, tx.market) }}
+              </td>
+              <td class="p-3 text-right num text-surface-400 text-xs">
+                <span v-if="tx.market === 'us' && tx.net_twd != null">≈ {{ tx.side === 'buy' ? '-' : '+' }}NT$ {{ fmtAmt(tx.net_twd, 'tw') }}</span>
+                <span v-else>—</span>
               </td>
               <td class="p-3 text-center text-surface-400 whitespace-nowrap">
                 <button @click="openEditModal(tx)" title="編輯" class="hover:text-primary mx-1 transition-colors"><i class="pi pi-pencil"></i></button>
@@ -78,7 +88,7 @@
               </td>
             </tr>
             <tr v-if="!filteredTransactions.length">
-              <td colspan="9" class="p-8 text-center text-surface-400 text-sm">沒有符合篩選條件的交易紀錄</td>
+              <td colspan="11" class="p-8 text-center text-surface-400 text-sm">沒有符合篩選條件的交易紀錄</td>
             </tr>
           </tbody>
         </table>

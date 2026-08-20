@@ -80,6 +80,39 @@
       </div>
     </div>
 
+    <!-- 每日匯率資料（USD/JPY/CNY，供個人記帳模組交易紀錄頁「折算台幣」欄位使用） -->
+    <div class="card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900 space-y-4">
+      <div class="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
+            <i class="pi pi-dollar text-primary"></i> 每日匯率資料
+          </h3>
+          <p class="text-xs text-surface-500 mt-1">
+            來源：公開市場參考匯率（非台灣銀行牌告價，該來源需執行 JS 驗證無法自動抓取），啟動時與每日排程都會自動抓取一次
+          </p>
+        </div>
+        <button
+          @click="triggerExchangeRateFetch"
+          :disabled="isFetchingRates"
+          class="px-4 py-2 font-bold text-sm text-surface-700 dark:text-surface-200 bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 disabled:opacity-50 rounded-xl flex items-center gap-2 transition-all"
+        >
+          <i :class="['pi text-sm', isFetchingRates ? 'pi-spin pi-spinner' : 'pi-refresh']"></i>
+          {{ isFetchingRates ? '更新中...' : '立即更新匯率' }}
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div v-for="c in ['USD', 'JPY', 'CNY']" :key="c" class="p-3 rounded-xl border border-surface-200 dark:border-surface-700">
+          <div class="text-xs font-bold text-surface-400">{{ c }} / TWD</div>
+          <template v-if="exchangeRates[c]">
+            <div class="text-lg font-black text-surface-900 dark:text-surface-0 num">{{ exchangeRates[c].rate.toFixed(4) }}</div>
+            <div class="text-[11px] text-surface-400 mt-1"><i class="pi pi-calendar"></i> {{ exchangeRates[c].rate_date }}</div>
+          </template>
+          <div v-else class="text-sm text-surface-400 mt-1">尚無資料</div>
+        </div>
+      </div>
+    </div>
+
     <!-- 每日自動排程設定 -->
     <div class="card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900 space-y-4">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -331,6 +364,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import RefetchStockDialog from '@/components/RefetchStockDialog.vue';
 import { stockApi } from '@/service/stockApi';
+import { exchangeRateApi } from '@/service/exchangeRateApi';
 import { useCrawlerStatus } from '@/composables/useCrawlerStatus';
 import { useMarket } from '@/composables/useMarket';
 import { useToast } from 'primevue/usetoast';
@@ -436,10 +470,39 @@ function formatNextRun(iso) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// ── 每日匯率資料（USD/JPY/CNY）──────────────────────────────
+const exchangeRates = ref({});
+const isFetchingRates = ref(false);
+
+async function loadExchangeRates() {
+  try {
+    const res = await exchangeRateApi.getLatest();
+    if (res.success) exchangeRates.value = res.data;
+  } catch (err) { /* 匯率卡片是輔助資訊，載入失敗不影響主流程 */ }
+}
+
+async function triggerExchangeRateFetch() {
+  isFetchingRates.value = true;
+  try {
+    const res = await exchangeRateApi.trigger();
+    if (res.success) {
+      toast.add({ severity: 'success', summary: '匯率已更新', detail: res.message, life: 3000 });
+      await loadExchangeRates();
+    } else {
+      toast.add({ severity: 'warn', summary: '匯率更新失敗', detail: res.error?.message || res.message, life: 5000 });
+    }
+  } catch (err) {
+    toast.add({ severity: 'error', summary: '更新失敗', detail: '啟動匯率抓取失敗', life: 4000 });
+  } finally {
+    isFetchingRates.value = false;
+  }
+}
+
 onMounted(async () => {
   await loadTrackedStocks();
   await checkStatus();
   await loadSchedule();
+  await loadExchangeRates();
 });
 
 watch(currentMarket, () => {

@@ -241,16 +241,23 @@ def fetch_tw_index_history(code: str, name: str, months: List[tuple]) -> Dict[st
 
 # ── 美股：yfinance 擷取（與 services/us_fetcher.py 相同模式）───────────────────
 
-def _fetch_yfinance_history(external_symbol: str, days: int = 365) -> Dict[str, dict]:
+def fetch_us_index_history(code: str, external_symbol: str, name: str,
+                            period: Optional[str] = None,
+                            start_date: Optional[str] = None) -> Dict[str, dict]:
+    """美股指數歷史資料（yfinance）。period 用於完整區間重抓，start_date 用於增量模式只補
+    「最後一筆之後」的缺口，兩者互斥（呼叫端擇一傳入）。額外補上 symbol/name，讓落地格式與
+    個股 JSON 同構（ADR-I1），供 run_index_fetch_process() 直接 merge 進既有資料。"""
     ticker = yf.Ticker(external_symbol)
-    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-    hist = ticker.history(start=start_date)
-    result = {}
+    hist = ticker.history(period=period) if period else ticker.history(start=start_date)
+    result: Dict[str, dict] = {}
     if hist is None or hist.empty:
         return result
     for date_obj, row in hist.iterrows():
         date_key = date_obj.strftime("%Y-%m-%d")
         result[date_key] = {
+            "date": date_key,
+            "symbol": code,
+            "name": name,
             "open": float(row["Open"]), "high": float(row["High"]),
             "low": float(row["Low"]), "close": float(row["Close"]),
             "volume": int(row["Volume"]),
