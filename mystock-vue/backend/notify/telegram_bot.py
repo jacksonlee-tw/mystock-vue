@@ -176,6 +176,12 @@ class TelegramPoller:
                     f"https://api.telegram.org/bot{bot_token}/getUpdates",
                     params={"offset": self._offset, "timeout": 30, "allowed_updates": '["message"]'},
                 )
+            if resp.status_code == 409:
+                self._running = False
+                logger.warning(
+                    "[通知] Telegram long polling 已停止：同一 bot token 正由另一個實例輪詢"
+                )
+                return
             data = resp.json()
             if not data.get("ok"):
                 await asyncio.sleep(5)

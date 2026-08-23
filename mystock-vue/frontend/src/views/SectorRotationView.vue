@@ -767,11 +767,13 @@ async function handleSync() {
     });
   } catch (err) {
     syncing.value = false;
+    // 顯示實際錯誤原因（例如個股行情抓取仍在執行中而被 fetch_status 互斥鎖擋下），
+    // 而非固定文案，避免使用者誤以為是程式壞掉、找不到真正原因。
     toast?.add({
       severity: 'error',
       summary: '同步失敗',
-      detail: '無法觸發指數同步任務',
-      life: 3000
+      detail: err.response?.data?.error?.message || err.message || '無法觸發指數同步任務',
+      life: 4000
     });
   }
 }

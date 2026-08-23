@@ -352,7 +352,7 @@ def fetch_and_store_sector_snapshot(trade_date: Optional[str] = None) -> Dict[st
         existing = load_index_json(code, "tw")
         existing[date_key] = record
         save_index_json(code, "tw", existing)
-        dual_write_daily_data(code, "tw", {date_key: record})
+        dual_write_daily_data(code, "tw", {date_key: record}, security_type="index")
         result["success"].append(code)
 
     return result
@@ -495,7 +495,7 @@ def run_index_fetch_process(
                     existing[d].update(vol)
 
                 save_index_json(definition.code, definition.market, existing)
-                dual_write_daily_data(definition.code, definition.market, existing)
+                dual_write_daily_data(definition.code, definition.market, existing, security_type="index")
                 result["success"].append(definition.code)
 
             elif definition.source == "yfinance":
@@ -518,7 +518,7 @@ def run_index_fetch_process(
 
             existing.update(fetched)
             save_index_json(definition.code, definition.market, existing)
-            dual_write_daily_data(definition.code, definition.market, fetched)
+            dual_write_daily_data(definition.code, definition.market, fetched, security_type="index")
             result["success"].append(definition.code)
 
         except Exception as e:

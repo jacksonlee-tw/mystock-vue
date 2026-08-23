@@ -5,16 +5,42 @@ from typing import Any, Optional
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 from db.models import CrawlerLog, DailyStockData, MarketNoTradingDay, Symbol, SymbolIndustry
-from db.session import get_session_factory
+from db.session import _database_url, get_session_factory
+
+
+_bg_engine: AsyncEngine | None = None
+_bg_session_factory: async_sessionmaker | None = None
+
+
+def _get_bg_session_factory() -> async_sessionmaker:
+    global _bg_engine, _bg_session_factory
+    if _bg_session_factory is None:
+        _bg_engine = create_async_engine(_database_url(), pool_pre_ping=True)
+        _bg_session_factory = async_sessionmaker(_bg_engine, expire_on_commit=False)
+    return _bg_session_factory
+
+
+async def _dispose_bg_engine() -> None:
+    global _bg_engine, _bg_session_factory
+    if _bg_engine is not None:
+        await _bg_engine.dispose()
+    _bg_engine = None
+    _bg_session_factory = None
+
+
+class _BackgroundSessionFactory:
+    def __call__(self):
+        return _get_bg_session_factory()()
 
 
 def run_async(coro):
     """讓同步的爬蟲模組（fetcher.py / us_fetcher.py）可以呼叫 async 版的 Repository 方法。
 
-    每次呼叫都是獨立的 asyncio.run()（新的 event loop），結束後主動釋放連線池，
-    避免下一次呼叫沿用綁定在舊 loop 的 asyncpg 連線而炸掉（見 db/session.py 的 dispose_engine()）。
+    每次呼叫都是獨立的 asyncio.run()（新的 event loop），且只釋放背景同步橋接專用的連線池，
+    不影響 FastAPI 主 event loop 正在使用的 db/session.py 全域連線池。
     """
     try:
         asyncio.get_running_loop()
@@ -27,8 +53,7 @@ def run_async(coro):
         try:
             return await coro
         finally:
-            from db.session import dispose_engine
-            await dispose_engine()
+            await _dispose_bg_engine()
 
     return asyncio.run(_runner())
 
@@ -103,8 +128,11 @@ class StockRepository:
         get_daily_data()」的寫法：symbols 表在個股產業標籤同步（services/industry_fetcher.py）後會被灌入
         整個市場的代碼（TW 兩千多檔），但真正有 daily_stock_data 的往往只有追蹤中的幾十檔，逐檔查詢等於
         上千次序列 DB round trip，實測會讓 /api/v1/stocks 逾時（15s 都不夠）。這裡改成單一查詢，且因為
-        是從 daily_stock_data 出發（INNER JOIN symbols），本來就只會回傳「真的有資料」的 symbol，不需要
-        額外過濾。"""
+        是從 daily_stock_data 出發（INNER JOIN symbols），本來就只會回傳「真的有資料」的 symbol。
+
+        額外排除 `security_type == 'index'`（大盤指數功能規劃書 ADR-I3：指數不得混進個股清單/下拉選單）——
+        指數與類股指數資料透過 db/dual_write.py 寫進同一張 daily_stock_data（ADR-I1「指數即標的」），
+        FK-ensure 會在 symbols 表留下對應列，不過濾的話會冒出來當成股票（見 TWSE_S15 等類股代號那次修復）。"""
         async with self._session_factory() as session:
             stmt = (
                 select(
@@ -115,7 +143,10 @@ class StockRepository:
                     func.count().over(partition_by=DailyStockData.symbol).label("total_records"),
                 )
                 .join(Symbol, Symbol.symbol == DailyStockData.symbol)
-                .where(DailyStockData.market_type == market_type)
+                .where(
+                    DailyStockData.market_type == market_type,
+                    or_(Symbol.security_type.is_(None), Symbol.security_type != "index"),
+                )
                 .distinct(DailyStockData.symbol)
                 .order_by(DailyStockData.symbol, DailyStockData.trade_date.desc())
             )
@@ -291,9 +322,13 @@ class StockRepository:
             result = await session.execute(stmt.order_by(DailyStockData.trade_date))
             return [_daily_to_dict(row) for row in result.scalars().all()]
 
-    async def upsert_daily_data(self, rows: list[dict]) -> None:
+    async def upsert_daily_data(self, rows: list[dict], security_type: Optional[str] = None) -> None:
         """rows 需符合 db/mapping.py 的 record_to_daily_row() 輸出格式；
-        ON CONFLICT 需覆蓋全部欄位，否則新舊資料會混在同一列（見設計文件第 4.1 節風險）。"""
+        ON CONFLICT 需覆蓋全部欄位，否則新舊資料會混在同一列（見設計文件第 4.1 節風險）。
+
+        `security_type`：FK-ensure 新建 symbols 列時要打的分類（例如指數傳 `'index'`，見
+        大盤指數功能規劃書 ADR-I3）。只在「新建」該列時寫入，既有列一律不覆蓋——代碼主檔同步
+        （services/industry_fetcher.py 等）才是個股 security_type 的權威來源。"""
         if not rows:
             return
 
@@ -303,7 +338,7 @@ class StockRepository:
             for row in rows:
                 symbol_seen.setdefault(row["symbol"], row["market_type"])
             sym_stmt = pg_insert(Symbol).values(
-                [{"symbol": s, "market_type": m} for s, m in symbol_seen.items()]
+                [{"symbol": s, "market_type": m, "security_type": security_type} for s, m in symbol_seen.items()]
             )
             sym_stmt = sym_stmt.on_conflict_do_nothing(index_elements=[Symbol.symbol])
             await session.execute(sym_stmt)
@@ -430,8 +465,8 @@ class StockRepository:
             ]
 
     # ── 給同步爬蟲模組使用的橋接方法（見 db/dual_write.py） ──────────────
-    def upsert_daily_data_sync(self, rows: list[dict]) -> None:
-        run_async(self.upsert_daily_data(rows))
+    def upsert_daily_data_sync(self, rows: list[dict], security_type: Optional[str] = None) -> None:
+        run_async(self.upsert_daily_data(rows, security_type=security_type))
 
     def log_crawler_run_sync(self, **kwargs: Any) -> None:
         run_async(self.log_crawler_run(**kwargs))

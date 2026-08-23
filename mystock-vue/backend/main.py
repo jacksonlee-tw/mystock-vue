@@ -38,6 +38,7 @@ from fastapi.responses import JSONResponse
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("mystock-backend")
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -185,4 +186,5 @@ if __name__ == "__main__":
     print("MyStock 股市分析 FastAPI 後端服務啟動中...")
     print("API 文件請開啟: http://localhost:8000/docs")
     print("=" * 60)
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    reload_enabled = os.getenv("UVICORN_RELOAD", "false").lower() in {"1", "true", "yes"}
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=reload_enabled)

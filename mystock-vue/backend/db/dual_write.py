@@ -10,18 +10,24 @@ from typing import Optional
 logger = logging.getLogger("mystock-backend")
 
 
-def dual_write_daily_data(symbol: str, market_type: str, dated_records: dict) -> None:
+def dual_write_daily_data(symbol: str, market_type: str, dated_records: dict,
+                           security_type: Optional[str] = None) -> None:
+    """`security_type`：僅供指數呼叫端（services/index_fetcher.py）標記 `'index'` 用，讓
+    symbols 表能區分指數與個股（大盤指數功能規劃書 ADR-I3）。個股爬蟲不傳，維持原行為
+    （FK-ensure 只補 symbol/market_type，不動 security_type，避免蓋掉代碼主檔同步的分類）。"""
     if not dated_records:
         return
     try:
         from db.mapping import record_to_daily_row
-        from repositories.stock_repository import StockRepository
+        from repositories.stock_repository import StockRepository, _BackgroundSessionFactory
 
         rows = [
             record_to_daily_row(symbol, market_type, date_key, record)
             for date_key, record in dated_records.items()
         ]
-        StockRepository().upsert_daily_data_sync(rows)
+        StockRepository(session_factory=_BackgroundSessionFactory()).upsert_daily_data_sync(
+            rows, security_type=security_type
+        )
     except Exception as e:
         logger.warning(f"PostgreSQL 雙寫失敗 ({market_type}/{symbol}): {e}")
 
@@ -33,9 +39,9 @@ def dual_write_symbol_industry(rows: list) -> None:
     if not rows:
         return
     try:
-        from repositories.stock_repository import StockRepository
+        from repositories.stock_repository import StockRepository, _BackgroundSessionFactory
 
-        StockRepository().upsert_symbol_industry_sync(rows)
+        StockRepository(session_factory=_BackgroundSessionFactory()).upsert_symbol_industry_sync(rows)
     except Exception as e:
         logger.warning(f"個股產業標籤 PostgreSQL 雙寫失敗: {e}")
 
@@ -45,10 +51,12 @@ def dual_write_no_trading_days(market_type: str, dates, source: str = "probed") 
     if not dates:
         return
     try:
-        from repositories.stock_repository import StockRepository
+        from repositories.stock_repository import StockRepository, _BackgroundSessionFactory
 
         parsed = {date_cls.fromisoformat(d) if isinstance(d, str) else d for d in dates}
-        StockRepository().add_no_trading_days_sync(market_type, parsed, source=source)
+        StockRepository(session_factory=_BackgroundSessionFactory()).add_no_trading_days_sync(
+            market_type, parsed, source=source
+        )
     except Exception as e:
         logger.warning(f"market_no_trading_days 寫入失敗 ({market_type}): {e}")
 
@@ -63,9 +71,9 @@ def log_crawler_run(
     error_message: Optional[str] = None,
 ) -> None:
     try:
-        from repositories.stock_repository import StockRepository
+        from repositories.stock_repository import StockRepository, _BackgroundSessionFactory
 
-        StockRepository().log_crawler_run_sync(
+        StockRepository(session_factory=_BackgroundSessionFactory()).log_crawler_run_sync(
             market_type=market_type,
             trigger_type=trigger_type,
             started_at=started_at,
