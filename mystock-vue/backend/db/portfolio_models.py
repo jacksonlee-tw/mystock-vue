@@ -11,6 +11,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     Date,
+    ForeignKey,
     Numeric,
     SmallInteger,
     String,
@@ -77,7 +78,11 @@ class PortfolioCashflow(Base):
 
 
 class PortfolioWatchlist(Base):
-    """潛力股觀察名單（設計文件 §五）。同 (market, symbol) 唯一，見 V8 的 uq_portfolio_watchlist_market_symbol。"""
+    """個股追蹤與觀察清單（原「潛力股觀察名單」，設計文件 §五；整合擴充見
+    docs/14.追蹤個股清單優化/追蹤與觀察名單整合_規劃書.md §4）。同 (market, symbol) 唯一，
+    見 V8 的 uq_portfolio_watchlist_market_symbol。target_price 為 NULL 代表「純追蹤」（V12）：
+    只納入每日抓取範圍、不計算距目標／到價提醒。tags 由 repository 另外查詢組裝，不用
+    relationship()：async session 下 lazy-load 會觸發 MissingGreenlet。"""
     __tablename__ = "portfolio_watchlist"
     __table_args__ = (UniqueConstraint("market", "symbol", name="uq_portfolio_watchlist_market_symbol"),)
 
@@ -86,10 +91,36 @@ class PortfolioWatchlist(Base):
     symbol: Mapped[str] = mapped_column(String(20), nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     added_date: Mapped[date] = mapped_column(Date, nullable=False, server_default=func.current_date())
-    target_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    target_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 4))
     note: Mapped[Optional[str]] = mapped_column(Text)
+    is_crawl_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+
+
+class WatchlistTag(Base):
+    """追蹤與觀察名單的自訂標籤字典（跨市場共用，V12）。名稱唯一以 LOWER(name) 索引控管
+    （見 migration），ORM 層不重複宣告，由 repository 的 upsert 邏輯負責去重。"""
+    __tablename__ = "watchlist_tag"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(30), nullable=False)
+    color: Mapped[str] = mapped_column(String(20), nullable=False, default="slate")
+    sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+
+
+class WatchlistItemTag(Base):
+    """清單項目 <-> tag 多對多關聯（V12）。純關聯表，兩側皆 ON DELETE CASCADE。"""
+    __tablename__ = "watchlist_item_tag"
+
+    watchlist_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("portfolio_watchlist.id", ondelete="CASCADE"), primary_key=True
+    )
+    tag_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("watchlist_tag.id", ondelete="CASCADE"), primary_key=True
+    )
 
 
 class PortfolioSettings(Base):

@@ -221,7 +221,11 @@ async function addToTracked(symbol) {
     const res = await stockApi.addTrackedStocks([symbol], currentMarket.value);
     if (res.success) {
       trackedSet.value = new Set([...trackedSet.value, symbol]);
-      toast.add({ severity: 'success', summary: '已加入追蹤', detail: `${symbol} 已加入追蹤清單`, life: 3000 });
+      toast.add({
+        severity: 'success', summary: '已加入追蹤',
+        detail: `${symbol} 已加入追蹤清單；可至「追蹤與觀察名單」頁補充追蹤原因、標籤或目標買進價`,
+        life: 4000
+      });
     }
   } catch (err) {
     toast.add({ severity: 'error', summary: '加入失敗', detail: err.response?.data?.detail || '加入追蹤清單失敗', life: 4000 });

@@ -59,6 +59,24 @@ async def lifespan(app: FastAPI):
     from services.exchange_rate_fetcher import fetch_exchange_rates_startup
     asyncio.create_task(fetch_exchange_rates_startup())
 
+    # 啟動時對帳追蹤清單：.env（STOCK_CODES/US_STOCK_CODES）與 DB（portfolio_watchlist）是否一致。
+    # 只印警告、不自動修改（見追蹤與觀察名單整合規劃書 §4.3——避免啟動時偷改使用者設定）；
+    # 不一致時提示可執行 scripts/sync_tracking_env.py 手動修復。背景執行、失敗不阻塞服務啟動。
+    async def _check_tracking_sync():
+        try:
+            from services.tracking_service import diff_env_vs_db
+            for m in ("tw", "us"):
+                diff = await diff_env_vs_db(m)
+                if diff["checked"] and not diff["in_sync"]:
+                    logger.warning(
+                        "[追蹤清單] %s 市場 .env 與 DB 不同步（只在 .env: %s；只在 DB: %s）。"
+                        "可執行 python scripts/sync_tracking_env.py --market %s --from db|env 修復",
+                        m, diff["only_in_env"], diff["only_in_db"], m,
+                    )
+        except Exception as exc:
+            logger.warning("[追蹤清單] 啟動對帳失敗（已略過）：%s", exc)
+    asyncio.create_task(_check_tracking_sync())
+
     # ── 整合訊息通知平台（僅在 NOTIFY_ENABLED=true 時啟動；失敗不得拖垮既有服務，鐵則 R7）──
     try:
         from notify import config as notify_config

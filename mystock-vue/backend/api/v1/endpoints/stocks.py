@@ -3,8 +3,9 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 
 from core.exceptions import SymbolNotFoundException
-from config import get_target_stocks, save_target_stocks
+from config import get_target_stocks
 from markets import get_adapter
+from services import tracking_service
 from services.stock_service import (
     discover_available_stocks,
     get_stock_chart_payload,
@@ -144,19 +145,23 @@ async def list_symbol_industry_options(market: str = Query("tw", description="�
     return {"success": True, "data": options}
 
 @router.post("/tracked", summary="新增追蹤股票代號（支援批次：帶 stock_ids 陣列一次新增多檔）")
-async def add_tracked_stock(req: TrackedStockAddRequest, market: str = Query("tw")):
+async def add_tracked_stock(req: TrackedStockAddRequest, background_tasks: BackgroundTasks, market: str = Query("tw")):
     raw_codes = req.stock_ids if req.stock_ids else ([req.stock_id] if req.stock_id else [])
     codes = list(dict.fromkeys(c.strip() for c in raw_codes if c and c.strip()))  # trim + 去重，保留順序
     if not codes:
         raise HTTPException(status_code=400, detail="股票代號不可為空")
 
+    # 寫入一律委派 services/tracking_service.py（唯一寫入點，見追蹤與觀察名單整合規劃書 §3.1 D3）：
+    # 它會把新代號 upsert 進 portfolio_watchlist（純追蹤，source="symbol_browser"），再把
+    # is_crawl_enabled 的代號鏡像寫回 .env；Postgres 連線失敗時自動退回直接寫 .env，維持既有
+    # 「JSON-only 部署也能增刪追蹤清單」的能力。
+    result = await tracking_service.add_codes(codes, market, source="symbol_browser")
+    new_codes = result["added"]
+    already = result["already_tracked"]
     current = get_target_stocks(market=market)
-    already = [c for c in codes if c in current]
-    new_codes = [c for c in codes if c not in current]
 
-    if new_codes:
-        current = current + new_codes
-        save_target_stocks(current, market=market)
+    # 加入後自動補抓（ADR-06）：沒有歷史資料的才會觸發，跟 /api/v1/watchlist 共用同一套判斷
+    fetch_triggered = await tracking_service.ensure_data(new_codes, market, background_tasks)
 
     # 對新加入的代號做一次主檔驗證，查不到的仍照樣加入（不阻斷流程），只在回應中標記出來
     # 讓前端可以提示使用者確認代號是否正確（見 markets/tw.py validate_symbols()）。
@@ -183,17 +188,17 @@ async def add_tracked_stock(req: TrackedStockAddRequest, market: str = Query("tw
         "added": new_codes,
         "already_tracked": already,
         "unknown": unknown,
+        "fetch_triggered": fetch_triggered,
     }
 
 @router.delete("/tracked/{stock_id}", summary="移除追蹤股票代號")
 async def remove_tracked_stock(stock_id: str, market: str = Query("tw")):
     stock_id = stock_id.strip()
-    current = get_target_stocks(market=market)
-    if stock_id not in current:
+    removed = await tracking_service.remove_code(stock_id, market)
+    if not removed:
         raise SymbolNotFoundException("追蹤清單中找不到此股票代號")
 
-    updated = [s for s in current if s != stock_id]
-    save_target_stocks(updated, market=market)
+    updated = get_target_stocks(market=market)
 
     # Return the new list with dates so frontend can update correctly
     return {

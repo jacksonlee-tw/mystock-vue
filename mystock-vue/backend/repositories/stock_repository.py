@@ -322,6 +322,41 @@ class StockRepository:
             result = await session.execute(stmt.order_by(DailyStockData.trade_date))
             return [_daily_to_dict(row) for row in result.scalars().all()]
 
+    async def get_coverage_summary(self, symbols: list[str], market_type: str) -> dict[str, dict]:
+        """批次取得多檔股票的資料涵蓋範圍（起訖日期／筆數／缺漏價格天數），供追蹤與觀察名單頁
+        一次查完，取代逐檔呼叫 load_stock_data() 把整段歷史讀進記憶體的舊寫法（見
+        docs/14.追蹤個股清單優化/追蹤與觀察名單整合_規劃書.md §5.1）。
+
+        close_price 為 NULL 或 0 都視為缺值，比照既有慣例（見 CLAUDE.md 對
+        scripts/restore_price_from_legacy.py 歷史 0.0 價格 bug 的說明）。回傳的 dict 只包含
+        symbols 中「確實有資料」的代號，查無資料的代號不會出現在結果裡（呼叫端以 .get() 判斷）。"""
+        if not symbols:
+            return {}
+        async with self._session_factory() as session:
+            stmt = (
+                select(
+                    DailyStockData.symbol,
+                    func.min(DailyStockData.trade_date).label("start_date"),
+                    func.max(DailyStockData.trade_date).label("end_date"),
+                    func.count().label("count"),
+                    func.count().filter(
+                        or_(DailyStockData.close_price.is_(None), DailyStockData.close_price == 0)
+                    ).label("missing_price_days"),
+                )
+                .where(DailyStockData.market_type == market_type, DailyStockData.symbol.in_(symbols))
+                .group_by(DailyStockData.symbol)
+            )
+            result = await session.execute(stmt)
+            return {
+                row.symbol: {
+                    "start_date": row.start_date.isoformat() if row.start_date else None,
+                    "end_date": row.end_date.isoformat() if row.end_date else None,
+                    "count": row.count,
+                    "missing_price_days": row.missing_price_days,
+                }
+                for row in result.all()
+            }
+
     async def upsert_daily_data(self, rows: list[dict], security_type: Optional[str] = None) -> None:
         """rows 需符合 db/mapping.py 的 record_to_daily_row() 輸出格式；
         ON CONFLICT 需覆蓋全部欄位，否則新舊資料會混在同一列（見設計文件第 4.1 節風險）。

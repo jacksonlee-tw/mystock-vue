@@ -125,10 +125,16 @@ export const portfolioApi = {
         return response.data;
     },
 
-    // ── 觀察名單 ──────────────────────────────────────────────
-    async getWatchlist({ market } = {}) {
+    // ── 追蹤與觀察名單（原「觀察名單」，見 docs/14.追蹤個股清單優化/） ─────
+    // tags: tag id 陣列（AND 語意）；hasTarget/crawlOnly 為 true/false 時才會帶入查詢字串
+    async getWatchlist({ market, tags, q, hasTarget, crawlOnly, withCoverage } = {}) {
         const params = {};
         if (market) params.market = market;
+        if (tags && tags.length) params.tags = (Array.isArray(tags) ? tags : [tags]).join(',');
+        if (q) params.q = q;
+        if (hasTarget !== undefined && hasTarget !== null) params.has_target = hasTarget;
+        if (crawlOnly !== undefined && crawlOnly !== null) params.crawl_only = crawlOnly;
+        if (withCoverage) params.with_coverage = true;
         const response = await apiClient.get('/watchlist', { params });
         return response.data;
     },
@@ -143,8 +149,34 @@ export const portfolioApi = {
         return response.data;
     },
 
+    async setWatchlistCrawlEnabled(id, enabled) {
+        const response = await apiClient.patch(`/watchlist/${id}/crawl`, { enabled });
+        return response.data;
+    },
+
     async removeWatchlist(id) {
         const response = await apiClient.delete(`/watchlist/${id}`);
+        return response.data;
+    },
+
+    // ── 追蹤與觀察名單：自訂標籤 ────────────────────────────────
+    async getWatchlistTags() {
+        const response = await apiClient.get('/watchlist/tags');
+        return response.data;
+    },
+
+    async createWatchlistTag(payload) {
+        const response = await apiClient.post('/watchlist/tags', payload);
+        return response.data;
+    },
+
+    async updateWatchlistTag(id, payload) {
+        const response = await apiClient.put(`/watchlist/tags/${id}`, payload);
+        return response.data;
+    },
+
+    async deleteWatchlistTag(id) {
+        const response = await apiClient.delete(`/watchlist/tags/${id}`);
         return response.data;
     },
 

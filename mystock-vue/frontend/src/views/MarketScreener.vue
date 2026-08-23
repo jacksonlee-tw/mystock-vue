@@ -762,7 +762,11 @@ function goToCompare() {
 async function addToWatchlist(symbol) {
   try {
     await stockApi.addTrackedStock(symbol, currentMarket.value);
-    toast.add({ severity: 'success', summary: '已加入追蹤', detail: `股票 ${symbol} 已加入追蹤清單`, life: 3000 });
+    toast.add({
+      severity: 'success', summary: '已加入追蹤',
+      detail: `股票 ${symbol} 已加入追蹤清單；可至「追蹤與觀察名單」頁補充追蹤原因、標籤或目標買進價`,
+      life: 4000
+    });
   } catch (err) {
     toast.add({ severity: 'warn', summary: '提醒', detail: err.message || '加入追蹤失敗或已在清單中', life: 3000 });
   }
