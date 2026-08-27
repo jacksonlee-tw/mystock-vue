@@ -20,3 +20,7 @@ jinja2>=3.1            # 模板渲染，SandboxedEnvironment（ADR-07）
 cryptography>=42.0     # Fernet 加密管道憑證（ADR-08）
 itsdangerous>=2.2      # 簽章 Cookie（ADR-10）
 bcrypt>=4.1            # 擁有者密碼雜湊
+
+# ── AI 技術分析報告（backend/ai/，見 docs/16.AI技術分析/AI技術分析規劃.md）──
+anthropic>=0.40         # Claude API，AsyncAnthropic + messages.parse 結構化輸出（ADR-AI-04/06）
+google-genai>=1.0       # Gemini API 現行統一 SDK（非舊版 google-generativeai，見規格書 D-02）

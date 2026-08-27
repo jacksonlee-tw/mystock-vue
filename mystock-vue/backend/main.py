@@ -26,10 +26,17 @@ from api.v1.endpoints.exchange_rates import router as exchange_rates_router
 from api.v1.endpoints.notify_admin import router as notify_admin_router, session_router as notify_session_router
 from api.v1.endpoints.notify_self import router as notify_self_router
 from api.v1.endpoints.notify_public import router as notify_public_router
+from api.v1.endpoints.ai_analysis import router as ai_analysis_router
 from core.exceptions import SymbolNotFoundException
 from notify.security import (
     NotifyUnauthorizedException, NotifyForbiddenException, NotifyNotFoundException,
     NotifyValidationException, ChannelUnavailableException, PreferenceWideningException,
+)
+from ai.errors import (
+    AIDisabledException, AIStorageUnavailableException, AIQuotaExceededException,
+    AIAnalysisInProgressException, AIProviderMisconfiguredException, AIRateLimitedException,
+    AITimeoutException, AIProviderUnreachableException, AIProviderError,
+    AIInvalidRequestException, AIImageTooLargeException,
 )
 from db.session import dispose_engine
 from services.scheduler import create_scheduler
@@ -50,6 +57,27 @@ async def lifespan(app: FastAPI):
         await MarketRepository().reap_orphaned_fetch_jobs()
     except Exception as exc:
         logger.warning("[全市場] 回收殘留抓取作業失敗（已略過）：%s", exc)
+
+    # ── AI 技術分析報告：回收上次行程留下的孤兒 running 列（比照上方全市場抓取的
+    #    reap_orphaned_fetch_jobs()，見 docs/16.AI技術分析/AI技術分析規劃.md §5.8）。
+    #    僅在 AI_ANALYSIS_ENABLED=true 時嘗試，失敗不阻斷啟動；DATA_SOURCE=json 時本來就沒這幾張表。
+    try:
+        from ai import config as ai_config
+        if ai_config.is_enabled():
+            from db.session import get_async_session
+            from repositories.ai_report_repository import AIReportRepository
+            from repositories.activity_log_repository import ActivityLogRepository
+            async with get_async_session() as _ai_session:
+                reaped = await AIReportRepository(_ai_session).reap_orphaned(ai_config.get_stuck_timeout_min())
+                if reaped:
+                    await ActivityLogRepository(_ai_session).log(
+                        "AI_REPORT_REAP", success=True, comments=f"回收 {reaped} 筆孤兒 running 列"
+                    )
+                await _ai_session.commit()
+            if reaped:
+                logger.info("[AI] 回收孤兒 running 報告列 %d 筆", reaped)
+    except Exception as exc:
+        logger.warning("[AI] 回收殘留執行紀錄失敗（已略過）：%s", exc)
 
     scheduler = create_scheduler()
     scheduler.start()
@@ -150,6 +178,8 @@ app.include_router(notify_admin_router)
 app.include_router(notify_session_router)
 app.include_router(notify_self_router)
 app.include_router(notify_public_router)
+# ── AI 技術分析報告（docs/16.AI技術分析/AI技術分析規劃.md）────────────────
+app.include_router(ai_analysis_router)
 
 @app.exception_handler(SymbolNotFoundException)
 async def symbol_not_found_handler(request, exc):
@@ -193,6 +223,74 @@ async def notify_widening_handler(request, exc):
 async def notify_channel_unavailable_handler(request, exc):
     return JSONResponse(status_code=409, content={
         "success": False, "error": {"code": "NOTIFY_CHANNEL_UNAVAILABLE", "message": str(exc) or "管道目前無法使用"}
+    })
+
+# ── AI 技術分析報告例外處理（規格書 §4.7）─────────────────────────────────
+@app.exception_handler(AIDisabledException)
+async def ai_disabled_handler(request, exc):
+    return JSONResponse(status_code=403, content={
+        "success": False, "error": {"code": "AI_DISABLED", "message": str(exc) or "AI 技術分析報告功能未啟用"}
+    })
+
+@app.exception_handler(AIStorageUnavailableException)
+async def ai_storage_unavailable_handler(request, exc):
+    return JSONResponse(status_code=503, content={
+        "success": False, "error": {"code": "AI_STORAGE_UNAVAILABLE", "message": str(exc) or "AI 報告資料庫目前無法使用"}
+    })
+
+@app.exception_handler(AIQuotaExceededException)
+async def ai_quota_exceeded_handler(request, exc):
+    return JSONResponse(status_code=429, content={
+        "success": False, "error": {"code": "AI_QUOTA_EXCEEDED", "message": str(exc) or "今日新報告數已達上限"}
+    })
+
+@app.exception_handler(AIAnalysisInProgressException)
+async def ai_in_progress_handler(request, exc):
+    return JSONResponse(status_code=409, content={
+        "success": False, "error": {"code": "AI_ANALYSIS_IN_PROGRESS", "message": str(exc) or "分析正在進行中"}
+    })
+
+@app.exception_handler(AIProviderMisconfiguredException)
+async def ai_misconfigured_handler(request, exc):
+    return JSONResponse(status_code=500, content={
+        "success": False, "error": {"code": "AI_PROVIDER_MISCONFIGURED", "message": "AI Provider 設定有誤，請檢查 .env"}
+    })
+
+@app.exception_handler(AIRateLimitedException)
+async def ai_rate_limited_handler(request, exc):
+    headers = {"Retry-After": str(exc.retry_after_sec)} if getattr(exc, "retry_after_sec", None) else None
+    return JSONResponse(status_code=429, headers=headers, content={
+        "success": False, "error": {"code": "AI_RATE_LIMITED", "message": str(exc) or "已達 LLM 服務限流上限"}
+    })
+
+@app.exception_handler(AITimeoutException)
+async def ai_timeout_handler(request, exc):
+    return JSONResponse(status_code=504, content={
+        "success": False, "error": {"code": "AI_TIMEOUT", "message": str(exc) or "呼叫 LLM 逾時"}
+    })
+
+@app.exception_handler(AIProviderUnreachableException)
+async def ai_unreachable_handler(request, exc):
+    return JSONResponse(status_code=502, content={
+        "success": False, "error": {"code": "AI_PROVIDER_UNREACHABLE", "message": str(exc) or "無法連線至 LLM 服務"}
+    })
+
+@app.exception_handler(AIProviderError)
+async def ai_provider_error_handler(request, exc):
+    return JSONResponse(status_code=502, content={
+        "success": False, "error": {"code": "AI_PROVIDER_ERROR", "message": str(exc) or "LLM 服務發生未知錯誤"}
+    })
+
+@app.exception_handler(AIInvalidRequestException)
+async def ai_invalid_request_handler(request, exc):
+    return JSONResponse(status_code=400, content={
+        "success": False, "error": {"code": "AI_INVALID_REQUEST", "message": str(exc) or "請求參數不合法"}
+    })
+
+@app.exception_handler(AIImageTooLargeException)
+async def ai_image_too_large_handler(request, exc):
+    return JSONResponse(status_code=400, content={
+        "success": False, "error": {"code": "AI_IMAGE_TOO_LARGE", "message": str(exc) or "圖片超過大小上限"}
     })
 
 @app.get("/health", summary="健康檢查端點", tags=["Health"])

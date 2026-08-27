@@ -9,7 +9,7 @@
 
     <!-- 單一圖表舞台：一次只顯示一張圖，用上方頁籤切換或點選 KPI 卡（見 StockDashboard.vue）。
          所有圖表共用同一個固定高度容器，大小格式統一，不再逐張堆疊成長頁。 -->
-    <div class="card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 overflow-hidden">
+    <div ref="chartCardRef" class="card shadow-sm border border-surface-200 dark:border-surface-700 rounded-xl bg-surface-0 dark:bg-surface-900 overflow-hidden">
       <div class="flex flex-wrap items-center gap-0.5 px-3 pt-2.5 pb-2 border-b border-surface-100 dark:border-surface-800 bg-surface-50/60 dark:bg-surface-800/30">
         <button
           v-for="w in availableWidgets"
@@ -67,6 +67,7 @@
 
         <v-chart
           v-if="activeWidget && !activeWidget.emptyPlaceholder"
+          ref="chartRef"
           :class="['chart-container-stage', { 'chart-container-stage--kd': kdSubchartActive }]"
           :option="getOption(activeId)"
           :update-options="{ notMerge: true }"
@@ -84,7 +85,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart, LineChart, CandlestickChart } from 'echarts/charts';
@@ -178,6 +179,39 @@ const activeId = computed({
 });
 
 const activeWidget = computed(() => availableWidgets.value.find((w) => w.id === activeId.value) || null);
+
+// AI 診股報告擷圖（AI 技術分析報告 系統開發規格書 §4.1）：<v-chart> 是同一個元素隨 activeId
+// 切換 option 重畫，不是每個頁籤各自一個實例，所以只要目前有任一非 emptyPlaceholder 的圖表
+// 顯示中，chartRef 就是有效的 ECharts 實例。vue-echarts v8 會把 getDataURL 等方法代理到這個
+// template ref 上，不需要另外引入截圖套件。
+const chartRef = ref(null);
+const chartCardRef = ref(null);
+
+async function captureKlineImage() {
+  if (activeId.value !== 'kline') {
+    activeId.value = 'kline'; // 沿用既有的頁籤切換路徑，不卸載內容區塊（CLAUDE.md 鐵則 1 的同一條原則）
+  }
+  // 等兩次 tick：第一次讓 Vue 把 activeId 的變動流過 v-model 反映回 props，
+  // 第二次讓 vue-echarts 對新 option 完成 setOption／重繪，避免擷到切換前的畫面。
+  await nextTick();
+  await nextTick();
+  if (!chartRef.value) return null;
+
+  // 背景色不可透明：ECharts 預設透明底轉 PNG 後，深色主題下的文字會落在透明底上幾乎讀不到。
+  // 直接讀卡片元素目前解析出的實際背景色，不寫死色碼，明暗主題與未來換色都會自動跟著對。
+  let backgroundColor = '#ffffff';
+  if (chartCardRef.value) {
+    const resolved = getComputedStyle(chartCardRef.value).backgroundColor;
+    if (resolved && resolved !== 'rgba(0, 0, 0, 0)' && resolved !== 'transparent') {
+      backgroundColor = resolved;
+    }
+  }
+
+  const dataUrl = chartRef.value.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor });
+  return dataUrl.replace(/^data:image\/png;base64,/, '');
+}
+
+defineExpose({ captureKlineImage });
 
 // KD 副圖開關（KD指標 設計規格書 §7.2）：預設關閉、狀態存 localStorage；網址帶
 // ?indicator=kd 時強制開啟（不寫回 localStorage），供警示看板跳轉使用（§7.5）。

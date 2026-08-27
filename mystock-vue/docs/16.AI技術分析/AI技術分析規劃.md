@@ -1,9 +1,9 @@
 # AI 技術分析報告 系統開發規格書
 
 **模組**：AI 技術分析報告（AI Technical Analysis Report）
-**版本**：v3.1
-**日期**：2026-08-27
-**狀態**：待開發（尚未動工；`backend/ai/` 目前不存在，`anthropic`／`google-genai` 皆未列入 `requirements.txt`）
+**版本**：v3.4
+**日期**：2026-08-28
+**狀態**：**已完成開發並通過端對端驗證**（後端 P1～P8、前端 P6～P7 皆已實作；Claude 走過完整失敗/重試/落地路徑，Gemini 走過真實成功的完整路徑，見 §11 WBS 與各階段驗證紀錄）
 **對應既有模組**：[strategies/](../../backend/strategies/)（策略警示）、[notify/](../../backend/notify/)（通知平台，本文多處沿用其架構慣例）
 
 **版本紀錄**
@@ -14,6 +14,9 @@
 | v2.0 | 2026-08-27 | 改寫為開發規格書：修正 9 項會導致實作失敗的落差（見 §0.1）、確立雙 Provider 註冊表、改為前端擷取既有 ECharts 圖表、加入結構化輸出、成本閘門、逾時設計、驗收條件 |
 | v3.0 | 2026-08-27 | **推翻 ADR-AI-03「不落地」**：報告改存 PostgreSQL；確立「**同一標的同一交易日只呼叫 LLM 一次**」為資料庫層強制約束；新增 §5 資料庫設計、歷史報告查詢 API 與前端頁面（見 §0.2） |
 | v3.1 | 2026-08-27 | 新增兩張紀錄表：**`ai_llm_execution`**（每次 LLM 呼叫的交易紀錄與 token 用量，含失敗）與 **`activity_log`**（主要功能的事件紀錄）；成本統計改以執行紀錄表為唯一事實來源（ADR-AI-17）；補上參考 MySQL DDL → PostgreSQL 的轉換對照（§5.9） |
+| v3.2 | 2026-08-28 | 完成開發與端對端驗證（含真實 Claude／Gemini 呼叫）；過程中修正 3 個實作 bug（DATE 參數型別、`INTERVAL` 串接、`force` 旗標邏輯）與 1 個 Gemini `finish_reason` enum 解析 bug；**推翻 ADR-AI-07：移除所有 AI 端點的 `require_owner` 授權**（前端無登入入口，見 §0.3）；補上 Gemini 2.5 Flash／Flash-Lite 官方定價 |
+| v3.3 | 2026-08-28 | **D-10／§4.5 修訂**：`report_markdown` 不再要求 LLM 直接產生自由文字（實測 Claude／Gemini 皆會不穩定地把「### 標題」黏在前一句話尾端，即使 Prompt 三令五申仍會失效）；改為 LLM 只填結構化的 `sections: [{title, body}]`，Markdown 標題與換行改由後端 `sections_to_markdown()` 自行組裝，100% 保證正確斷行；同時完成前端 `AiAnalysisDialog.vue` 的 UI/UX 重新設計（單一捲動區、標題左側色條、結論改為色塊摘要卡、支撐/壓力/停損卡片加圖示） |
+| v3.4 | 2026-08-28 | **ADR-AI-21：唯一鍵擴充為 `(market_type, symbol, trade_date, provider, model)`**（V15 遷移）——換模型視為另一份獨立報告，可再產生一次；新增 `GET /api/v1/ai/models`（**ADR-AI-22** 程式碼白名單）與 `POST /analyze-stock` 的 `model` 欄位；前端 `AiAnalysisDialog.vue` 新增「選擇模型」步驟（見 §0.4）。過程中實測發現 `gemini-2.5-flash-lite` 已對新用戶下架（官方指定改用 `gemini-3.5-flash-lite`），移出白名單並補上正確機型 |
 
 > **文件性質說明**
 > v1.0 是「可行性構想」，回答「做不做得到」；本版是**開發規格書**，回答「怎麼做才不會踩雷」。
@@ -84,6 +87,51 @@ v2.0 為求首版精簡，決定「報告產生即用、不儲存」（原 ADR-A
 
 > **重要前提變更**：本模組自 v3.0 起**需要 PostgreSQL**。專案預設 `DATA_SOURCE=json`，Postgres 為選用；AI 報告模組**不受 `DATA_SOURCE` 影響、一律使用 Postgres**（ADR-AI-14），但若資料庫不可用，本功能須自我停用並回報明確錯誤，**不得影響任何既有功能**（見 §5.1、AC-AI-15）。
 
+### 0.3 v3.2 架構變更（推翻 ADR-AI-07：移除 `require_owner` 授權）
+
+實作並在瀏覽器實測後發現：ADR-AI-07 原本要求所有 AI 端點掛 `Depends(require_owner)`，但**本專案除了通知平台的獨立管理頁面（`/notify/login`）外，其餘功能（含既有的個股／警示／記帳頁面）一律不要求登入**，前端也從未實作任何取得 owner Cookie／Bearer Token 的入口——UI 上「您好：傑克森」只是 `AppTopbar.vue` 寫死的裝飾文字，不是真的登入狀態。掛上 `require_owner` 的結果不是「多一層防護」，而是一條**沒有入口的死路**：使用者點下按鈕只會收到 401，且前端沒有任何頁面能讓他們解開這個 401。
+
+| # | v3.1 的作法 | 問題 | v3.2 的作法 |
+|---|---|---|---|
+| **C-08** | 所有 AI 端點掛 `Depends(require_owner)`（ADR-AI-07） | 前端無登入入口，功能完全打不開；為此另建登入流程對單人本機工具而言得不償失 | **移除 `require_owner`**，AI 端點與其餘既有功能一致，皆不要求登入 |
+
+**成本控管改由何處承接**：拿掉 HTTP 層的授權閘門後，「未授權者按下去會產生金錢支出」這件事，改成完全依賴既有的資料庫層防線，兩者本來就已經是主要防線、不是新增的補償措施：
+
+- `AI_DAILY_QUOTA`：全站每日新報告總量上限（§4.6 閘門 3，預設 20）
+- `UNIQUE (market_type, symbol, trade_date)`：同一標的同一交易日只呼叫一次 LLM（ADR-AI-16）
+- `AI_ANALYSIS_ENABLED=false`：功能總開關，預設關閉
+
+若日後此系統需要對外網路開放（而不僅是本機／區網使用），**必須重新評估是否要接一套全站通用的登入機制**（而不是只給 AI 端點單獨掛一個打不開的鎖），這點列入 §13 風險與延後項目。
+
+### 0.4 v3.4 架構變更（唯一鍵加入 provider／model；產生前先選模型）
+
+使用者需求：Gemini 官方模型清單持續在推出新版本（3.1 Pro／3.5 Flash／3.6 Flash／Flash-Lite
+等），應該讓使用者在產生報告**前**先選要用哪個模型，而不是固定用 `.env` 設定的單一預設模型；
+且既然模型是使用者當場選的，「同一標的同一天只能呼叫一次」的範圍也應該收斂到**同一個模型**，
+換模型應視為另一份獨立報告，可以再產生一次。
+
+| # | v3.3 的作法 | v3.4 的作法 |
+|---|---|---|
+| **C-09** | 唯一鍵 `(market_type, symbol, trade_date)`，不分 provider／model（ADR-AI-16） | **推翻**：唯一鍵改為 `(market_type, symbol, trade_date, provider, model)`（**ADR-AI-21**，V15 遷移）。`model` 從「事後才知道的中繼資料」變成「事前就決定、參與唯一鍵」的識別欄位，補上 `NOT NULL` |
+| **C-10** | `model` 只能來自 `.env`（`CLAUDE_MODEL`／`GEMINI_MODEL`），使用者無從選擇 | 新增 `GET /api/v1/ai/models`（§6.1）回傳可選模型清單（`ai/config.py` 的 `*_SELECTABLE_MODELS` 白名單）；`POST /ai/analyze-stock` 新增可選欄位 `model`，未帶時仍退回 `.env` 預設 |
+| **C-11** | 前端點按鈕直接判斷「今日有沒有」就開始擷圖／呼叫 | `AiAnalysisDialog.vue` 新增「選擇模型」為第一步（`stage='select'`），選好後才依「這個 provider+model 組合今天是否已有報告」決定要擷圖產生還是直接讀取（`composables/useAiAnalysis.js`） |
+
+**模型白名單而非任意字串**（ADR-AI-22）：前端不能把使用者輸入的任意字串直接送給 Provider
+API——一來打錯字要等一次真實呼叫失敗才知道，二來使用者需求明確要排除圖片生成／即時語音／
+翻譯／TTS 等本模組用不到的變體（如 Nano Banana 系列）。`ai/config.py` 維護
+`CLAUDE_SELECTABLE_MODELS`／`GEMINI_SELECTABLE_MODELS` 兩份程式碼白名單，`POST
+/analyze-stock` 收到 `model` 時以 `ai_config.is_valid_model()` 驗證，不在清單內回 400
+`AI_INVALID_REQUEST`。新模型上市時在清單裡加一筆即可，不需要改任何呼叫邏輯。
+
+> **清單來源與實測狀態的誠實揭露**：Gemini 可選清單依使用者提供的官方模型頁截圖
+> （`ai.google.dev/gemini-api/docs/models`）與官方定價頁交叉核對，**只有預設的
+> `gemini-2.5-flash` 真正用本專案的程式碼實測成功過**；`gemini-2.5-flash-lite` 實測直接
+> 回 404「no longer available to new users」，官方訊息指定改用 `gemini-3.5-flash-lite`
+> ——因此前者**未列入**白名單、後者列入但未實測。其餘機型（3.1 Pro／3.6 Flash／3.5
+> Flash／3-flash-preview／3.1 Flash-Lite／2.5 Pro）僅核對過名稱與定價存在，**未實際打過
+> API**，不保證這把金鑰／地區能用；打不通會是 Google 端 404，不是本專案程式問題，見
+> `ai/config.py` 該處的程式碼註解。
+
 ---
 
 ## 1. 範圍與設計前提
@@ -100,12 +148,12 @@ v2.0 為求首版精簡，決定「報告產生即用、不儲存」（原 ADR-A
 
 | 既有元件 | 位置 | 與本模組的關係 |
 |---|---|---|
-| 圖表資料組裝 | [services/stock_service.py](../../backend/services/stock_service.py) `get_chart_data()` | **量化摘要的唯一來源**。已回傳 `moving_averages`（MA 5/10/20/60/120/240）、`kd`、`latest_summary`（含三大法人與融資券）、`records`。本模組**不新增任何指標計算** |
+| 圖表資料組裝 | [services/stock_service.py](../../backend/services/stock_service.py) `get_stock_chart_payload()` | **量化摘要的唯一來源**。已回傳 `moving_averages`（MA 5/10/20/60/120/240）、`kd`、`latest_summary`（含三大法人與融資券）、`records`。本模組**不新增任何指標計算** |
 | 均線計算 | [indicators/moving_average.py](../../backend/indicators/moving_average.py) | `sma()` 刻意與前端 `movingAverage.js` 數值一致——AI 引用的數字因此與圖上的線同源 |
 | 籌碼指標 | [indicators/chip.py](../../backend/indicators/chip.py) | `cum_net()` 可直接取近 N 日法人買賣超合計，供摘要使用 |
 | 策略警示 | [repositories/alert_repository.py](../../backend/repositories/alert_repository.py) | 可選擇性把該檔近期已觸發的策略訊號一併餵給 AI 當佐證（§4.2 選用欄位） |
 | 管道註冊表慣例 | [notify/channels/\_\_init\_\_.py](../../backend/notify/channels/__init__.py) | `@channel` 裝飾器自我註冊。本模組的 Provider 註冊表**完全比照**（ADR-AI-01） |
-| 擁有者授權 | [notify/security.py:127](../../backend/notify/security.py#L127) `require_owner` | 已存在的 FastAPI dependency，本模組**直接復用**，不另造一套（ADR-AI-07） |
+| ~~擁有者授權~~ | ~~[notify/security.py:127](../../backend/notify/security.py#L127) `require_owner`~~ | **v3.2 移除**：前端無登入入口，掛上去打不開（見 §0.3）。成本控管改依賴 `AI_DAILY_QUOTA` 與唯一鍵去重 |
 | SQL 存取慣例 | [repositories/notify_repository.py](../../backend/repositories/notify_repository.py) | `AsyncSession` ＋ `text()` 原生 SQL ＋ `result.mappings()`。**唯一 SQL 入口**的慣例，本模組比照新增 `ai_report_repository.py` |
 | 連線管理 | [db/session.py](../../backend/db/session.py) | `create_async_engine` ＋ `dispose_engine()` |
 | 資料庫遷移 | [db/migration/](../../backend/db/migration/) | Flyway，目前最新為 `V13`；本模組新增 **`V14`** |
@@ -136,9 +184,9 @@ v2.0 為求首版精簡，決定「報告產生即用、不儲存」（原 ADR-A
 | **ADR-AI-04** | 一律使用**非同步** SDK 客戶端 | 見 D-04。與 notify ADR-05（`aiosmtplib` 而非 `smtplib`）同一條理由 | §4.3 |
 | **ADR-AI-05** | Provider client **延遲建立**；模組匯入階段不得要求金鑰存在 | 見 D-03。鐵則：**未啟用 AI 功能的部署，必須能正常啟動且完全不受影響**（比照 notify 鐵則 R7） | §4.3 |
 | **ADR-AI-06** | 輸出採**結構化欄位＋Markdown 敘述並存** | 見 D-09。Claude 端用 `output_config.format`（JSON Schema）保證可解析。結構化欄位同時是資料表的欄位來源，讓歷史查詢能依 `verdict` 篩選 | §4.5、§5.4 |
-| **ADR-AI-07** | 功能旗標 `AI_ANALYSIS_ENABLED` 預設 **false**；端點掛 `Depends(require_owner)` | 這是**唯一一個按下去會產生金錢支出**的端點。CORS 目前是 `*`（[config.py](../../backend/config.py) `CORS_ORIGINS`），無授權等同對外開放刷帳單 | §8.1 |
+| ~~ADR-AI-07~~ | ~~功能旗標 `AI_ANALYSIS_ENABLED` 預設 **false**；端點掛 `Depends(require_owner)`~~ | **v3.2 推翻**：前端無登入入口可解開 401，見 §0.3。功能旗標仍保留（預設 false），只移除授權那一段 | §0.3、§8.1 |
 | **ADR-AI-08** | 成本控管採**兩層**：資料庫層的「每檔每交易日一次」＋ 設定層的「全站每日新報告總量上限」 | 前者防重複、後者防失控（例如一次點開 50 檔）。兩者互補，缺一不可 | §4.6 |
-| **ADR-AI-09** | 量化摘要由**後端自 `get_chart_data()` 重新推導**，前端只送 `symbol/market/period/months` ＋ 圖片 | ① payload 從數十 KB 降到僅圖片；② 不信任前端傳來的數字；③ 符合 CLAUDE.md「資料讀取只在 `stock_service` 分支」的既有約束。因兩端同源同函式，數字仍與畫面一致 | §4.2 |
+| **ADR-AI-09** | 量化摘要由**後端自 `get_stock_chart_payload()` 重新推導**，前端只送 `symbol/market/period/months` ＋ 圖片 | ① payload 從數十 KB 降到僅圖片；② 不信任前端傳來的數字；③ 符合 CLAUDE.md「資料讀取只在 `stock_service` 分支」的既有約束。因兩端同源同函式，數字仍與畫面一致 | §4.2 |
 | **ADR-AI-10** | 免責聲明由**後端強制附加**於回應，不依賴模型自己講 | 模型是否輸出免責文字不可控。合規訊息必須是確定性的 | §8.3 |
 | **ADR-AI-11** | 首版**不接排程、不進通知平台** | 見 §1.3 | §13 |
 | **ADR-AI-12** | 模型 ID、金鑰、開關一律走 `.env` ＋ `config`，程式碼中不得出現模型字面值 | 見 D-01。模型汰換速度遠快於本專案的部署頻率 | §9 |
@@ -146,6 +194,8 @@ v2.0 為求首版精簡，決定「報告產生即用、不儲存」（原 ADR-A
 | **ADR-AI-14** | AI 報告一律存 **PostgreSQL**，**不受 `DATA_SOURCE` 開關影響** | 完全比照通知平台 ADR-01／ADR-02。平面 JSON 無法提供 `UNIQUE` 約束的原子性，而那正是「每日一次」的實作基礎。`DATA_SOURCE` 管的是「行情從哪讀」，與報告儲存無關 | §5.1 |
 | **ADR-AI-15** | **不儲存 K 線圖片**，改存 `quant_summary` 快照 ＋ 圖表區間中繼資料 | 單張圖 base64 約 1～2MB，每日數十筆會讓資料庫與備份迅速膨脹，而圖片可由當時的區間參數重新繪製。真正有稽核價值的是「AI 當時看到哪些數字」 | §5.4 |
 | **ADR-AI-16** | 「每日一次」以 **`UNIQUE` 索引 ＋ `INSERT … ON CONFLICT DO NOTHING` 先佔位**實作，而非「先查詢再決定要不要呼叫」 | 先查後寫在連點兩下時有 race window：兩個請求都查到「今天還沒有」，然後**都去呼叫 LLM**，唯一索引只會擋下第二次寫入，錢卻已經付了兩次。改為呼叫 LLM 之前先搶佔位列，由資料庫裁決誰有執行權。完全比照 notify ADR-11 | §4.6、§5.8 |
+| **ADR-AI-21** | v3.4 修訂：唯一鍵從 `(market_type, symbol, trade_date)` 擴充為 `(market_type, symbol, trade_date, provider, model)` | 使用者要求可在產生報告前選模型，且換模型應視為另一份獨立報告可再產生一次；「每日一次」的範圍因此收斂到「每個 provider+model 組合每日一次」。連帶效應：`model` 從「事後才知道的中繼資料」變成「事前就決定、參與唯一鍵」的欄位，補上 `NOT NULL`（V15 遷移，§5.3） | §0.4、§4.6、§5.3 |
+| **ADR-AI-22** | 可選模型採**程式碼白名單**（`ai/config.py` 的 `*_SELECTABLE_MODELS`），不接受前端傳任意字串直接打 Provider API | 打錯字要等一次真實呼叫失敗才知道，且使用者需求明確要排除圖片生成／即時語音／翻譯／TTS 等變體。白名單同時是 `GET /api/v1/ai/models` 選單資料的來源，新模型上市時加一筆即可 | §0.4、§6.1 |
 | **ADR-AI-17** | **成本與 token 統計的唯一事實來源是 `ai_llm_execution`**；`ai_analysis_report` **不保留** token／耗時欄位 | 一份報告可能歷經「失敗 → 接手重試 → 成功」多次呼叫，**失敗的那幾次同樣會計費**。若把 token 記在報告列上，只會留下最後一次成功的數字，**系統性低估實際支出**。成本必須以「每一次呼叫」為粒度累計 | §5.3、§5.5、§10 |
 | **ADR-AI-18** | 事件紀錄表命名為通用的 **`activity_log`**（不加 `ai_` 前綴），但本次**只接 AI 模組的事件** | 參考 DDL（`cm_activity_log`）本就是系統級的「系統執行記錄」。取通用名可讓日後其他模組（爬蟲、策略掃描、記帳）沿用同一張表與同一套查詢；以 `code` 的模組前綴（`AI_*`）區隔來源即可，不必每個模組各建一張 | §5.6 |
 | **ADR-AI-19** | 參考 DDL 為 MySQL，本專案採 PostgreSQL，**做等義轉換而非逐字照搬**；刻意不移植的欄位逐條列出理由 | 直接照搬會帶進本專案不存在的概念（`tc_user` 外鍵、批次派工、非同步重試排程、提示詞管理子系統），徒增無人維護的空欄位。轉換與取捨對照見 §5.9 | §5.9 |
@@ -196,8 +246,8 @@ flowchart TB
     end
 
     subgraph BE ["後端（backend/）"]
-        EP["api/v1/endpoints/ai_analysis.py<br/>Depends(require_owner)"]
-        GATE["ai/guard.py<br/>旗標 / 授權 / 每日總量"]
+        EP["api/v1/endpoints/ai_analysis.py<br/>無登入要求，比照全站既有頁面"]
+        GATE["ai/guard.py<br/>旗標 / 每日總量"]
         LOCK["ai/guard.py<br/>佔位取得執行權<br/>ON CONFLICT DO NOTHING"]
         SUM["ai/summary.py<br/>量化摘要組裝"]
         PROMPT["ai/prompt.py<br/>System + User Prompt"]
@@ -212,9 +262,8 @@ flowchart TB
     end
 
     subgraph EXIST ["既有元件（零改動）"]
-        CHART["services/stock_service.py<br/>get_chart_data()"]
+        CHART["services/stock_service.py<br/>get_stock_chart_payload()"]
         CHIP["indicators/chip.py<br/>cum_net()"]
-        SEC["notify/security.py<br/>require_owner"]
         ALERT["repositories/<br/>alert_repository.py"]
     end
 
@@ -229,7 +278,6 @@ flowchart TB
     CAP -->|"PNG base64"| API
     HIST --> API
     API --> EP
-    EP --> SEC
     EP --> GATE
     GATE --> LOCK
     LOCK <-->|"佔位 / 回讀"| REPO
@@ -253,7 +301,6 @@ flowchart TB
     style GE fill:#FFF6DC,stroke:#E8D48B
     style CHART fill:#EAF7EE,stroke:#B7E0C4
     style CHIP fill:#EAF7EE,stroke:#B7E0C4
-    style SEC fill:#EAF7EE,stroke:#B7E0C4
     style ALERT fill:#EAF7EE,stroke:#B7E0C4
     style GATE fill:#FDEBEF,stroke:#F3B6C4
     style LOCK fill:#FDEBEF,stroke:#F3B6C4
@@ -273,7 +320,7 @@ backend/ai/
 ├── config.py                # 旗標／金鑰／模型 ID 讀取（比照 notify/config.py）
 ├── errors.py                # AIProviderError / AIQuotaExceeded / AIDisabled / AIStorageUnavailable
 ├── guard.py                 # 功能旗標、每日總量、佔位取得執行權
-├── summary.py               # QuantSummary 組裝（唯一呼叫 get_chart_data 之處）
+├── summary.py               # QuantSummary 組裝（唯一呼叫 get_stock_chart_payload 之處）
 ├── prompt.py                # System Prompt + User Prompt 組裝
 ├── schema.py                # AnalysisReport 結構化輸出定義
 └── providers/
@@ -358,11 +405,11 @@ api/v1/endpoints/ai_analysis.py
 
 ### 4.2 量化摘要契約（`ai/summary.py`）
 
-後端依 `symbol/market/period/months` 呼叫既有 `get_chart_data()`，萃取以下欄位。**本模組不得自行計算任何指標**（沿用 CLAUDE.md 對策略引擎的同一條約束：條件函式只能讀既算好的序列，不得重算）。
+後端依 `symbol/market/period/months` 呼叫既有 `get_stock_chart_payload()`，萃取以下欄位。**本模組不得自行計算任何指標**（沿用 CLAUDE.md 對策略引擎的同一條約束：條件函式只能讀既算好的序列，不得重算）。
 
 | 欄位 | 來源 | 市場 |
 |---|---|---|
-| `symbol`、`name`、`market`、`period`、`date_range` | `get_chart_data()` 頂層欄位 | 全部 |
+| `symbol`、`name`、`market`、`period`、`date_range` | `get_stock_chart_payload()` 頂層欄位 | 全部 |
 | `latest`：`close`／`open`／`high`／`low`／`volume`／`change_pct` | `latest_summary` | 全部 |
 | `ma`：`ma5`／`ma10`／`ma20`／`ma60`／`ma120`／`ma240`（各取最新值） | `moving_averages` | 全部 |
 | `bias`：收盤相對各均線乖離率 | 由 `ma` 與 `close` 直接得出 | 全部 |
@@ -377,7 +424,7 @@ api/v1/endpoints/ai_analysis.py
 
 **摘要即快照**：本函式的輸出會原樣存入 `ai_analysis_report.quant_summary`（JSONB），作為「AI 當時看到什麼數字」的稽核依據（ADR-AI-15）。
 
-**交易日的取得**：`get_chart_data()` 回傳的 `latest_summary.date` 即該標的最新交易日，**這就是 ADR-AI-13 所指的 `trade_date`**，也是唯一鍵的一部分。因此 §4.6 的佔位動作必須在取得此日期之後才能執行。
+**交易日的取得**：`get_stock_chart_payload()` 回傳的 `latest_summary.date` 即該標的最新交易日，**這就是 ADR-AI-13 所指的 `trade_date`**，也是唯一鍵的一部分。因此 §4.6 的佔位動作必須在取得此日期之後才能執行。
 
 ### 4.3 Provider 抽象層
 
@@ -444,7 +491,7 @@ class AIProvider(ABC):
 
 ### 4.5 結構化輸出（`ai/schema.py`）
 
-Claude 端以 `output_config.format`（JSON Schema，`additionalProperties: false`）或 `client.messages.parse()` 搭配 Pydantic 保證可解析。回傳結構：
+Claude 端以 `output_config.format`（JSON Schema，`additionalProperties: false`）或 `client.messages.parse()` 搭配 Pydantic 保證可解析。**對外契約**（API 回應、`ai_analysis_report` 資料表欄位）：
 
 | 欄位 | 型別 | 說明 |
 |---|---|---|
@@ -458,11 +505,29 @@ Claude 端以 `output_config.format`（JSON Schema，`additionalProperties: fals
 
 前端據此把支撐／壓力／停損渲染成獨立的數值卡片，`report_markdown` 才走 Markdown 渲染。這七個欄位**同時是資料表的欄位**（§5.4），因此歷史查詢可直接依 `verdict` 篩選，不需解析 Markdown。
 
+> **v3.3 修訂（D-10）：`report_markdown` 不再要求 LLM 直接產生**。實測發現無論 Claude 或
+> Gemini，都會不穩定地把「### 標題」黏在前一句話尾端（例如「...動能延續。### 籌碼面分析
+> 三大法人近五日...」），導致標題無法被 CommonMark 解析、直接印出一串 `#` 符號——這是
+> 「自由文字裡的排版慣例」，JSON Schema 只能保證欄位互不相混，保證不了一個字串內部的換行
+> 規則，光是在 System Prompt 裡三令五申「標題前後要空行」實測仍會不穩定失效。
+>
+> 改法：LLM 實際要填的是 `ai/schema.py` 的 `LLMAnalysisReport`，把 `report_markdown` 換成
+> `sections: [{title, body}]`——標題與內文拆成獨立欄位，模型不需要自己排版。後端
+> `sections_to_markdown()` 用 `f"### {title}\n\n{body}"` 逐段組裝，**換行 100% 由我們自己
+>的字串組裝保證**，不再賭模型會不會乖乖照做。`from_llm_report()` 轉成對外的 `AnalysisReport`
+> （仍是上表這七個欄位），下游（端點、前端、資料表）完全無感、契約不變。
+>
+> `report_markdown` 仍可能是自由文字的情況只剩一種：模型拒答或解析失敗時的**保底 fallback**
+> （直接取 `response.text`），這種殘餘情況才輪到前端 `AiAnalysisDialog.vue` 的
+> `normalizeMarkdown()` 防禦性正規化（標題前補空行）派上用場。
+
 Gemini 端若結構化輸出行為不一致，需在 Provider 層做正規化，**對端點以上保持同一份契約**。
 
 ### 4.6 成本與併發閘門（`ai/guard.py`）
 
-請求依序通過六道閘門，任一不過即以明確錯誤碼回絕（不進 LLM）：
+請求依序通過閘門 0、2～5，任一不過即以明確錯誤碼回絕（不進 LLM）。**編號中刻意留空的「閘門 1
+授權」已於 v3.2 移除**（見 §0.3）——本專案除通知平台管理頁外一律不要求登入，掛授權閘門只會是
+打不開的死路；保留編號跳號是為了不用去改其餘章節既有的「閘門 3」「閘門 5」等交叉引用：
 
 ```mermaid
 %%{init: {
@@ -480,11 +545,9 @@ Gemini 端若結構化輸出行為不一致，需在 Provider 層做正規化，
 flowchart TD
     R["請求"] --> G0{"AI_ANALYSIS_ENABLED?"}
     G0 -->|false| E0["403 AI_DISABLED"]
-    G0 -->|true| G1{"require_owner"}
-    G1 -->|失敗| E1["401 NOTIFY_UNAUTHORIZED"]
-    G1 -->|通過| G2{"資料庫可用?"}
+    G0 -->|true| G2{"資料庫可用?"}
     G2 -->|否| E2["503 AI_STORAGE_UNAVAILABLE"]
-    G2 -->|是| SUM["取得 trade_date<br/>(get_chart_data)"]
+    G2 -->|是| SUM["取得 trade_date<br/>(get_stock_chart_payload)"]
     SUM --> G3{"當日已有<br/>succeeded 報告?"}
     G3 -->|是| C["回傳既有報告<br/>cached: true<br/>不計費"]
     G3 -->|否| G4{"今日新報告數<br/>< AI_DAILY_QUOTA?"}
@@ -496,7 +559,6 @@ flowchart TD
     LLM -->|失敗| F["UPDATE status='failed'<br/>記錄 error_code"]
 
     style E0 fill:#FDEBEF,stroke:#F3B6C4
-    style E1 fill:#FDEBEF,stroke:#F3B6C4
     style E2 fill:#FDEBEF,stroke:#F3B6C4
     style E4 fill:#FDEBEF,stroke:#F3B6C4
     style E5 fill:#FDEBEF,stroke:#F3B6C4
@@ -511,7 +573,7 @@ flowchart TD
 | 閘門 | 判定 | 說明 |
 |---|---|---|
 | 0 功能旗標 | `AI_ANALYSIS_ENABLED` | 關閉時**完全不碰資料庫、不碰外部 API** |
-| 1 授權 | `require_owner` | 見 ADR-AI-07 |
+| ~~1 授權~~ | ~~`require_owner`~~ | **v3.2 移除**，見 §0.3、ADR-AI-07 |
 | 2 儲存可用性 | 資料庫連線 | 本模組需要 Postgres（ADR-AI-14）。不可用時明確回報，**不得靜默降級成「不儲存但照樣呼叫 LLM」**——那會讓「每日一次」的保證悄悄失效 |
 | 3 **當日既有報告** | `SELECT … WHERE market_type/symbol/trade_date AND status='succeeded'` | **這是「一天一次」的主要出口**，命中即回傳，零成本 |
 | 4 每日總量 | `COUNT(*) WHERE generated_at::date = 今日 AND status='succeeded'` | 防止一次點開數十檔造成失控（ADR-AI-08 第二層） |
@@ -529,16 +591,20 @@ flowchart TD
 | 情境 | 判定 | HTTP | `error.code` | 前端呈現 |
 |---|---|---|---|---|
 | 功能未啟用 | 旗標為 false | 403 | `AI_DISABLED` | 提示至設定啟用 |
-| 未授權 | `require_owner` 失敗 | 401 | `NOTIFY_UNAUTHORIZED` | 導向登入 |
+| 請求參數不合法 | 例如不支援的 `provider` 代碼 | 400 | `AI_INVALID_REQUEST` | 提示參數錯誤 |
+| 圖片超過大小上限 | 超過 `AI_MAX_IMAGE_MB` | 400 | `AI_IMAGE_TOO_LARGE` | 提示降低解析度重試（§4.1） |
 | 資料庫不可用 | 連線失敗 | 503 | `AI_STORAGE_UNAVAILABLE` | 提示需啟動 PostgreSQL |
 | 金鑰未設定／無效 | `AuthenticationError` | 500 | `AI_PROVIDER_MISCONFIGURED` | 提示檢查 `.env`，**不得回傳金鑰片段** |
 | Provider 限流 | `RateLimitError` | 429 | `AI_RATE_LIMITED` | 提示稍後再試，附 `retry-after` |
 | 逾時 | `APITimeoutError` | 504 | `AI_TIMEOUT` | 提示重試或改用較快模型 |
 | 連線失敗 | `APIConnectionError` | 502 | `AI_PROVIDER_UNREACHABLE` | 提示檢查網路 |
+| Provider 其他錯誤 | 未歸類的 SDK 例外 | 502 | `AI_PROVIDER_ERROR` | 提示稍後再試 |
 | **他人正在產生同一份** | 佔位失敗且既有列為 `running` | 409 | `AI_ANALYSIS_IN_PROGRESS` | 顯示「分析進行中」，前端可輪詢 |
 | 每日總量用盡 | 閘門 4 | 429 | `AI_QUOTA_EXCEEDED` | 顯示今日已用量 |
 | 回應被截斷 | `stop_reason == "max_tokens"` | 200 | — | **仍回傳並儲存內容**，`truncated=true`，前端顯示截斷提示 |
 | 模型拒答 | `stop_reason == "refusal"` | 200 | — | 回傳友善訊息，不當成系統錯誤 |
+
+> v3.2 移除「未授權」情境（`require_owner` 失敗、401 `NOTIFY_UNAUTHORIZED`）：AI 端點已不掛授權（見 §0.3）。
 
 **共同規範**
 
@@ -739,7 +805,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_report_status
 
 | 欄位 | 說明 |
 |---|---|
-| `trade_date` | **該標的的最新交易日**，取自 `get_chart_data()` 的 `latest_summary.date`，非系統日曆日（ADR-AI-13）。這是「一天」的唯一定義 |
+| `trade_date` | **該標的的最新交易日**，取自 `get_stock_chart_payload()` 的 `latest_summary.date`，非系統日曆日（ADR-AI-13）。這是「一天」的唯一定義 |
 | `status` | `running`（佔位中，LLM 呼叫進行中）／`succeeded`（完成，可回讀）／`failed`（失敗，可被下次請求接手重試）。**只有 `succeeded` 會被閘門 3 視為「當日已有」** |
 | `stock_name` | 名稱快照。因無 `symbols` 外鍵，且個股改名時歷史報告應保留當時名稱 |
 | `chart_period` / `chart_months` / `chart_start_date` / `chart_end_date` | 產生報告時使用者所在的圖表視角。**不存圖片本身**（ADR-AI-15），但存足以重繪同一張圖的參數，歷史頁面可據此還原「AI 當時看的是哪段區間」 |
@@ -875,7 +941,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_log_rel
 | `AI_REPORT_DELETE` | 刪除報告 | 報告 id | ✓／✗ | — |
 | `AI_REPORT_REAP` | 啟動時回收卡住的 `running` 列 | 報告 id | ✓ | 回收筆數 |
 
-> **`created_by` 的偏離說明**：參考 DDL 有 `FOREIGN KEY (created_by) REFERENCES tc_user(id)`。**本專案是單人自用、無使用者表**（授權走 `require_owner`），因此改為 `VARCHAR(50)` 存字串（預設 `'owner'`），不建外鍵。日後若導入多使用者，再以遷移改為外鍵。
+> **`created_by` 的偏離說明**：參考 DDL 有 `FOREIGN KEY (created_by) REFERENCES tc_user(id)`。**本專案是單人自用、無使用者表**（v3.2 起 AI 端點已不要求登入，見 §0.3），因此改為 `VARCHAR(50)` 存字串（預設 `'owner'`），不建外鍵。日後若導入多使用者，再以遷移改為外鍵。
 
 ### 5.7 三張表的寫入時序
 
@@ -990,7 +1056,7 @@ RETURNING id;
 | `KEY` / `UNIQUE KEY` | `CREATE INDEX` / `CREATE UNIQUE INDEX` | |
 | **`ON UPDATE CURRENT_TIMESTAMP`** | **無對應語法** | PostgreSQL 需自建觸發器。**本專案既有表（如 `V9` 的 `daily_market_quote`）皆由應用層更新 `updated_at`**，沿用此慣例，**不新增觸發器**——這是實作時最容易漏掉的一點 |
 | `ENGINE=InnoDB DEFAULT CHARSET=...` | 不適用 | |
-| `FOREIGN KEY … REFERENCES tc_user(id)` | 無外鍵，改存 `VARCHAR` | 本專案無使用者表（單一擁有者，`require_owner`），見 §5.6 說明 |
+| `FOREIGN KEY … REFERENCES tc_user(id)` | 無外鍵，改存 `VARCHAR` | 本專案無使用者表（單一擁有者，且 v3.2 起 AI 端點不掛登入要求，見 §0.3），見 §5.6 說明 |
 
 **刻意不移植的欄位**
 
@@ -1036,10 +1102,34 @@ RETURNING id;
 
 | 方法 | 路徑 | 用途 | 授權 |
 |---|---|---|---|
-| POST | `/api/v1/ai/analyze-stock` | 產生（或回讀當日既有）AI 技術分析報告 | `require_owner` |
-| GET | `/api/v1/ai/status` | 功能是否啟用、可用 Provider、今日已產生數／上限、累計 token 用量 | `require_owner` |
+| POST | `/api/v1/ai/analyze-stock` | 產生（或回讀當日既有）AI 技術分析報告 | 無（v3.2 起，見 §0.3） |
+| GET | `/api/v1/ai/models` | 可選模型清單（供產生前的選單，v3.4，ADR-AI-22） | 無（v3.2 起，見 §0.3） |
+| GET | `/api/v1/ai/status` | 功能是否啟用、可用 Provider、今日已產生數／上限、累計 token 用量 | 無（v3.2 起，見 §0.3） |
 
-**請求**
+**`GET /api/v1/ai/models` 回應**（v3.4，前端據此渲染 §7.1 的選模型步驟）：
+
+```jsonc
+{
+  "success": true,
+  "data": {
+    "default_provider": "gemini",
+    "providers": {
+      "claude": {
+        "display_name": "Claude (Anthropic)",
+        "default_model": "claude-sonnet-5",
+        "models": [{ "id": "claude-opus-5", "label": "Claude Opus 5", "tier": "旗艦" }, "..."]
+      },
+      "gemini": {
+        "display_name": "Gemini (Google)",
+        "default_model": "gemini-2.5-flash",
+        "models": [{ "id": "gemini-3.1-pro-preview", "label": "Gemini 3.1 Pro", "tier": "旗艦（進階推論）" }, "..."]
+      }
+    }
+  }
+}
+```
+
+**`POST /analyze-stock` 請求**
 
 ```jsonc
 {
@@ -1048,6 +1138,8 @@ RETURNING id;
   "period": "daily",      // 對應使用者當下的週期選擇
   "months": 3,            // 對應使用者當下的區間選擇
   "provider": "claude",   // 選用，未帶則用 AI_DEFAULT_PROVIDER
+  "model": "claude-opus-5",  // 選用（v3.4）；未帶則用該 provider 的 .env 預設；
+                             // 有帶必須在 GET /ai/models 的白名單內，否則 400 AI_INVALID_REQUEST
   "image_base64": "iVBORw0KGgo...",  // 純 base64，不含 data: 前綴
   "force": false          // 選用，僅在 AI_ALLOW_FORCE_REGENERATE=true 時有效
 }
@@ -1093,10 +1185,10 @@ RETURNING id;
 
 | 方法 | 路徑 | 用途 | 授權 |
 |---|---|---|---|
-| GET | `/api/v1/ai/reports` | 歷史報告列表（分頁） | `require_owner` |
-| GET | `/api/v1/ai/reports/{id}` | 單筆報告完整內容 | `require_owner` |
-| GET | `/api/v1/ai/reports/latest` | 查詢某標的當日是否已有報告 | `require_owner` |
-| DELETE | `/api/v1/ai/reports/{id}` | 刪除單筆（誤產生時清除） | `require_owner` |
+| GET | `/api/v1/ai/reports` | 歷史報告列表（分頁） | 無（v3.2 起，見 §0.3） |
+| GET | `/api/v1/ai/reports/{id}` | 單筆報告完整內容 | 無（v3.2 起，見 §0.3） |
+| GET | `/api/v1/ai/reports/latest` | 查詢某標的當日是否已有報告 | 無（v3.2 起，見 §0.3） |
+| DELETE | `/api/v1/ai/reports/{id}` | 刪除單筆（誤產生時清除） | 無（v3.2 起，見 §0.3） |
 
 **`GET /api/v1/ai/reports` 查詢參數**
 
@@ -1117,9 +1209,9 @@ RETURNING id;
 
 | 方法 | 路徑 | 用途 | 授權 |
 |---|---|---|---|
-| GET | `/api/v1/ai/executions` | LLM 呼叫紀錄列表（含失敗） | `require_owner` |
-| GET | `/api/v1/ai/usage` | 用量與成本彙總 | `require_owner` |
-| GET | `/api/v1/ai/activity` | 活動事件紀錄查詢 | `require_owner` |
+| GET | `/api/v1/ai/executions` | LLM 呼叫紀錄列表（含失敗） | 無（v3.2 起，見 §0.3） |
+| GET | `/api/v1/ai/usage` | 用量與成本彙總 | 無（v3.2 起，見 §0.3） |
+| GET | `/api/v1/ai/activity` | 活動事件紀錄查詢 | 無（v3.2 起，見 §0.3） |
 
 **`GET /api/v1/ai/executions` 查詢參數**：`provider`、`model`、`status`、`symbol`、`market`、`date_from`／`date_to`（依 `created_at`）、`include_dry_run`（預設 `false`）、`limit`／`offset`。
 
@@ -1198,7 +1290,7 @@ sequenceDiagram
         A->>E: POST /ai/analyze-stock
         E->>G: 閘門 0～2（旗標／授權／儲存）
         G->>S: 取得 trade_date 與量化摘要
-        S->>S: get_chart_data() + cum_net()
+        S->>S: get_stock_chart_payload() + cum_net()
         S-->>G: quant_summary + trade_date
         G->>R: 閘門 3～5：佔位 INSERT ON CONFLICT
         alt 佔位失敗（他人執行中）
@@ -1273,10 +1365,11 @@ Dialog 內須顯示 `trade_date`、`chart`（觀察區間）與 `cached` 狀態�
 
 ## 8. 安全與合規設計
 
-### 8.1 授權與存取控制
+### 8.1 授權與存取控制（v3.2 修訂）
 
-- **所有** AI 端點（含歷史查詢）掛 `Depends(require_owner)`（[notify/security.py:127](../../backend/notify/security.py#L127)），與通知平台管理端同一套授權。
-- 理由見 ADR-AI-07：`CORS_ORIGINS` 目前含 `*`，這是全專案唯一一個「未授權者按下去會產生金錢支出」的端點。歷史查詢雖不計費，但內容屬個人投資研判，同樣不應公開。
+- **AI 端點不掛登入要求**，與全站其餘既有功能（個股／警示／記帳）一致——原 ADR-AI-07 要求比照通知平台管理端掛 `Depends(require_owner)`，但前端完全沒有能取得 owner Cookie／Token 的入口，掛上去只會是打不開的死路（實測直接證實：AC-AI-01 通過但整支功能對使用者關閉，見 §0.3）。
+- `CORS_ORIGINS` 目前含 `*`，AI 端點仍是全專案唯一一個「呼叫會產生金錢支出」的端點，這個風險**不靠 HTTP 層授權**，改由既有的資料庫層防線把關：`AI_ANALYSIS_ENABLED` 總開關（預設 false）、`AI_DAILY_QUOTA` 每日新報告總量上限、`(market_type, symbol, trade_date)` 唯一鍵確保同一標的同一交易日只呼叫一次 LLM（ADR-AI-16）。
+- 若日後此系統要對外網路開放而非僅本機／區網使用，須重新評估是否要接一套**全站通用**的登入機制，而非只給單一模組補一個沒有入口的鎖（列入 §13）。
 
 ### 8.2 機敏資訊
 

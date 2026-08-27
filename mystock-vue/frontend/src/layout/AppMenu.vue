@@ -23,7 +23,8 @@ const model = computed(() => [
             { label: '全市場數據篩選', icon: 'pi pi-fw pi-table', to: '/market' },
             { label: '策略警示看板', icon: 'pi pi-fw pi-bell', to: '/alerts' },
             { label: '個股圖表分析', icon: 'pi pi-fw pi-chart-line', to: '/stock/2330' },
-            { label: '多股綜合比較', icon: 'pi pi-fw pi-sliders-h', to: '/compare' }
+            { label: '多股綜合比較', icon: 'pi pi-fw pi-sliders-h', to: '/compare' },
+            { label: 'AI 診股報告紀錄', icon: 'pi pi-fw pi-android', to: '/ai/reports' }
         ]
     },
     {

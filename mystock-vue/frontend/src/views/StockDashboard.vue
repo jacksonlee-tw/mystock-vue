@@ -83,6 +83,16 @@
               <i class="pi pi-cog"></i>
             </button>
             <WatchlistStarButton :market="market" :symbol="selectedStock" :name="currentStockName" :price="summary.close" />
+            <!-- AI 診股報告（AI 技術分析報告 系統開發規格書 §7.3，v3.4）：點下去先開模型選單，
+                 「今日是否已有報告」的判斷改到選好模型之後才知道（同一標的同一天，每個模型各自
+                 算一次，見 ADR-AI-21），按鈕本身不再需要預先知道答案 -->
+            <button
+              @click="openAiSelector"
+              class="px-2.5 py-1 text-xs font-bold bg-primary-50 dark:bg-primary-900/30 text-primary rounded-lg flex items-center gap-1 hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-colors"
+              title="產生或檢視 AI 技術分析報告"
+            >
+              <i class="pi pi-android"></i> AI 診股報告
+            </button>
           </div>
 
           <!-- 聚合週期 -->
@@ -242,7 +252,7 @@
         </div>
 
         <!-- 圖表視圖 -->
-        <StockCharts v-if="viewMode === 'charts'" v-model="activeChartId" :chartData="chartData" :stockId="selectedStock" :period="selectedPeriod" :months="selectedMonths" :market="market" />
+        <StockCharts ref="chartsRef" v-if="viewMode === 'charts'" v-model="activeChartId" :chartData="chartData" :stockId="selectedStock" :period="selectedPeriod" :months="selectedMonths" :market="market" />
 
         <!-- 個股 vs 大盤（大盤指數功能規劃書 FR-IDX-50） -->
         <VsIndexWidget v-if="viewMode === 'charts'" :stockId="selectedStock" :market="market" :period="selectedPeriod" :months="Math.max(selectedMonths, 3)" />
@@ -321,6 +331,25 @@
       :busy="isRefetching"
       @confirm="doRefetch"
     />
+
+    <!-- AI 診股報告彈窗（v3.4：多一個「選模型」步驟，見 composables/useAiAnalysis.js） -->
+    <AiAnalysisDialog
+      v-model:visible="aiDialogVisible"
+      v-model:selected-model="aiSelectedModel"
+      :stage="aiStage"
+      :loading="aiLoading"
+      :error="aiDialogError"
+      :report="aiReport"
+      :market="market"
+      :available-models="aiAvailableModels"
+      :models-loading="aiModelsLoading"
+      :selected-provider="aiSelectedProvider"
+      :latest-for-selection="aiLatestForSelection"
+      :checking-latest="aiCheckingLatest"
+      @select-provider="aiSelectProvider"
+      @confirm="aiConfirm"
+      @back="aiBackToSelect"
+    />
   </div><!-- /stock-dashboard-root -->
 </template>
 
@@ -330,7 +359,9 @@ import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import RefetchStockDialog from '@/components/RefetchStockDialog.vue';
+import AiAnalysisDialog from '@/components/AiAnalysisDialog.vue';
 import { useCrawlerStatus } from '@/composables/useCrawlerStatus';
+import { useAiAnalysis } from '@/composables/useAiAnalysis';
 import { stockApi } from '@/service/stockApi';
 import { colorForValue as colorForValueRaw } from '@/utils/marketColors';
 import { formatPrice, formatChange, formatLots, formatPercent } from '@/utils/format';
@@ -412,6 +443,28 @@ const market = computed(() => chartData.value?.market || 'tw');
 function colorForValue(value) {
   return colorForValueRaw(value, market.value);
 }
+
+// AI 診股報告（AI 技術分析報告 系統開發規格書 §7，v3.4 新增模型選單）：chartsRef 對應
+// <StockCharts ref="chartsRef">，需暴露 captureKlineImage()（見 components/StockCharts.vue）
+// 供產生新報告前擷取目前畫面的 K 線圖。
+const chartsRef = ref(null);
+const {
+  dialogVisible: aiDialogVisible,
+  stage: aiStage,
+  loading: aiLoading,
+  dialogError: aiDialogError,
+  report: aiReport,
+  availableModels: aiAvailableModels,
+  modelsLoading: aiModelsLoading,
+  selectedProvider: aiSelectedProvider,
+  selectedModel: aiSelectedModel,
+  latestForSelection: aiLatestForSelection,
+  checkingLatest: aiCheckingLatest,
+  openSelector: openAiSelector,
+  selectProvider: aiSelectProvider,
+  confirm: aiConfirm,
+  backToSelect: aiBackToSelect
+} = useAiAnalysis({ market, symbol: selectedStock, period: selectedPeriod, months: selectedMonths, chartsRef });
 
 const recordsReversed = computed(() => {
   if (!chartData.value?.records) return [];

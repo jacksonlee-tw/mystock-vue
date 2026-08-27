@@ -85,6 +85,12 @@ const router = createRouter({
                     name: 'stock-compare',
                     component: () => import('@/views/StockCompare.vue')
                 },
+                // AI 技術分析報告（docs/16.AI技術分析/AI技術分析規劃.md §7.4）
+                {
+                    path: '/ai/reports',
+                    name: 'ai-report-history',
+                    component: () => import('@/views/ai/AiReportHistory.vue')
+                },
                 {
                     path: '/notify/channels',
                     name: 'notify-channels',
