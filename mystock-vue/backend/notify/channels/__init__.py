@@ -35,3 +35,4 @@ def get_channel(code: str) -> ChannelAdapter | None:
 # 「新增管道 = 新增一個檔案 + 在此加一行 import」（鐵則 R2、AC-19）
 from . import email_channel    # noqa: E402,F401
 from . import telegram_channel # noqa: E402,F401
+from . import slack_channel    # noqa: E402,F401

@@ -1,0 +1,6 @@
+⚠️【系統異常】{{ description | default(probe_key) }}
+發生時間：{{ occurred_at }}
+偵測項目：{{ probe_key | default('—') }}
+{% if occurrence_count and occurrence_count > 1 %}（冷卻期內已累計 {{ occurrence_count }} 次）
+{% endif -%}
+{{ disclaimer }}

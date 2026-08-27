@@ -24,7 +24,7 @@
       >
         <div class="flex items-center gap-3 p-4 border-b border-surface-100 dark:border-surface-800">
           <div class="w-11 h-11 rounded-xl bg-primary-50 dark:bg-primary-900/30 text-primary flex items-center justify-center text-lg">
-            <i class="pi" :class="ch.channel_code === 'email' ? 'pi-envelope' : 'pi-send'"></i>
+            <i class="pi" :class="iconFor(ch)"></i>
           </div>
           <div class="flex-1 min-w-0">
             <div class="font-black text-surface-900 dark:text-surface-0 flex items-center gap-2">
@@ -110,11 +110,24 @@ const FIELD_DEFS = {
   ],
   telegram: [
     { key: 'bot_token', label: '機器人憑證', masked: true }
+  ],
+  slack: [
+    { key: 'webhook_url', label: 'Webhook URL', masked: true }
   ]
+};
+
+const CHANNEL_ICONS = {
+  email: 'pi-envelope',
+  telegram: 'pi-send',
+  slack: 'pi-hashtag'
 };
 
 function fieldsFor(ch) {
   return FIELD_DEFS[ch.channel_code] || [];
+}
+
+function iconFor(ch) {
+  return CHANNEL_ICONS[ch.channel_code] || 'pi-bell';
 }
 
 function statusLabel(s) {

@@ -1,11 +1,8 @@
-/* 市場顏色變數 (Phase 0) */
-[data-market="tw"] {
+/* 漲跌色變數：不分台股/美股，一律漲紅跌綠（使用者明確規定，勿依市場切換） */
+[data-market="tw"],
+[data-market="us"] {
   --up: #dc2626;
   --down: #16a34a;
-}
-[data-market="us"] {
-  --up: #16a34a;
-  --down: #dc2626;
 }
 
 /* 漲跌色通用 Utility Classes */

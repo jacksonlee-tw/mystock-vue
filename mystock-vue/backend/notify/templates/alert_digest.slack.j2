@@ -1,0 +1,17 @@
+📋【{{ digest_date }} {{ market | upper }}警示摘要】共 {{ total_count }} 則
+{% if sell_list %}
+▼ 賣出（{{ sell_list | length }}）
+{% for a in sell_list %}　{{ a.stock_id }} {{ a.stock_name }}　{{ a.strategy_name }}（{{ a.strength_label }}）
+{% endfor %}{% endif -%}
+{% if buy_list %}
+▲ 買進（{{ buy_list | length }}）
+{% for a in buy_list %}　{{ a.stock_id }} {{ a.stock_name }}　{{ a.strategy_name }}（{{ a.strength_label }}）
+{% endfor %}{% endif -%}
+{% if warning_list %}
+! 警告（{{ warning_list | length }}）
+{% for a in warning_list %}　{{ a.stock_id }} {{ a.stock_name }}　{{ a.strategy_name }}（{{ a.strength_label }}）
+{% endfor %}{% endif %}
+
+{% if manage_url %}▸ 管理我的通知 {{ manage_url }}{% endif %}
+
+{{ disclaimer }}

@@ -170,6 +170,7 @@ import { GridComponent, TooltipComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 import { portfolioApi } from '@/service/portfolioApi';
 import { marketMeta, fmtNum, fmtAmt, fmtPct, signed } from '@/composables/usePortfolioFormat';
+import { colorForValue } from '@/utils/marketColors';
 
 use([CanvasRenderer, BarChart, LineChart, GridComponent, TooltipComponent]);
 
@@ -238,7 +239,7 @@ const monthlyOption = computed(() => ({
   yAxis: { type: 'value', axisLabel: { fontSize: 10, formatter: (v) => fmtNum(v) } },
   series: [{
     type: 'bar', barMaxWidth: 28,
-    data: monthlySeries.value.map((r) => ({ value: r.value, itemStyle: { color: r.value >= 0 ? '#16a34a' : '#dc2626' } }))
+    data: monthlySeries.value.map((r) => ({ value: r.value, itemStyle: { color: colorForValue(r.value) } }))
   }]
 }));
 
