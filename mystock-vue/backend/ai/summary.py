@@ -59,6 +59,13 @@ def _round(v, digits: int = 2):
         return None
 
 
+def _at(series: Optional[list], idx: int):
+    """series[idx]，series 為 None 或長度不足時回傳 None（避免每處都重複寫邊界判斷）。"""
+    if not series or idx >= len(series):
+        return None
+    return series[idx]
+
+
 async def build_quant_summary(symbol: str, market: str, period: str, months: int) -> Optional[QuantSummary]:
     payload = await get_stock_chart_payload(symbol, period=period, months=months, market=market)
     if payload.get("error"):
@@ -72,6 +79,11 @@ async def build_quant_summary(symbol: str, market: str, period: str, months: int
     latest = payload.get("latest_summary") or {}
     ma = payload.get("moving_averages") or {}
     kd = payload.get("kd") or {}
+    macd_data = payload.get("macd") or {}
+    rsi_data = payload.get("rsi") or {}
+    bollinger_data = payload.get("bollinger") or {}
+    atr_data = payload.get("atr") or {}
+    levels_data = payload.get("levels") or {}
     idx = len(records) - 1
 
     trade_date_str = latest.get("date") or (dates[-1] if dates else None)
@@ -121,16 +133,68 @@ async def build_quant_summary(symbol: str, market: str, period: str, months: int
             "d": _round(d_series[idx]) if idx < len(d_series) else None,
         }
 
+    # MACD／RSI／布林通道／ATR：只讀 get_stock_chart_payload() 落地的結果，不得自行計算
+    # （《AI 報告規格》§4.2 鐵則，見 Phase1-基礎量化與技術面 設計文件 §3.2、FR-P1-8）。
+    dif_val = _clean(_at(macd_data.get("dif"), idx))
+    if dif_val is not None:
+        macd_block = {
+            "dif": _round(dif_val),
+            "signal": _round(_clean(_at(macd_data.get("signal"), idx))),
+            "histogram": _round(_clean(_at(macd_data.get("histogram"), idx))),
+        }
+        macd_block = {k: v for k, v in macd_block.items() if v is not None}
+        if macd_block:
+            summary["macd"] = macd_block
+
+    rsi_block: dict[str, float] = {}
+    for rsi_period in rsi_data.get("periods") or []:
+        val = _clean(_at(rsi_data.get(f"rsi_{rsi_period}"), idx))
+        if val is not None:
+            rsi_block[f"rsi_{rsi_period}"] = _round(val)
+    if rsi_block:
+        summary["rsi"] = rsi_block
+
+    bb_upper = _clean(_at(bollinger_data.get("upper"), idx))
+    if bb_upper is not None:
+        bollinger_block = {
+            "upper": _round(bb_upper),
+            "middle": _round(_clean(_at(bollinger_data.get("middle"), idx))),
+            "lower": _round(_clean(_at(bollinger_data.get("lower"), idx))),
+            "bandwidth": _round(_clean(_at(bollinger_data.get("bandwidth"), idx))),
+        }
+        bollinger_block = {k: v for k, v in bollinger_block.items() if v is not None}
+        if bollinger_block:
+            summary["bollinger"] = bollinger_block
+
+    atr_period = atr_data.get("period", 14)
+    atr_val = _clean(_at(atr_data.get(f"atr_{atr_period}"), idx))
+    if atr_val is not None:
+        summary["atr"] = {f"atr_{atr_period}": _round(atr_val)}
+
+    range_block: dict[str, Any] = {}
     highs = [r.get("high") for r in records if r.get("high")]
     lows = [r.get("low") for r in records if r.get("low")]
     if highs and lows:
         range_high, range_low = max(highs), min(lows)
         high_date = next((r["date"] for r in records if r.get("high") == range_high), None)
         low_date = next((r["date"] for r in records if r.get("low") == range_low), None)
-        summary["range"] = {
+        range_block.update({
             "high": _round(range_high), "high_date": high_date,
             "low": _round(range_low), "low_date": low_date,
-        }
+        })
+
+    # 固定 20／60 日高低點（FR-P1-6／FR-P1-8）：語意是「固定視窗位階」，與上面「本次圖表顯示
+    # 區間高低」不同，兩者並存不互相取代（Phase1-基礎量化與技術面 設計文件 §9 Q-5）。
+    for levels_window in levels_data.get("windows") or []:
+        r_val = _clean(_at(levels_data.get(f"resistance_{levels_window}d"), idx))
+        s_val = _clean(_at(levels_data.get(f"support_{levels_window}d"), idx))
+        if r_val is not None:
+            range_block[f"resistance_{levels_window}d"] = _round(r_val)
+        if s_val is not None:
+            range_block[f"support_{levels_window}d"] = _round(s_val)
+
+    if range_block:
+        summary["range"] = range_block
 
     volumes = [r.get("volume") for r in records if r.get("volume")]
     if len(volumes) >= 5:

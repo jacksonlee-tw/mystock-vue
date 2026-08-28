@@ -9,6 +9,11 @@ from db.mapping import daily_row_to_record
 from repositories.stock_repository import StockRepository
 from indicators.moving_average import compute_ma_set
 from indicators.stochastic import stochastic
+from indicators.macd import macd
+from indicators.rsi import rsi
+from indicators.atr import atr
+from indicators.bollinger import bollinger_bands
+from indicators.levels import rolling_high_low
 
 # 定義欄位分類 (已轉換為英文鍵名)
 SUM_FIELDS = [
@@ -375,6 +380,92 @@ def _build_kd_payload(full_records: List[Dict[str, Any]], display_dates: List[st
     }
 
 
+def _build_recursive_indicator_payloads(full_records: List[Dict[str, Any]], display_dates: List[str]) -> Dict[str, Any]:
+    """MACD／RSI／ATR（Phase1-基礎量化與技術面 設計文件 FR-P1-7）。
+
+    這三者跟 KD 一樣是「遞迴型」指標，必須在完整歷史（full_records，聚合時
+    months=MAX_HISTORY_MONTHS）上算完再依日期切到目前顯示區間，作法完全比照
+    _build_kd_payload()（KD指標 設計規格書 §12 決議 D5 的延伸，見該文件 §3.3）：若比照 MA
+    在截斷視窗上計算，會產出「看似正常但其實錯誤」的數字——同一天的值不能因為使用者選
+    1 個月或 1 年而不同（AC-P1-4）。
+    """
+    from strategies.config_loader import load_strategy_config
+
+    cfg = load_strategy_config()
+    fast, slow, signal_period = cfg.defaults.get("macd_params") or [12, 26, 9]
+    rsi_periods = cfg.defaults.get("rsi_periods") or [6, 14]
+    atr_period = cfg.defaults.get("atr_period", 14)
+
+    highs = [r.get("high") or None for r in full_records]
+    lows = [r.get("low") or None for r in full_records]
+    closes = [r.get("close") or None for r in full_records]
+
+    index_by_date = {r["date"]: i for i, r in enumerate(full_records)}
+
+    def _slice(series: List[Optional[float]]) -> List[Optional[float]]:
+        return [series[index_by_date[d]] if d in index_by_date else None for d in display_dates]
+
+    dif, signal, histogram = macd(closes, fast, slow, signal_period)
+    macd_payload = {
+        "params": [fast, slow, signal_period],
+        "dif": _slice(dif),
+        "signal": _slice(signal),
+        "histogram": _slice(histogram),
+    }
+
+    rsi_payload: Dict[str, Any] = {"periods": list(rsi_periods)}
+    for p in rsi_periods:
+        rsi_payload[f"rsi_{p}"] = _slice(rsi(closes, p))
+
+    atr_payload = {
+        "period": atr_period,
+        f"atr_{atr_period}": _slice(atr(highs, lows, closes, atr_period)),
+    }
+
+    return {"macd": macd_payload, "rsi": rsi_payload, "atr": atr_payload}
+
+
+def _build_bollinger_and_levels_payload(
+    closes_for_ma: List[Optional[float]],
+    moving_averages: Dict[str, List[Optional[float]]],
+    aggregated_records: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """布林通道與近 N 日高低（Phase1-基礎量化與技術面 設計文件 FR-P1-7）。
+
+    這兩者是「視窗型」指標，比照 MA 在目前顯示區間（截斷後）上直接計算即可，資料不足只會
+    誠實斷線，不需要像 MACD／RSI／ATR／KD 那樣做全歷史切片（ADR-P1-04）。
+    """
+    from strategies.config_loader import load_strategy_config
+
+    cfg = load_strategy_config()
+    bollinger_period, bollinger_num_std = cfg.defaults.get("bollinger_params") or [20, 2.0]
+    levels_windows = cfg.defaults.get("levels_windows") or [20, 60]
+
+    # 中軌重用既有 SMA 結果，不重算一次（ADR-P1-05）；只有對應天期的 MA 未被納入
+    # MA_PERIODS（如改成非既有天期）時，才退回 bollinger_bands() 內部自算 SMA。
+    existing_middle = moving_averages.get(f"MA{bollinger_period}")
+    upper, middle, lower, bandwidth = bollinger_bands(
+        closes_for_ma, bollinger_period, bollinger_num_std, middle=existing_middle
+    )
+    bollinger_payload = {
+        "params": [bollinger_period, bollinger_num_std],
+        "upper": upper,
+        "middle": middle,
+        "lower": lower,
+        "bandwidth": bandwidth,
+    }
+
+    highs_for_levels = [r.get("high") or None for r in aggregated_records]
+    lows_for_levels = [r.get("low") or None for r in aggregated_records]
+    levels_payload: Dict[str, Any] = {"windows": list(levels_windows)}
+    for w in levels_windows:
+        resistance, support = rolling_high_low(highs_for_levels, lows_for_levels, w)
+        levels_payload[f"resistance_{w}d"] = resistance
+        levels_payload[f"support_{w}d"] = support
+
+    return {"bollinger": bollinger_payload, "levels": levels_payload}
+
+
 async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: int = 3, market: str = "tw",
                                    source: Optional[str] = None, kind: str = "stock") -> Dict[str, Any]:
     raw_data = await load_stock_data(stock_id, market, source=source, kind=kind)
@@ -428,6 +519,11 @@ async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: 
     full_records = aggregate_stock_data(raw_data, period=period, months=MAX_HISTORY_MONTHS)
     kd_payload = _build_kd_payload(full_records, dates)
 
+    # MACD／RSI／ATR（遞迴型，全歷史計算後切片）＋ 布林通道／近N日高低（視窗型，截斷後計算）
+    # ——見 Phase1-基礎量化與技術面 設計文件 §3.3、FR-P1-7。
+    recursive_indicators = _build_recursive_indicator_payloads(full_records, dates)
+    bollinger_and_levels = _build_bollinger_and_levels_payload(closes_for_ma, moving_averages, aggregated_records)
+
     return {
         "stock_id": stock_id,
         "stock_name": stock_name,
@@ -461,6 +557,11 @@ async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: 
         "kline": kline_data,
         "moving_averages": moving_averages,
         "kd": kd_payload,
+        "macd": recursive_indicators["macd"],
+        "rsi": recursive_indicators["rsi"],
+        "atr": recursive_indicators["atr"],
+        "bollinger": bollinger_and_levels["bollinger"],
+        "levels": bollinger_and_levels["levels"],
         "institutional": {
             "foreign": foreign,
             "trust": trust,

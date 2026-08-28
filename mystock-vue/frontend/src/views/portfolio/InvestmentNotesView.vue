@@ -93,6 +93,7 @@
                   </div>
 
                   <div class="shrink-0 flex items-start gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    <button @click="openPreview(note)" title="檢視 Markdown" aria-label="檢視 Markdown" class="w-8 h-8 grid place-items-center rounded-lg text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800"><i class="pi pi-eye"></i></button>
                     <button @click="openEdit(note)" title="編輯" class="w-8 h-8 grid place-items-center rounded-lg text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800"><i class="pi pi-pencil"></i></button>
                     <button @click="confirmDelete(note)" title="刪除" class="w-8 h-8 grid place-items-center rounded-lg text-surface-400 hover:text-red-500 hover:bg-surface-100 dark:hover:bg-surface-800"><i class="pi pi-trash"></i></button>
                   </div>
@@ -120,7 +121,7 @@
                 <span v-if="!tags.length" class="text-surface-300 text-xs">尚無標籤</span>
               </div>
               <div class="flex items-start gap-2 mt-4 pt-3.5 border-t border-surface-200 dark:border-surface-700 text-surface-400 text-[11px] leading-relaxed">
-                <i class="pi pi-info-circle mt-0.5"></i><p>列表只顯示內容摘要，點選「編輯」可查看完整內容。</p>
+                <i class="pi pi-info-circle mt-0.5"></i><p>列表只顯示內容摘要，點選「檢視」可查看完整內容。</p>
               </div>
             </aside>
           </div>
@@ -129,6 +130,7 @@
     </template>
 
     <InvestmentNoteEditor v-model:visible="editorVisible" :note="editingNote" :tag-options="tags" @saved="onSaved" />
+
   </div>
 </template>
 
@@ -136,12 +138,14 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
+import MarkdownIt from 'markdown-it';
 import { investmentNoteApi } from '@/service/investmentNoteApi';
 import { toIsoDate } from '@/composables/usePortfolioFormat';
 import InvestmentNoteEditor from '@/components/portfolio/InvestmentNoteEditor.vue';
 
 const toast = useToast();
 const confirm = useConfirm();
+const markdown = new MarkdownIt({ html: false, linkify: true, breaks: true });
 
 const marketFilterOptions = [
   { label: '全部市場', value: '' },
@@ -259,6 +263,48 @@ function openCreate() {
   editorVisible.value = true;
 }
 
+async function openPreview(note) {
+  // 在點擊事件內先開頁籤，避免 API await 後被瀏覽器擋下 popup。
+  const previewWindow = window.open('', '_blank');
+  if (!previewWindow) {
+    toast.add({ severity: 'warn', summary: '無法開啟預覽頁籤', detail: '請允許此網站開啟新頁籤後再試一次。', life: 4000 });
+    return;
+  }
+
+  previewWindow.document.write('<!doctype html><title>載入投資筆記中...</title>');
+  previewWindow.document.close();
+
+  try {
+    const res = await investmentNoteApi.getNote(note.id);
+    renderPreviewTab(previewWindow, res.data);
+  } catch (err) {
+    previewWindow.close();
+    toast.add({ severity: 'error', summary: '讀取筆記內容失敗', detail: err?.response?.data?.detail || err.message, life: 4000 });
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
+function renderPreviewTab(previewWindow, note) {
+  const title = escapeHtml(note.subject || '投資筆記');
+  const tags = (note.tags || []).map((tag) => `<span class="tag">${escapeHtml(tag.name)}</span>`).join('');
+  const symbol = note.symbol ? `<span class="meta-pill">${escapeHtml(note.market?.toUpperCase())} · ${escapeHtml(note.symbol)}${note.symbol_name ? `（${escapeHtml(note.symbol_name)}）` : ''}</span>` : '';
+  const html = `<!doctype html>
+<html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} | 投資筆記</title>
+<style>
+:root { font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif; background: #f4f6f5; color: #17211f; } * { box-sizing: border-box; } html { min-height: 100%; } body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, #f4f6f5, #edf3f0); } main { width: min(980px, 100%); min-height: 100vh; margin: 0 auto; padding: 48px clamp(20px, 5vw, 72px) 72px; background: #fff; box-shadow: 0 0 32px rgba(35, 62, 54, .08); } .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 40px; } .eyebrow { margin: 0 0 8px; color: #b45f2b; font: 700 11px ui-monospace, monospace; letter-spacing: .14em; } h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.2rem); line-height: 1.3; } .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; } button { border: 1px solid #d7e1dc; border-radius: 8px; padding: 9px 14px; color: #33534a; background: #fff; cursor: pointer; font: inherit; } button:hover { border-color: #b45f2b; color: #974b1f; } .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; color: #71807b; font-size: .85rem; } .meta-pill, .tag { padding: 4px 9px; border-radius: 5px; background: #e6f4f1; color: #1f6e65; font-size: .78rem; } .markdown { font-size: 1rem; line-height: 1.85; overflow-wrap: anywhere; } .markdown h1, .markdown h2, .markdown h3 { margin: 1.35em 0 .55em; line-height: 1.35; } .markdown h1:first-child, .markdown h2:first-child, .markdown h3:first-child { margin-top: 0; } .markdown p { margin: .8em 0; } .markdown ul, .markdown ol { padding-left: 1.6rem; } .markdown blockquote { margin: 1rem 0; padding: .2rem 1rem; border-left: 3px solid #c36c32; background: #fff5ed; color: #596963; } .markdown code { padding: .12rem .32rem; border-radius: 4px; background: #edf1ef; font: .9em ui-monospace, monospace; } .markdown pre { padding: 1rem; overflow-x: auto; border-radius: 6px; background: #edf1ef; } .markdown pre code { padding: 0; background: transparent; } .markdown a { color: #1f7a70; } .markdown table { width: 100%; border-collapse: collapse; } .markdown th, .markdown td { padding: 8px 10px; border: 1px solid #dfe7e3; text-align: left; } @media (max-width: 600px) { main { padding-top: 28px; } .toolbar { align-items: flex-start; flex-direction: column; } .actions { justify-content: flex-start; } }
+</style></head><body><main><div class="toolbar"><div><p class="eyebrow">INVESTMENT NOTE</p><h1>${title}</h1></div><div class="actions"><button id="copy">複製 Markdown</button><button id="back">返回筆記列表</button></div></div><div class="meta"><span>📅 ${escapeHtml(note.note_date)}</span><span>#${escapeHtml(note.sequence_no)}</span><span>${escapeHtml(statusLabel(note.status))}</span>${symbol}${tags}</div><article class="markdown">${markdown.render(note.content || '')}</article></main><script>const content = ${JSON.stringify(note.content || '')}; document.getElementById('copy').addEventListener('click', async () => { await navigator.clipboard.writeText(content); document.getElementById('copy').textContent = '已複製'; }); document.getElementById('back').addEventListener('click', () => window.close());</scr${'ipt'}></body></html>`;
+  previewWindow.document.open();
+  previewWindow.document.write(html);
+  previewWindow.document.close();
+}
+
+function statusLabel(status) {
+  return { published: '已發布', draft: '草稿', archived: '已封存' }[status] || status;
+}
+
 async function openEdit(note) {
   try {
     const res = await investmentNoteApi.getNote(note.id);
@@ -341,4 +387,74 @@ function confirmDelete(note) {
   font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
   font-variant-numeric: tabular-nums;
 }
+
+.preview-status,
+.preview-symbol {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 0.35rem;
+  background: var(--p-surface-50);
+}
+
+.note-markdown-preview {
+  min-height: 12rem;
+  max-height: 65vh;
+  overflow: auto;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 0.6rem;
+  background: var(--p-surface-0);
+  color: var(--p-text-color);
+  font-size: 0.95rem;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.note-markdown-preview :deep(h1),
+.note-markdown-preview :deep(h2),
+.note-markdown-preview :deep(h3) {
+  margin: 1.25em 0 0.55em;
+  color: var(--p-text-color);
+  font-weight: 800;
+  line-height: 1.3;
+}
+.note-markdown-preview :deep(h1:first-child),
+.note-markdown-preview :deep(h2:first-child),
+.note-markdown-preview :deep(h3:first-child) { margin-top: 0; }
+.note-markdown-preview :deep(h1) { font-size: 1.6rem; }
+.note-markdown-preview :deep(h2) { font-size: 1.3rem; }
+.note-markdown-preview :deep(h3) { font-size: 1.1rem; }
+.note-markdown-preview :deep(p) { margin: 0.7em 0; }
+.note-markdown-preview :deep(ul),
+.note-markdown-preview :deep(ol) { margin: 0.7em 0; padding-left: 1.5rem; }
+.note-markdown-preview :deep(ul) { list-style: disc; }
+.note-markdown-preview :deep(ol) { list-style: decimal; }
+.note-markdown-preview :deep(blockquote) {
+  margin: 0.9rem 0;
+  padding: 0.15rem 1rem;
+  border-left: 3px solid var(--p-primary-color);
+  background: var(--p-surface-50);
+  color: var(--p-text-muted-color);
+}
+.note-markdown-preview :deep(code) {
+  padding: 0.12rem 0.32rem;
+  border-radius: 0.3rem;
+  background: var(--p-surface-100);
+  font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.85em;
+}
+.note-markdown-preview :deep(pre) {
+  margin: 0.9rem 0;
+  padding: 1rem;
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: var(--p-surface-100);
+}
+.note-markdown-preview :deep(pre code) { padding: 0; background: transparent; }
+.note-markdown-preview :deep(a) { color: var(--p-primary-color); text-decoration: underline; }
+.note-markdown-preview :deep(hr) { margin: 1.25rem 0; border: 0; border-top: 1px solid var(--p-content-border-color); }
+.note-markdown-preview :deep(table) { width: 100%; margin: 1rem 0; border-collapse: collapse; }
+.note-markdown-preview :deep(th),
+.note-markdown-preview :deep(td) { padding: 0.55rem 0.7rem; border: 1px solid var(--p-content-border-color); text-align: left; }
+.note-markdown-preview :deep(th) { background: var(--p-surface-50); font-weight: 700; }
 </style>

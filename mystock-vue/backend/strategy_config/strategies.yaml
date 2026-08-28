@@ -14,6 +14,12 @@ defaults:
     - [9, 3, 3]                  # [fastk_period, slowk_period, slowd_period]
   kd_warmup_bars: 25            # 遞迴平滑暖身根數，見設計規格書 §3.3 誤差推導
   kd_smoothing: "wilder_1_3"    # 台股慣例，決議 D1：台股／美股一體適用，見設計規格書 §12
+  # ── MACD／RSI／布林通道／ATR／近N日高低（Phase1-基礎量化與技術面 設計文件 §5）──
+  macd_params: [12, 26, 9]      # [fast_period, slow_period, signal_period]
+  rsi_periods: [6, 14]
+  bollinger_params: [20, 2.0]   # [period, num_std]
+  atr_period: 14
+  levels_windows: [20, 60]      # 近 N 日高低（支撐／壓力）視窗
 
 strategies:
   # ── 突破 / 跌破策略 ──────────────────────────

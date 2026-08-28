@@ -98,7 +98,8 @@ def get_activity_log_retention_days() -> int:
 
 # ── 提示詞版本（§5.5）───────────────────────────────────────────
 def get_prompt_version() -> str:
-    return _env("AI_PROMPT_VERSION", "v3")
+    # v4：Phase1-基礎量化與技術面 FR-P1-9，System Prompt 新增第 6 點（MACD／RSI／布林／ATR）。
+    return _env("AI_PROMPT_VERSION", "v4")
 
 
 # ── 可選模型清單（§4.3 附加、v3.4 新增）────────────────────────

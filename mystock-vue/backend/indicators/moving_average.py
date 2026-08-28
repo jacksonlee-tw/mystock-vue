@@ -44,3 +44,44 @@ def bias_series(closes: Series, ma_values: Series) -> Series:
 def compute_ma_set(closes: Series, periods: List[int]) -> dict:
     """回傳 {"MA5": [...], "MA20": [...], ...}（均線策略警示系統 設計文件第 6.1 節 API 契約）。"""
     return {f"MA{p}": sma(closes, p) for p in periods}
+
+
+def ema(values: Series, period: int) -> Series:
+    """指數移動平均，MACD 等遞迴型指標的前置基礎（Phase1-基礎量化與技術面 設計文件 FR-P1-1）。
+
+    起始種子：累積滿 period 筆有效值後取簡單平均作為種子，之後才開始遞迴
+    （EMA_t = alpha * v_t + (1-alpha) * EMA_{t-1}，alpha = 2/(period+1)）。
+
+    缺值處理與 stochastic.py 的既有決策一致（缺值不重置遞迴狀態）：遇到 None 時該點輸出
+    None，但遞迴值（prev）原樣保留，等下一筆有效值出現時直接沿用它繼續平滑，避免復牌／
+    補資料後在原本沒有交叉的地方製造假交叉。
+
+    比照 sma()：本函式只把 None 視為缺值，是否把 0 也當缺值由呼叫端在傳入前自行清理
+    （見 services/stock_service.py 既有的 `r.get("close") or None` 慣例）——因為 ema() 同時
+    被 macd() 用來對 DIF（可能真的等於 0）做訊號線平滑，函式本身不能把 0 當缺值處理。
+    """
+    n = len(values)
+    out: Series = [None] * n
+    if n == 0 or period <= 0:
+        return out
+
+    alpha = 2.0 / (period + 1)
+    seed_sum = 0.0
+    seed_count = 0
+    prev: Optional[float] = None
+
+    for i, v in enumerate(values):
+        if prev is None:
+            if v is None:
+                continue
+            seed_sum += v
+            seed_count += 1
+            if seed_count == period:
+                prev = seed_sum / period
+                out[i] = round(prev, 4)
+            continue
+        if v is None:
+            continue
+        prev = alpha * v + (1 - alpha) * prev
+        out[i] = round(prev, 4)
+    return out

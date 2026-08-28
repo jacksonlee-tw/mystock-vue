@@ -17,6 +17,9 @@ SYSTEM_PROMPT = """你是一位任職於頂級對沖基金的資深技術分析�
 3. 量價配合：放量跌破、量縮築底、帶量突破；成交量相對 5 日均量的位置。
 4. 關鍵位階：明確標示【關鍵支撐（防守／停損點）】與【上方壓力（轉強／目標價）】。
 5. 實戰建議：「短線價差操作」與「中長線持股／進場」分別給出具體指引。
+6. 動能與波動檢核：MACD 柱狀圖與 DIF／訊號線的交叉是否支持當前趨勢方向、RSI 所處位階、
+   布林通道收斂或開口擴大所反映的波動狀態、ATR 反映的單日波動幅度。
+   任一數值缺席時（如新上市個股尚未累積足夠交易日）略過該面向，不得臆測。
 
 輸出規範：
 - 所有價位必須是具體數字，不得寫「附近」「左右」而無數值。
@@ -37,6 +40,10 @@ _LABELS: dict[str, str] = {
     "volume": "成交量", "change_pct": "漲跌幅(%)",
     "ma5": "5MA", "ma10": "10MA", "ma20": "20MA", "ma60": "60MA", "ma120": "120MA", "ma240": "240MA",
     "k": "K 值", "d": "D 值",
+    "dif": "DIF", "signal": "訊號線(Signal)", "histogram": "柱狀圖(Histogram)",
+    "rsi_6": "RSI(6)", "rsi_14": "RSI(14)",
+    "upper": "布林上軌", "middle": "布林中軌", "lower": "布林下軌", "bandwidth": "布林帶寬",
+    "atr_14": "ATR(14)",
     "foreign_net_5d": "外資近5日買賣超(張)", "trust_net_5d": "投信近5日買賣超(張)",
     "dealer_net_5d": "自營商近5日買賣超(張)",
     "margin_balance": "融資餘額", "short_balance": "融券餘額", "short_ratio": "券資比(%)",
@@ -62,8 +69,15 @@ def build_user_prompt(symbol: str, stock_name: str, market: str, summary: dict[s
         parts.append("")
     if summary.get("range"):
         r = summary["range"]
-        parts.append(f"【區間高低點】最高 {r.get('high')}（{r.get('high_date')}）"
-                      f"／最低 {r.get('low')}（{r.get('low_date')}）")
+        lines = ["【區間高低點與位階】"]
+        if r.get("high") is not None:
+            lines.append(f"- 本次顯示區間最高 {r.get('high')}（{r.get('high_date')}）"
+                          f"／最低 {r.get('low')}（{r.get('low_date')}）")
+        for window in (20, 60):
+            resistance_key, support_key = f"resistance_{window}d", f"support_{window}d"
+            if resistance_key in r or support_key in r:
+                lines.append(f"- 近{window}日壓力 {r.get(resistance_key)}／支撐 {r.get(support_key)}")
+        parts.append("\n".join(lines))
         parts.append("")
     if summary.get("ma"):
         parts.append(_format_block("移動平均線", summary["ma"]))
@@ -73,6 +87,18 @@ def build_user_prompt(symbol: str, stock_name: str, market: str, summary: dict[s
         parts.append("")
     if summary.get("kd"):
         parts.append(_format_block("KD 指標", summary["kd"]))
+        parts.append("")
+    if summary.get("macd"):
+        parts.append(_format_block("MACD", summary["macd"]))
+        parts.append("")
+    if summary.get("rsi"):
+        parts.append(_format_block("RSI", summary["rsi"]))
+        parts.append("")
+    if summary.get("bollinger"):
+        parts.append(_format_block("布林通道", summary["bollinger"]))
+        parts.append("")
+    if summary.get("atr"):
+        parts.append(_format_block("ATR 波動幅度", summary["atr"]))
         parts.append("")
     if "volume_ma5" in summary or "volume_ratio" in summary:
         vol = {k: v for k, v in summary.items() if k in ("volume_ma5", "volume_ratio")}
