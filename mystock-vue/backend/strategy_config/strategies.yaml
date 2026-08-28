@@ -6,20 +6,20 @@
 
 defaults:
   ma_periods: [5, 10, 20, 60, 120, 240]
-  volume_ma_period: 5           # 均量計算天數
-  lookback_days: 1              # 排程掃描時，每次檢查最近幾天（手動 /alerts/scan 可覆寫，方便回填測試）
+  volume_ma_period: 5 # 均量計算天數
+  lookback_days: 1 # 排程掃描時，每次檢查最近幾天（手動 /alerts/scan 可覆寫，方便回填測試）
   scan_frequency: "daily_close" # daily_close | intraday_15m（未來）
   # ── KD（KD指標 設計規格書 §4.3）──────────────
   kd_params:
-    - [9, 3, 3]                  # [fastk_period, slowk_period, slowd_period]
-  kd_warmup_bars: 25            # 遞迴平滑暖身根數，見設計規格書 §3.3 誤差推導
-  kd_smoothing: "wilder_1_3"    # 台股慣例，決議 D1：台股／美股一體適用，見設計規格書 §12
+    - [9, 3, 3] # [fastk_period, slowk_period, slowd_period]
+  kd_warmup_bars: 25 # 遞迴平滑暖身根數，見設計規格書 §3.3 誤差推導
+  kd_smoothing: "wilder_1_3" # 台股慣例，決議 D1：台股／美股一體適用，見設計規格書 §12
   # ── MACD／RSI／布林通道／ATR／近N日高低（Phase1-基礎量化與技術面 設計文件 §5）──
-  macd_params: [12, 26, 9]      # [fast_period, slow_period, signal_period]
+  macd_params: [12, 26, 9] # [fast_period, slow_period, signal_period]
   rsi_periods: [6, 14]
-  bollinger_params: [20, 2.0]   # [period, num_std]
+  bollinger_params: [20, 2.0] # [period, num_std]
   atr_period: 14
-  levels_windows: [20, 60]      # 近 N 日高低（支撐／壓力）視窗
+  levels_windows: [20, 60] # 近 N 日高低（支撐／壓力）視窗
 
 strategies:
   # ── 突破 / 跌破策略 ──────────────────────────
@@ -31,7 +31,7 @@ strategies:
     conditions:
       - type: "price_cross"
         target: "close"
-        ma_periods: [20, 60, 240]       # 僅監控月/季/年線
+        ma_periods: [20, 60, 240] # 僅監控月/季/年線
         directions: ["cross_above", "cross_under"]
     filters:
       - type: "volume_confirm"
@@ -60,7 +60,7 @@ strategies:
     conditions:
       - type: "alignment"
         ma_periods: [5, 10, 20, 60]
-        require_slope: true               # 需同時判斷斜率方向
+        require_slope: true # 需同時判斷斜率方向
 
   # ── 擠壓突破 ──────────────────────────────────
   - id: "ma_squeeze_breakout"
@@ -71,7 +71,7 @@ strategies:
     conditions:
       - type: "squeeze_breakout"
         ma_periods: [5, 10, 20, 60]
-        squeeze_threshold: 0.02           # 極差 < 股價 × 2%
+        squeeze_threshold: 0.02 # 極差 < 股價 × 2%
         squeeze_min_days: 5
     filters:
       - type: "volume_confirm"
@@ -86,8 +86,8 @@ strategies:
     conditions:
       - type: "bias"
         ma_period: 60
-        overbought_threshold: 25          # 正乖離 ≥ 25% → 超買
-        oversold_threshold: -15           # 負乖離 ≤ −15% → 超賣
+        overbought_threshold: 25 # 正乖離 ≥ 25% → 超買
+        oversold_threshold: -15 # 負乖離 ≤ −15% → 超賣
 
   # ── 回踩測試 ──────────────────────────────────
   - id: "ma_pullback_support"
@@ -98,8 +98,8 @@ strategies:
     conditions:
       - type: "pullback"
         ma_periods: [20, 60]
-        proximity_percent: 1.0            # 距離均線 ±1%
-        trend_lookback_days: 20           # 過去 N 天須在均線之上
+        proximity_percent: 1.0 # 距離均線 ±1%
+        trend_lookback_days: 20 # 過去 N 天須在均線之上
 
   # ══ 籌碼型態警示（籌碼選股策略 設計文件第 5.5 節）══════════════
   # 只沿用現有追蹤清單（get_target_stocks），對應文件的 all_tracked 選股池；
@@ -113,11 +113,11 @@ strategies:
     conditions:
       - type: "chip_bottom_turnover"
         ma_period: 20
-        lookback_below_days: 20           # C1：近 N 日內須曾跌破均線
-        margin_change_window: 20          # C2：融資增減率視窗
-        margin_change_max_pct: -5         # C2：融資須退場 ≥5%
-        institutional_window: 5           # C3：三大法人近 N 日累計買超
-        consec_buy_days: 3                # C3：外資或投信連續買超天數
+        lookback_below_days: 20 # C1：近 N 日內須曾跌破均線
+        margin_change_window: 20 # C2：融資增減率視窗
+        margin_change_max_pct: -5 # C2：融資須退場 ≥5%
+        institutional_window: 5 # C3：三大法人近 N 日累計買超
+        consec_buy_days: 3 # C3：外資或投信連續買超天數
 
   - id: "chip_short_squeeze"
     name: "高檔軋空（暴走）"
@@ -127,16 +127,16 @@ strategies:
     conditions:
       - type: "chip_short_squeeze"
         ma_period: 20
-        ma_slope_window: 5                # C1：均線斜率觀察窗
-        institutional_window: 5           # C2：三大法人近 N 日累計買超
-        institutional_min_buy_days: 3     # C2：法人買超天數門檻
+        ma_slope_window: 5 # C1：均線斜率觀察窗
+        institutional_window: 5 # C2：三大法人近 N 日累計買超
+        institutional_min_buy_days: 3 # C2：法人買超天數門檻
         # C3 簡化：無市值分層資料前先用單一預設門檻（文件中型股門檻 5%），
         # 待 universe 模組完成後改依 mcap_rank 分層覆寫（文件第 5.5 節）
         short_margin_ratio_min_pct: 5
         short_margin_ratio_percentile_window: 60
         short_margin_ratio_percentile: 90
-        short_change_window: 5            # C4：融券增幅視窗
-        short_change_min_pct: 30          # C4：融券須激增 ≥30%
+        short_change_window: 5 # C4：融券增幅視窗
+        short_change_min_pct: 30 # C4：融券須激增 ≥30%
 
   - id: "chip_distribution_top"
     name: "高檔出貨（崩盤前）"
@@ -146,8 +146,8 @@ strategies:
     conditions:
       - type: "chip_distribution_top"
         ma_period: 20
-        consec_sell_days: 3               # C2：法人連續賣超天數
-        margin_high_window: 60            # C3：融資餘額創新高視窗
+        consec_sell_days: 3 # C2：法人連續賣超天數
+        margin_high_window: 60 # C3：融資餘額創新高視窗
 
   # ══ KD 隨機指標策略（KD指標 設計規格書 §5）══════════════
   # 純 OHLC 指標，台股／美股皆適用。門檻與守衛全部在此調整，改完存檔即生效（不需重啟）。
@@ -156,7 +156,7 @@ strategies:
     category: "technical"
     enabled: true
     markets: ["tw", "us"]
-    cooldown_days: 10                  # 覆寫全域 ALERT_COOLDOWN_DAYS（設計規格書 §5.7）
+    cooldown_days: 10 # 覆寫全域 ALERT_COOLDOWN_DAYS（設計規格書 §5.7）
     conditions:
       - type: "kd_cross"
         kd_params: [9, 3, 3]
@@ -166,16 +166,16 @@ strategies:
         directions: ["golden_cross_oversold"]
         trend_guard:
           ma_period: 60
-          mode: "require_above"        # 只在季線之上做超賣反彈，避開下跌段接刀
+          mode: "require_above" # 只在季線之上做超賣反彈，避開下跌段接刀
         blunt_guard:
           window: 5
-          mode: "downgrade"            # 決議 D2：先標記不擋，見設計規格書 §9 P1.5 上線後檢核
+          mode: "downgrade" # 決議 D2：先標記不擋，見設計規格書 §9 P1.5 上線後檢核
     filters:
       - type: "volume_confirm"
         params: { multiple: 1.2 }
       - type: "candlestick_confirm"
         params: { body_ratio: 0.4 }
-      - type: "institutional_buy"       # 僅台股會通過（美股恆 false，只影響強度）
+      - type: "institutional_buy" # 僅台股會通過（美股恆 false，只影響強度）
         params: { lookback_days: 3 }
 
   - id: "kd_overbought_death_cross"
@@ -192,7 +192,7 @@ strategies:
         zone_rule: "both"
         directions: ["death_cross_overbought"]
         trend_guard:
-          mode: "off"                   # 出場訊號不設趨勢門檻，寧可多提醒
+          mode: "off" # 出場訊號不設趨勢門檻，寧可多提醒
         blunt_guard:
           window: 5
           mode: "downgrade"
@@ -205,8 +205,8 @@ strategies:
     markets: ["tw"]
     conditions:
       - type: "revenue_yoy_decline"
-        consecutive_months: 2      # 連續衰退月數門檻
-        yoy_threshold: 0           # yoy_percent 須低於此值（%）才算衰退
+        consecutive_months: 2 # 連續衰退月數門檻
+        yoy_threshold: 0 # yoy_percent 須低於此值（%）才算衰退
 
   # ══ 全市場選股策略（選股功能與爬蟲 規格書 §5、§13）═════════════════════════
   - id: "pick_valuation_low_pe"
@@ -284,14 +284,14 @@ strategies:
     sort_by: "dividend_yield"
     enabled: true
     markets: ["tw"]
-    cooldown_days: 20               # 底部條件會連續多日成立，冷卻拉長避免同一段底部天天上榜
+    cooldown_days: 20 # 底部條件會連續多日成立，冷卻拉長避免同一段底部天天上榜
     conditions:
       - type: "relative_low_zone"
         # C1 估值
         pe_max: 15.0
         pe_min: 0.1
         pb_max: 1.5
-        dividend_yield_min: 4.0     # 單位為百分比數值，不是 0.04
+        dividend_yield_min: 4.0 # 單位為百分比數值，不是 0.04
         # C2 基本面守衛
         revenue_yoy_min: 0.0
         revenue_consecutive_months: 2
@@ -312,7 +312,7 @@ strategies:
         above_ma_period: 20
         volume_multiple: 1.5
     filters:
-      - type: "institutional_buy"   # 只影響 signal_strength，不擋訊號
+      - type: "institutional_buy" # 只影響 signal_strength，不擋訊號
         params: { lookback_days: 3 }
 
   # ══ 持倉出場風控策略（選股功能與爬蟲 規格書 §6、§13）═══════════════════════
@@ -346,4 +346,3 @@ filters_registry:
     params:
       lookback_days: 3
       require: "foreign_or_trust_net_buy"
-
