@@ -1,51 +1,57 @@
-# Phase 1：基礎量化數據層與技術面指標擴充 — 技術指標庫擴充規格書
+# Phase 1：基礎量化與技術面 — 技術指標庫補齊 功能需求文件
 
-**模組**：技術面純函式指標庫（`backend/indicators/`）與 AI 診股報告技術面 Context 擴充
-**版本**：v2.0（v1.0 為草案，範圍與現況嚴重脫節，本版整份重寫，見 §0）
+**模組**：技術面純函式指標庫（`backend/indicators/`）擴充，及其於圖表 payload 與 AI 診股報告的落地
+**版本**：v3.0（v1.0 為外部貼入草案；v2.0 已對照現況重寫；本版補上三項跨文件／跨層的關鍵約束，見 §0）
 **日期**：2026-08-28
-**狀態**：需求規格 — 待審核。本文件只定義需求與驗收條件，**不含程式開發**
-**對應既有模組**：
-[indicators/moving_average.py](../../backend/indicators/moving_average.py)、
-[indicators/stochastic.py](../../backend/indicators/stochastic.py)、
-[indicators/chip.py](../../backend/indicators/chip.py)、
+**狀態**：**功能需求 — 待審核。本文件只定義需求、介面契約與驗收條件，不含程式開發**
+
+**對應既有模組**
+[indicators/moving_average.py](../../backend/indicators/moving_average.py)（SMA／BIAS，**無 EMA**）、
+[indicators/stochastic.py](../../backend/indicators/stochastic.py)（KD，遞迴平滑與暖身期的既有前例）、
+[indicators/chip.py](../../backend/indicators/chip.py)、[indicators/fundamental.py](../../backend/indicators/fundamental.py)、
+[services/stock_service.py](../../backend/services/stock_service.py)（`get_stock_chart_payload()`、`_build_kd_payload()`）、
 [services/chip_provider.py](../../backend/services/chip_provider.py)（`ScanContext`）、
-[services/fetcher.py](../../backend/services/fetcher.py)（TWSE 爬蟲）、
-[services/us_fetcher.py](../../backend/services/us_fetcher.py)（yfinance 爬蟲）、
-[services/stock_service.py](../../backend/services/stock_service.py)、
-[strategies/conditions_tech.py](../../backend/strategies/conditions_tech.py)、
-[strategies/filters.py](../../backend/strategies/filters.py)、
-[ai/summary.py](../../backend/ai/summary.py)、
-[scripts/verify_kd.py](../../backend/scripts/verify_kd.py)（既有驗證慣例前例）
+[strategies/conditions_tech.py](../../backend/strategies/conditions_tech.py)（`kd_cross`，四層整合的既有範本）、
+[strategies/filters.py](../../backend/strategies/filters.py)（`volume_confirm`）、
+[ai/summary.py](../../backend/ai/summary.py)、[ai/prompt.py](../../backend/ai/prompt.py)、
+[scripts/verify_kd.py](../../backend/scripts/verify_kd.py)（無測試框架下的既有驗證慣例）
 
 **參考文件**
-- [AI 技術分析報告 系統開發規格書](AI技術分析規劃.md)（以下簡稱《AI 報告規格》）——`quant_summary` 結構、`ai/summary.py` 鐵則的母體文件
-- [Phase2-籌碼面與基本面量化擴充.md](Phase2-籌碼面與基本面量化擴充.md)——同一輪「v1.0 對照現況重寫」的前例，本文件的 §0、§2 沿用其寫法
-- [Phase3-產業鏈知識圖譜與輪動模型.md](Phase3-產業鏈知識圖譜與輪動模型.md) §2.0——該文件已指出本文件 v1.0 與現行架構不符（`TWSEProvider`／`YahooProvider`／Parquet 落地），本版即為該落差的修正
-- [KD指標 設計規格書]（`strategies/conditions_tech.py`、`indicators/stochastic.py` 註解引用）——本文件 §4、§6 的整合深度沿用其「純函式 → ScanContext → condition → 前端副圖」四層落地模式
+- [AI 技術分析報告 系統開發規格書](AI技術分析規劃.md)（以下簡稱《AI 報告規格》）——§4.2 量化摘要契約的鐵則「本模組不得自行計算任何指標」是本文件 §3.2／FR-P1-7 的直接依據
+- [股價相對低點 需求規格書](../13.選股功能/股價相對低點.md)（以下簡稱《相對低點》）——**ADR-RL-02 已決議「以 KD 取代 RSI、不為單一策略新增指標」，RSI 列為該文件 P3 並掛在其 Q-3 待決**；本文件與該決議的關係見 §2.3
+- [進出場策略規劃](../11.進出場策略/進出場策略規劃.md)——§4.2「移動停利」需要近期高點、§5-3 明列 RSI 應由指標引擎預先算好，是本批指標在 AI 報告以外的第二個消費者（§2.3）
+- [Phase2-籌碼面與基本面量化擴充.md](Phase2-籌碼面與基本面量化擴充.md)——同一輪「對照現況重寫」的前例；其 §1.4「前置依賴」模式為本文件 §3.2 所沿用
+- [Phase3-產業鏈知識圖譜與輪動模型.md](Phase3-產業鏈知識圖譜與輪動模型.md) §2.0——該文件已指出本文件 v1.0 的 `TWSEProvider`／Parquet 描述與現行架構不符，v2.0 起即為該落差的修正
+- KD 指標 設計規格書（其 §12 決議 D5、ADR-KD-01 由 `stochastic.py`／`stock_service.py` 程式註解引用）——本文件 §3.3 的計算視窗規則、FR-P1-3 的平滑方式選擇皆沿用其結論
 
 ---
 
-## 0. 改版說明：為什麼整份重寫
+## 目錄
 
-v1.0 的草案設想的是「從零打造」一條量化數據管線——抽象基底類別 `BaseProvider` 與具體的
-`TWSEProvider`／`YahooProvider`、兩段式落地目錄（`data/raw/` JSON 緩衝 → `data/curated/` Parquet
-欄位式儲存）、`pandas` DataFrame in/out 的指標函式、以及 `pytest` 單元測試框架。但實際比對現有
-程式碼後發現：**OHLCV 資料管線與六成以上的指標庫早就做完了**，只是模組名稱、儲存形態與測試慣例
-與 v1.0 的設想不同，沿用 v1.0 字面重寫只會生出一份「要求重做已完成功能、且引入專案目前不存在
-的技術棧（Parquet、pytest）」的錯誤規格。
+| 章節 | 內容 |
+|---|---|
+| 0 | 修訂紀錄 |
+| 1 | 目的與範圍 |
+| 2 | 現況盤點與跨文件依賴（避免重複建設與決議打架） |
+| 3 | 系統架構與關鍵設計約束 |
+| 4 | 功能需求（FR） |
+| 5 | 設定項目 |
+| 6 | 決議事項（ADR） |
+| 7 | 分階段交付 |
+| 8 | 驗收準則（AC） |
+| 9 | 開放問題 |
+| 10 | 風險與限制 |
+| 11 | 影響範圍（僅供日後開發估算） |
 
-因此 v2.0 做了三件事：
+---
 
-1. **§2 現況盤點**：把 v1.0 四大項逐一核對現況，標明「已完成」「部分完成」與對應程式碼位置。
-2. **重新定位本文件的範圍**：v1.0 標題「基礎量化與技術面」在現況下唯一站得住腳、且未被任何其他
-   指標檔案認領的缺口，是——**MACD、RSI、布林通道、ATR 這四項動能／震盪／波動指標，全專案（前後端）
-   目前完全沒有實作**。本文件的交付內容就是把這四項指標補進既有的純函式指標庫，並視需要串進
-   AI 診股報告的 Context（比照《AI 報告規格》既有模式）。
-3. **修正與現行架構不符的技術假設**：純函式指標的既有慣例是 `List[Optional[float]]`（見
-   `moving_average.py`／`stochastic.py`），不是 `pandas.DataFrame`；資料落地是「JSON 為唯一事實
-   來源 + 盡力而為 dual-write 到 Postgres」，沒有 Parquet 層；驗證慣例是一次性交叉比對腳本（見
-   `scripts/verify_kd.py`），專案目前**沒有 `pytest`**（`requirements.txt` 未列出，`CLAUDE.md`
-   明載「無後端測試套件」）。v2.0 不再假設這些不存在的技術棧。
+## 0. 修訂紀錄
+
+| 版本 | 變更摘要 |
+|---|---|
+| v1.0 | 從外部貼入、未核對本專案現況的構想清單：`BaseProvider`／`TWSEProvider`／`YahooProvider` 抽象層、`data/raw/` JSON → `data/curated/` Parquet 兩段式落地、`DataFrame in → DataFrame out` 指標函式、`pytest` 單元測試。方向可理解，但四項技術假設在本專案**全部不成立**（見 §2.1） |
+| v2.0 | 對照現行程式碼重寫：加入 §0 改版說明與 §2 現況盤點，把範圍從「重建資料管線」收斂為「補齊 MACD／RSI／布林通道／ATR 四項缺席指標」，修正 Parquet／pytest／DataFrame 三項技術假設 |
+| v3.0 | 本次優化，補上 v2.0 漏掉的三項關鍵約束，並改寫為 FR 編號式的功能需求文件：<br/>① **AI 摘要層不得自行算指標**（《AI 報告規格》§4.2 鐵則）——新指標必須先落在 `get_stock_chart_payload()`，`ai/summary.py` 只能讀，v2.0 誤寫成由摘要層計算（→ §3.2、FR-P1-7）<br/>② **遞迴型指標必須「全歷史計算後切片」**（KD 決議 D5）——MACD／RSI／ATR 若比照 MA 在截斷視窗上計算，會產出「看似正常但其實錯誤」的數字（→ §3.3、FR-P1-7）<br/>③ **RSI 與《相對低點》ADR-RL-02 的決議關係**——該文件已決定不新增 RSI 並列為 P3／Q-3，本文件若交付 RSI 等同回答其 Q-3，需明講而非各寫各的（→ §2.3、ADR-P1-06）<br/>另補：§3.1 資料流圖、FR 編號與 AC 對應、§5 設定項目、前後端算法對齊的兩種模式（ADR-P1-07） |
 
 ---
 
@@ -53,180 +59,313 @@ v1.0 的草案設想的是「從零打造」一條量化數據管線——抽象
 
 ### 1.1 目的
 
-把技術面純函式指標庫從「趨勢＋隨機指標」（MA／BIAS／KD）補齊到「趨勢＋動能＋波動＋量能」四大類，
-讓 AI 診股報告與（未來視需要）策略引擎能取得比現行更完整的技術面數據，同時**不新建**任何一條與
-`indicators/` 既有慣例不同的資料路徑——沿用同一套「純函式、`List[Optional[float]]`、無副作用、
-與前端算法對齊」的既有設計原則（見 CLAUDE.md「策略/警示引擎」一節）。
+把技術面純函式指標庫從現行的「趨勢＋隨機指標」（MA／BIAS／KD）補齊到「趨勢＋動能＋波動＋位階」四類，
+讓 AI 診股報告（以及日後的策略引擎、進出場風控）能取得完整的技術面數據，且**全程沿用既有慣例**，
+不新建任何一條與 `indicators/` 現行設計原則不同的資料路徑。
+
+本文件是**功能需求文件**（What／Why），不是技術設計規格書（How）。介面契約寫到「呼叫端能據以整合」
+的程度即止，內部演算法的實作選擇（迴圈寫法、暫存結構）留給工程階段。
 
 ### 1.2 交付範圍
 
-1. 四個新純函式指標模組（或併入既有檔案）：**MACD**、**RSI**、**布林通道（Bollinger Bands）**、
-   **ATR**（§3）。
-2. 兩個「正式化」既有 ad-hoc 邏輯的指標函式：**近 N 日支撐／壓力**（現行 `ai/summary.py` 有
-   inline 版本，無 N 可調、無法在指標庫外重用）、**爆量偵測**（現行已有 `filters.volume_confirm`，
-   本文件僅評估是否需要一個回傳倍數本身而非布林值的指標版本，供 AI Context 顯示用，見 §3.5）。
-3. 將以上指標接入 `ai/summary.py` 的 `build_quant_summary()`，作為 `quant_summary` 的新增區塊
-   （比照《AI 報告規格》既有的「缺值即省略、不得臆測」慣例，見 §4.2）。
-4. 撰寫與 `scripts/verify_kd.py` 同等級的一次性驗證腳本，交叉比對已知數值與邊界案例（§5），
-   **不引入 pytest**（見 ADR-P1-03）。
+| 範圍內 | 範圍外（本文件不涵蓋） |
+|---|---|
+| 六個純函式指標的需求與介面契約（§4.1） | 指標函式的內部實作細節 |
+| 新指標在 `get_stock_chart_payload()` 的落地與計算視窗規則（§4.2） | 圖表 UI 呈現（副圖、切換鈕）——列 P2，見 §7 |
+| 新指標進入 AI 診股報告 Context 與 Prompt（§4.3） | AI 報告對外七個結構化輸出欄位的任何變更（**明確不動**） |
+| 無測試框架下的驗證方式（§4.4） | 導入 `pytest`（見 ADR-P1-03） |
+| 指標門檻的設定歸屬（§5） | 門檻數值本身的最終決定（見 §9 Q-3） |
 
 ### 1.3 不在本文件範圍
 
-| 項目 | 原因 | 責任文件／現況 |
+| 項目 | 原因 | 現況／責任文件 |
 |---|---|---|
-| OHLCV 爬蟲重寫（`TWSEProvider`／`YahooProvider` 抽象層） | 已完成，且現行 `fetcher.py`／`us_fetcher.py` 具體模組運作良好，改抽象類別無實質效益 | `services/fetcher.py`、`services/us_fetcher.py`（見 §2） |
-| 兩段式 `data/raw/` JSON → `data/curated/` Parquet 落地 | 現行架構是 JSON 為唯一事實來源 + dual-write Postgres，無 Parquet 層；新增一層儲存格式會製造第三份資料來源，違反「唯一事實來源」原則 | 見 ADR-P1-01 |
-| MA／BIAS／均線多空排列 | 已完成 | `indicators/moving_average.py`、`strategies/conditions_tech.py` 的 `alignment` |
-| KD 隨機指標 | 已完成（含台股慣例遞迴平滑、暖身期、鈍化判定，規格遠超 v1.0 原始描述） | `indicators/stochastic.py`、`strategies/conditions_tech.py` 的 `kd_cross` |
-| 爆量濾網（成交量 ≥ 均量 × 倍數） | 已完成 | `strategies/filters.volume_confirm`（見 §2、§3.5） |
-| `pytest` 測試框架導入 | 專案目前無任何測試框架，是否要為此單獨引入超出本文件範圍的決定 | 見 ADR-P1-03 |
-| MACD／RSI 是否要做成策略 `condition`（比照 `kd_cross`）與前端副圖切換（比照 KD 副圖） | 屬於「用不用」的整合深度問題，不是「算不算得出來」的指標需求，列為 P1/P2 待決，見 §7、§9 | 見 ADR-P1-04 |
+| OHLCV 爬蟲重寫為 Provider 抽象層 | 已完成且形態不同；`markets/` 已是既有的多市場抽象點，無新增市場的迫切需求 | `services/fetcher.py`、`services/us_fetcher.py`（§2.1） |
+| `data/curated/` Parquet 欄位式儲存 | 會製造 JSON／Postgres 之外的第三份資料來源 | ADR-P1-01 |
+| MA／BIAS／均線多空排列／KD | 已完成，且 KD 的規格遠超 v1.0 描述 | `indicators/moving_average.py`、`indicators/stochastic.py`、`conditions_tech.py` |
+| 爆量偵測（量 ≥ 均量 × N 倍） | 已完成（濾網布林版）＋ AI Context 已有數值版 `volume_ratio` | `strategies/filters.volume_confirm`、`ai/summary.py`（§4.5） |
+| 型態辨識（W 底／頸線／下影線） | 全專案無實作，且屬另一個量級的需求 | 《相對低點》P2 缺口（§4.4）——非本文件範圍 |
+| 估值歷史分位數 | 同上，是資料回補缺口不是指標缺口 | 《相對低點》P1 缺口 |
+| 回測／勝率驗證 | 本專案無回測模組 | 《相對低點》§1.2 既有結論，Phase 3 §4.3.3 沿用 |
 
 ### 1.4 市場範圍
 
-本文件全部指標**同時適用 TW／US**——與 v1.0 一致，且與現行 MA／BIAS／KD 的既有慣例相同：
-輸入只需要 OHLCV 序列，不依賴台股專屬的籌碼／基本面資料（不同於 Phase 2 的估值／營收僅
-TW 適用）。`ai/summary.py` 的 Context 組裝中，這批指標**不受**既有 `market == "tw"` 分支限制。
+**TW／US 皆適用**。本批指標的輸入只有 OHLCV 序列，不依賴台股專屬的籌碼或基本面資料——這點與
+Phase 2（估值／營收，僅 TW）、Phase 4（新聞輿情，僅 TW）不同。因此在 `ai/summary.py` 的 Context
+組裝中，這批指標**不受**既有 `market == "tw"` 分支限制。
 
-### 1.5 前置依賴
+### 1.5 名詞
 
-無阻塞性前置依賴——OHLCV 歷史資料（JSON 與 Postgres 雙軌）在 TW／US 皆已完整累積，本文件的
-指標函式可直接對現有資料開發與驗證，不需要等待任何爬蟲或資料表新增。
+| 名詞 | 本文件的定義 |
+|---|---|
+| 純函式指標 | 型別為 `List[Optional[float]] → List[Optional[float]]`、無副作用、不做 I/O 的計算函式，比照 `moving_average.py`／`stochastic.py` 既有形態 |
+| 暖身期（warmup） | 遞迴型指標在序列開頭因初始值誤差尚未衰減、數值不可信賴的區段；既有 KD 以 `warmup_bars=25` 表達 |
+| 截斷後計算 | 先依顯示區間（`months`）截斷資料再算指標——MA 現行作法 |
+| 全歷史計算後切片 | 在 `MAX_HISTORY_MONTHS`（現值 60 個月）的完整歷史上算完，再依日期切到顯示區間——KD 現行作法（決議 D5） |
+| 缺值 | `None`，或本專案慣例中代表「當天沒回補到行情」的 `0`（見 `chip_provider._clean()`／`stochastic._clean()`） |
 
 ---
 
-## 2. 現況盤點：v1.0 四大項 vs 實際狀態
+## 2. 現況盤點與跨文件依賴
+
+### 2.1 v1.0 四大項 vs 實際狀態
 
 | v1.0 項目 | 現況 | 依據 |
 |---|---|---|
-| 一、基礎工程與資料目錄重構（`requirements.txt` 鎖版、兩段式落地、`fetch_range`／`display_range` 解耦） | 🟡 部分完成且路徑不同：`requirements.txt` 已鎖版但**無 `pyarrow`／`pytest`**；儲存是 JSON 源頭 + dual-write Postgres，**無 Parquet 層**；`fetch_range`／`display_range` 解耦**已用不同機制達成**——`get_stock_chart_payload(period, months)` 的 `months` 是前端顯示範圍，內部另以 `MAX_HISTORY_MONTHS` 撈 `full_records` 供指標計算，兩者本來就已分離 | `requirements.txt`；`services/stock_service.py` `get_stock_chart_payload()` |
-| 二、抽象資料層與 OHLCV 爬蟲（`BaseProvider`／`TWSEProvider`／`TPEXProvider`／`YahooProvider`、Parquet 增量保存） | ✅ 功能已完成，**但不是 v1.0 描述的形態**：無抽象基底類別，是 `services/fetcher.py`（TWSE，含民國年轉換、千分位清理、3.5~5.5 秒隨機節流、指數退避重試）與 `services/us_fetcher.py`（yfinance）兩支具體模組；落地為 `data/{tw,us}/<symbol>.json`，dual-write 到 Postgres（`db/dual_write.py`），無 Parquet | `services/fetcher.py`、`services/us_fetcher.py`、`db/dual_write.py`；CLAUDE.md「雙資料來源」一節 |
-| 三、純函式技術指標庫（趨勢／動能／通道／量能四類） | 🟡 趨勢與隨機類已完成，**動能與波動類完全空白**：MA5/10/20/60/120/240、均線多空排列、BIAS ✅；KD（含台股遞迴平滑）✅；MACD ❌；RSI ❌；布林通道 ❌；ATR ❌；量能爆量偵測✅（做成濾網而非獨立指標）；支撐/壓力 🟡（`ai/summary.py` 有 inline 版本，非可重用的指標函式） | `indicators/moving_average.py`、`indicators/stochastic.py`、`strategies/filters.py`（`volume_confirm`）、`ai/summary.py`（`range`／`volume_ma5`／`volume_ratio`）；全專案（含前端）搜尋 `MACD`／`RSI`／`Bollinger`／`ATR` 均無結果 |
-| 四、品質保證與單元測試（`pytest.fixture`、`test_indicators.py`） | ❌ 未採用 `pytest`——專案目前**沒有任何測試框架**（`requirements.txt` 未列 `pytest`，CLAUDE.md 明載「無後端測試套件」）；既有驗證慣例是**一次性交叉比對腳本**：`scripts/verify_kd.py`（獨立參考實作比對 + 邊界案例斷言）、`scripts/compare_data_sources.py`（JSON vs Postgres 一致性） | `scripts/verify_kd.py`、`scripts/compare_data_sources.py`；CLAUDE.md「Commands」章節 |
+| 一、基礎工程與資料目錄重構（鎖版、兩段式落地、`fetch_range`／`display_range` 解耦） | 🟡 **部分完成且機制不同**：`requirements.txt` 已鎖版但**無 `pyarrow`／`pytest`**；儲存為 JSON 源頭 ＋ 盡力而為 dual-write 到 Postgres，**無 Parquet 層**；抓取範圍與顯示範圍**本來就已解耦**——`get_stock_chart_payload(months=…)` 是顯示區間，內部另以 `MAX_HISTORY_MONTHS=60` 撈 `full_records` 供 KD 計算 | `requirements.txt`；`config.py:32`；`stock_service.py:428` |
+| 二、抽象資料層與 OHLCV 爬蟲（`BaseProvider`／`TWSEProvider`／`TPEXProvider`／`YahooProvider`、Parquet 增量保存） | ✅ **功能已完成，形態不同**：無抽象基底類別，是 `fetcher.py`（TWSE，含民國年轉西元 `stock_service` 端 `+1911`、3.5～5.5 秒隨機節流、指數退避重試）與 `us_fetcher.py`（yfinance）兩支具體模組；落地 `data/{tw,us}/<symbol>.json` ＋ dual-write | `fetcher.py:218`、`fetcher.py:122/279`、`db/dual_write.py`；CLAUDE.md |
+| 三、純函式技術指標庫（趨勢／動能／通道／量能四類） | 🟡 **趨勢與隨機類完成，動能與波動類完全空白**——逐項見 §2.2 | 見 §2.2 |
+| 四、品質保證與單元測試（`pytest.fixture`、`test_indicators.py`） | ❌ **未採用**：專案無任何測試框架；既有驗證慣例是一次性交叉比對腳本 | `scripts/verify_kd.py`、`scripts/compare_data_sources.py`；CLAUDE.md 明載「無後端測試套件」 |
 
-**結論**：本文件唯一站得住腳、且無人認領的缺口，是 §3 要處理的「MACD／RSI／布林通道／ATR
-四項指標的純函式實作」，以及 §3.5 對支撐/壓力的正式化評估。其餘 v1.0 項目要嘛已完成（形態不同
-但功能等價），要嘛是與現行技術棧不符的多餘假設（Parquet、pytest、抽象基底類別）。
+### 2.2 指標庫逐項盤點（本文件的真正缺口）
 
----
-
-## 3. 核心設計：新增指標規格
-
-沿用 `indicators/moving_average.py`／`indicators/stochastic.py` 的既有慣例（見 ADR-P1-02）：
-
-- 型別一律 `Series = List[Optional[float]]`，**不使用 `pandas.DataFrame`**。
-- 純函式、無副作用、不做 I/O；輸入序列與輸出序列等長，資料不足或缺值的位置一律 `None`，
-  不得補零或臆測（比照 `stochastic.py` 的 `_clean()`／暖身期慣例）。
-- 0 值語意：比照全專案既有慣例，OHLC 為 `0` 視為當天缺值（`services/fetcher.py` 抓取失敗時
-  的已知行為，見 CLAUDE.md「爬蟲」一節），指標函式的輸入清理需與 `stochastic._clean()` 一致。
-
-### 3.1 MACD
-
-| 項目 | 規格 |
-|---|---|
-| 檔案 | `indicators/macd.py`（新增，比照一指標一檔的既有慣例：`moving_average.py`／`stochastic.py`） |
-| 函式 | `macd(closes: Series, fast_period=12, slow_period=26, signal_period=9) -> Tuple[Series, Series, Series]`，回傳 `(dif, macd_line, histogram)` |
-| 計算式 | `EMA_fast = EMA(closes, fast_period)`；`EMA_slow = EMA(closes, slow_period)`；`DIF = EMA_fast - EMA_slow`；`MACD(信號線) = EMA(DIF, signal_period)`；`Histogram = DIF - MACD` |
-| 需一併新增 | `ema(values: Series, period: int) -> Series`——現行 `moving_average.py` **只有 `sma()`，沒有 `ema()`**，MACD／未來任何 EMA 系指標都需要這個基礎函式，建議加進 `moving_average.py`（同檔）而非 `macd.py`（避免以後 EMA 需求分散在多個檔案） |
-| 缺值規則 | 序列前段不足以完成 `slow_period` 根 EMA 暖身的位置一律 `None`；輸入含 `None` 的位置比照 `sma()` 的視窗處理，中斷 EMA 遞迴需重新起算（需在 §5 驗證腳本明確覆蓋此邊界案例） |
-| 對齊需求 | 若後續要接前端圖表（§9 待決），需與 `frontend/src/utils/movingAverage.js` 比照 CLAUDE.md 既有的「前後端算法對齊」要求，新增對應 `ema()`／`macd()` JS 實作 |
-
-### 3.2 RSI（相對強弱指標）
-
-| 項目 | 規格 |
-|---|---|
-| 檔案 | `indicators/rsi.py`（新增） |
-| 函式 | `rsi(closes: Series, period: int) -> Series`；呼叫端各自帶入 `6`、`14` 取得兩組序列 |
-| 計算式 | Wilder's smoothing：以「漲幅平均」/「跌幅平均」的 `1/period` 遞迴平滑計算 `RS`，`RSI = 100 - 100/(1+RS)`（比照 `stochastic.py` 的遞迴平滑風格，而非簡單移動平均版 RSI，避免與台股看盤軟體常見演算法對不起來——同一顧慮见 `stochastic.py` 檔頭 ADR-KD-01） |
-| 超買／超賣門檻 | v1.0 原文寫 `>80` 超買／`<20` 超賣——**明顯比業界慣用的 70/30 更嚴格**，本文件不擅自更改數字，但門檻應設計為**呼叫端參數**而非寫死常數（比照既有 `bias` condition 的 `overbought_threshold`／`oversold_threshold` 慣例），若日後要做成 condition 或寫進 Prompt，門檻取自 `strategy_config/strategies.yaml` 或 `ai/config.py`，不得在指標函式內部硬編碼 |
-| 缺值規則 | 同 MACD：暖身期不足、輸入缺值時的處理需在驗證腳本明確覆蓋 |
-
-### 3.3 布林通道（Bollinger Bands）
-
-| 項目 | 規格 |
-|---|---|
-| 檔案 | `indicators/bollinger.py`（新增） |
-| 函式 | `bollinger_bands(closes: Series, period=20, num_std=2.0) -> Tuple[Series, Series, Series]`，回傳 `(upper, middle, lower)` |
-| 計算式 | `middle = SMA(closes, period)`（**可直接重用 `moving_average.sma()`，不得重算**——若呼叫端已有 `ctx.ma[20]`，中軌應直接取用而非在此函式內部重跑一次 `sma()`，避免同一份資料算兩次、也避免浮點結果因兩條路徑而出現細微不一致）；`std = 母體標準差(近 period 天收盤價)`；`upper = middle + num_std*std`；`lower = middle - num_std*std` |
-| 帶寬 | 另外提供 `bandwidth = (upper - lower) / middle`（供未來「均線糾結」類判斷使用，語意與既有 `squeeze_breakout` condition 的糾結概念相關但不重複——`squeeze_breakout` 看的是均線本身糾結，此處是通道寬窄，兩者是不同指標，不合併） |
-| 缺值規則 | 沿用 `sma()` 的視窗完整性規則：視窗內任一天缺值，該點 `None` |
-
-### 3.4 ATR（真實波動區間）
-
-| 項目 | 規格 |
-|---|---|
-| 檔案 | `indicators/atr.py`（新增） |
-| 函式 | `atr(highs: Series, lows: Series, closes: Series, period=14) -> Series` |
-| 計算式 | `TR_t = max(High_t - Low_t, |High_t - Close_{t-1}|, |Low_t - Close_{t-1}|)`；`ATR = TR` 的 Wilder `1/period` 遞迴平滑（首值以 `period` 天 TR 簡單平均做種子，比照 `stochastic.py` 的 `seed` 暖身設計） |
-| 用途範圍 | v1.0 定位「作為後續波動度與停損位階參考」——本階段**只交付計算函式本身**，不預先決定要不要接進《AI 報告規格》既有的 `stop_loss` 欄位運算（那是 `ai/schema.py`／LLM 產出的欄位，非規則式計算，接入與否留待 §9 開放問題） |
-| 缺值規則 | 需要 `Close_{t-1}`，序列第一天必為 `None`；高低收任一為 `0`（缺值慣例）視為當天無法計算 TR，遞迴狀態處理比照 `stochastic.py`「缺值不重置遞迴」的既有決策 |
-
-### 3.5 支撐／壓力與爆量偵測：正式化評估
-
-| 項目 | 現況 | 本文件決定 |
+| 指標 | 現況 | 位置／缺口 |
 |---|---|---|
-| 近 N 日波段高低點（支撐/壓力） | `ai/summary.py` 第 124~133 行有 inline 版本：固定抓 `records`（AI 報告顯示視窗）內的最高/最低，**視窗天數等於呼叫端傳入的月份範圍，不是 v1.0 要的固定 20/60 日，也不是可從外部呼叫的函式** | **新增** `indicators/levels.py` 的 `rolling_high_low(highs, lows, window) -> Tuple[Series, Series]`，讓 20 日、60 日兩組視窗各自可調用；`ai/summary.py` 既有 inline 邏輯改呼叫此函式（見 §4.1），不重複維護兩份邏輯 |
-| 爆量偵測（成交量 ≥ 均量 1.5～2 倍） | `strategies/filters.volume_confirm` 已完整實作，回傳布林值（是否達倍數），供訊號強度加分用 | **不新增**判斷邏輯；若 AI Context 需要顯示「當前是均量的幾倍」這個**數值**（而非濾網的布林結果），比照 `ai/summary.py` 既有 `volume_ratio` 欄位即可，**已經存在**，不需新指標函式，本文件不重複造輪子 |
+| SMA（5/10/20/60/120/240） | ✅ | `moving_average.sma()`、`compute_ma_set()` |
+| **EMA** | ❌ **無** | 全庫查無；MACD 及任何 EMA 系指標的**前置基礎**（FR-P1-1） |
+| BIAS 乖離率 | ✅ | `moving_average.bias_series()` |
+| 均線多空排列 | ✅ | `conditions_tech.alignment`（含 `require_slope`） |
+| 均線糾結突破 | ✅ | `conditions_tech.squeeze_breakout` |
+| KD 隨機指標 | ✅ 規格遠超 v1.0 描述（台股慣例 1/3 遞迴平滑、暖身 25 根、缺值不重置遞迴、鈍化判定、趨勢守衛） | `stochastic.py`、`conditions_tech.kd_cross` |
+| **MACD** | ❌ **無** | 全庫（含前端）查無（FR-P1-2） |
+| **RSI** | ❌ **無** | 全庫查無；且已被《相對低點》ADR-RL-02 主動繞過，見 §2.3（FR-P1-3） |
+| **布林通道** | ❌ **無** | 全庫（含前端）查無（FR-P1-4） |
+| **ATR** | ❌ **無** | 全庫（含前端）查無（FR-P1-5） |
+| 量能均線／爆量偵測 | ✅ 布林版（濾網）＋ 數值版（AI Context） | `filters.volume_confirm`、`ScanContext.volume_ma`、`ai/summary.py` 的 `volume_ratio`——**不重複造輪子**（§4.5） |
+| 近 N 日高低（支撐／壓力） | 🟡 **有 inline 版本，非可重用函式** | `ai/summary.py:124-133` 直接對顯示區間取 `max/min`，視窗等於使用者選的月份數，**不是 v1.0 要的 20／60 日固定視窗**，且指標庫外無法呼叫（FR-P1-6） |
+
+> **搜尋依據**：對 `backend/` 與 `frontend/src/` 全庫搜尋 `MACD`／`RSI`／`Bollinger`／`ATR`，
+> 後端僅命中 `AI_PROMPT_VERSION`（字串巧合）與 `conditions_pick.py` 一行說明 RSI 被 KD 取代的註解，
+> 前端僅命中無關的樣板檔。四項指標確實完全不存在。
+
+### 2.3 跨文件依賴：RSI 已有既有決議，不可各寫各的
+
+這是 v2.0 最重要的疏漏。RSI 並非「沒人想過」的缺口，而是**已經被另一份文件審視並主動繞過**：
+
+| 文件 | 既有結論 | 本文件的處置 |
+|---|---|---|
+| 《相對低點》**ADR-RL-02** | 「以 KD 取代 RSI，不為本策略新增指標」——理由是 KD 已實作已驗證、與 RSI 在「超賣」語意高度重疊，且新增指標會增加指標層維護面積（含前後端一致性義務）。RSI 列該文件 **P3**，掛在其 **Q-3「是否仍需要 RSI？」**，建議先用 KD 跑 1～2 個月再評估 | **不推翻該決議**。ADR-RL-02 的適用範圍是「單一策略是否值得為此新增指標」，本文件的消費者不同（AI 報告 Context ＋ 進出場策略，見下列），屬於「多個消費者都需要 RSI」這個 ADR-RL-02 自己預留的觸發條件——原文明載「**若日後有多個策略都需要 RSI，再另立指標規格**」，本文件即為該指標規格。詳見 ADR-P1-06 |
+| 《相對低點》§4.2 C4、`conditions_pick.py:259` 註解 | 現行 `relative_low_zone` 的「動能超賣」用 `ctx.kd`，註明「取代 v1.0 的 RSI」 | **不改動既有策略**。RSI 交付後，該策略是否改回或並用 RSI，屬《相對低點》Q-3 的範圍，非本文件決定（§9 Q-3） |
+| 《進出場策略規劃》§5-3 | 明列「所有均線 (MA)、相對強弱 (RSI)、乖離率 (BIAS) 需由外部指標引擎預先計算完成，策略函數內僅做條件判斷」 | 該文件**假設 RSI 已存在**，實際不存在。本文件的 FR-P1-3 即補上這個被假設存在的前提 |
+| 《進出場策略規劃》§4.2 移動停利（`lookback_high` 回落百分比）、§4.1 技術面破線停損 | 需要「近期高點」與支撐位階 | 正是 FR-P1-6 `rolling_high_low()` 的第二個消費者；ATR（FR-P1-5）亦為移動停損的常見基準 |
+
+**結論**：本文件交付 RSI 後，等同回答《相對低點》Q-3 並解除其 P3；審核通過時應在該文件回填一筆註記，
+避免兩份文件對「本專案有沒有 RSI」給出不一致的答案。
 
 ---
 
-## 4. 與既有系統的整合點
+## 3. 系統架構與關鍵設計約束
 
-### 4.1 `ai/summary.py`：`quant_summary` 新增區塊
+### 3.0 圖例色票（沿用《AI 報告規格》§3.0 專案統一色系）
 
-比照《AI 報告規格》與 Phase 2 既有的擴充模式——新增鍵值、缺值即省略、不動對外七個結構化輸出
-欄位：
+| 語意 | 填色 | 邊框 |
+|---|---|---|
+| 外部系統／LLM | `#FFF6DC` | `#E8D48B` |
+| 核心處理（本文件新增） | `#EAF2FB` | `#9EC2E6` |
+| 既有可複用元件 | `#EAF7EE` | `#B7E0C4` |
+| 資料儲存 | `#FDEBEF` | `#F3B6C4` |
+| 介面 | `#E4F5F7` | `#A5D8DF` |
 
-| 區塊鍵 | 欄位 | 型別 | 市場 |
-|---|---|---|---|
-| `macd` | `dif`／`macd`／`histogram`（皆取當日值） | number | TW／US |
-| `rsi` | `rsi_6`／`rsi_14` | number | TW／US |
-| `bollinger` | `upper`／`middle`／`lower`（`middle` 直接取用既有 `ma_block["ma20"]`，不重算） | number | TW／US |
-| `atr` | `atr_14` | number | TW／US |
-| `range`（既有鍵改為指標函式驅動） | `resistance_20d`／`support_20d`／`resistance_60d`／`support_60d`，取代現行單一視窗的 `high`／`low` | number | TW／US |
+文字色一律 `#33414F`，連線 `#9AA5B1`。
 
-**缺值規則**：沿用既有 `_clean()`（0/None 一律省略），暖身期不足的指標（如上市未滿 26+9 天的
-新股，MACD 訊號線無法計算）整段鍵省略，不得以 `null` 或近似值頂替。
+### 3.1 指標資料流與本文件的落點
 
-### 4.2 Prompt 影響
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "background": "#ffffff",
+    "primaryColor": "#EAF2FB",
+    "primaryBorderColor": "#9EC2E6",
+    "primaryTextColor": "#33414F",
+    "lineColor": "#9AA5B1",
+    "textColor": "#33414F",
+    "fontFamily": "Segoe UI, sans-serif"
+  }
+}}%%
+flowchart TB
+    DATA[("data/{tw,us}/*.json<br/>daily_stock_data<br/>（OHLCV，已完成）")]
 
-`ai/prompt.py` 的 System Prompt 研判框架新增一點（沿用《AI 報告規格》既有分節風格）：
+    subgraph IND ["backend/indicators/（純函式層）"]
+        OLD["moving_average.py（SMA/BIAS）<br/>stochastic.py（KD）<br/>chip.py / fundamental.py"]
+        NEW["【本文件 P0】<br/>+ ema()｜macd.py｜rsi.py<br/>bollinger.py｜atr.py｜levels.py"]
+    end
 
-```text
-8. 動能與波動檢核：MACD 柱狀圖與 DIF/MACD 交叉是否支持當前趨勢、RSI 是否處於超買/超賣、
-   布林通道是否收窄或開口擴大、ATR 反映的波動度是否適合當前操作策略；任一數值缺席時略過，
-   不得臆測。
+    SVC["services/stock_service.py<br/>get_stock_chart_payload()<br/>【本文件 P0：新增指標區塊<br/>＋全歷史切片，見 §3.3】"]
+    CTX["services/chip_provider.py<br/>ScanContext<br/>【P1 才擴充】"]
+
+    SUM["ai/summary.py<br/>build_quant_summary()<br/>【只讀不算，見 §3.2】"]
+    PROMPT["ai/prompt.py<br/>【本文件 P0】"]
+    LLM["Claude / Gemini"]
+
+    COND["strategies/conditions_tech.py<br/>【P1，視 Q-1】"]
+    FE["前端 K 線副圖<br/>【P2，視 Q-2】"]
+    VERIFY["scripts/verify_indicators.py<br/>【本文件 P0】"]
+
+    DATA --> SVC
+    DATA --> CTX
+    OLD --> SVC
+    NEW --> SVC
+    NEW --> CTX
+    NEW -.交叉比對.-> VERIFY
+    SVC --> SUM --> PROMPT --> LLM
+    SVC --> FE
+    CTX --> COND
+
+    style DATA fill:#FDEBEF,stroke:#F3B6C4
+    style OLD fill:#EAF7EE,stroke:#B7E0C4
+    style NEW fill:#EAF2FB,stroke:#9EC2E6
+    style SVC fill:#EAF2FB,stroke:#9EC2E6
+    style PROMPT fill:#EAF2FB,stroke:#9EC2E6
+    style VERIFY fill:#EAF2FB,stroke:#9EC2E6
+    style CTX fill:#EAF7EE,stroke:#B7E0C4
+    style SUM fill:#EAF7EE,stroke:#B7E0C4
+    style COND fill:#EAF7EE,stroke:#B7E0C4
+    style FE fill:#E4F5F7,stroke:#A5D8DF
+    style LLM fill:#FFF6DC,stroke:#E8D48B
 ```
 
-User Prompt 新增對應分節，缺值區塊整段不輸出（沿用既有「不出現空標題」慣例）。
+### 3.2 約束一：AI 摘要層不得自行計算指標（v2.0 的錯誤，本版修正）
 
-### 4.3 是否接入策略引擎與前端圖表（本階段刻意不預先決定）
+《AI 報告規格》§4.2 開宗明義：「**本模組不得自行計算任何指標**（沿用 CLAUDE.md 對策略引擎的同一條
+約束：條件函式只能讀既算好的序列，不得重算）」，ADR-AI-09 進一步要求量化摘要一律由
+`get_stock_chart_payload()` 重新推導。
 
-KD 指標的既有落地路徑是「純函式 → `ScanContext` → `conditions_tech.py` 的 `kd_cross` →
-`strategies.yaml` 可設定策略 → 前端副圖切換」四層全套。MACD／RSI 若要做到同等整合深度，需要：
+因此新指標**不能**直接在 `ai/summary.py` 內計算——必須先出現在 `get_stock_chart_payload()` 的回傳
+結構中（比照現行 `moving_averages`／`kd` 兩個既有區塊），`ai/summary.py` 才能取用。這與 Phase 2 §1.4
+面對估值／營收欄位時的前置依賴形態完全相同，是同一條鐵則的兩次體現。
 
-- `services/chip_provider.py` 的 `ScanContext` 新增對應欄位（比照 `ctx.kd`）。
-- `strategies/conditions_tech.py` 新增 `macd_cross`／`rsi_overbought_oversold` condition。
-- 前端新增副圖切換（比照 `ChartDetailView.vue`／`StockCharts.vue` 既有的 KD 副圖開關樣式，
-  `KD_VISIBLE_STORAGE_KEY` 一類的 localStorage 慣例）。
+**實作順序因此固定為**：`indicators/*` →「`stock_service` 落地」→「`ai/summary` 取用」→「`ai/prompt` 敘述」，
+四者屬同一批工作，不可只做頭尾（FR-P1-7 為 FR-P1-8 的前置）。
 
-**本文件不預先假設答案**——§3 的指標函式與 §4.1 的 AI Context 整合是可以獨立交付的最小範圍
-（P0，見 §7），策略 condition 與前端圖表是否要做、做到什麼程度，列為 §9 待決問題，避免本文件
-把「算得出指標」與「要不要因此新增兩個 UI/策略功能面」綁成同一個交付項目。
+### 3.3 約束二：遞迴型指標必須「全歷史計算後切片」（KD 決議 D5 的延伸）
+
+`get_stock_chart_payload()` 目前對兩類指標採**不同**的計算視窗策略，這是刻意的既有決議（KD 規格書
+§12 決議 D5，程式註解見 `stock_service.py:418-430` 與 `_build_kd_payload()` docstring）：
+
+| 現行指標 | 策略 | 理由（原文） |
+|---|---|---|
+| MA | 先依 `months` 截斷、再計算 | 「MA 資料不足只會**誠實斷線**」——短區間看不到 MA60／MA240 是已知限制，使用者看得出來 |
+| KD | 在 `MAX_HISTORY_MONTHS` 全歷史上算完，再**依日期**切到顯示區間 | 「KD 若不做這層切片則會算出**看起來正常但其實錯誤**的數字」；且要與 scanner 的全歷史計算結果一致 |
+
+本文件四項新指標依此標準各自歸類——**這是 v2.0 完全漏掉、卻直接決定數值正確與否的需求**：
+
+| 新指標 | 性質 | 應採策略 | 若採錯的後果 |
+|---|---|---|---|
+| MACD（EMA 遞迴） | 遞迴 | **全歷史計算後切片** | 使用者選「1 個月」時，EMA 從區間首日重新起算，DIF／柱狀圖全部是錯的，但圖形看起來完全正常 |
+| RSI（Wilder 遞迴） | 遞迴 | **全歷史計算後切片** | 同上 |
+| ATR（Wilder 遞迴） | 遞迴 | **全歷史計算後切片** | 同上，且會直接影響任何以 ATR 為基準的停損位階 |
+| 布林通道（SMA ＋ 標準差視窗） | 視窗式 | **可比照 MA 截斷後計算** | 資料不足時誠實斷線，錯誤等級與 MA 相同，可接受 |
+| 近 N 日高低（`rolling_high_low`） | 視窗式 | 比照 MA | 同上 |
+
+另一個附帶效益：全歷史切片同時保證「同一天的指標值不會因為使用者選 1 個月或 1 年而改變」，
+也讓日後（P1）策略引擎算出的數字與圖表一致——正是 `_build_kd_payload()` docstring 記載的兩個原始動機。
+
+### 3.4 約束三：相依方向
+
+```
+ai/prompt.py → ai/summary.py → services/stock_service.py → indicators/*（純函式，不吃 DB、不做 I/O）
+strategies/conditions_tech.py → services/chip_provider.py（ScanContext）→ indicators/*
+```
+
+**禁止**：`indicators/` 反向 import `services/`／`strategies/`／`ai/`（沿用既有純函式層定位，
+比照 `moving_average.py`／`stochastic.py` 目前零外部相依的狀態）。
 
 ---
 
-## 5. 品質保證與驗證慣例
+## 4. 功能需求（FR）
 
-專案沒有 `pytest`，比照 `scripts/verify_kd.py` 的既有模式（見 ADR-P1-03）：
+**通則**（適用 FR-P1-1～FR-P1-6，沿用 `moving_average.py`／`stochastic.py` 既有慣例，見 ADR-P1-02）：
 
-| 項目 | 規格 |
+- 型別一律 `Series = List[Optional[float]]`，**不使用 `pandas.DataFrame`**。
+- 純函式、無副作用、不做 I/O；輸出序列與輸入等長。
+- 資料不足、暖身期未滿或輸入缺值的位置一律 `None`，**不得補零、不得沿用前值**。
+- 輸入清理比照 `stochastic._clean()`：`None` 或 `0` 一律視為缺值。
+- 所有門檻／參數皆為呼叫端傳入的具名參數，**函式內不得硬編碼**（見 §5）。
+
+### 4.1 純函式指標庫
+
+| # | 需求 | 介面契約與規格 |
+|---|---|---|
+| **FR-P1-1** | **EMA 指數移動平均**（MACD 的前置基礎） | `ema(values: Series, period: int) -> Series`，建議置於既有 `moving_average.py`（避免日後 EMA 系需求分散多檔）。需明確定義：① 起始種子取法（前 `period` 筆簡單平均或首個有效值）；② **輸入缺值時遞迴狀態的處理方式必須與 `stochastic.py` 的既有決策一致**（「缺值不重置遞迴」），若採不同作法須在程式註解與 §9 記錄理由 |
+| **FR-P1-2** | **MACD** | `macd(closes, fast_period=12, slow_period=26, signal_period=9) -> Tuple[Series, Series, Series]`，回傳 `(dif, signal, histogram)`。`DIF = EMA(fast) − EMA(slow)`；`signal = EMA(DIF, signal_period)`；`histogram = DIF − signal`。內部 EMA **一律呼叫 FR-P1-1，不得另寫一份** |
+| **FR-P1-3** | **RSI** | `rsi(closes, period) -> Series`；呼叫端各自帶入 `6`／`14`。採 **Wilder 遞迴平滑**（`1/period`）而非簡單移動平均版——與 `stochastic.py` 選擇台股慣例遞迴平滑的理由相同（ADR-KD-01：避免與國內看盤軟體對不起來）。超買／超賣**門檻不進函式**，由呼叫端判讀（見 §5、§9 Q-3）。與《相對低點》ADR-RL-02 的關係見 §2.3、ADR-P1-06 |
+| **FR-P1-4** | **布林通道** | `bollinger_bands(closes, period=20, num_std=2.0) -> Tuple[Series, Series, Series]` 回傳 `(upper, middle, lower)`，另提供帶寬 `bandwidth = (upper − lower) / middle`。**中軌不得重算 SMA**——呼叫端已有 `MA20` 時應直接傳入或取用既有結果（ADR-P1-05）。帶寬與既有 `squeeze_breakout` 的「均線糾結」語意相關但**不同對象**（前者是通道寬窄、後者是四條均線的極差），兩者不合併 |
+| **FR-P1-5** | **ATR** | `atr(highs, lows, closes, period=14) -> Series`。`TR_t = max(H−L, \|H−C_{t−1}\|, \|L−C_{t−1}\|)`，ATR 為 TR 的 Wilder `1/period` 遞迴平滑。序列首日必為 `None`（無 `C_{t−1}`）。**本階段只交付數值**，是否用於停損位階計算見 §9 Q-4 |
+| **FR-P1-6** | **近 N 日高低（支撐／壓力）** | `rolling_high_low(highs, lows, window) -> Tuple[Series, Series]`，新檔 `indicators/levels.py`。取代 `ai/summary.py:124-133` 的 inline 邏輯（該版視窗等於使用者選的月份數、無法外部呼叫）。需同時支援 20 日與 60 日兩組視窗。第二個消費者為《進出場策略規劃》§4.2 移動停利的 `lookback_high`（§2.3） |
+
+### 4.2 圖表 payload 落地（前置於 4.3）
+
+| # | 需求 | 說明 |
+|---|---|---|
+| **FR-P1-7** | `get_stock_chart_payload()` 新增指標區塊 | 比照既有 `moving_averages`／`kd` 兩個區塊，新增 `macd`／`rsi`／`bollinger`／`atr` 與 `levels`（近 20／60 日高低）。**MACD／RSI／ATR 必須採「全歷史計算後切片」**（§3.3），切片方式比照 `_build_kd_payload()`：以**日期**比對而非位置切法（非交易日與缺值會讓筆數對不齊）。布林通道與 `levels` 比照 MA 截斷後計算即可。此 FR 是 FR-P1-8 的**硬前置**（§3.2） |
+
+### 4.3 AI 診股報告整合
+
+| # | 需求 | 說明 |
+|---|---|---|
+| **FR-P1-8** | `ai/summary.py` 的 `quant_summary` 新增區塊 | **只讀 FR-P1-7 落地的結果，不得自行計算**（§3.2）。新增鍵值如下表；沿用既有 `_clean()`（`0`／`None` 一律省略整個鍵）與 `_round()` 慣例。TW／US 皆適用，不受既有 `market == "tw"` 分支限制 |
+| **FR-P1-9** | `ai/prompt.py` 研判框架與分節擴充 | System Prompt 既有研判框架（《AI 報告規格》§4.4 的 5 點）新增第 6 點；User Prompt 新增對應分節，**缺值區塊整段不輸出**（不出現空標題）。須遵守既有原則「Prompt 中不得出現任何硬編碼的策略門檻」——RSI 超買超賣的數字若要寫進 Prompt，須取自設定（§5） |
+
+**FR-P1-8 的 `quant_summary` 新增鍵**：
+
+| 區塊鍵 | 欄位 | 來源 |
+|---|---|---|
+| `macd` | `dif`／`signal`／`histogram`（皆取最新值） | `payload["macd"]` |
+| `rsi` | `rsi_6`／`rsi_14` | `payload["rsi"]` |
+| `bollinger` | `upper`／`middle`／`lower`／`bandwidth` | `payload["bollinger"]`；`middle` 須與既有 `ma.ma20` 相等（AC-P1-5） |
+| `atr` | `atr_14` | `payload["atr"]` |
+| `range`（既有鍵擴充） | 由現行單一視窗的 `high`／`low`／`high_date`／`low_date`，擴充為 `resistance_20d`／`support_20d`／`resistance_60d`／`support_60d` | `payload["levels"]` |
+
+> `range` 既有鍵的處置（保留原欄位並存、或直接取代）影響《AI 報告規格》的 `quant_summary` 快照
+> 一致性與歷史報告的可讀性，列 §9 Q-5。
+
+**FR-P1-9 的 System Prompt 新增段落**（沿用既有條列風格）：
+
+```text
+6. 動能與波動檢核：MACD 柱狀圖與 DIF／訊號線的交叉是否支持當前趨勢方向、RSI 所處位階、
+   布林通道收斂或開口擴大所反映的波動狀態、ATR 反映的單日波動幅度。
+   任一數值缺席時（如新上市個股尚未累積足夠交易日）略過該面向，不得臆測。
+```
+
+### 4.4 品質保證
+
+| # | 需求 | 說明 |
+|---|---|---|
+| **FR-P1-10** | 一次性交叉驗證腳本 | `scripts/verify_indicators.py`，比照 `scripts/verify_kd.py` 既有模式：對每個指標寫一份**與正式實作不共用程式碼**的獨立參考算法，交叉比對數值在容許誤差內一致；全部印 `PASS` 才算通過。**不引入 pytest**（ADR-P1-03） |
+
+**必須涵蓋的邊界案例**（每項皆對應一條驗收準則，見 §8）：
+
+1. 序列長度小於暖身期 → 全 `None`，不得回傳 `0` 或近似值。
+2. 輸入含 `None`／`0`（缺值）→ 遞迴狀態的處理與 §3.3／FR-P1-1 的決策一致。
+3. 連續同值（如連續一價漲停／跌停）→ RSI 分母為零、布林標準差為零時不得拋例外或回傳 `inf`。
+4. **同一天的 MACD／RSI／ATR 值，在顯示區間為 1 個月與 1 年時必須完全相同**（§3.3 全歷史切片的直接驗證，AC-P1-4）。
+5. 至少 1 檔 TW、1 檔 US 真實標的的歷史區間，數值與外部看盤軟體／參考實作比對合理。
+
+### 4.5 明確不做：爆量偵測
+
+v1.0 的「量能均線與爆量偵測（判定是否達均量 1.5 或 2 倍）」**已完整存在於兩個地方**，本文件不重複建設：
+
+| 用途 | 既有實作 |
 |---|---|
-| 腳本 | `scripts/verify_indicators.py`（新增，涵蓋 MACD／RSI／布林通道／ATR 四項；可仿 `verify_kd.py` 拆成多支或合一支，以維護方便為準） |
-| 驗證方式 | 對每個指標寫一份**與 `indicators/` 正式實作不共用程式碼**的獨立參考算法（例如用不同的遞迴/迴圈寫法重算一次 EMA/RSI/ATR），交叉比對數值在容許誤差內一致 |
-| 邊界案例 | 至少涵蓋：序列長度小於暖身期、輸入含 `None`／`0`（缺值）、連續同值（如連續漲跌停）、EMA 遞迴中斷後是否正確延續（比照 `stochastic.py`「缺值不重置遞迴」的既有決策，需明確驗證 MACD/RSI 是否採同一原則或改用視窗中斷重算，並在程式註解與本文件 §9 記錄選擇） |
-| 真實資料一致性 | 對至少 1 檔 TW、1 檔 US 標的的歷史區間執行，肉眼／已知看盤軟體數值比對合理性（比照 `verify_kd.py` 對真實標的的月份區間檢查） |
-| 通過標準 | 全部檢查印出 `PASS` 才算完成，比照 `verify_kd.py` 既有輸出格式 |
+| 策略訊號強度加分（布林值） | `strategies/filters.volume_confirm`（`multiple` 參數可調） |
+| 策略硬門檻（布林值） | 各條件函式直接讀 `ctx.volume_ma` 自行比較，如 `relative_low_zone` 的 C6 |
+| AI Context 顯示（數值） | `ai/summary.py` 既有的 `volume_ma5`／`volume_ratio` |
+
+---
+
+## 5. 設定項目
+
+沿用專案既有的「門檻不寫死」原則（CLAUDE.md：改門檻是 YAML 編輯、免部署；`_build_kd_payload()` 已示範
+從 `strategy_config/strategies.yaml` 讀取 KD 超買超賣門檻來畫圖上基準線）：
+
+| 參數類別 | 歸屬 | 說明 |
+|---|---|---|
+| 指標計算參數（MACD 12/26/9、RSI 6/14、布林 20/2σ、ATR 14、高低視窗 20/60） | `strategy_config/strategies.yaml` 的 `defaults` 區塊，比照既有 `ma_periods`／`kd_params`／`kd_warmup_bars` | `stock_service` 與 scanner 讀同一份設定，天然保證圖表與策略用同一組參數 |
+| RSI 超買／超賣門檻 | 同上（若日後做成 condition，則在該策略的 `conditions` 內，比照 `kd_cross` 的 `overbought_threshold`／`oversold_threshold`） | 數值選擇見 §9 Q-3 |
+| AI Prompt 版本 | 既有 `AI_PROMPT_VERSION`（`.env`／`ai/config.py`，現值 `v3`） | Prompt 內容變更（FR-P1-9）**須同步遞增此版本號**，否則歷史報告的 `prompt_version` 快照會失真（《AI 報告規格》ADR-AI-15 的稽核前提） |
+
+**不新增任何 `.env` 項目**——本文件的功能無需開關旗標（指標算好即用，無外部服務、無成本）。
 
 ---
 
@@ -234,11 +373,14 @@ KD 指標的既有落地路徑是「純函式 → `ScanContext` → `conditions_
 
 | 編號 | 決策 | 理由 |
 |---|---|---|
-| **ADR-P1-01** | 不採用 `BaseProvider`／`TWSEProvider`／`YahooProvider` 抽象基底類別，也不新增 `data/curated/` Parquet 層 | 現行 `fetcher.py`／`us_fetcher.py` 具體模組已穩定運作多時，抽象化沒有新增市場的迫切需求（`markets/` 已是既有的多市場抽象點）；Parquet 會製造 JSON／Postgres 之外的第三份資料來源，違反「唯一事實來源」原則 |
-| **ADR-P1-02** | 新指標一律 `List[Optional[float]]` 純函式，不使用 `pandas.DataFrame` | 比照 `moving_average.py`／`stochastic.py` 既有慣例；`ScanContext` 本身也是以 list 為基礎的資料結構，DataFrame in/out 會需要額外轉換層，且與既有程式碼風格不一致 |
-| **ADR-P1-03** | 驗證方式採一次性交叉比對腳本（`scripts/verify_indicators.py`），不引入 `pytest` | 專案目前無任何測試框架，`scripts/verify_kd.py` 是唯一先例且運作良好；引入 `pytest` 屬於「新增專案級測試基礎設施」的決定，超出本文件「補齊指標庫」的範圍，若日後要導入應是獨立決定，不隨本文件夾帶 |
-| **ADR-P1-04** | MACD／RSI 是否比照 KD 做成策略 `condition` 與前端副圖切換，本階段不預先決定 | 指標計算與其下游整合（策略引擎、圖表 UI）是可分離的兩件事；先交付 P0（純函式 + AI Context），觀察是否有實際需求後再決定是否比照 KD 的四層整合深度，避免範圍蔓延 |
-| **ADR-P1-05** | 布林通道中軌直接重用既有 `ctx.ma[20]`／`ma_block["ma20"]`，不在新函式內部重算 SMA | 避免同一份資料算兩次；與《AI 報告規格》「不得自行重算已算好的序列」既有鐵則一致 |
+| **ADR-P1-01** | 不採用 `BaseProvider`／`TWSEProvider`／`YahooProvider` 抽象層，不新增 Parquet 儲存層 | 現行具體爬蟲模組已穩定運作，且 `markets/` 已是既有的多市場抽象點；Parquet 會在 JSON／Postgres 之外製造第三份資料來源，違反「JSON 為唯一事實來源」的既有架構 |
+| **ADR-P1-02** | 新指標一律 `List[Optional[float]]` 純函式，不使用 `pandas.DataFrame` | 比照 `moving_average.py`／`stochastic.py`；`ScanContext` 本身即以 list 為基礎，DataFrame in/out 需額外轉換層 |
+| **ADR-P1-03** | 驗證採一次性交叉比對腳本，不引入 `pytest` | 專案無任何測試框架，`verify_kd.py` 是唯一先例且運作良好。引入 `pytest` 屬「新增專案級測試基礎設施」的獨立決定，不應由本文件夾帶 |
+| **ADR-P1-04** | 遞迴型指標（MACD／RSI／ATR）採「全歷史計算後切片」，視窗型指標（布林／高低點）比照 MA 截斷後計算 | 直接沿用 KD 決議 D5 的判準：錯誤等級不同——視窗型不足只會誠實斷線，遞迴型會產出「看似正常但其實錯誤」的數字（§3.3） |
+| **ADR-P1-05** | 布林中軌重用既有 SMA20 結果，不在新函式內重算 | 避免同資料算兩次與浮點結果分歧；與「不得重算已算好的序列」既有鐵則一致 |
+| **ADR-P1-06** | 交付 RSI，不推翻《相對低點》ADR-RL-02，而是滿足其自身預留的觸發條件 | ADR-RL-02 原文即載明「若日後有多個策略都需要 RSI，再另立指標規格」。現有兩個獨立消費者（AI 報告 Context、《進出場策略規劃》§5-3 假設其存在），符合該觸發條件。既有 `relative_low_zone` 的 C4 **維持用 KD 不動**，是否改用 RSI 屬該文件 Q-3 範圍 |
+| **ADR-P1-07** | 新指標採「後端算、前端只畫」（KD 模式），不比照 MA 在前端另寫一份等值實作 | 專案現有兩種模式：MA 是前後端各一份（`moving_average.py` 與 `utils/movingAverage.js`），KD 是後端算好隨 payload 下送。前者已出現細微分歧徵兆（後端 `round(…, 4)`、前端 `toFixed(2)`），且每新增一個指標就多一份需同步維護的 JS 實作。新指標一律採 KD 模式，P2 若做副圖也不需要新的 JS 算法 |
+| **ADR-P1-08** | 指標計算與其下游整合（策略 condition、前端副圖）分階段交付，本階段不預先決定後兩者 | 「算得出指標」與「要不要因此新增策略與 UI」是可分離的兩件事；先交付 P0 觀察實際需求，避免範圍蔓延（見 §7、§9 Q-1／Q-2） |
 
 ---
 
@@ -246,64 +388,77 @@ KD 指標的既有落地路徑是「純函式 → `ScanContext` → `conditions_
 
 | 階段 | 內容 | 前置條件 |
 |---|---|---|
-| **P0** | `indicators/macd.py`（含新增 `moving_average.ema()`）、`indicators/rsi.py`、`indicators/bollinger.py`、`indicators/atr.py`、`indicators/levels.py`（§3.5 支撐/壓力正式化）；`ai/summary.py` 新增對應 `quant_summary` 區塊（§4.1）；`ai/prompt.py` 新增第 8 點（§4.2）；`scripts/verify_indicators.py`（§5） | 無 |
-| **P1** | 視 §9 Q1 決議，評估是否新增 `macd_cross`／`rsi_overbought_oversold` condition 並接入 `strategies.yaml` | P0 穩定運行 |
-| **P2** | 視 §9 Q2 決議，評估是否於前端新增 MACD／RSI 副圖切換（比照 KD 既有 UI 樣式） | P1（若 P1 決議要做 condition，通常前端顯示的需求會隨之出現） |
+| **P0** | FR-P1-1～FR-P1-10 全部：六個純函式指標 ＋ `get_stock_chart_payload()` 落地（含全歷史切片）＋ `ai/summary.py`／`ai/prompt.py` 整合 ＋ 驗證腳本。**四者為同一批工作，不可只做頭尾**（§3.2） | 無（OHLCV 資料 TW／US 皆已完整累積） |
+| **P1** | 視 §9 Q-1 決議：`ScanContext` 擴充對應欄位（比照 `ctx.kd`）＋ `conditions_tech.py` 新增 `macd_cross`／`rsi_zone` 等條件＋ `strategies.yaml` 設定範例。須比照既有慣例宣告 `min_bars` 與 `requires`（`@condition` 裝飾器，如 `kd_cross` 的 `min_bars=35`） | P0 穩定運行，且 AI 報告已累積一段觀察期 |
+| **P2** | 視 §9 Q-2 決議：前端 MACD／RSI 副圖切換，比照既有 KD 副圖的完整慣例（`localStorage` 記憶開關、`kdAvailable` 式的資料不足停用、`?indicator=` 深連結、副圖開啟時主圖加高） | P1（有 condition 才有從警示看板跳轉看副圖的需求） |
 
 ---
 
-## 8. 驗收條件
+## 8. 驗收準則（AC）
 
-| # | 條件 |
-|---|---|
-| AC-1 | `scripts/verify_indicators.py` 全部檢查印出 `PASS`，涵蓋 MACD／RSI／布林通道／ATR 的正常值與 §5 列出的所有邊界案例 |
-| AC-2 | 任選 3 檔 TW、3 檔 US 有足夠歷史（≥ 60 個交易日）的標的，`quant_summary` 新增區塊（`macd`／`rsi`／`bollinger`／`atr`）數值與獨立參考實作一致 |
-| AC-3 | 任選 1 檔上市未滿 35 個交易日的新股，`quant_summary` 不含尚無法計算的指標鍵（不得為 `0` 或 `null`） |
-| AC-4 | 布林通道中軌數值與同一日期的 `quant_summary.ma.ma20` 完全相等（驗證確實共用同一份 SMA，未重算） |
-| AC-5 | 既有回歸：關閉本次新增區塊後產生的報告（`verdict`／支撐壓力／停損等 7 個對外欄位）與改動前逐筆相同 |
-| AC-6 | `range` 區塊改用 `rolling_high_low()` 後，`resistance_20d`／`support_20d` 數值與「近 20 個交易日高低點」手動核對一致；`resistance_60d`／`support_60d` 同理 |
+| # | 準則 | 對應 FR |
+|---|---|---|
+| **AC-P1-1** | `scripts/verify_indicators.py` 全部檢查印出 `PASS`，涵蓋 §4.4 列出的五類邊界案例 | FR-P1-10 |
+| **AC-P1-2** | 任選 3 檔 TW、3 檔 US 有足夠歷史（≥ 60 個交易日）的標的，`quant_summary` 的 `macd`／`rsi`／`bollinger`／`atr` 數值與獨立參考實作一致 | FR-P1-2～5、8 |
+| **AC-P1-3** | 任選 1 檔上市未滿 35 個交易日的新股，`quant_summary` **不含**尚無法計算的指標鍵（不得是 `0` 或 `null`） | FR-P1-8 |
+| **AC-P1-4** | 同一檔標的、同一交易日，在顯示區間 1 個月與 1 年下取得的 MACD／RSI／ATR 值**完全相同**；布林中軌與 MA20 則允許在短區間因資料不足而斷線（`None`） | FR-P1-7（§3.3） |
+| **AC-P1-5** | `quant_summary.bollinger.middle` 與同日 `quant_summary.ma.ma20` **數值相等**（驗證確實共用同一份 SMA、未重算） | FR-P1-4（ADR-P1-05） |
+| **AC-P1-6** | `range` 區塊改用 `rolling_high_low()` 後，`resistance_20d`／`support_20d`／`resistance_60d`／`support_60d` 與手動核對的近 20／60 個交易日高低點一致 | FR-P1-6 |
+| **AC-P1-7** | `ai/summary.py` 內**不存在**任何新指標的加減乘除——所有新數值皆取自 `get_stock_chart_payload()` 的回傳（以程式碼審查確認，§3.2 鐵則） | FR-P1-8 |
+| **AC-P1-8** | 既有回歸：AI 報告對外七個結構化輸出欄位（`verdict`／`headline`／`support_levels`／`resistance_levels`／`stop_loss`／`report_markdown`／`confidence`）的契約與端點行為**完全不變**；既有 `ma`／`bias_percent`／`kd`／`chips`／`margin` 區塊數值與改動前逐筆相同 | FR-P1-8、9 |
+| **AC-P1-9** | Prompt 內容變更後 `AI_PROMPT_VERSION` 已遞增，且新產生的報告快照記錄到新版本號 | FR-P1-9（§5） |
+| **AC-P1-10** | `indicators/` 各新檔案**零外部相依**（不 import `services/`／`strategies/`／`ai/`，不碰 DB 與檔案系統） | §3.4、ADR-P1-02 |
+| **AC-P1-11** | 一次完整報告產生流程的耗時與改動前相比無顯著增加（新增指標皆為既有記憶體序列上的單次線性計算） | FR-P1-7 |
 
 ---
 
 ## 9. 開放問題
 
-| # | 問題 | 影響 | 建議 |
+| # | 問題 | 影響範圍 | 建議 |
 |---|---|---|---|
-| Q1 | MACD／RSI 是否要做成策略 `condition`（比照 `kd_cross`），串進 `strategies.yaml` 與通知平台？ | 決定是否需要 §4.3 的 `ScanContext` 擴充與 `conditions_tech.py` 新增函式 | 建議 P0 上線、AI 報告觀察一段時間後再決定，避免一次擴大兩個交付面（同 ADR-P1-04） |
-| Q2 | 前端是否需要 MACD／RSI 副圖切換（比照 KD 既有 UI）？ | 決定 §7 P2 是否啟動，及是否需要 `frontend/src/utils/` 新增對應 JS 實作以維持前後端算法對齊 | 待 Q1 決議「要做 condition」後再評估，純 AI Context 用途不需要圖表 |
-| Q3 | RSI 超買/超賣門檻沿用 v1.0 的 80/20，還是改為業界慣用的 70/30？ | 影響 Prompt 措辭與（若做 condition）預設參數 | 門檻本身設計為參數（見 §3.2），不影響本階段開發；數字選擇建議使用者決定後寫入 `ai/config.py` 或 `strategies.yaml` 預設值，本文件不擅自認定 |
-| Q4 | ATR 是否要接入《AI 報告規格》既有的 `stop_loss` 欄位計算（例如 `close - 2×ATR` 一類的規則式停損建議）？ | 若要做，`ai/summary.py` 或 `ai/schema.py` 需要新的規則式運算層，可能與現行「`stop_loss` 完全由 LLM 產出」的既有設計衝突，需先確認是否要引入規則式與 LLM 併存的雙軌停損 | 本階段不做，ATR 先以純數值形式併入 Context 供 LLM 參考（比照現行技術面數值皆為「佐證」而非「直接決策」的既有定位） |
+| **Q-1** | MACD／RSI 是否要做成策略 `condition`（比照 `kd_cross`），串進 `strategies.yaml` 與通知平台？ | 決定 P1 是否啟動，及是否需要擴充 `ScanContext` | 建議 P0 上線、AI 報告觀察 1～2 個月後再決定（同 ADR-P1-08，也與《相對低點》Q-3 建議「先跑一段再評估」的既有節奏一致） |
+| **Q-2** | 前端是否需要 MACD／RSI 副圖？ | 決定 P2 是否啟動 | 待 Q-1 決議「要做 condition」後再評估；純 AI Context 用途不需要圖表。採 ADR-P1-07 後不需新增 JS 算法 |
+| **Q-3** | RSI 超買／超賣門檻：沿用 v1.0 的 **80/20**，或業界慣用的 **70/30**？ | Prompt 措辭、（若做 condition）預設參數 | 門檻已設計為設定值（§5），不阻塞 P0 開發。數字由使用者決定；註記：v1.0 的 80/20 明顯較嚴格，與既有 KD 的 80/20 一致，若追求兩指標語意對齊可沿用 |
+| **Q-4** | ATR 是否要用於停損位階（如 `close − 2×ATR`）？ | 現行 `stop_loss` 完全由 LLM 產出；若引入規則式計算，會變成規則式與 LLM 並存的雙軌停損 | 本階段**不做**。ATR 先以純數值併入 Context 供 LLM 參考，維持「技術面數值是佐證、不是直接決策」的既有定位。若日後要做，應在《進出場策略規劃》而非本文件 |
+| **Q-5** | `quant_summary.range` 既有的 `high`／`low`／`high_date`／`low_date` 四個鍵，在改用 20／60 日固定視窗後是保留並存還是取代？ | 歷史報告快照的欄位一致性、Prompt 分節長度 | 建議**保留既有四鍵並新增四鍵**：既有鍵語意是「本次圖表顯示區間的高低點」（與 AI 看到的圖一致），新鍵是「固定 20／60 日位階」，兩者語意不同不應互相取代 |
+| **Q-6** | 交付 RSI 後，《相對低點》的 C4（現用 KD）是否改用或並用 RSI？ | 該策略的訊號數量與既有回溯一致性 | **不在本文件範圍**（ADR-P1-06）。建議該文件的 Q-3 在本文件 P0 完成後另行決議，且變更既有策略條件前應先評估對歷史訊號的影響 |
 
 ---
 
 ## 10. 風險與限制
 
-1. **EMA／RSI 的遞迴狀態處理需與既有指標一致，否則產生兩套「缺值後如何延續」的規則**：`stochastic.py`
-   已有明確決策（缺值不重置遞迴狀態），MACD／RSI 若各自決定不同的處理方式，會讓「同一份資料、不同
-   指標對缺值的反應不一致」，增加使用者與後續維護者的認知負擔——本文件要求 §5 驗證腳本明確覆蓋此
-   案例並記錄最終選擇（見 §9 相關討論可併入該記錄，不另開新章節）。
-2. **暖身期造成新股資料在多個指標同時缺席**：MACD 需要約 35 天（26+9）、RSI/ATR 需要 14~15 天，
-   上市未滿一個月的新股在 `quant_summary` 中會有大片指標鍵缺席，需在 §4.2 Prompt 措辭中明確處理，
-   避免 LLM 因「看不到常見指標」誤判為異常。
-3. **不新增套件依賴**：本文件四項指標的計算（EMA 遞迴、標準差、TR）皆可用純 Python 完成，不需要
-   `numpy`／`pandas`（現行 `pandas` 已在 `requirements.txt` 但指標層刻意不使用，見 ADR-P1-02），
-   不引入任何新套件。
+1. **遞迴狀態的缺值處理若各指標不一致，會產生難以察覺的行為分歧**：`stochastic.py` 已有明確決策
+   （缺值不重置遞迴狀態，理由是避免復牌／補資料後製造假交叉）。MACD／RSI／ATR 若各自採不同處理，
+   會出現「同一份資料、不同指標對同一個缺值反應不同」的狀況。FR-P1-1 要求此決策統一，
+   AC-P1-1 要求驗證腳本明確覆蓋。
+2. **暖身期造成新股多個指標同時缺席**：MACD 約需 35 個交易日（26＋9）、RSI／ATR 約 14～15 日、
+   布林 20 日。上市未滿一個半月的個股在 `quant_summary` 中會大片缺鍵，FR-P1-9 的 Prompt 措辭需
+   明確涵蓋，避免 LLM 把「看不到常見指標」誤讀為異常訊號。
+3. **前後端一致性的長期維護成本**：ADR-P1-07 已選擇「後端算、前端只畫」以避免新增 JS 實作，
+   但既有 MA 的雙份實作仍然存在（且四捨五入位數已不同）。本文件不處理既有 MA 的收斂，
+   僅避免問題擴大；若日後要統一，屬獨立的重構議題。
+4. **不新增任何套件依賴**：EMA 遞迴、標準差、TR 皆可用純 Python 完成，不需 `numpy`／`pandas`
+   （`pandas` 雖已在 `requirements.txt`，指標層刻意不使用，見 ADR-P1-02）。這也是本文件無部署風險的原因。
+5. **本文件的輸出是數值，不是判斷**：新增指標只是讓 AI 報告與（日後的）策略引擎有更多依據，
+   不代表訊號品質必然提升。指標數量與研判準確度沒有必然關係，上線後應觀察 AI 報告是否真的引用了
+   這些數值、引用得是否合理，再決定 P1／P2 是否值得投入。
 
 ---
 
 ## 11. 影響範圍（僅供日後開發估算，本文件不動任何檔案）
 
-| 檔案 | 預期異動 |
-|---|---|
-| `backend/indicators/moving_average.py` | 新增：`ema()` |
-| `backend/indicators/macd.py` | 新增 |
-| `backend/indicators/rsi.py` | 新增 |
-| `backend/indicators/bollinger.py` | 新增 |
-| `backend/indicators/atr.py` | 新增 |
-| `backend/indicators/levels.py` | 新增：`rolling_high_low()`（§3.5） |
-| `backend/ai/summary.py` | 新增 `macd`／`rsi`／`bollinger`／`atr` 區塊；`range` 區塊改呼叫 `rolling_high_low()` |
-| `backend/ai/prompt.py` | System Prompt 新增第 8 點；User Prompt 新增對應分節 |
-| `backend/scripts/verify_indicators.py` | 新增 |
-| **P1（視 Q1 決議）** | `services/chip_provider.py`（`ScanContext` 擴充）、`strategies/conditions_tech.py`（新增 condition）、`strategy_config/strategies.yaml`（設定範例） |
-| **P2（視 Q2 決議）** | `frontend/src/utils/`（EMA/MACD/RSI 對齊實作）、`ChartDetailView.vue`／`StockCharts.vue`（副圖切換） |
-| **不需異動** | `services/fetcher.py`／`services/us_fetcher.py`（OHLCV 管線已完成，本文件不改動）、`db/dual_write.py`、`indicators/stochastic.py`／`chip.py`（既有指標不變） |
+| 檔案 | 預期異動 | 階段 |
+|---|---|---|
+| `backend/indicators/moving_average.py` | 新增 `ema()`（FR-P1-1） | P0 |
+| `backend/indicators/macd.py`／`rsi.py`／`bollinger.py`／`atr.py`／`levels.py` | 新增（FR-P1-2～6） | P0 |
+| `backend/services/stock_service.py` | `get_stock_chart_payload()` 新增指標區塊；比照 `_build_kd_payload()` 新增遞迴型指標的全歷史切片組裝（FR-P1-7） | P0 |
+| `backend/strategy_config/strategies.yaml` | `defaults` 新增指標參數（§5） | P0 |
+| `backend/ai/summary.py` | 新增 `macd`／`rsi`／`bollinger`／`atr` 區塊；`range` 區塊改讀 payload（FR-P1-8） | P0 |
+| `backend/ai/prompt.py` | System Prompt 新增第 6 點；User Prompt 新增分節（FR-P1-9） | P0 |
+| `backend/.env`／`.env.example` | 僅遞增 `AI_PROMPT_VERSION`（§5），**不新增項目** | P0 |
+| `backend/scripts/verify_indicators.py` | 新增（FR-P1-10） | P0 |
+| `docs/13.選股功能/股價相對低點.md` | 回填註記：其 P3／Q-3（RSI）已由本文件承接（§2.3、ADR-P1-06） | P0 |
+| [AI技術分析規劃.md](AI技術分析規劃.md) | 依其既有版本紀錄慣例新增一列（比照 Phase 2 §5-6 的作法） | P0 |
+| `backend/services/chip_provider.py`、`backend/strategies/conditions_tech.py`、`strategies.yaml` | 視 Q-1：`ScanContext` 擴充＋新增 condition | P1 |
+| `frontend/src/views/ChartDetailView.vue`、`StockCharts.vue` | 視 Q-2：副圖切換（採 ADR-P1-07 則**不需**新增 JS 算法檔） | P2 |
+| **不需異動** | `services/fetcher.py`／`us_fetcher.py`（OHLCV 管線已完成）、`db/dual_write.py`、`db/migration/`（**無資料表變更**）、`indicators/stochastic.py`／`chip.py`／`fundamental.py`、`strategies/filters.py`（爆量偵測已存在，§4.5） | — |
