@@ -148,6 +148,11 @@ const router = createRouter({
                     component: () => import('@/views/portfolio/WatchlistView.vue')
                 },
                 {
+                    path: '/portfolio/notes',
+                    name: 'portfolio-notes',
+                    component: () => import('@/views/portfolio/InvestmentNotesView.vue')
+                },
+                {
                     path: '/portfolio/settings',
                     name: 'portfolio-settings',
                     component: () => import('@/views/portfolio/PortfolioSettingsView.vue')

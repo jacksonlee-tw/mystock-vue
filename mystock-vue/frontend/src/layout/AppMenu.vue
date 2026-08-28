@@ -33,6 +33,7 @@ const model = computed(() => [
             { label: '投資儀表板', icon: 'pi pi-fw pi-wallet', to: '/portfolio' },
             { label: '持股總覽', icon: 'pi pi-fw pi-briefcase', to: '/portfolio/holdings' },
             { label: '追蹤與觀察名單', icon: 'pi pi-fw pi-eye', to: '/portfolio/watchlist' },
+            { label: '投資筆記', icon: 'pi pi-fw pi-book', to: '/portfolio/notes' },
             { label: '交易紀錄', icon: 'pi pi-fw pi-list', to: '/portfolio/transactions' },
             { label: '已實現損益', icon: 'pi pi-fw pi-money-bill', to: '/portfolio/realized' },
             { label: '現金流與股利', icon: 'pi pi-fw pi-percentage', to: '/portfolio/cashflow' },

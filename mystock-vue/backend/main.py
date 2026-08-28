@@ -22,6 +22,7 @@ from api.v1.endpoints.performance import router as performance_router
 from api.v1.endpoints.cashflow import dividend_router as dividends_router, cashflow_router as cashflow_router
 from api.v1.endpoints.watchlist import router as watchlist_router
 from api.v1.endpoints.portfolio_settings import router as portfolio_settings_router
+from api.v1.endpoints.investment_notes import router as investment_notes_router
 from api.v1.endpoints.exchange_rates import router as exchange_rates_router
 from api.v1.endpoints.notify_admin import router as notify_admin_router, session_router as notify_session_router
 from api.v1.endpoints.notify_self import router as notify_self_router
@@ -173,6 +174,7 @@ app.include_router(dividends_router)
 app.include_router(cashflow_router)
 app.include_router(watchlist_router)
 app.include_router(portfolio_settings_router)
+app.include_router(investment_notes_router)
 app.include_router(exchange_rates_router)
 app.include_router(notify_admin_router)
 app.include_router(notify_session_router)
