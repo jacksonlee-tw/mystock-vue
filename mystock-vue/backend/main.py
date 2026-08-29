@@ -43,15 +43,31 @@ from notify.security import (
 )
 from services.backfill import run_startup_backfill
 from services.scheduler import create_scheduler
+from services.tracking_service import diff_env_vs_db
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("mystock-backend")
+
+async def _run_startup_tracking_reconcile():
+    """啟動對帳（追蹤與觀察名單整合規劃書 §4.3／§12.5）：比對 .env 與 DB 的追蹤代碼，
+    只印警告不自動修改（避免啟動時偷改使用者設定）；發現差異時提示改用
+    `scripts/sync_tracking_env.py` 手動修復。查詢本身失敗（例如 Postgres 未部署）
+    只記警告，不影響服務啟動。"""
+    for market in ("tw", "us"):
+        diff = await diff_env_vs_db(market)
+        if diff["checked"] and not diff["in_sync"]:
+            logger.warning(
+                "[追蹤清單] 啟動對帳發現 .env 與 DB 不同步（market=%s）：only_in_env=%s, only_in_db=%s，"
+                "如需修復請執行 scripts/sync_tracking_env.py",
+                market, diff["only_in_env"], diff["only_in_db"],
+            )
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler = create_scheduler()
     scheduler.start()
     asyncio.create_task(run_startup_backfill())  # 背景執行，缺漏回補不阻塞服務啟動（見 phase3_5 設計文件第 3.1 節）
+    asyncio.create_task(_run_startup_tracking_reconcile())  # 背景執行，只印警告不阻塞服務啟動
     yield
     scheduler.shutdown(wait=False)
     await dispose_engine()

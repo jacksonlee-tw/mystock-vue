@@ -180,6 +180,7 @@ async def get_heatmap_data(period: str = "daily", market: Optional[str] = None) 
                     "latest_close": close_price,
                     "change": round(change, 2),
                     "change_percent": round(change_percent, 2),
+                    "volume": latest_record.get("volume", 0),  # 供前端熱力圖個股排序用（概念股標籤分類_規劃書 §六）
                     "sparkline": sparkline
                 })
 

@@ -1,0 +1,15 @@
+{
+  "tags": [
+    { "id": "ai", "name": "AI", "color": "amber", "sort_order": 1 },
+    { "id": "cpo-photonics", "name": "CPO矽光子", "color": "violet", "sort_order": 2 },
+    { "id": "memory", "name": "記憶體", "color": "sky", "sort_order": 3 }
+  ],
+  "symbol_tags": {
+    "MSFT": ["ai"],
+    "GOOGL": ["ai"],
+    "TSLA": ["ai"],
+    "NVDA": ["ai"],
+    "AVGO": ["ai", "cpo-photonics"],
+    "MU": ["memory"]
+  }
+}

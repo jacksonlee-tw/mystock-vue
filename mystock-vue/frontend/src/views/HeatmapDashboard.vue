@@ -33,6 +33,52 @@
       </div>
     </div>
 
+    <!-- 分類維度切換／概念標籤篩選／個股排序（概念股標籤分類_規劃書 §六）：只影響「一般個股」
+         這層，指數／ETF 兩個既有分區的組成不變——概念標籤是人工維護、涵蓋率有限的資料，不該讓
+         這兩個既有分區因為缺標籤而意外消失。查無概念標籤資料時（種子檔尚未建立、或該市場沒有
+         對應檔案）優雅隱藏「依標籤」切換與篩選器，只留排序控制，不阻擋熱力圖本體。 -->
+    <div v-if="!loading && !error" class="flex flex-wrap items-center gap-2">
+      <div
+        v-if="conceptTags.tags.length > 0"
+        class="flex items-center gap-1 bg-surface-100 dark:bg-surface-800 p-1 rounded-lg border border-surface-200 dark:border-surface-700"
+      >
+        <button
+          v-for="g in groupByOptions"
+          :key="g.value"
+          @click="groupBy = g.value"
+          :class="[
+            'px-3 py-1.5 text-xs font-bold rounded-md transition-colors',
+            groupBy === g.value
+              ? 'bg-primary text-primary-contrast shadow-sm'
+              : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
+          ]"
+        >
+          {{ g.label }}
+        </button>
+      </div>
+
+      <MultiSelect
+        v-if="conceptTags.tags.length > 0"
+        v-model="tagFilter"
+        :options="conceptTags.tags"
+        optionLabel="name"
+        optionValue="id"
+        display="chip"
+        placeholder="篩選概念標籤（符合任一即顯示）"
+        class="w-64"
+        size="small"
+      />
+
+      <Select
+        v-model="sortBy"
+        :options="sortOptions"
+        optionLabel="label"
+        optionValue="value"
+        class="w-44"
+        size="small"
+      />
+    </div>
+
     <!-- 載入中狀態 -->
     <div v-if="loading" class="flex flex-col items-center justify-center p-12 card bg-surface-0 dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-700">
       <i class="pi pi-spin pi-spinner text-primary text-4xl mb-3"></i>
@@ -82,6 +128,18 @@
                     class="px-1 py-0.5 text-[9px] font-bold rounded border bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700 truncate"
                   >
                     {{ stock.industry_tag }}
+                  </span>
+                </div>
+                <!-- 概念標籤 chip 獨立一行、允許換行（flex-wrap）：跟上面的官方產業徽章是不同分類
+                     維度並存（多對多，見概念股標籤分類_規劃書 §四），標籤數量不固定，硬塞進同一行
+                     用 truncate 會把字擠成看不清楚的單一個字，換行才不會犧牲可讀性。 -->
+                <div v-if="getConceptTagsForStock(stock).length > 0" class="flex flex-wrap items-center gap-1 mt-1">
+                  <span
+                    v-for="tag in getConceptTagsForStock(stock)"
+                    :key="tag.id"
+                    :class="['px-1.5 py-0.5 text-[9px] font-bold rounded whitespace-nowrap', conceptTagColorClass(tag.color)]"
+                  >
+                    {{ tag.name }}
                   </span>
                 </div>
               </div>
@@ -153,9 +211,60 @@ const router = useRouter();
 const stocks = ref([]);
 const indexOverview = ref([]); // 指數分類資料（/api/v1/indices/overview），與個股清單分開抓取
 const industries = ref({}); // 產業標籤對照表（/api/v1/stocks/industries，大盤指數功能規劃書 §8.2）
+const conceptTags = ref({ tags: [], symbol_tags: {} }); // 概念標籤對照表（/api/v1/stocks/concept-tags，概念股標籤分類_規劃書 §四）
 const loading = ref(true);
 const error = ref(null);
 const selectedPeriod = ref('daily');
+
+// 分類維度／標籤篩選／排序（概念股標籤分類_規劃書 §六）
+const groupByOptions = [
+  { label: '依產業', value: 'industry' },
+  { label: '依標籤', value: 'concept' }
+];
+const groupBy = ref('industry');
+const tagFilter = ref([]); // 概念標籤 id 陣列，OR 語意（ADR-CT3：跟 WatchlistView 既有的 AND 語意刻意不同）
+const sortOptions = [
+  { label: '預設排序', value: 'default' },
+  { label: '漲跌幅：高到低', value: 'change_desc' },
+  { label: '漲跌幅：低到高', value: 'change_asc' },
+  { label: '成交量：高到低', value: 'volume_desc' },
+  { label: '代號：A→Z', value: 'symbol_asc' }
+];
+const sortBy = ref('default');
+
+// 概念標籤色票，比照 useWatchlistTags.js 的 6 色 Tailwind 對照表（概念標籤與觀察名單標籤是兩套
+// 獨立字典，但沿用同一份顏色慣例，不用另外設計一套配色）
+const CONCEPT_TAG_COLOR_CLASSES = {
+  slate: 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300',
+  violet: 'bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300',
+  amber: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
+  emerald: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300',
+  rose: 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300',
+  sky: 'bg-sky-100 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300'
+};
+function conceptTagColorClass(color) {
+  return CONCEPT_TAG_COLOR_CLASSES[color] || CONCEPT_TAG_COLOR_CLASSES.slate;
+}
+const conceptTagMap = computed(() => new Map(conceptTags.value.tags.map(t => [t.id, t])));
+function getConceptTagsForStock(stock) {
+  const ids = conceptTags.value.symbol_tags[stock.stock_id];
+  if (!ids) return [];
+  return ids.map(id => conceptTagMap.value.get(id)).filter(Boolean);
+}
+
+// 個股層級排序（概念股標籤分類_規劃書 §六 6）：套用在指數／ETF／各分類區塊的股票陣列上，
+// 'default' 保留 API 原始順序（維持既有行為）。
+function sortStocks(list) {
+  if (sortBy.value === 'default' || list.length === 0) return list;
+  const sorted = [...list];
+  switch (sortBy.value) {
+    case 'change_desc': sorted.sort((a, b) => b.change_percent - a.change_percent); break;
+    case 'change_asc': sorted.sort((a, b) => a.change_percent - b.change_percent); break;
+    case 'volume_desc': sorted.sort((a, b) => (b.volume || 0) - (a.volume || 0)); break;
+    case 'symbol_asc': sorted.sort((a, b) => a.stock_id.localeCompare(b.stock_id)); break;
+  }
+  return sorted;
+}
 
 const etfStocks = computed(() => stocks.value.filter(isEtf));
 const generalStocks = computed(() => stocks.value.filter(s => !isEtf(s)));
@@ -163,12 +272,22 @@ const generalStocks = computed(() => stocks.value.filter(s => !isEtf(s)));
 // 避免出現一張空 Sparkline 的壞卡片（見大盤指數功能規劃書 ADR-I8／services/index_service.py 的註解）。
 const indexStocks = computed(() => indexOverview.value.filter(s => s.has_data !== false));
 
+// 概念標籤篩選（OR 語意，ADR-CT3）：只影響「一般個股」這層，指數／ETF 不受篩選（概念標籤是
+// 個股層級的主題分類，指數與 ETF 籃子本來就不適用單一主題）。無勾選標籤時不篩選，維持既有行為。
+const tagFilteredGeneralStocks = computed(() => {
+  if (tagFilter.value.length === 0) return generalStocks.value;
+  return generalStocks.value.filter(stock => {
+    const ids = conceptTags.value.symbol_tags[stock.stock_id];
+    return ids && ids.some(id => tagFilter.value.includes(id));
+  });
+});
+
 // 一般個股依產業分組（大盤指數功能規劃書 §8.2）：查不到產業標籤的股票（例如尚未跑過
 // scripts/init_industries.py，或美股未在追蹤清單內時抓不到 sector）歸類到「未分類」，
 // 而不是整個功能因為缺資料而不顯示——分組是錦上添花，缺資料不該讓熱力圖本體不能用。
 const generalStocksByIndustry = computed(() => {
   const groups = new Map();
-  for (const stock of generalStocks.value) {
+  for (const stock of tagFilteredGeneralStocks.value) {
     const info = industries.value[stock.stock_id];
     const name = info?.industry_name || '未分類';
     if (!groups.has(name)) groups.set(name, []);
@@ -184,21 +303,67 @@ const generalStocksByIndustry = computed(() => {
   return entries.map(([name, list]) => ({ name, icon: 'pi-building', stocks: list }));
 });
 
+// 依概念標籤分組（概念股標籤分類_規劃書 §六 2/5，ADR-CT2：獨立於依產業分組的 computed，不共用
+// 去重合併邏輯——概念標籤是多對多，同一檔股票會刻意重複出現在多個標籤群組裡）。
+// 群組層級依「族群平均漲跌幅」由高到低排序（§六 5），漲最多的主題排最前面。
+const stocksByConceptTag = computed(() => {
+  const groups = new Map();
+  const untagged = [];
+  for (const stock of tagFilteredGeneralStocks.value) {
+    const ids = conceptTags.value.symbol_tags[stock.stock_id];
+    if (!ids || ids.length === 0) {
+      untagged.push(stock);
+      continue;
+    }
+    for (const id of ids) {
+      if (!groups.has(id)) groups.set(id, []);
+      groups.get(id).push(stock);
+    }
+  }
+
+  const entries = [...groups.entries()]
+    .filter(([tagId]) => conceptTagMap.value.has(tagId))
+    .map(([tagId, list]) => {
+      const avgChange = list.reduce((sum, s) => sum + s.change_percent, 0) / list.length;
+      return { name: conceptTagMap.value.get(tagId).name, icon: 'pi-hashtag', stocks: sortStocks(list), _avgChange: avgChange };
+    });
+  entries.sort((a, b) => b._avgChange - a._avgChange);
+
+  const result = entries.map(({ _avgChange, ...rest }) => rest);
+  if (untagged.length > 0) {
+    result.push({ name: '未標記概念', icon: 'pi-hashtag', stocks: sortStocks(untagged) });
+  }
+  return result;
+});
+
 // 個人自選股清單通常每個產業只有 1~2 檔，若每個產業都各自起一個標題區塊，頁面會被大量
 // 「標題 + 一張卡片」的區塊撐得很長、卻沒有對應的資訊量。未達門檻的產業合併進單一
 // 「其他個股」區塊，並在卡片上補一個小產業標籤，維持可辨識度但不再逐一佔用整行標題。
 const INDUSTRY_MERGE_THRESHOLD = 3;
 
-// 指數放在最前面：先看大盤，再看 ETF，最後才是依產業分組的一般個股（見大盤指數功能規劃書 §5.2/§8.2）。
-// 產業對照表尚未載入或全查不到資料時，退回單一「一般個股」分類，不讓分組邏輯阻擋既有行為。
+// 指數放在最前面：先看大盤，再看 ETF，最後才是一般個股的分組（見大盤指數功能規劃書 §5.2/§8.2）。
+// 一般個股的分組維度依 groupBy 切換：'concept'（依標籤，有標籤資料時）或 'industry'（依產業，
+// 沿用既有邏輯；產業對照表尚未載入或全查不到資料時，退回單一「一般個股」分類）。指數／ETF 兩區
+// 不受 groupBy／標籤篩選影響，只套用個股層級排序（sortBy）。
 const categories = computed(() => {
+  const indices = sortStocks(indexStocks.value);
+  const etfs = sortStocks(etfStocks.value);
+
+  if (groupBy.value === 'concept' && conceptTags.value.tags.length > 0) {
+    return [
+      { name: '指數', icon: 'pi-globe', stocks: indices },
+      { name: 'ETF', icon: 'pi-chart-pie', stocks: etfs },
+      ...stocksByConceptTag.value
+    ];
+  }
+
   const hasIndustryData = Object.keys(industries.value).length > 0;
 
   if (!hasIndustryData) {
     return [
-      { name: '指數', icon: 'pi-globe', stocks: indexStocks.value },
-      { name: 'ETF', icon: 'pi-chart-pie', stocks: etfStocks.value },
-      { name: '一般個股', icon: 'pi-building', stocks: generalStocks.value }
+      { name: '指數', icon: 'pi-globe', stocks: indices },
+      { name: 'ETF', icon: 'pi-chart-pie', stocks: etfs },
+      { name: '一般個股', icon: 'pi-building', stocks: sortStocks(tagFilteredGeneralStocks.value) }
     ];
   }
 
@@ -210,12 +375,12 @@ const categories = computed(() => {
   );
 
   const result = [
-    { name: '指數', icon: 'pi-globe', stocks: indexStocks.value },
-    { name: 'ETF', icon: 'pi-chart-pie', stocks: etfStocks.value },
-    ...bigGroups
+    { name: '指數', icon: 'pi-globe', stocks: indices },
+    { name: 'ETF', icon: 'pi-chart-pie', stocks: etfs },
+    ...bigGroups.map(g => ({ ...g, stocks: sortStocks(g.stocks) }))
   ];
   if (mergedStocks.length > 0) {
-    result.push({ name: '其他個股', icon: 'pi-building', stocks: mergedStocks });
+    result.push({ name: '其他個股', icon: 'pi-building', stocks: sortStocks(mergedStocks) });
   }
   return result;
 });
@@ -257,14 +422,20 @@ onMounted(() => {
   loadHeatmapData();
   loadIndexOverview();
   loadIndustries();
+  loadConceptTags();
 });
 
 const { currentMarket, marketMeta } = useMarket();
 
 watch(currentMarket, () => {
+  // 概念標籤字典是 per-market 檔案（tw/us 各自獨立），切換市場時舊市場選的標籤 id 在新市場
+  // 不一定存在，篩選/分組維度一併重置，避免出現「篩選條件看起來有選但畫面卻空空的」的錯覺。
+  tagFilter.value = [];
+  groupBy.value = 'industry';
   loadHeatmapData();
   loadIndexOverview();
   loadIndustries();
+  loadConceptTags();
 });
 
 async function loadHeatmapData() {
@@ -303,6 +474,17 @@ async function loadIndustries() {
     if (res.success) industries.value = res.data;
   } catch (err) {
     industries.value = {};
+  }
+}
+
+// 概念標籤是相對靜態、人工維護的中繼資料（概念股標籤分類_規劃書 §四），失敗只讓「依標籤」
+// 分組/篩選不可用（優雅退回無標籤分組），不影響熱力圖本體與既有的「依產業」分組。
+async function loadConceptTags() {
+  try {
+    const res = await stockApi.getConceptTags(currentMarket.value);
+    if (res.success) conceptTags.value = res.data;
+  } catch (err) {
+    conceptTags.value = { tags: [], symbol_tags: {} };
   }
 }
 

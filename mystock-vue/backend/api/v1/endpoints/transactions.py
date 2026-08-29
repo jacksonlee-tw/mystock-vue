@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 from datetime import date as date_cls, datetime, time as time_cls
 from typing import Any, Optional
 
@@ -16,7 +17,10 @@ from core.owner_auth import require_owner
 from db.session import get_db
 from repositories.exchange_rate_repository import ExchangeRateRepository
 from repositories.portfolio_repository import PortfolioRepository
+from services import tracking_service
 from services.portfolio_ledger import D, Settings, compute_fee, compute_tax, to_float, validate_no_oversell
+
+logger = logging.getLogger("mystock-backend")
 
 router = APIRouter(
     prefix="/api/v1/transactions",
@@ -142,6 +146,14 @@ async def create_transaction(payload: TransactionIn, db=Depends(get_db)):
     await _validate_symbol_ledger(repo, prepared["market"], prepared["symbol"], prepared, exclude_id=None)
     row = await repo.create_transaction({k: v for k, v in prepared.items() if k != "id"})
     fx_rate = await _usd_rate_for(db, row["trade_date"]) if row["market"] == "us" else None
+
+    # 持股自動納入追蹤清單（ADR-08，追蹤與觀察名單整合規劃書 §12）：買賣皆觸發同一 upsert，
+    # 已在清單中則不動既有目標價／tag／原因。best-effort──失敗只記警告，不擋交易寫入。
+    try:
+        await tracking_service.upsert_from_holding(row["market"], row["symbol"], row["name"])
+    except Exception as exc:
+        logger.warning("[持股連動] 新增交易後 upsert 追蹤清單失敗（market=%s, symbol=%s）：%s", row["market"], row["symbol"], exc)
+
     return {"success": True, "data": _tx_out(row, fx_rate), "message": "交易紀錄已新增"}
 
 

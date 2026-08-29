@@ -18,3 +18,9 @@ data/us/_indices/*.json
 # 個股產業標籤快取（見 services/industry_fetcher.py），同理不進版控
 data/tw/_meta/*.json
 data/us/_meta/*.json
+
+# 概念股標籤是人工維護的種子資料（見 services/concept_tag_service.py、
+# docs/17.熱力圖概念股標籤分類/概念股標籤分類_規劃書.md ADR-CT4），不是爬蟲快取，
+# 比照 strategy_config/strategies.yaml（人工維護的設定檔）維持版控，故從上面的忽略規則中排除。
+!data/tw/_meta/concept_tags.json
+!data/us/_meta/concept_tags.json

@@ -159,6 +159,12 @@ export const portfolioApi = {
         return response.data;
     },
 
+    // 下架（暫停抓取／移除）前查詢是否仍有非零持股，供前端二次確認（規劃書 §12.9 ADR-11）
+    async getWatchlistPosition(id) {
+        const response = await apiClient.get(`/watchlist/${id}/position`);
+        return response.data;
+    },
+
     // ── 追蹤與觀察名單：自訂標籤 ────────────────────────────────
     async getWatchlistTags() {
         const response = await apiClient.get('/watchlist/tags');

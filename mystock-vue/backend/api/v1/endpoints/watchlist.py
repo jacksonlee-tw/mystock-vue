@@ -174,8 +174,25 @@ async def update_watchlist(watch_id: int, payload: WatchlistUpdate, background_t
     }
 
 
+@router.get("/{watch_id}/position", summary="查詢是否仍有非零持股（下架前的前端確認用，ADR-11）")
+async def get_watchlist_position(watch_id: int):
+    item = await tracking_service.get_item(watch_id)
+    if item is None:
+        raise HTTPException(404, "找不到清單項目")
+    has_position, shares = await tracking_service.has_open_position(item["market"], item["symbol"])
+    return {"success": True, "data": {"has_position": has_position, "shares": shares}}
+
+
 @router.patch("/{watch_id}/crawl", summary="暫停／恢復抓取（不刪除任何 metadata）")
 async def toggle_crawl(watch_id: int, payload: CrawlToggleIn, background_tasks: BackgroundTasks):
+    # 暫停抓取前二次防呆確認是否仍有持股（ADR-11）：後端不因此拒絕請求，只在回應中標記，
+    # 讓即使繞過前端確認流程的呼叫端，也能在結果端得到同樣的提醒。
+    had_position = False
+    if not payload.enabled:
+        item_before = await tracking_service.get_item(watch_id)
+        if item_before is not None:
+            had_position, _ = await tracking_service.has_open_position(item_before["market"], item_before["symbol"])
+
     result = await tracking_service.set_crawl_enabled(watch_id, payload.enabled)
     if result is None:
         raise HTTPException(404, "找不到清單項目")
@@ -192,16 +209,23 @@ async def toggle_crawl(watch_id: int, payload: CrawlToggleIn, background_tasks: 
         "data": {"id": item["id"], "is_crawl_enabled": item["is_crawl_enabled"]},
         "mirror_warning": mirror_warning,
         "fetch_triggered": fetch_triggered,
+        "had_position": had_position,
     }
 
 
 @router.delete("/{watch_id}", summary="移除清單項目（不影響任何交易紀錄或已抓取的歷史資料）")
 async def delete_watchlist(watch_id: int):
+    # 移除前二次防呆確認是否仍有持股（ADR-11），理由同 toggle_crawl
+    item_before = await tracking_service.get_item(watch_id)
+    if item_before is None:
+        raise HTTPException(404, "找不到清單項目")
+    had_position, _ = await tracking_service.has_open_position(item_before["market"], item_before["symbol"])
+
     result = await tracking_service.delete_item(watch_id)
     if result is None:
         raise HTTPException(404, "找不到清單項目")
     _market, mirror_warning = result
-    return {"success": True, "message": "已從清單移除", "mirror_warning": mirror_warning}
+    return {"success": True, "message": "已從清單移除", "mirror_warning": mirror_warning, "had_position": had_position}
 
 
 # ── 自訂標籤 ──────────────────────────────────────────────────────────

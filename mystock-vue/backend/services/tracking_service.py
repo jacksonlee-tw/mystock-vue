@@ -32,6 +32,39 @@ from repositories.portfolio_repository import PortfolioRepository
 logger = logging.getLogger("mystock-backend")
 
 
+# ── 持股連動（規劃書 §12：ADR-08／ADR-09／ADR-11） ───────────────────────
+async def upsert_from_holding(market: str, symbol: str, name: str) -> None:
+    """新增交易時自動 upsert 進追蹤清單（ADR-08）：已存在則不動任何既有欄位（不覆寫使用者已
+    設定的目標價／tag），不存在則新增純追蹤項目（`target_price=NULL`, `source='holding'`）。
+    買賣皆呼叫同一函式，冪等，成本可忽略。呼叫端（transactions 端點／回填腳本）需自行 best-effort
+    包一層例外，失敗只記警告、不擋交易寫入或回填流程。"""
+    await upsert_item({
+        "market": market, "symbol": symbol, "name": name,
+        "is_crawl_enabled": True, "source": "holding",
+    })
+
+
+async def has_open_position(market: str, symbol: str) -> tuple[bool, float]:
+    """查詢該 (market, symbol) 目前是否仍有非零持股（ADR-11：下架持股中股票要求確認）。
+    複用既有 `portfolio_ledger.build_ledger()`，只餵入該檔股票自己的交易與股利，避免像
+    `GET /portfolio/holdings` 那樣載入並計算全部持股。回傳 (has_position, shares)。"""
+    from services.portfolio_ledger import Settings, build_ledger, to_float
+
+    async with get_async_session() as session:
+        repo = PortfolioRepository(session)
+        transactions = await repo.list_transactions_for_symbol(market, symbol)
+        if not transactions:
+            return False, 0.0
+        dividends = [d for d in await repo.list_dividends(market) if d["symbol"] == symbol]
+        settings = Settings.from_row(await repo.get_settings())
+
+    ledger = build_ledger(transactions, dividends, settings, quotes={})
+    for p in ledger.positions:
+        if p["market"] == market and p["symbol"] == symbol:
+            return True, to_float(p["shares"])
+    return False, 0.0
+
+
 # ── DB 清單讀取 ────────────────────────────────────────────────────────
 async def get_crawl_enabled_symbols(market: str) -> list[str]:
     """取得 DB 中目前啟用抓取的代號，供 API 與畫面清單使用。"""

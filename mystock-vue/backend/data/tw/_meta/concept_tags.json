@@ -1,0 +1,39 @@
+{
+  "tags": [
+    { "id": "ai", "name": "AI", "color": "amber", "sort_order": 1 },
+    { "id": "cpo-photonics", "name": "CPO矽光子", "color": "violet", "sort_order": 2 },
+    { "id": "memory", "name": "記憶體", "color": "sky", "sort_order": 3 },
+    { "id": "finance", "name": "金融", "color": "emerald", "sort_order": 4 },
+    { "id": "traditional-materials", "name": "傳產原物料", "color": "rose", "sort_order": 5 }
+  ],
+  "symbol_tags": {
+    "2330": ["ai"],
+    "2317": ["ai"],
+    "2308": ["ai"],
+    "2382": ["ai"],
+    "3231": ["ai"],
+    "2454": ["ai"],
+    "3661": ["ai"],
+    "6669": ["ai"],
+    "2345": ["cpo-photonics"],
+    "4979": ["cpo-photonics"],
+    "3081": ["cpo-photonics"],
+    "3363": ["cpo-photonics"],
+    "6187": ["cpo-photonics"],
+    "2313": ["cpo-photonics"],
+    "2408": ["memory"],
+    "3260": ["memory"],
+    "2337": ["memory"],
+    "2344": ["memory"],
+    "2884": ["finance"],
+    "2891": ["finance"],
+    "2882": ["finance"],
+    "2886": ["finance"],
+    "5880": ["finance"],
+    "1101": ["traditional-materials"],
+    "1301": ["traditional-materials"],
+    "1303": ["traditional-materials"],
+    "2002": ["traditional-materials"],
+    "1102": ["traditional-materials"]
+  }
+}

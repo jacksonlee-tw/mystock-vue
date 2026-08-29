@@ -39,6 +39,13 @@ export const stockApi = {
         return response.data;
     },
 
+    // 取得概念股標籤對照表（概念股標籤分類_規劃書 §四／§五）：
+    // { tags: [{ id, name, color, sort_order }], symbol_tags: { symbol: [tag_id, ...] } }
+    async getConceptTags(market = 'tw') {
+        const response = await apiClient.get('/stocks/concept-tags', { params: { market } });
+        return response.data;
+    },
+
     // 分頁瀏覽／篩選全市場代碼主檔（見「全市場代碼查詢」頁）
     async listSymbols(market, { q, industryCode, page = 1, pageSize = 50 } = {}) {
         const params = { market, page, page_size: pageSize };

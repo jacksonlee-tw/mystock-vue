@@ -252,6 +252,7 @@ const showModal = ref(false);
 const editingId = ref(null);
 const saving = ref(false);
 const tagSuggestions = ref([]);
+const originalCrawlEnabled = ref(true); // 開啟編輯彈窗時記錄，供 save() 判斷是否為「暫停抓取」動作（ADR-11）
 function blankForm() { return { market: 'tw', symbol: '', name: '', target_price: null, note: '', tags: [], is_crawl_enabled: true }; }
 const form = reactive(blankForm());
 
@@ -269,6 +270,7 @@ function openEditModal(w) {
     tags: (w.tags || []).map((t) => t.name), is_crawl_enabled: w.is_crawl_enabled
   });
   editingId.value = w.id;
+  originalCrawlEnabled.value = w.is_crawl_enabled;
   showModal.value = true;
 }
 
@@ -288,10 +290,36 @@ async function lookupName() {
   }
 }
 
+// 有非零持股時，暫停抓取／移除清單前先確認（規劃書 §12.9 ADR-11）；查詢失敗不阻擋操作，
+// 由後端二次防呆補上同樣的提醒（回應中的 had_position）。回傳 shares（無持股或查詢失敗為 0）。
+async function checkHolding(id) {
+  try {
+    const res = await portfolioApi.getWatchlistPosition(id);
+    return res.data?.has_position ? res.data.shares : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function confirmPauseCrawl(shares) {
+  return new Promise((resolve) => {
+    confirm.require({
+      message: `這檔股票目前持有 ${shares} 股。暫停追蹤後，明日起不會再更新每日價格，也不會出現在熱力圖與持股列表的即時報價中。確定要繼續嗎？`,
+      header: '暫停抓取確認', icon: 'pi pi-exclamation-triangle', acceptLabel: '確定暫停', rejectLabel: '取消',
+      accept: () => resolve(true),
+      reject: () => resolve(false)
+    });
+  });
+}
+
 async function save() {
   if (!form.symbol) {
     toast.add({ severity: 'error', summary: '請填寫股票代碼', life: 3000 });
     return;
+  }
+  if (editingId.value && originalCrawlEnabled.value && !form.is_crawl_enabled) {
+    const shares = await checkHolding(editingId.value);
+    if (shares > 0 && !(await confirmPauseCrawl(shares))) return;
   }
   saving.value = true;
   try {
@@ -327,9 +355,11 @@ async function save() {
   }
 }
 
-function confirmRemove(w) {
+async function confirmRemove(w) {
+  const shares = await checkHolding(w.id);
+  const holdingHint = shares > 0 ? `此股票目前持有 ${shares} 股，移除後不會再更新每日價格與熱力圖顯示。` : '';
   confirm.require({
-    message: `確定要將 ${w.symbol} ${w.name} 從清單移除嗎？將同時停止每日抓取；此動作不影響任何交易紀錄或已抓取的歷史資料。`,
+    message: `${holdingHint}確定要將 ${w.symbol} ${w.name} 從清單移除嗎？將同時停止每日抓取；此動作不影響任何交易紀錄或已抓取的歷史資料。`,
     header: '移除清單項目', icon: 'pi pi-exclamation-triangle', acceptLabel: '確定移除', rejectLabel: '取消', acceptClass: 'p-button-danger',
     accept: async () => {
       const res = await portfolioApi.removeWatchlist(w.id);
