@@ -1,7 +1,11 @@
 <template>
-  <Dialog :visible="visible" @update:visible="$emit('update:visible', $event)" modal :header="isEditing ? '編輯投資筆記' : '新增投資筆記'" :style="{ width: 'min(52rem, 94vw)' }" :closable="!saving">
-    <div class="space-y-4">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  <Dialog
+    :visible="visible" @update:visible="$emit('update:visible', $event)" modal maximizable
+    :header="isEditing ? '編輯投資筆記' : '新增投資筆記'" :style="{ width: 'min(52rem, 94vw)' }" :closable="!saving"
+    @maximize="isMaximized = true" @unmaximize="isMaximized = false"
+  >
+    <div class="space-y-4" :class="isMaximized ? 'h-full flex flex-col' : ''">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 shrink-0">
         <div>
           <label class="block text-xs font-bold text-surface-500 mb-1">日期</label>
           <DatePicker v-model="form.note_date" dateFormat="yy-mm-dd" showIcon class="w-full" />
@@ -12,19 +16,19 @@
         </div>
       </div>
 
-      <div>
+      <div class="shrink-0">
         <label class="flex items-center justify-between text-xs font-bold text-surface-500 mb-1">
           <span>主旨</span><span class="font-normal text-surface-300">{{ form.subject.length }}/200</span>
         </label>
         <InputText v-model="form.subject" maxlength="200" class="w-full" placeholder="這筆筆記想留下什麼？" />
       </div>
 
-      <div>
-        <div class="flex items-center justify-between gap-3 mb-1.5">
+      <div :class="isMaximized ? 'flex-1 min-h-0 flex flex-col' : ''">
+        <div class="flex items-center justify-between gap-3 mb-1.5 shrink-0">
           <label class="text-xs font-bold text-surface-500">內容</label>
-          <span class="text-[11px] text-surface-400"><i class="pi pi-file mr-1"></i>Markdown (.md)</span>
+          <span class="text-[11px] text-surface-400"><i class="pi pi-file mr-1"></i>Markdown (.md) ・ 支援 Mermaid 圖表</span>
         </div>
-        <div class="markdown-editor rounded-lg border border-surface-200 dark:border-surface-700 overflow-hidden">
+        <div class="markdown-editor rounded-lg border border-surface-200 dark:border-surface-700 overflow-hidden" :class="isMaximized ? 'flex-1 min-h-0 flex flex-col' : ''">
           <div class="flex items-center gap-1 p-1.5 border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800">
             <button
               type="button"
@@ -49,14 +53,15 @@
           <Textarea
             v-if="editorMode === 'source'"
             v-model="form.content"
-            rows="8"
+            :rows="isMaximized ? 24 : 8"
             class="markdown-source w-full"
+            :class="isMaximized ? 'flex-1 editor-maximized-textarea' : ''"
             spellcheck="false"
             aria-label="原始 Markdown 內容"
             placeholder="# 今日觀察&#10;&#10;記下你的觀察、判斷依據與下一步..."
           />
-          <div v-else class="markdown-preview" aria-live="polite">
-            <div v-if="form.content.trim()" class="markdown-content" v-html="renderedContent"></div>
+          <div v-else class="markdown-preview" :class="isMaximized ? 'flex-1 editor-maximized-preview' : ''" aria-live="polite">
+            <MarkdownPreview v-if="form.content.trim()" class="markdown-content" :source="form.content" />
             <div v-else class="h-full min-h-64 grid place-items-center text-center text-surface-400">
               <div><i class="pi pi-file-edit text-2xl"></i><p class="mt-2 text-sm">尚無內容，請回到「原始 Markdown」開始輸入。</p></div>
             </div>
@@ -64,7 +69,7 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 shrink-0">
         <div>
           <label class="block text-xs font-bold text-surface-500 mb-1">
             標籤<span class="font-normal text-surface-300 ml-1">選填，可輸入新標籤自動建立</span>
@@ -99,9 +104,9 @@
 <script setup>
 import { reactive, computed, watch, ref } from 'vue';
 import { useToast } from 'primevue/usetoast';
-import MarkdownIt from 'markdown-it';
 import { investmentNoteApi } from '@/service/investmentNoteApi';
 import { toIsoDate, fromIsoDate, todayDate } from '@/composables/usePortfolioFormat';
+import MarkdownPreview from '@/components/portfolio/MarkdownPreview.vue';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -129,8 +134,7 @@ const form = reactive(blankForm());
 const saving = ref(false);
 const tagSuggestions = ref([]);
 const editorMode = ref('source');
-const markdown = new MarkdownIt({ html: false, linkify: true, breaks: true });
-const renderedContent = computed(() => markdown.render(form.content || ''));
+const isMaximized = ref(false);
 
 // 每次開啟（新增或切換編輯目標）都重新灌值，避免殘留上一次的表單內容
 watch(
@@ -138,6 +142,7 @@ watch(
   ([visible, note]) => {
     if (!visible) return;
     editorMode.value = 'source';
+    isMaximized.value = false;
     if (note) {
       Object.assign(form, {
         note_date: fromIsoDate(note.note_date), status: note.status, subject: note.subject, content: note.content,
@@ -172,8 +177,8 @@ async function save() {
     toast.add({ severity: 'error', summary: '請填寫內容', life: 3000 });
     return;
   }
-  if (!!form.market !== !!form.symbol.trim()) {
-    toast.add({ severity: 'error', summary: '市場與股票代碼必須同時填寫或同時留空', life: 3500 });
+  if (form.symbol.trim() && !form.market) {
+    toast.add({ severity: 'error', summary: '請先選擇市場，才能填寫股票代碼', life: 3500 });
     return;
   }
 
@@ -186,7 +191,7 @@ async function save() {
       note_date: toIsoDate(form.note_date),
       tag_names: form.tags,
       market: form.market || null,
-      symbol: form.market ? form.symbol.trim().toUpperCase() : null
+      symbol: form.symbol.trim() ? form.symbol.trim().toUpperCase() : null
     };
     const res = isEditing.value ? await investmentNoteApi.updateNote(props.note.id, payload) : await investmentNoteApi.createNote(payload);
     toast.add({ severity: 'success', summary: res.message, life: 2500 });
@@ -244,6 +249,15 @@ async function save() {
   overflow: auto;
   padding: 1.25rem 1.5rem;
   background: var(--p-surface-0);
+}
+
+.editor-maximized-textarea {
+  min-height: 0;
+  resize: none;
+}
+
+.editor-maximized-preview {
+  max-height: none;
 }
 
 .markdown-content {

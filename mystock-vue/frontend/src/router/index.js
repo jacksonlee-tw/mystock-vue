@@ -166,6 +166,11 @@ const router = createRouter({
             component: () => import('@/views/notify/OwnerLogin.vue')
         },
         {
+            path: '/ai/reports/:reportId',
+            name: 'ai-report-detail',
+            component: () => import('@/views/ai/AiReportDetail.vue')
+        },
+        {
             // 收件人自助頁：獨立路由樹，與管理介面入口完全分離（規格 §12.1「入口完全分離」）
             path: '/n/me',
             name: 'notify-self-service',

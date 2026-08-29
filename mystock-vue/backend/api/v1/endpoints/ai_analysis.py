@@ -126,6 +126,7 @@ def _report_envelope(row: dict, cached: bool | None = None) -> dict:
         "truncated": row.get("truncated", False),
         "provider": row.get("provider"),
         "model": row.get("model"),
+        "prompt_version": row.get("prompt_version"),
         "chart": {
             "period": row.get("chart_period"),
             "months": row.get("chart_months"),
@@ -342,6 +343,9 @@ async def get_report(report_id: int, db=Depends(get_db)):
     row = await repo.get_by_id(report_id)
     if not row:
         raise SymbolNotFoundException(f"找不到報告 id={report_id}")
+    execution = await AIExecutionRepository(db).get_latest_succeeded_for_report(report_id)
+    if execution:
+        row["prompt_version"] = execution.get("prompt_version")
     await AIRecorder(db).log_view(view_id="ai_report_history", report_id=report_id)
     await db.commit()
     return _report_envelope(row)

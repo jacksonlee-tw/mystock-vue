@@ -56,6 +56,12 @@ export default defineConfig({
             '@': path.resolve(process.cwd(), 'src')
         }
     },
+    // mermaid 內部以動態 import() 載入各圖表類型子模組（flowchart/sequence/gantt...），
+    // 開發模式下若不強制預先打包，esbuild 依賴預建構與執行期動態載入的子模組可能解析成
+    // 兩份不同的 mermaid 實例，造成節點文字量測失敗、圖表節點文字消失（渲染成預設空白方塊）。
+    optimizeDeps: {
+        include: ['mermaid']
+    },
     server: {
         fs: {
             strict: false

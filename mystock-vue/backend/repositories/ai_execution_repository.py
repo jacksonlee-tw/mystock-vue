@@ -111,6 +111,21 @@ class AIExecutionRepository(object):
         )
 
     # ── 查詢（§6.3）─────────────────────────────────────────────
+        async def get_latest_succeeded_for_report(self, report_id: int) -> dict | None:
+                result = await self._s.execute(
+                        text("""
+                                SELECT provider, model, prompt_version, completed_at
+                                    FROM ai_llm_execution
+                                 WHERE report_id = :report_id
+                                     AND status = 'succeeded'
+                                 ORDER BY completed_at DESC NULLS LAST, id DESC
+                                 LIMIT 1
+                        """),
+                        {"report_id": report_id},
+                )
+                row = result.mappings().first()
+                return dict(row) if row else None
+
     async def list_executions(
         self, provider: str | None = None, model: str | None = None,
         status: str | None = None, symbol: str | None = None, market: str | None = None,

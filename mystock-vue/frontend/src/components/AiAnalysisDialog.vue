@@ -2,20 +2,45 @@
   <Dialog
     :visible="visible"
     @update:visible="$emit('update:visible', $event)"
-    modal
+    :modal="!fullscreen"
+    :closable="!fullscreen"
     :draggable="false"
-    :style="{ width: '54rem', maxHeight: '88vh' }"
+    :class="{ 'ai-report-fullscreen': fullscreen }"
+    :style="fullscreen
+      ? { width: '100vw', height: '100vh', maxHeight: '100vh', margin: '0', borderRadius: '0' }
+      : { width: '54rem', maxHeight: '88vh' }"
     :breakpoints="{ '960px': '92vw' }"
     content-class="!p-0"
   >
     <!-- 自訂 header：帶標的名稱，比純文字標題更好定位「這是哪一檔的報告」 -->
     <template #header>
-      <div class="flex items-center gap-2.5 min-w-0">
+      <div class="flex flex-1 items-center gap-2.5 min-w-0">
         <span class="text-xl leading-none">🤖</span>
         <span class="font-black text-surface-900 dark:text-surface-0">AI 診股報告</span>
         <span v-if="report" class="num text-sm font-bold text-surface-400 truncate">
           {{ report.symbol }}<template v-if="report.stock_name"> {{ report.stock_name }}</template>
         </span>
+        <button
+          v-if="report?.id"
+          type="button"
+          :disabled="savingNote || savedNoteId"
+          class="ml-auto h-8 shrink-0 inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-bold text-white bg-white/15 hover:bg-white/25 disabled:opacity-70 disabled:cursor-default transition-colors"
+          :title="savedNoteId ? '已儲存到投資筆記' : '將此 AI 報告儲存到投資筆記'"
+          @click="saveToInvestmentNotes"
+        >
+          <i :class="['pi', savingNote ? 'pi-spin pi-spinner' : savedNoteId ? 'pi-check' : 'pi-book']"></i>
+          <span>{{ savedNoteId ? '已存到投資筆記' : '存到投資筆記' }}</span>
+        </button>
+        <button
+          v-if="report?.id && !fullscreen"
+          type="button"
+          class="w-8 h-8 shrink-0 inline-flex items-center justify-center rounded-lg text-white hover:bg-white/20 transition-colors"
+          title="在新頁籤全螢幕開啟"
+          aria-label="在新頁籤全螢幕開啟 AI 診股報告"
+          @click="openInNewTab"
+        >
+          <i class="pi pi-external-link"></i>
+        </button>
       </div>
     </template>
 
@@ -202,7 +227,7 @@
       </div>
     </template>
 
-    <template #footer>
+    <template v-if="!fullscreen" #footer>
       <button
         @click="$emit('update:visible', false)"
         class="px-4 py-2 text-sm font-bold text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-xl transition-colors"
@@ -214,9 +239,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import { useToast } from 'primevue/usetoast';
 import Dialog from 'primevue/dialog';
 import MarkdownIt from 'markdown-it';
+import { investmentNoteApi } from '@/service/investmentNoteApi';
 import { formatPrice } from '@/utils/format';
 import { getUpDownColor } from '@/utils/marketColors';
 import { useMarket } from '@/composables/useMarket';
@@ -235,12 +263,83 @@ const props = defineProps({
   selectedModel: { type: String, default: '' },
   latestForSelection: { type: Object, default: null },
   checkingLatest: { type: Boolean, default: false },
+  fullscreen: { type: Boolean, default: false },
   // 歷史頁面（AiReportHistory.vue）用 stage="result" 直接顯示已抓好的報告，沒有「選模型」
   // 這一步可退回，「返回重新選擇」／「換個模型再看看」這兩個按鈕在那個情境下沒有意義
   allowReselect: { type: Boolean, default: true }
 });
 
 defineEmits(['update:visible', 'update:selectedModel', 'select-provider', 'confirm', 'back']);
+
+const router = useRouter();
+const toast = useToast();
+const savingNote = ref(false);
+const savedNoteId = ref(null);
+
+watch(() => props.report?.id, () => {
+  savedNoteId.value = null;
+});
+
+function openInNewTab() {
+  const route = router.resolve({ name: 'ai-report-detail', params: { reportId: props.report.id } });
+  window.open(route.href, '_blank', 'noopener,noreferrer');
+}
+
+function buildInvestmentNoteContent(report) {
+  const chartPeriod = periodLabel.value || '未提供';
+  const generatedAt = report.generated_at ? report.generated_at.replace('T', ' ') : '未提供';
+  const promptVersion = report.prompt_version || '未提供';
+  return [
+    `# ${report.symbol}${report.stock_name ? ` ${report.stock_name}` : ''} AI 診股報告`,
+    '',
+    `- 報告交易日：${report.trade_date || '未提供'}`,
+    `- 產生時間：${generatedAt}`,
+    `- AI Provider：${PROVIDER_LABELS[report.provider] || report.provider || '未提供'}`,
+    `- AI 模型與版本：${report.model || '未提供'}`,
+    `- Prompt 版本：${promptVersion}`,
+    `- 觀察區間：${chartPeriod}`,
+    '',
+    '## 一句話結論',
+    '',
+    report.headline || '未提供',
+    '',
+    '## AI 診股內容',
+    '',
+    report.report_markdown || '（無內容）',
+    '',
+    '---',
+    '',
+    `> ${report.disclaimer || '本報告由 AI 產生，僅供參考，不構成投資建議。'}`
+  ].join('\n');
+}
+
+async function saveToInvestmentNotes() {
+  if (!props.report || savingNote.value || savedNoteId.value) return;
+  savingNote.value = true;
+  try {
+    const report = props.report;
+    const response = await investmentNoteApi.createNote({
+      note_date: report.trade_date,
+      subject: `${report.symbol} AI 診股報告（${report.trade_date}）`,
+      content: buildInvestmentNoteContent(report),
+      market: report.market || props.market,
+      symbol: report.symbol,
+      status: 'published',
+      tag_names: ['AI生成報告', report.symbol]
+    });
+    savedNoteId.value = response.data?.id;
+    toast.add({ severity: 'success', summary: '已儲存到投資筆記', detail: response.message, life: 3000 });
+  } catch (err) {
+    toast.add({
+      severity: 'error',
+      summary: '儲存投資筆記失敗',
+      detail: err?.response?.data?.detail || err.message,
+      life: 5000
+    });
+  } finally {
+    savingNote.value = false;
+  }
+}
 
 const providerCodes = computed(() => Object.keys(props.availableModels));
 const currentModels = computed(() => props.availableModels[props.selectedProvider]?.models || []);
@@ -322,6 +421,12 @@ function levelTypeColor(type) {
    內部 class，讓捲動只發生在這一層，不會出現「Dialog 本身 + Markdown 區塊」兩層捲軸疊在一起。 */
 :deep(.p-dialog-content) {
   overflow-y: auto;
+}
+
+:global(.ai-report-fullscreen.p-dialog > .p-dialog-content) {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none !important;
 }
 
 /* Tailwind 重置了預設的標題／清單樣式，LLM 輸出的 Markdown（### 標題、**粗體**、- 清單）

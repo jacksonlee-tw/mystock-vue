@@ -436,6 +436,12 @@ body {
   max-height: 60vh;
   overflow-y: auto;
 }
+/* maximizable Dialog（例如投資筆記編輯器）展開為全螢幕時，內容區不應再被 60vh 卡住 */
+.p-dialog-maximized .p-dialog-content {
+  max-height: none !important;
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .p-dialog .p-button {
   border-radius: 6px;
 }

@@ -73,8 +73,8 @@ def _validate_shape(subject: str, content: str, market: Optional[str], symbol: O
         raise ValueError(f"主旨長度不可超過 {MAX_SUBJECT_LEN} 字")
     if not content.strip():
         raise ValueError("內容不可為空白")
-    if bool(market) != bool(symbol):
-        raise ValueError("market 與 symbol 必須同時提供或同時留空")
+    if symbol and not market:
+        raise ValueError("填寫 symbol 前必須先選擇 market")
     if market and market not in VALID_MARKETS:
         raise ValueError("market 必須為 tw 或 us")
     if status not in VALID_STATUSES:
@@ -97,8 +97,11 @@ async def _prepare_row(payload: dict, *, existing_symbol: Optional[str] = None) 
     if market:
         row["market"] = market
         row["symbol"] = symbol
-        # 代號沒變就不必重查一次名稱（例如只改內容/標籤的 PATCH）
-        if symbol != existing_symbol:
+        # market 可單獨選填、symbol 選填（見設計文件 §10.1）；symbol 留空時直接清空名稱快照，
+        # 不必（也不能）拿 None 去查股票主檔。代號沒變則不必重查一次名稱（例如只改內容/標籤的 PATCH）。
+        if not symbol:
+            row["symbol_name"] = None
+        elif symbol != existing_symbol:
             row["symbol_name"] = await _resolve_symbol_name(market, symbol) or symbol
     elif "market" in payload:  # 明確傳入 market=None／symbol=None，代表要清空關聯
         row["market"] = None

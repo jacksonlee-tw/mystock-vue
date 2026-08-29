@@ -138,14 +138,13 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
-import MarkdownIt from 'markdown-it';
 import { investmentNoteApi } from '@/service/investmentNoteApi';
 import { toIsoDate } from '@/composables/usePortfolioFormat';
 import InvestmentNoteEditor from '@/components/portfolio/InvestmentNoteEditor.vue';
+import { renderMarkdownWithMermaid } from '@/utils/markdownRenderer';
 
 const toast = useToast();
 const confirm = useConfirm();
-const markdown = new MarkdownIt({ html: false, linkify: true, breaks: true });
 
 const marketFilterOptions = [
   { label: '全部市場', value: '' },
@@ -276,7 +275,7 @@ async function openPreview(note) {
 
   try {
     const res = await investmentNoteApi.getNote(note.id);
-    renderPreviewTab(previewWindow, res.data);
+    await renderPreviewTab(previewWindow, res.data);
   } catch (err) {
     previewWindow.close();
     toast.add({ severity: 'error', summary: '讀取筆記內容失敗', detail: err?.response?.data?.detail || err.message, life: 4000 });
@@ -287,15 +286,16 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 }
 
-function renderPreviewTab(previewWindow, note) {
+async function renderPreviewTab(previewWindow, note) {
   const title = escapeHtml(note.subject || '投資筆記');
   const tags = (note.tags || []).map((tag) => `<span class="tag">${escapeHtml(tag.name)}</span>`).join('');
   const symbol = note.symbol ? `<span class="meta-pill">${escapeHtml(note.market?.toUpperCase())} · ${escapeHtml(note.symbol)}${note.symbol_name ? `（${escapeHtml(note.symbol_name)}）` : ''}</span>` : '';
+  const renderedContent = await renderMarkdownWithMermaid(note.content || '');
   const html = `<!doctype html>
 <html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} | 投資筆記</title>
 <style>
 :root { font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif; background: #f4f6f5; color: #17211f; } * { box-sizing: border-box; } html { min-height: 100%; } body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, #f4f6f5, #edf3f0); } main { width: min(980px, 100%); min-height: 100vh; margin: 0 auto; padding: 48px clamp(20px, 5vw, 72px) 72px; background: #fff; box-shadow: 0 0 32px rgba(35, 62, 54, .08); } .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 40px; } .eyebrow { margin: 0 0 8px; color: #b45f2b; font: 700 11px ui-monospace, monospace; letter-spacing: .14em; } h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.2rem); line-height: 1.3; } .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; } button { border: 1px solid #d7e1dc; border-radius: 8px; padding: 9px 14px; color: #33534a; background: #fff; cursor: pointer; font: inherit; } button:hover { border-color: #b45f2b; color: #974b1f; } .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; color: #71807b; font-size: .85rem; } .meta-pill, .tag { padding: 4px 9px; border-radius: 5px; background: #e6f4f1; color: #1f6e65; font-size: .78rem; } .markdown { font-size: 1rem; line-height: 1.85; overflow-wrap: anywhere; } .markdown h1, .markdown h2, .markdown h3 { margin: 1.35em 0 .55em; line-height: 1.35; } .markdown h1:first-child, .markdown h2:first-child, .markdown h3:first-child { margin-top: 0; } .markdown p { margin: .8em 0; } .markdown ul, .markdown ol { padding-left: 1.6rem; } .markdown blockquote { margin: 1rem 0; padding: .2rem 1rem; border-left: 3px solid #c36c32; background: #fff5ed; color: #596963; } .markdown code { padding: .12rem .32rem; border-radius: 4px; background: #edf1ef; font: .9em ui-monospace, monospace; } .markdown pre { padding: 1rem; overflow-x: auto; border-radius: 6px; background: #edf1ef; } .markdown pre code { padding: 0; background: transparent; } .markdown a { color: #1f7a70; } .markdown table { width: 100%; border-collapse: collapse; } .markdown th, .markdown td { padding: 8px 10px; border: 1px solid #dfe7e3; text-align: left; } @media (max-width: 600px) { main { padding-top: 28px; } .toolbar { align-items: flex-start; flex-direction: column; } .actions { justify-content: flex-start; } }
-</style></head><body><main><div class="toolbar"><div><p class="eyebrow">INVESTMENT NOTE</p><h1>${title}</h1></div><div class="actions"><button id="copy">複製 Markdown</button><button id="back">返回筆記列表</button></div></div><div class="meta"><span>📅 ${escapeHtml(note.note_date)}</span><span>#${escapeHtml(note.sequence_no)}</span><span>${escapeHtml(statusLabel(note.status))}</span>${symbol}${tags}</div><article class="markdown">${markdown.render(note.content || '')}</article></main><script>const content = ${JSON.stringify(note.content || '')}; document.getElementById('copy').addEventListener('click', async () => { await navigator.clipboard.writeText(content); document.getElementById('copy').textContent = '已複製'; }); document.getElementById('back').addEventListener('click', () => window.close());</scr${'ipt'}></body></html>`;
+</style></head><body><main><div class="toolbar"><div><p class="eyebrow">INVESTMENT NOTE</p><h1>${title}</h1></div><div class="actions"><button id="copy">複製 Markdown</button><button id="back">返回筆記列表</button></div></div><div class="meta"><span>📅 ${escapeHtml(note.note_date)}</span><span>#${escapeHtml(note.sequence_no)}</span><span>${escapeHtml(statusLabel(note.status))}</span>${symbol}${tags}</div><article class="markdown">${renderedContent}</article></main><script>const content = ${JSON.stringify(note.content || '')}; document.getElementById('copy').addEventListener('click', async () => { await navigator.clipboard.writeText(content); document.getElementById('copy').textContent = '已複製'; }); document.getElementById('back').addEventListener('click', () => window.close());</scr${'ipt'}></body></html>`;
   previewWindow.document.open();
   previewWindow.document.write(html);
   previewWindow.document.close();
