@@ -52,7 +52,8 @@ read via `python-dotenv` and re-read on most config lookups (so `.env` edits tak
 
 ```bash
 cd backend
-python main.py                                    # or: uvicorn main:app --reload --port 8000
+..\start_backend.bat                              # Windows: fixed project .venv, installs missing dependencies
+# Linux/macOS (after activating the root .venv): python main.py
 ```
 API docs at `http://localhost:8000/docs`. There is no backend test suite — verify changes by hitting the
 running API (`/health`, `/docs`) or running the one-off scripts below.

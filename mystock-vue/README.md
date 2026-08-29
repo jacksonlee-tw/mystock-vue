@@ -276,9 +276,15 @@ docker compose --env-file .env.dev -f docker-compose.yml up -d --build
 * **PostgreSQL** (可選，若使用 `DATA_SOURCE=json` 則免安裝)
 
 #### 2. 後端啟動 (Backend)
-```bash
-cd backend
+Windows 建議從專案根目錄使用啟動器；它固定使用專案根目錄的 `.venv`，並會自動建立環境及補齊缺少的套件：
 
+```bat
+start_backend.bat
+```
+
+手動設定（Linux/macOS，或需要自行管理虛擬環境時）：
+
+```bash
 # 建立並啟用 Python 虛擬環境
 python -m venv .venv
 # Windows:
@@ -287,12 +293,13 @@ python -m venv .venv
 source .venv/bin/activate
 
 # 安裝相依套件
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
 # 設定環境變數
-cp .env.example .env
+cp backend/.env.example backend/.env
 
 # 啟動 FastAPI 伺服器
+cd backend
 python main.py
 # 或使用 uvicorn
 uvicorn main:app --reload --port 8000
