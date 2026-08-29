@@ -251,6 +251,16 @@ async function save() {
   background: var(--p-surface-0);
 }
 
+/* var(--p-surface-*) 是固定的色階（不隨主題切換），深色模式下需另外覆寫，否則白底疊上
+   .markdown-content 的淺色文字（color: var(--p-text-color)）會整片看不到字。
+   注意：這裡不能寫成 `:global(.app-dark) .markdown-preview`——Vue scoped CSS 編譯後只會留下
+   `.app-dark { ... }`，把 .markdown-preview 整段吃掉（已用 @vue/compiler-sfc 實測驗證）。
+   .app-dark 本來就在這個元件的範圍之外（掛在 <html> 上），不需要 :global() 包住也不會被誤加上
+   scope 屬性，直接寫成一般的後代選擇器即可正確編譯。 */
+.app-dark .markdown-preview {
+  background: var(--p-surface-900);
+}
+
 .editor-maximized-textarea {
   min-height: 0;
   resize: none;
@@ -318,4 +328,10 @@ async function save() {
 .markdown-content :deep(th),
 .markdown-content :deep(td) { padding: 0.55rem 0.7rem; border: 1px solid var(--p-content-border-color); text-align: left; }
 .markdown-content :deep(th) { background: var(--p-surface-50); font-weight: 700; }
+
+/* 同上：blockquote／code／pre／表格標題列的淺灰底在深色模式下要換成深灰，避免跟淺色文字同色。 */
+.app-dark .markdown-content :deep(blockquote) { background: var(--p-surface-800); }
+.app-dark .markdown-content :deep(code) { background: var(--p-surface-800); }
+.app-dark .markdown-content :deep(pre) { background: var(--p-surface-800); }
+.app-dark .markdown-content :deep(th) { background: var(--p-surface-800); }
 </style>

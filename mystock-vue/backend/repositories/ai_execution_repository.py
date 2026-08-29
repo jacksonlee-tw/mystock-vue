@@ -24,18 +24,21 @@ class AIExecutionRepository(object):
         symbol: str, market: str, trade_date: date, attempt_no: int,
         prompt_version: str, request_meta: dict, is_dry_run: bool = False,
         submitted_by: str = "owner", call_mode: str = "blocking",
+        view_id: str | None = None,
     ) -> int:
         """呼叫 LLM **之前**先寫入 pending 列（§5.7 關鍵約束：先寫再呼叫，
-        否則行程在呼叫途中被中止就完全沒有紀錄）。回傳新列 id。"""
+        否則行程在呼叫途中被中止就完全沒有紀錄）。回傳新列 id。
+
+        view_id：觸發功能來源（見 docs/16.AI技術分析/執行歷史頁面開發計劃.md §2.1 與 V18 migration）。"""
         result = await self._s.execute(
             text("""
                 INSERT INTO ai_llm_execution
                        (report_id, provider, model, call_mode, prompt_version,
                         symbol, market_type, trade_date, status, attempt_no,
-                        request_meta, is_dry_run, submitted_by, started_at)
+                        request_meta, is_dry_run, submitted_by, view_id, started_at)
                 VALUES (:report_id, :provider, :model, :call_mode, :prompt_version,
                         :symbol, :market, :trade_date, 'pending', :attempt_no,
-                        :request_meta, :is_dry_run, :submitted_by, CURRENT_TIMESTAMP)
+                        :request_meta, :is_dry_run, :submitted_by, :view_id, CURRENT_TIMESTAMP)
                 RETURNING id
             """),
             {
@@ -43,7 +46,7 @@ class AIExecutionRepository(object):
                 "call_mode": call_mode, "prompt_version": prompt_version,
                 "symbol": symbol, "market": market, "trade_date": trade_date,
                 "attempt_no": attempt_no, "request_meta": json.dumps(request_meta),
-                "is_dry_run": is_dry_run, "submitted_by": submitted_by,
+                "is_dry_run": is_dry_run, "submitted_by": submitted_by, "view_id": view_id,
             }
         )
         await self._s.flush()
@@ -130,13 +133,17 @@ class AIExecutionRepository(object):
         self, provider: str | None = None, model: str | None = None,
         status: str | None = None, symbol: str | None = None, market: str | None = None,
         date_from: date | None = None, date_to: date | None = None,
-        include_dry_run: bool = False, limit: int = 20, offset: int = 0,
+        include_dry_run: bool = False, view_id: str | None = None,
+        limit: int = 20, offset: int = 0,
     ) -> tuple[list[dict], int]:
         conditions = []
         params: dict[str, Any] = {"limit": limit, "offset": offset}
 
         if not include_dry_run:
             conditions.append("is_dry_run = FALSE")
+        if view_id:
+            conditions.append("view_id = :view_id")
+            params["view_id"] = view_id
         if provider:
             conditions.append("provider = :provider")
             params["provider"] = provider
@@ -165,7 +172,8 @@ class AIExecutionRepository(object):
             text(f"""
                 SELECT id, execution_uuid, report_id, provider, model, call_mode, prompt_version,
                        symbol, market_type, trade_date, status, attempt_no, stop_reason,
-                       error_code, error_message, provider_request_id,
+                       error_code, error_message, provider_request_id, view_id,
+                       request_meta, response_meta,
                        input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
                        total_tokens, image_bytes, estimated_cost_usd, elapsed_ms,
                        started_at, completed_at, is_dry_run, submitted_by, created_at
@@ -176,6 +184,8 @@ class AIExecutionRepository(object):
             """),
             params
         )
+        # request_meta／response_meta 是 JSONB，僅中繼資料（§8.2 不含 prompt 全文與圖片），
+        # 資料量小，列表頁一併帶出即可，不需要另開一支單筆詳情端點。
         rows = [dict(r) for r in result.mappings()]
 
         count_result = await self._s.execute(

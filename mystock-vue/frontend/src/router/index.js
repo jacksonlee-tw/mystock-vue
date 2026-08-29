@@ -91,6 +91,12 @@ const router = createRouter({
                     name: 'ai-report-history',
                     component: () => import('@/views/ai/AiReportHistory.vue')
                 },
+                // LLM 呼叫執行歷史（docs/16.AI技術分析/執行歷史頁面開發計劃.md §3.1）
+                {
+                    path: '/ai/executions',
+                    name: 'ai-execution-history',
+                    component: () => import('@/views/ai/AiExecutionHistory.vue')
+                },
                 {
                     path: '/notify/channels',
                     name: 'notify-channels',

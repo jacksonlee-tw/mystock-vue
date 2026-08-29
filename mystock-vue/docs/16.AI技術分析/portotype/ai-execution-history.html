@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LLM 執行歷史 - 雛形畫面</title>
+<style>
+  /* ══════════════════════════════════════════════════════════════
+     Design tokens — 比照本專案 PrimeVue Aura + brass 品牌色系
+     （frontend/src/assets/layout/variables/_common-brass.scss）
+     ══════════════════════════════════════════════════════════════ */
+  :root {
+    --surface-0: #ffffff;
+    --surface-50: #fafaf9;
+    --surface-100: #f4f4f3;
+    --surface-200: #e7e5e2;
+    --surface-300: #d6d3ce;
+    --surface-400: #a8a29a;
+    --surface-500: #79746c;
+    --surface-600: #57534a;
+    --surface-700: #423e37;
+    --surface-800: #2c2925;
+    --surface-900: #1c1a17;
+    --page-bg: #f6f5f2;
+
+    --primary: #8F6413;
+    --primary-600: #734F0F;
+    --primary-700: #5C400C;
+    --primary-50: #F8EEDA;
+    --primary-contrast: #ffffff;
+
+    --success: #388E3C;
+    --success-bg: #E8F5E9;
+    --success-border: #A8D5AA;
+    --danger: #903434;
+    --danger-bg: #fdefef;
+    --danger-border: #f0c2c2;
+    --warning: #B26A00;
+    --warning-bg: #FFF3E0;
+    --warning-border: #FFD699;
+    --claude-color: #6a4d12;
+    --claude-bg: #F0DCAE;
+    --gemini-color: #1a5c9e;
+    --gemini-bg: #dceaf7;
+
+    --radius-lg: 14px;
+    --radius-md: 10px;
+    --radius-sm: 7px;
+    --shadow-sm: 0 1px 2px rgba(28,26,23,.06), 0 1px 1px rgba(28,26,23,.04);
+    --shadow-md: 0 8px 24px rgba(28,26,23,.14);
+    --font: "Segoe UI", "PingFang TC", "Microsoft JhengHei", system-ui, -apple-system, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--page-bg);
+    color: var(--surface-800);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  h1, h2, h3, p { margin: 0; }
+  button { font-family: inherit; cursor: pointer; }
+  input, select { font-family: inherit; }
+
+  .page {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 28px 24px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────── */
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .page-header h1 {
+    font-size: 26px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--surface-900);
+  }
+  .page-header h1 .icon { font-size: 24px; }
+  .page-header .subtitle {
+    margin-top: 4px;
+    color: var(--surface-500);
+    font-size: 13px;
+  }
+  .proto-badge {
+    display: inline-block;
+    margin-left: 10px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--warning-bg);
+    border: 1px solid var(--warning-border);
+    color: var(--warning);
+    font-size: 11px;
+    font-weight: 700;
+    vertical-align: middle;
+  }
+  .scenario-switch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface-0);
+    border: 1px solid var(--surface-200);
+    border-radius: 999px;
+    padding: 4px;
+    box-shadow: var(--shadow-sm);
+  }
+  .scenario-switch span.label {
+    font-size: 11px;
+    color: var(--surface-400);
+    padding: 0 6px 0 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+  }
+  .scenario-switch button {
+    border: none;
+    background: transparent;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--surface-600);
+  }
+  .scenario-switch button.active {
+    background: var(--primary);
+    color: var(--primary-contrast);
+  }
+
+  /* ── KPI cards ──────────────────────────────────────────────── */
+  .kpi-section .kpi-caption {
+    font-size: 12px;
+    color: var(--surface-500);
+    margin-bottom: 10px;
+  }
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 620px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  /* CLAUDE.md 鐵則 2：同列卡片高度需一致 — grid items 天生等高，
+     此處刻意 margin:0，不依賴任何 last-child 例外規則 */
+  .kpi-card {
+    margin: 0;
+    background: var(--surface-0);
+    border: 1px solid var(--surface-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 16px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 92px;
+  }
+  .kpi-card .kpi-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--surface-400);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .kpi-card .kpi-value {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--surface-900);
+    margin-top: 8px;
+  }
+  .kpi-card .kpi-sub {
+    font-size: 11px;
+    color: var(--surface-400);
+    margin-top: 2px;
+  }
+  .kpi-card.success .kpi-value { color: var(--success); }
+  .kpi-card.danger .kpi-value { color: var(--danger); }
+  .kpi-card.primary .kpi-value { color: var(--primary-700); }
+
+  /* ── Card shell (filters / table) ──────────────────────────── */
+  .card {
+    background: var(--surface-0);
+    border: 1px solid var(--surface-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .card-body { padding: 18px 20px; }
+
+  /* ── Filters ────────────────────────────────────────────────── */
+  .filters-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 14px;
+  }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--surface-400);
+    text-transform: uppercase;
+    letter-spacing: .02em;
+  }
+  .field select, .field input[type="text"], .field input[type="date"] {
+    border: 1px solid var(--surface-300);
+    border-radius: var(--radius-sm);
+    padding: 7px 10px;
+    font-size: 13px;
+    background: var(--surface-0);
+    color: var(--surface-800);
+    min-width: 148px;
+  }
+  .field select:focus, .field input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-50);
+  }
+  .field.narrow select, .field.narrow input { min-width: 110px; }
+  .field-check {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding-bottom: 7px;
+  }
+  .field-check label { font-size: 12.5px; color: var(--surface-600); font-weight: 600; }
+  .field-check input { width: 15px; height: 15px; accent-color: var(--primary); }
+
+  .btn {
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-primary { background: var(--primary); color: var(--primary-contrast); }
+  .btn-primary:hover { background: var(--primary-600); }
+  .btn-ghost { background: transparent; color: var(--surface-500); border-color: var(--surface-300); }
+  .btn-ghost:hover { background: var(--surface-100); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  /* ── Table ──────────────────────────────────────────────────── */
+  .table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--surface-100);
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .table-toolbar .count { font-size: 13px; color: var(--surface-500); }
+  .table-toolbar .count b { color: var(--surface-900); }
+  .page-size-field { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--surface-400); }
+  .page-size-field select { border: 1px solid var(--surface-300); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 12px; }
+
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 1200px; }
+  thead th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--surface-400);
+    background: var(--surface-50);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--surface-200);
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--surface-100);
+    font-size: 13px;
+    color: var(--surface-700);
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  tbody tr:hover { background: var(--surface-50); }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .cell-symbol .code { font-weight: 800; color: var(--surface-900); }
+  .cell-symbol .name { color: var(--surface-400); font-size: 11px; margin-left: 4px; }
+  .cell-model .provider-name { font-weight: 700; }
+  .cell-model .model-id { display: block; font-size: 11px; color: var(--surface-400); margin-top: 1px; }
+  .cell-tokens .total { font-weight: 700; color: var(--surface-800); }
+  .cell-tokens .split { display: block; font-size: 11px; color: var(--surface-400); }
+  .cell-uuid { font-family: "Cascadia Code", Consolas, monospace; font-size: 11.5px; color: var(--surface-500); cursor: help; }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .tag-success { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+  .tag-danger { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+  .tag-pending { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-border); }
+  .tag-claude { background: var(--claude-bg); color: var(--claude-color); }
+  .tag-gemini { background: var(--gemini-bg); color: var(--gemini-color); }
+  .tag-neutral { background: var(--surface-100); color: var(--surface-600); }
+  .tag-dryrun { background: #f1e9f8; color: #7a4fa8; border-color: #ddc7ef; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .icon-btn {
+    width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 999px; border: 1px solid var(--surface-200);
+    background: var(--surface-0); color: var(--surface-500);
+    font-size: 13px;
+  }
+  .icon-btn:hover { background: var(--primary-50); color: var(--primary-700); border-color: var(--primary-50); }
+
+  /* ── Skeleton (loading) ────────────────────────────────────── */
+  .skeleton-bar {
+    height: 12px; border-radius: 5px;
+    background: linear-gradient(90deg, var(--surface-100) 25%, var(--surface-200) 37%, var(--surface-100) 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+  }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+  /* ── Empty state ───────────────────────────────────────────── */
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 72px 20px; color: var(--surface-400); gap: 8px;
+  }
+  .empty-state .big-icon { font-size: 40px; opacity: .5; }
+  .empty-state .primary-text { font-size: 15px; color: var(--surface-600); font-weight: 700; }
+  .empty-state .secondary-text { font-size: 12.5px; }
+
+  /* ── Pagination ────────────────────────────────────────────── */
+  .pagination {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px; border-top: 1px solid var(--surface-100);
+    flex-wrap: wrap; gap: 10px;
+  }
+  .pagination .range-text { font-size: 12.5px; color: var(--surface-500); }
+  .pagination .pager { display: flex; align-items: center; gap: 8px; }
+  .pagination .pager button {
+    border: 1px solid var(--surface-300); background: var(--surface-0);
+    border-radius: var(--radius-sm); padding: 5px 12px; font-size: 12.5px; font-weight: 700; color: var(--surface-600);
+  }
+  .pagination .pager button:disabled { opacity: .4; cursor: not-allowed; }
+  .pagination .pager button:not(:disabled):hover { background: var(--surface-100); }
+  .pagination .page-indicator { font-size: 12.5px; color: var(--surface-500); }
+
+  /* ── Modal ─────────────────────────────────────────────────── */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(28,26,23,.45);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 5vh 16px; overflow-y: auto; z-index: 50;
+  }
+  .modal-backdrop.hidden { display: none; }
+  .modal {
+    background: var(--surface-0); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md); width: 100%; max-width: 760px;
+    outline: 2px solid var(--surface-200); outline-offset: -1px;
+  }
+  .modal.json-modal { max-width: 640px; }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--surface-100);
+  }
+  .modal-header h3 { font-size: 16px; font-weight: 800; color: var(--surface-900); }
+  .modal-header .icon-btn { border: none; }
+  .modal-body { padding: 20px; max-height: 68vh; overflow-y: auto; }
+  .modal-footer {
+    display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+    padding: 14px 20px; border-top: 1px solid var(--surface-100);
+  }
+
+  .info-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px;
+  }
+  @media (max-width: 640px) { .info-grid { grid-template-columns: repeat(2, 1fr); } }
+  .info-cell {
+    margin: 0;
+    background: var(--surface-50); border-radius: var(--radius-md); padding: 10px 12px;
+    min-height: 58px; display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  }
+  .info-cell .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--surface-400); font-weight: 700; }
+  .info-cell .v { font-size: 13px; color: var(--surface-800); font-weight: 700; word-break: break-all; }
+  .info-cell.span-2 { grid-column: span 2; }
+
+  .section-title {
+    font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em;
+    color: var(--surface-400); margin: 18px 0 8px;
+  }
+  .section-title:first-child { margin-top: 0; }
+
+  .error-box {
+    background: var(--danger-bg); border: 1px solid var(--danger-border); color: var(--danger);
+    border-radius: var(--radius-md); padding: 10px 14px; font-size: 12.5px; margin-bottom: 4px;
+  }
+  .error-box .code { font-weight: 800; margin-right: 6px; }
+
+  .timeline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; font-size: 12px; }
+  .timeline .t-label { color: var(--surface-400); display: block; font-size: 10.5px; text-transform: uppercase; margin-bottom: 2px; }
+
+  .action-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+
+  .json-pre {
+    background: var(--surface-900); color: #e6e3dd; border-radius: var(--radius-md);
+    padding: 14px; font-family: "Cascadia Code", Consolas, monospace; font-size: 12px;
+    line-height: 1.6; white-space: pre-wrap; word-break: break-word; max-height: 46vh; overflow-y: auto;
+  }
+
+  /* ── Toast ─────────────────────────────────────────────────── */
+  .toast {
+    position: fixed; top: 20px; right: 20px; z-index: 100;
+    background: var(--surface-900); color: #fff; padding: 10px 18px; border-radius: var(--radius-md);
+    font-size: 13px; font-weight: 600; box-shadow: var(--shadow-md);
+    opacity: 0; transform: translateY(-6px); transition: opacity .18s ease, transform .18s ease;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.hidden { display: none; }
+
+  .footnote {
+    font-size: 11.5px; color: var(--surface-400); text-align: center; margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══════════════════════ 頁首 ══════════════════════ -->
+  <header class="page-header">
+    <div>
+      <h1><span class="icon">🤖</span>LLM 執行歷史<span class="proto-badge">雛形畫面・假資料</span></h1>
+      <p class="subtitle">查詢每一次呼叫 AI 模型的紀錄，含 Provider／模型、Token 用量、耗時與預估成本（對應
+        <code>GET /api/v1/ai/executions</code>）</p>
+    </div>
+    <div class="scenario-switch" title="僅供雛形走查切換畫面狀態，正式功能無此按鈕">
+      <span class="label">情境切換</span>
+      <button type="button" data-scenario="data" class="active">有資料</button>
+      <button type="button" data-scenario="loading">載入中</button>
+      <button type="button" data-scenario="empty">無查詢結果</button>
+    </div>
+  </header>
+
+  <!-- ══════════════════════ 用量彙總卡片 ══════════════════════ -->
+  <section class="kpi-section">
+    <p class="kpi-caption">彙總卡片僅套用「建立日期區間」篩選（對應 <code>GET /ai/usage</code> 的參數），不受下方 Provider／模型／狀態等其他篩選影響，且一律排除試跑列</p>
+    <div class="kpi-grid" id="kpiGrid"><!-- JS 產生 --></div>
+  </section>
+
+  <!-- ══════════════════════ 篩選列 ══════════════════════ -->
+  <section class="card">
+    <div class="card-body">
+      <div class="filters-row">
+        <div class="field">
+          <label>功能</label>
+          <select id="fFeature">
+            <option value="">全部</option>
+            <option value="stock_dashboard">個股 AI 診股報告</option>
+            <option value="war_room_batch">戰情室批次掃描（Phase 5・規劃中）</option>
+            <option value="__legacy__">（早期資料・未記錄）</option>
+          </select>
+        </div>
+        <div class="field narrow">
+          <label>Provider</label>
+          <select id="fProvider">
+            <option value="">全部</option>
+            <option value="claude">Claude</option>
+            <option value="gemini">Gemini</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>模型</label>
+          <select id="fModel"></select>
+        </div>
+        <div class="field narrow">
+          <label>狀態</label>
+          <select id="fStatus">
+            <option value="">全部</option>
+            <option value="succeeded">成功</option>
+            <option value="failed">失敗</option>
+            <option value="pending">處理中</option>
+          </select>
+        </div>
+        <div class="field narrow">
+          <label>市場</label>
+          <select id="fMarket">
+            <option value="">全部</option>
+            <option value="tw">台股</option>
+            <option value="us">美股</option>
+          </select>
+        </div>
+        <div class="field narrow">
+          <label>股票代號</label>
+          <input type="text" id="fSymbol" placeholder="例：2330" />
+        </div>
+        <div class="field narrow">
+          <label>建立日期（起）</label>
+          <input type="date" id="fDateFrom" />
+        </div>
+        <div class="field narrow">
+          <label>建立日期（迄）</label>
+          <input type="date" id="fDateTo" />
+        </div>
+        <div class="field-check">
+          <input type="checkbox" id="fDryRun" />
+          <label for="fDryRun">包含試跑（is_dry_run）</label>
+        </div>
+        <button class="btn btn-primary" id="btnQuery">🔍 查詢</button>
+        <button class="btn btn-ghost" id="btnReset">🧹 清除</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════ 資料表 ══════════════════════ -->
+  <section class="card">
+    <div class="table-toolbar">
+      <div class="count">共 <b id="totalCount">0</b> 筆</div>
+      <div class="page-size-field">
+        每頁
+        <select id="pageSize">
+          <option value="10">10</option>
+          <option value="20" selected>20</option>
+          <option value="50">50</option>
+        </select>
+        筆
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:56px">操作</th>
+            <th>建立時間</th>
+            <th>標的</th>
+            <th>功能</th>
+            <th>Provider／模型</th>
+            <th>呼叫模式</th>
+            <th>狀態</th>
+            <th>耗時</th>
+            <th>Tokens</th>
+            <th>預估成本</th>
+            <th>UUID</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"><!-- JS 產生 --></tbody>
+      </table>
+    </div>
+
+    <div id="emptyState" class="empty-state" style="display:none">
+      <div class="big-icon">🗄️</div>
+      <div class="primary-text">尚無查詢結果</div>
+      <div class="secondary-text">請調整篩選條件後重新查詢</div>
+    </div>
+
+    <div class="pagination" id="paginationBar">
+      <div class="range-text" id="rangeText"></div>
+      <div class="pager">
+        <button id="btnPrev">‹ 上一頁</button>
+        <span class="page-indicator" id="pageIndicator"></span>
+        <button id="btnNext">下一頁 ›</button>
+      </div>
+    </div>
+  </section>
+
+  <p class="footnote">本頁全部資料為前端寫死的假資料，篩選／分頁／明細皆為本機 JavaScript 運算，未發出任何網路請求。</p>
+</div>
+
+<!-- ══════════════════════ 明細 Dialog ══════════════════════ -->
+<div class="modal-backdrop hidden" id="detailModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>執行紀錄詳情</h3>
+      <button class="icon-btn" data-close="detailModal">✕</button>
+    </div>
+    <div class="modal-body" id="detailBody"><!-- JS 產生 --></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" data-close="detailModal">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ JSON Preview Dialog ══════════════════════ -->
+<div class="modal-backdrop hidden" id="jsonModal">
+  <div class="modal json-modal">
+    <div class="modal-header">
+      <h3 id="jsonModalTitle">中繼資料 JSON</h3>
+      <button class="icon-btn" data-close="jsonModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <pre class="json-pre" id="jsonModalContent"></pre>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" id="btnCopyJson">📋 複製</button>
+      <button class="btn btn-primary btn-sm" data-close="jsonModal">關閉</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ══════════════════════════════════════════════════════════════
+     假資料產生：欄位與命名對齊 backend ai_llm_execution / ai_analysis.py
+     （見 docs/16.AI技術分析/AI技術分析規劃.md §5.5、§6.3）
+     ══════════════════════════════════════════════════════════════ */
+
+  // 固定種子亂數，確保每次開啟畫面資料一致，方便走查與截圖比對
+  function mulberry32(seed) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const rand = mulberry32(20260829);
+  function pick(arr) { return arr[Math.floor(rand() * arr.length)]; }
+  function hexDigit() { return Math.floor(rand() * 16).toString(16); }
+  function pseudoUuid() {
+    const seg = (len) => Array.from({ length: len }, hexDigit).join("");
+    return `${seg(8)}-${seg(4)}-${seg(4)}-${seg(4)}-${seg(12)}`;
+  }
+
+  const SYMBOLS = [
+    { symbol: "2330", market: "tw", name: "台積電" },
+    { symbol: "2317", market: "tw", name: "鴻海" },
+    { symbol: "2454", market: "tw", name: "聯發科" },
+    { symbol: "0050", market: "tw", name: "元大台灣50" },
+    { symbol: "2603", market: "tw", name: "長榮" },
+    { symbol: "AAPL", market: "us", name: "Apple" },
+    { symbol: "TSLA", market: "us", name: "Tesla" },
+    { symbol: "NVDA", market: "us", name: "NVIDIA" }
+  ];
+
+  // 對齊 backend/ai/config.py 的 SELECTABLE_MODELS（權重出現次數＝預設模型較常見）
+  const MODELS = {
+    claude: ["claude-sonnet-5", "claude-sonnet-5", "claude-sonnet-5", "claude-opus-5", "claude-haiku-4-5"],
+    gemini: ["gemini-2.5-flash", "gemini-2.5-flash", "gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.5-flash"]
+  };
+  const ALL_MODELS = {
+    claude: ["claude-sonnet-5", "claude-opus-5", "claude-haiku-4-5"],
+    gemini: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.5-flash", "gemini-3-flash-preview"]
+  };
+
+  // 對齊 backend/ai/config.py 的 MODEL_PRICING_USD_PER_MTOK（USD / 1M tokens）
+  // gemini-3-flash-preview 刻意不列入，模擬「未知模型定價」情境（§10.4：不可用猜的）
+  const PRICING = {
+    "claude-opus-5": { input: 5.00, output: 25.00 },
+    "claude-sonnet-5": { input: 2.00, output: 10.00 },
+    "claude-haiku-4-5": { input: 1.00, output: 5.00 },
+    "gemini-2.5-pro": { input: 1.25, output: 10.00 },
+    "gemini-2.5-flash": { input: 0.30, output: 2.50 },
+    "gemini-3.5-flash": { input: 1.50, output: 9.00 }
+  };
+
+  // 觸發功能來源（新增欄位 view_id，見計劃文件 §2.1）。stock_dashboard 為現行唯一實際來源；
+  // war_room_batch 對應 Phase5-三層式 AI 決策引擎與戰情室.md 規劃中的戰情室批次掃描，尚未開發，
+  // 此處僅示意「未來會有第二個功能共用同一張執行紀錄表」；null 代表欄位新增前的舊資料。
+  const FEATURES = {
+    stock_dashboard: { label: "個股 AI 診股報告", hint: "個股頁手動觸發" },
+    war_room_batch: { label: "戰情室批次掃描", hint: "Phase 5 規劃中・尚未開發" }
+  };
+  function featureTag(viewId) {
+    if (!viewId) return '<span class="tag tag-neutral" title="欄位新增前的舊資料，不可回填猜測">（早期資料）</span>';
+    const f = FEATURES[viewId];
+    return `<span class="tag tag-neutral">${f ? f.label : viewId}</span>`;
+  }
+
+  function estimateCost(model, inputTokens, outputTokens) {
+    const p = PRICING[model];
+    if (!p || inputTokens == null || outputTokens == null) return null;
+    return Math.round((inputTokens / 1e6 * p.input + outputTokens / 1e6 * p.output) * 1e6) / 1e6;
+  }
+
+  const TODAY = new Date("2026-08-29T18:00:00");
+
+  function randomTimestamp(daysAgoMax, daysAgoMin) {
+    const min = daysAgoMin || 0;
+    const d = new Date(TODAY);
+    d.setDate(d.getDate() - (min + Math.floor(rand() * (daysAgoMax - min))));
+    d.setHours(9 + Math.floor(rand() * 13), Math.floor(rand() * 60), Math.floor(rand() * 60), 0);
+    return d;
+  }
+  function addMs(date, ms) { return new Date(date.getTime() + ms); }
+  function toIso(d) {
+    const p = (n, l = 2) => String(n).padStart(l, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  }
+  function toDateOnly(d) { return toIso(d).slice(0, 10); }
+
+  let seq = 1;
+  function baseRow(overrides) {
+    const providerKey = overrides.provider || pick(["claude", "claude", "gemini"]);
+    const model = overrides.model || pick(MODELS[providerKey]);
+    const sym = overrides.symbolObj || pick(SYMBOLS);
+    const created = overrides.created_at_date || randomTimestamp(14);
+    const inputTokens = overrides.input_tokens !== undefined ? overrides.input_tokens : Math.round(1950 + rand() * 750);
+    const outputTokens = overrides.output_tokens !== undefined ? overrides.output_tokens : Math.round(900 + rand() * 900);
+    const elapsedMs = overrides.elapsed_ms !== undefined ? overrides.elapsed_ms : Math.round(9000 + rand() * 28000);
+    const status = overrides.status || "succeeded";
+    const startedAt = created;
+    const completedAt = status === "pending" ? null : addMs(startedAt, elapsedMs || 0);
+
+    const row = {
+      id: seq,
+      execution_uuid: pseudoUuid(),
+      report_id: 1000 + seq,
+      view_id: overrides.view_id !== undefined ? overrides.view_id : "stock_dashboard",
+      provider: providerKey,
+      model: model,
+      call_mode: overrides.call_mode || "blocking",
+      prompt_version: overrides.prompt_version || (rand() < 0.75 ? "v5" : "v4"),
+      symbol: sym.symbol,
+      market_type: sym.market,
+      stock_name: sym.name,
+      trade_date: toDateOnly(created),
+      status: status,
+      attempt_no: overrides.attempt_no || 1,
+      stop_reason: status === "succeeded" ? "end_turn" : null,
+      error_code: overrides.error_code || null,
+      error_message: overrides.error_message || null,
+      provider_request_id: status === "pending" ? null : `req_${pseudoUuid().replace(/-/g, "").slice(0, 20)}`,
+      request_meta: {
+        max_tokens: 4096,
+        image_bytes: overrides.image_bytes !== undefined ? overrides.image_bytes : Math.round(950000 + rand() * 650000),
+        chart_period: "daily",
+        chart_months: 3
+      },
+      response_meta: status === "pending" ? {} : {
+        elapsed_ms: elapsedMs,
+        stop_reason: status === "succeeded" ? "end_turn" : null,
+        model_version: `${model}-20260615`
+      },
+      input_tokens: status === "pending" ? null : (overrides.no_tokens ? null : inputTokens),
+      output_tokens: status === "pending" ? null : (overrides.no_tokens ? null : outputTokens),
+      cache_read_tokens: overrides.cache_read_tokens !== undefined ? overrides.cache_read_tokens : null,
+      cache_write_tokens: overrides.cache_write_tokens !== undefined ? overrides.cache_write_tokens : null,
+      image_bytes: overrides.image_bytes !== undefined ? overrides.image_bytes : Math.round(950000 + rand() * 650000),
+      elapsed_ms: status === "pending" ? null : elapsedMs,
+      started_at: toIso(startedAt),
+      completed_at: completedAt ? toIso(completedAt) : null,
+      is_dry_run: overrides.is_dry_run || false,
+      submitted_by: "owner",
+      created_at: toIso(created)
+    };
+    row.total_tokens = (row.input_tokens == null && row.output_tokens == null)
+      ? null
+      : (row.input_tokens || 0) + (row.output_tokens || 0);
+    row.estimated_cost_usd = overrides.force_cost !== undefined
+      ? overrides.force_cost
+      : estimateCost(row.model, row.input_tokens, row.output_tokens);
+    seq += 1;
+    return row;
+  }
+
+  const rows = [];
+
+  // 一般情境：34 筆，9 成成功、1 成失敗（快速失敗，未消耗 token）
+  // view_id 權重：8 成個股頁手動觸發、2 成戰情室批次掃描示意（§2.1）
+  for (let i = 0; i < 34; i++) {
+    const viewId = rand() < 0.8 ? "stock_dashboard" : "war_room_batch";
+    if (rand() < 0.90) {
+      rows.push(baseRow({ view_id: viewId }));
+    } else {
+      rows.push(baseRow({
+        view_id: viewId,
+        status: "failed",
+        error_code: pick(["AI_RATE_LIMITED", "AI_PROVIDER_UNREACHABLE", "AI_PROVIDER_ERROR"]),
+        error_message: pick([
+          "Provider 回應 429 Too Many Requests，請稍後再試",
+          "無法連線至 Provider API，請確認網路或服務狀態",
+          "Provider 回傳非預期錯誤，詳見 response_meta"
+        ]),
+        elapsed_ms: Math.round(700 + rand() * 3500),
+        no_tokens: true
+      }));
+    }
+  }
+
+  // ── 特殊情境（供 §3.7 / 明細 Dialog 走查用）─────────────────────
+  rows.push(baseRow({ // 1. 處理中（pending）
+    provider: "claude", model: "claude-sonnet-5", status: "pending",
+    symbolObj: SYMBOLS[0], created_at_date: addMs(TODAY, -2 * 60 * 1000)
+  }));
+  rows.push(baseRow({ // 2. 逾時失敗（已消耗部分 token 仍計費，見規格書 §5.4 說明）
+    provider: "claude", model: "claude-opus-5", status: "failed",
+    error_code: "AI_TIMEOUT", error_message: "等待 LLM 回應超過 90 秒上限（AI_REQUEST_TIMEOUT_SEC）",
+    elapsed_ms: 90340, input_tokens: 2380, output_tokens: 210,
+    created_at_date: randomTimestamp(6)
+  }));
+  rows.push(baseRow({ // 3. 試跑（is_dry_run，強制重產，不計入用量統計）
+    provider: "claude", model: "claude-sonnet-5", is_dry_run: true,
+    created_at_date: randomTimestamp(3)
+  }));
+  rows.push(baseRow({ // 4. Prompt 快取命中（cache_read_tokens）
+    provider: "claude", model: "claude-sonnet-5",
+    cache_read_tokens: 1200, cache_write_tokens: 0,
+    created_at_date: randomTimestamp(5)
+  }));
+  rows.push(baseRow({ // 5. 未知模型定價（估算成本為 NULL，不可用猜的）
+    provider: "gemini", model: "gemini-3-flash-preview",
+    created_at_date: randomTimestamp(2)
+  }));
+  rows.push(baseRow({ // 6. 串流呼叫模式
+    provider: "claude", model: "claude-haiku-4-5", call_mode: "streaming",
+    elapsed_ms: Math.round(5200 + rand() * 2200),
+    created_at_date: randomTimestamp(1)
+  }));
+  rows.push(baseRow({ // 7. 早期資料：view_id 欄位新增前的舊執行紀錄（§2.1「舊資料」說明）
+    view_id: null, provider: "claude", model: "claude-sonnet-5",
+    created_at_date: randomTimestamp(35, 26)
+  }));
+  rows.push(baseRow({ // 8. 早期資料，另一筆（失敗案例，驗證 NULL 在失敗列也正確顯示）
+    view_id: null, provider: "gemini", model: "gemini-2.5-flash", status: "failed",
+    error_code: "AI_PROVIDER_ERROR", error_message: "Provider 回傳非預期錯誤，詳見 response_meta",
+    elapsed_ms: Math.round(900 + rand() * 2000), no_tokens: true,
+    created_at_date: randomTimestamp(40, 30)
+  }));
+
+  rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+  /* ══════════════════════════════════════════════════════════════
+     格式化工具
+     ══════════════════════════════════════════════════════════════ */
+  function fmtDateTime(iso) { return iso ? iso.replace("T", " ") : "-"; }
+  function fmtTokens(v) { return v == null ? "-" : v.toLocaleString("en-US"); }
+  function fmtElapsed(ms) { return ms == null ? "-" : (ms / 1000).toFixed(2) + "s"; }
+  function fmtCost(v) { return v == null ? "—" : "$" + v.toFixed(4); }
+  function fmtBytes(v) { return v == null ? "-" : (v / 1024 / 1024).toFixed(2) + " MB"; }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  const STATUS_LABEL = { succeeded: "成功", failed: "失敗", pending: "處理中" };
+  const STATUS_CLASS = { succeeded: "tag-success", failed: "tag-danger", pending: "tag-pending" };
+  const CALL_MODE_LABEL = { blocking: "同步 Blocking", streaming: "串流 Streaming" };
+  const MARKET_LABEL = { tw: "台股", us: "美股" };
+
+  function providerTag(p) {
+    const cls = p === "claude" ? "tag-claude" : "tag-gemini";
+    const label = p === "claude" ? "Claude" : "Gemini";
+    return `<span class="tag ${cls}"><span class="dot"></span>${label}</span>`;
+  }
+  function statusTag(s) {
+    return `<span class="tag ${STATUS_CLASS[s]}"><span class="dot"></span>${STATUS_LABEL[s]}</span>`;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     狀態
+     ══════════════════════════════════════════════════════════════ */
+  const state = {
+    filters: { viewId: "", provider: "", model: "", status: "", market: "", symbol: "", dateFrom: "", dateTo: "", includeDryRun: false },
+    page: 1,
+    pageSize: 20,
+    scenario: "data"
+  };
+
+  /* ══════════════════════════════════════════════════════════════
+     篩選邏輯 — 刻意區分「彙總卡片」與「列表」套用的參數範圍，
+     對齊後端 GET /ai/usage（僅日期區間＋一律排除試跑）與
+     GET /ai/executions（完整篩選條件）的實際參數差異（規格書 §6.3）
+     ══════════════════════════════════════════════════════════════ */
+  function inDateRange(row) {
+    const f = state.filters;
+    if (f.dateFrom && row.created_at < f.dateFrom + "T00:00:00") return false;
+    if (f.dateTo && row.created_at > f.dateTo + "T23:59:59") return false;
+    return true;
+  }
+  function getUsageRows() {
+    return rows.filter((r) => !r.is_dry_run && inDateRange(r));
+  }
+  function getExecutionRows() {
+    const f = state.filters;
+    return rows.filter((r) => {
+      if (!f.includeDryRun && r.is_dry_run) return false;
+      if (f.viewId === "__legacy__" && r.view_id) return false;
+      if (f.viewId && f.viewId !== "__legacy__" && r.view_id !== f.viewId) return false;
+      if (f.provider && r.provider !== f.provider) return false;
+      if (f.model && r.model !== f.model) return false;
+      if (f.status && r.status !== f.status) return false;
+      if (f.market && r.market_type !== f.market) return false;
+      if (f.symbol) {
+        const q = f.symbol.trim().toUpperCase();
+        if (!r.symbol.toUpperCase().includes(q) && !r.stock_name.toUpperCase().includes(q)) return false;
+      }
+      if (!inDateRange(r)) return false;
+      return true;
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     渲染：KPI 卡片
+     ══════════════════════════════════════════════════════════════ */
+  function renderKpis() {
+    const usageRows = getUsageRows();
+    const succeeded = usageRows.filter((r) => r.status === "succeeded");
+    const failed = usageRows.filter((r) => r.status === "failed");
+    const totalTokens = usageRows.reduce((sum, r) => sum + (r.total_tokens || 0), 0);
+    const totalCost = usageRows.reduce((sum, r) => sum + (r.estimated_cost_usd || 0), 0);
+    const unknownCostCount = usageRows.filter((r) => r.status === "succeeded" && r.estimated_cost_usd == null).length;
+    // cached_hit_count 來自 activity_log（AI_REPORT_CACHED），本雛形未建模該表，以示意公式呈現
+    const cachedHit = Math.round(succeeded.length * 2.1) + 9;
+
+    const cards = [
+      { label: "總呼叫次數", value: usageRows.length, sub: "含失敗，是「花錢的次數」", cls: "" },
+      { label: "成功", value: succeeded.length, sub: `${usageRows.length ? Math.round(succeeded.length / usageRows.length * 100) : 0}% 成功率`, cls: "success" },
+      { label: "失敗", value: failed.length, sub: "持續偏高需優先排查", cls: "danger" },
+      { label: "快取命中（省下）", value: cachedHit, sub: "示意值・來自 activity_log", cls: "" },
+      { label: "總 Token 用量", value: totalTokens.toLocaleString("en-US"), sub: "輸入＋輸出", cls: "primary" },
+      { label: "預估總成本", value: "$" + totalCost.toFixed(4), sub: unknownCostCount ? `另有 ${unknownCostCount} 筆定價未知` : "已排除試跑列", cls: "primary" }
+    ];
+
+    document.getElementById("kpiGrid").innerHTML = cards.map((c) => `
+      <div class="kpi-card ${c.cls}">
+        <div class="kpi-label">${c.label}</div>
+        <div class="kpi-value">${c.value}</div>
+        <div class="kpi-sub">${c.sub}</div>
+      </div>
+    `).join("");
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     渲染：模型下拉（依 Provider 連動）
+     ══════════════════════════════════════════════════════════════ */
+  function renderModelOptions() {
+    const sel = document.getElementById("fModel");
+    const current = sel.value;
+    const providerKey = state.filters.provider;
+    let opts = ['<option value="">全部</option>'];
+    if (providerKey) {
+      opts = opts.concat(ALL_MODELS[providerKey].map((m) => `<option value="${m}">${m}</option>`));
+    } else {
+      opts = opts.concat(Object.keys(ALL_MODELS).flatMap((pk) =>
+        ALL_MODELS[pk].map((m) => `<option value="${m}">${m}</option>`)
+      ));
+    }
+    sel.innerHTML = opts.join("");
+    if ([...sel.options].some((o) => o.value === current)) sel.value = current;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     渲染：資料表格 + 分頁
+     ══════════════════════════════════════════════════════════════ */
+  function renderTable() {
+    const tbody = document.getElementById("tableBody");
+    const emptyState = document.getElementById("emptyState");
+    const paginationBar = document.getElementById("paginationBar");
+
+    if (state.scenario === "loading") {
+      emptyState.style.display = "none";
+      paginationBar.style.display = "flex";
+      tbody.innerHTML = Array.from({ length: state.pageSize }, () => `
+        <tr>${Array.from({ length: 11 }, () => `<td><div class="skeleton-bar" style="width:${60 + Math.round(Math.random() * 40)}px"></div></td>`).join("")}</tr>
+      `).join("");
+      document.getElementById("totalCount").textContent = "0";
+      document.getElementById("rangeText").textContent = "載入中…";
+      document.getElementById("pageIndicator").textContent = "- / -";
+      document.getElementById("btnPrev").disabled = true;
+      document.getElementById("btnNext").disabled = true;
+      return;
+    }
+
+    if (state.scenario === "empty") {
+      tbody.innerHTML = "";
+      emptyState.style.display = "flex";
+      paginationBar.style.display = "none";
+      document.getElementById("totalCount").textContent = "0";
+      return;
+    }
+
+    const filtered = getExecutionRows();
+    document.getElementById("totalCount").textContent = filtered.length;
+
+    if (!filtered.length) {
+      tbody.innerHTML = "";
+      emptyState.style.display = "flex";
+      paginationBar.style.display = "none";
+      return;
+    }
+    emptyState.style.display = "none";
+    paginationBar.style.display = "flex";
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / state.pageSize));
+    state.page = Math.min(state.page, totalPages);
+    const start = (state.page - 1) * state.pageSize;
+    const pageRows = filtered.slice(start, start + state.pageSize);
+
+    tbody.innerHTML = pageRows.map((r) => `
+      <tr>
+        <td><button class="icon-btn" title="明細" onclick="__proto.openDetail(${r.id})">ℹ️</button></td>
+        <td>${fmtDateTime(r.created_at)}</td>
+        <td class="cell-symbol">
+          <span class="code">${r.symbol}</span><span class="name">${r.stock_name}</span>
+          <span class="tag tag-neutral" style="margin-left:6px">${MARKET_LABEL[r.market_type]}</span>
+        </td>
+        <td>${featureTag(r.view_id)}</td>
+        <td class="cell-model">
+          ${providerTag(r.provider)}
+          <span class="model-id">${r.model}</span>
+        </td>
+        <td>
+          <span class="tag tag-neutral">${CALL_MODE_LABEL[r.call_mode]}</span>
+        </td>
+        <td>
+          ${statusTag(r.status)}
+          ${r.is_dry_run ? '<span class="tag tag-dryrun" style="margin-left:4px">試跑</span>' : ""}
+        </td>
+        <td>${fmtElapsed(r.elapsed_ms)}</td>
+        <td class="cell-tokens">
+          <span class="total">${fmtTokens(r.total_tokens)}</span>
+          ${r.input_tokens != null ? `<span class="split">入 ${fmtTokens(r.input_tokens)}・出 ${fmtTokens(r.output_tokens)}</span>` : ""}
+        </td>
+        <td title="${r.estimated_cost_usd == null ? '找不到該模型定價，無法估算成本' : ''}">${fmtCost(r.estimated_cost_usd)}</td>
+        <td class="cell-uuid" title="${r.execution_uuid}">${r.execution_uuid.slice(0, 18)}…</td>
+      </tr>
+    `).join("");
+
+    document.getElementById("rangeText").textContent =
+      `第 ${start + 1}–${Math.min(start + state.pageSize, filtered.length)} 筆，共 ${filtered.length} 筆`;
+    document.getElementById("pageIndicator").textContent = `第 ${state.page} / ${totalPages} 頁`;
+    document.getElementById("btnPrev").disabled = state.page <= 1;
+    document.getElementById("btnNext").disabled = state.page >= totalPages;
+  }
+
+  function renderAll() { renderKpis(); renderTable(); }
+
+  /* ══════════════════════════════════════════════════════════════
+     明細 Dialog
+     ══════════════════════════════════════════════════════════════ */
+  let currentDetailRow = null;
+
+  function openDetail(id) {
+    const row = rows.find((r) => r.id === id);
+    if (!row) return;
+    currentDetailRow = row;
+
+    const body = document.getElementById("detailBody");
+    body.innerHTML = `
+      <div class="section-title">基本資訊</div>
+      <div class="info-grid">
+        <div class="info-cell span-2"><div class="k">UUID</div><div class="v" style="font-family:Consolas,monospace;font-size:11.5px">${row.execution_uuid}</div></div>
+        <div class="info-cell"><div class="k">觸發功能</div><div class="v">${featureTag(row.view_id)}</div></div>
+        <div class="info-cell"><div class="k">Provider／模型</div><div class="v">${providerTag(row.provider)}<br><span style="font-weight:600;font-size:12px">${row.model}</span></div></div>
+        <div class="info-cell"><div class="k">狀態</div><div class="v">${statusTag(row.status)}${row.is_dry_run ? ' <span class="tag tag-dryrun">試跑</span>' : ""}</div></div>
+        <div class="info-cell"><div class="k">標的</div><div class="v">${row.symbol}（${row.stock_name}／${MARKET_LABEL[row.market_type]}）</div></div>
+        <div class="info-cell"><div class="k">交易日</div><div class="v">${row.trade_date}</div></div>
+        <div class="info-cell"><div class="k">呼叫模式</div><div class="v">${CALL_MODE_LABEL[row.call_mode]}</div></div>
+        <div class="info-cell"><div class="k">嘗試次數</div><div class="v">第 ${row.attempt_no} 次</div></div>
+        <div class="info-cell"><div class="k">Prompt 版本</div><div class="v">${row.prompt_version}</div></div>
+        <div class="info-cell"><div class="k">Provider Request ID</div><div class="v" style="font-size:11px;font-family:Consolas,monospace">${row.provider_request_id || "-"}</div></div>
+      </div>
+
+      <div class="section-title">用量與成本</div>
+      <div class="info-grid">
+        <div class="info-cell"><div class="k">輸入 Tokens</div><div class="v">${fmtTokens(row.input_tokens)}</div></div>
+        <div class="info-cell"><div class="k">輸出 Tokens</div><div class="v">${fmtTokens(row.output_tokens)}</div></div>
+        <div class="info-cell"><div class="k">總 Tokens</div><div class="v">${fmtTokens(row.total_tokens)}</div></div>
+        <div class="info-cell"><div class="k">預估成本</div><div class="v">${fmtCost(row.estimated_cost_usd)}</div></div>
+        ${(row.cache_read_tokens != null || row.cache_write_tokens != null) ? `
+        <div class="info-cell"><div class="k">快取讀取 Tokens</div><div class="v">${fmtTokens(row.cache_read_tokens)}</div></div>
+        <div class="info-cell"><div class="k">快取寫入 Tokens</div><div class="v">${fmtTokens(row.cache_write_tokens)}</div></div>
+        ` : ""}
+        <div class="info-cell"><div class="k">送出圖片大小</div><div class="v">${fmtBytes(row.image_bytes)}</div></div>
+        <div class="info-cell"><div class="k">耗時</div><div class="v">${fmtElapsed(row.elapsed_ms)}</div></div>
+      </div>
+
+      ${row.error_message ? `
+      <div class="section-title">錯誤資訊</div>
+      <div class="error-box"><span class="code">${row.error_code}</span>${escapeHtml(row.error_message)}</div>
+      ` : ""}
+
+      <div class="section-title">執行時間軸</div>
+      <div class="timeline">
+        <div><span class="t-label">建立</span>${fmtDateTime(row.created_at)}</div>
+        <div><span class="t-label">開始</span>${fmtDateTime(row.started_at)}</div>
+        <div><span class="t-label">完成</span>${fmtDateTime(row.completed_at)}</div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-ghost btn-sm" onclick="__proto.openJson('request_meta 中繼資料', ${row.id}, 'request_meta')">📄 request_meta JSON</button>
+        <button class="btn btn-ghost btn-sm" onclick="__proto.openJson('response_meta 中繼資料', ${row.id}, 'response_meta')" ${Object.keys(row.response_meta).length ? "" : "disabled"}>📄 response_meta JSON</button>
+        <button class="btn btn-ghost btn-sm" title="雛形畫面示意，不可實際點擊">🔗 查看對應診股報告（#${row.report_id}）</button>
+      </div>
+    `;
+    document.getElementById("detailModal").classList.remove("hidden");
+  }
+
+  function openJson(title, id, field) {
+    const row = rows.find((r) => r.id === id);
+    document.getElementById("jsonModalTitle").textContent = title;
+    document.getElementById("jsonModalContent").textContent = JSON.stringify(row[field], null, 2);
+    document.getElementById("jsonModal").classList.remove("hidden");
+  }
+
+  function closeModal(id) { document.getElementById(id).classList.add("hidden"); }
+
+  /* ══════════════════════════════════════════════════════════════
+     Toast
+     ══════════════════════════════════════════════════════════════ */
+  let toastTimer;
+  function showToast(msg) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.remove("hidden");
+    requestAnimationFrame(() => el.classList.add("show"));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      el.classList.remove("show");
+      setTimeout(() => el.classList.add("hidden"), 200);
+    }, 2200);
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast("已複製到剪貼簿");
+    } catch (e) {
+      showToast("複製失敗，請手動選取複製");
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     事件綁定
+     ══════════════════════════════════════════════════════════════ */
+  document.getElementById("fFeature").addEventListener("change", (e) => { state.filters.viewId = e.target.value; });
+  document.getElementById("fProvider").addEventListener("change", (e) => {
+    state.filters.provider = e.target.value;
+    state.filters.model = "";
+    renderModelOptions();
+  });
+  document.getElementById("fModel").addEventListener("change", (e) => { state.filters.model = e.target.value; });
+  document.getElementById("fStatus").addEventListener("change", (e) => { state.filters.status = e.target.value; });
+  document.getElementById("fMarket").addEventListener("change", (e) => { state.filters.market = e.target.value; });
+  document.getElementById("fSymbol").addEventListener("keyup", (e) => {
+    state.filters.symbol = e.target.value;
+    if (e.key === "Enter") { state.page = 1; renderAll(); }
+  });
+  document.getElementById("fDateFrom").addEventListener("change", (e) => { state.filters.dateFrom = e.target.value; });
+  document.getElementById("fDateTo").addEventListener("change", (e) => { state.filters.dateTo = e.target.value; });
+  document.getElementById("fDryRun").addEventListener("change", (e) => { state.filters.includeDryRun = e.target.checked; });
+
+  document.getElementById("btnQuery").addEventListener("click", () => {
+    state.page = 1;
+    renderAll();
+    showToast("已套用篩選條件");
+  });
+  document.getElementById("btnReset").addEventListener("click", () => {
+    state.filters = { viewId: "", provider: "", model: "", status: "", market: "", symbol: "", dateFrom: "", dateTo: "", includeDryRun: false };
+    document.getElementById("fFeature").value = "";
+    document.getElementById("fProvider").value = "";
+    document.getElementById("fStatus").value = "";
+    document.getElementById("fMarket").value = "";
+    document.getElementById("fSymbol").value = "";
+    document.getElementById("fDateFrom").value = "";
+    document.getElementById("fDateTo").value = "";
+    document.getElementById("fDryRun").checked = false;
+    renderModelOptions();
+    state.page = 1;
+    renderAll();
+  });
+
+  document.getElementById("pageSize").addEventListener("change", (e) => {
+    state.pageSize = parseInt(e.target.value, 10);
+    state.page = 1;
+    renderTable();
+  });
+  document.getElementById("btnPrev").addEventListener("click", () => { state.page -= 1; renderTable(); });
+  document.getElementById("btnNext").addEventListener("click", () => { state.page += 1; renderTable(); });
+
+  document.querySelectorAll(".scenario-switch button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".scenario-switch button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.scenario = btn.dataset.scenario;
+      renderTable();
+    });
+  });
+
+  document.querySelectorAll("[data-close]").forEach((btn) => {
+    btn.addEventListener("click", () => closeModal(btn.dataset.close));
+  });
+  document.querySelectorAll(".modal-backdrop").forEach((bd) => {
+    bd.addEventListener("click", (e) => { if (e.target === bd) bd.classList.add("hidden"); });
+  });
+  document.getElementById("btnCopyJson").addEventListener("click", () => {
+    copyText(document.getElementById("jsonModalContent").textContent);
+  });
+
+  // 供 inline onclick 呼叫（保持雛形檔案單檔、無建置流程）
+  window.__proto = { openDetail, openJson };
+
+  /* ══════════════════════════════════════════════════════════════
+     初始化
+     ══════════════════════════════════════════════════════════════ */
+  renderModelOptions();
+  renderAll();
+})();
+</script>
+</body>
+</html>

@@ -197,6 +197,9 @@ async def analyze_stock(req: AnalyzeStockRequest):
                     "chart_period": req.period, "chart_months": req.months,
                 },
                 is_dry_run=decision.forced,
+                # 目前全站唯一會呼叫 LLM 的入口；Phase 5 戰情室批次掃描上線時會是另一個
+                # view_id（例如 war_room_batch），見執行歷史頁面開發計劃.md §2.1
+                view_id="stock_dashboard",
             )
             await session.commit()
             report_id = decision.report_id
@@ -368,13 +371,14 @@ async def list_executions(
     provider: Optional[str] = None, model: Optional[str] = None, status: Optional[str] = None,
     symbol: Optional[str] = None, market: Optional[str] = None,
     date_from: Optional[date] = None, date_to: Optional[date] = None,
-    include_dry_run: bool = False, limit: int = Query(20, le=100), offset: int = 0,
+    include_dry_run: bool = False, view_id: Optional[str] = None,
+    limit: int = Query(20, le=100), offset: int = 0,
     db=Depends(get_db),
 ):
     repo = AIExecutionRepository(db)
     rows, total = await repo.list_executions(
         provider=provider, model=model, status=status, symbol=symbol, market=market,
-        date_from=date_from, date_to=date_to, include_dry_run=include_dry_run,
+        date_from=date_from, date_to=date_to, include_dry_run=include_dry_run, view_id=view_id,
         limit=limit, offset=offset,
     )
     for row in rows:

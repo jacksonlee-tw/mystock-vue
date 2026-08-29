@@ -70,5 +70,30 @@ export const aiAnalysisApi = {
     async deleteReport(reportId) {
         const response = await apiClient.delete(`/ai/reports/${reportId}`);
         return response.data;
+    },
+
+    // LLM 呼叫執行紀錄列表（含失敗，規格書 §6.3；功能來源 viewId 見
+    // docs/16.AI技術分析/執行歷史頁面開發計劃.md §2.1）
+    async listExecutions({ viewId, provider, model, status, symbol, market, dateFrom, dateTo, includeDryRun = false, limit = 20, offset = 0 } = {}) {
+        const params = { include_dry_run: includeDryRun, limit, offset };
+        if (viewId) params.view_id = viewId;
+        if (provider) params.provider = provider;
+        if (model) params.model = model;
+        if (status) params.status = status;
+        if (symbol) params.symbol = symbol;
+        if (market) params.market = market;
+        if (dateFrom) params.date_from = dateFrom;
+        if (dateTo) params.date_to = dateTo;
+        const response = await apiClient.get('/ai/executions', { params });
+        return response.data;
+    },
+
+    // 用量與成本彙總（規格書 §6.3）。groupBy 預設 'model'，本頁目前只用 totals 區塊。
+    async getUsage({ groupBy = 'model', dateFrom, dateTo } = {}) {
+        const params = { group_by: groupBy };
+        if (dateFrom) params.date_from = dateFrom;
+        if (dateTo) params.date_to = dateTo;
+        const response = await apiClient.get('/ai/usage', { params });
+        return response.data;
     }
 };
