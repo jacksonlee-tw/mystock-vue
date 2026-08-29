@@ -7,12 +7,15 @@ ai/summary.py
 （ADR-AI-15），也是送給 LLM 的量化數值來源。
 """
 from __future__ import annotations
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Optional
 
 from services.stock_service import get_stock_chart_payload
 from indicators.chip import cum_net
+
+logger = logging.getLogger("mystock-backend")
 
 MA_KEYS = ["MA5", "MA10", "MA20", "MA60", "MA120", "MA240"]
 
@@ -229,6 +232,59 @@ async def build_quant_summary(symbol: str, market: str, period: str, months: int
             margin_block["short_ratio"] = _round(short_ratio)
         if margin_block:
             summary["margin"] = margin_block
+
+        # 估值／營收／市場定位（Phase2-籌碼面與基本面量化擴充 設計文件 FR-4）：一律讀 FR-1／FR-2／
+        # FR-5 已經算好、寫進 latest_summary 的欄位，不重新查表或計算（ADR-P2-05 鐵則不放寬）。
+        valuation_block: dict[str, float] = {}
+        for src_key, dst_key in (("pe_ratio", "pe_ratio"), ("pb_ratio", "pb_ratio"), ("dividend_yield", "dividend_yield")):
+            val = _clean(latest.get(src_key))
+            if val is not None:
+                valuation_block[dst_key] = _round(val)
+        if valuation_block:
+            summary["valuation"] = valuation_block
+
+        revenue_block: dict[str, Any] = {}
+        yoy = _clean(latest.get("revenue_yoy"))
+        mom = _clean(latest.get("revenue_mom"))
+        if yoy is not None:
+            revenue_block["yoy_percent"] = _round(yoy)
+        if mom is not None:
+            revenue_block["mom_percent"] = _round(mom)
+        if revenue_block and latest.get("revenue_visible_month"):
+            revenue_block["visible_month"] = latest["revenue_visible_month"]
+        if revenue_block:
+            summary["revenue"] = revenue_block
+
+        position_block: dict[str, Any] = {}
+        mcap = _clean(latest.get("market_cap"))
+        rank = _clean(latest.get("mcap_rank"))
+        if mcap is not None:
+            position_block["market_cap"] = _round(mcap)
+        if rank is not None:
+            position_block["mcap_rank"] = int(rank)
+        if position_block:
+            summary["market_position"] = position_block
+
+    # 近期策略訊號（選用，TW／US 皆可）：僅供佐證，不得送 details（內含策略門檻值，違反「Prompt 不得
+    # 出現硬編碼策略門檻」的既有原則）。讀取失敗只記警告、視為無訊號，不得讓整份報告中止（§4.7）。
+    try:
+        from ai.config import get_recent_alerts_lookback_days, get_recent_alerts_limit
+        from repositories.alert_repository import query_alerts
+
+        alerts = query_alerts(market=market, symbol=symbol, days=get_recent_alerts_lookback_days())
+        recent_alerts = [
+            {
+                "strategy_id": a.get("strategy_id"),
+                "direction": a.get("direction"),
+                "trade_date": a.get("trade_date"),
+                "signal_strength": a.get("signal_strength"),
+            }
+            for a in alerts[: get_recent_alerts_limit()]
+        ]
+        if recent_alerts:
+            summary["recent_alerts"] = recent_alerts
+    except Exception as e:
+        logger.warning(f"[AI量化摘要] 讀取近期策略訊號失敗，視為無訊號: {e}")
 
     stock_name = payload.get("stock_name") or symbol
 

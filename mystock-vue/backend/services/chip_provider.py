@@ -159,10 +159,15 @@ class ChipDataProvider:
             revenue_dict = {}
 
         # 估值與營收平行序列建構 (Point-in-time)
+        # market_cap／mcap_rank（Phase2-籌碼面與基本面量化擴充 設計文件 FR-5，ADR-P2-04）：
+        # preload_market_data() 早就把這兩欄查回來了，先前組裝時被直接丟棄，這裡補上即可，
+        # 不新增任何查詢。
         val_series: Dict[str, List[Optional[float]]] = {
             "pe_ratio": [],
             "pb_ratio": [],
             "dividend_yield": [],
+            "market_cap": [],
+            "mcap_rank": [],
         }
         rev_visible_months: List[Optional[str]] = []
         rev_yoy_series: List[Optional[float]] = []
@@ -176,6 +181,9 @@ class ChipDataProvider:
                 val_series["pe_ratio"].append(v_entry.get("pe_ratio"))
                 val_series["pb_ratio"].append(v_entry.get("pb_ratio"))
                 val_series["dividend_yield"].append(v_entry.get("dividend_yield"))
+                mcap = v_entry.get("market_cap")
+                val_series["market_cap"].append(mcap / 1e8 if mcap is not None else None)  # 元→億元，同 stock_service.py
+                val_series["mcap_rank"].append(v_entry.get("mcap_rank"))
 
                 # 營收序列：Point-in-time 可見性計算
                 try:

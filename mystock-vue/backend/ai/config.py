@@ -83,6 +83,16 @@ def allow_force_regenerate() -> bool:
     return _env_bool("AI_ALLOW_FORCE_REGENERATE", False)
 
 
+# ── 近期策略訊號佐證（Phase2-籌碼面與基本面量化擴充 設計文件 FR-4，比照 ADR-AI-12：可調參數走
+#    .env，不寫死）──────────────────────────────────────────────
+def get_recent_alerts_lookback_days() -> int:
+    return _env_int("AI_RECENT_ALERTS_DAYS", 10)
+
+
+def get_recent_alerts_limit() -> int:
+    return _env_int("AI_RECENT_ALERTS_LIMIT", 5)
+
+
 # ── 紀錄保留（§5.10）───────────────────────────────────────────
 def get_report_retention_days() -> int:
     return _env_int("AI_REPORT_RETENTION_DAYS", 365)
@@ -99,7 +109,10 @@ def get_activity_log_retention_days() -> int:
 # ── 提示詞版本（§5.5）───────────────────────────────────────────
 def get_prompt_version() -> str:
     # v4：Phase1-基礎量化與技術面 FR-P1-9，System Prompt 新增第 6 點（MACD／RSI／布林／ATR）。
-    return _env("AI_PROMPT_VERSION", "v4")
+    # v5：Phase2-籌碼面與基本面量化擴充 FR-4，System Prompt 新增第 7、8 點（基本面與估值檢核、
+    #     市場資金定位）＋輸出規範新增一條近期策略訊號僅供佐證的限制。對外結構化輸出七個欄位不變
+    #     （ADR-P2-05），僅供 metadata 追溯用。
+    return _env("AI_PROMPT_VERSION", "v5")
 
 
 # ── 可選模型清單（§4.3 附加、v3.4 新增）────────────────────────

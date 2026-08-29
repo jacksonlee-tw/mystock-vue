@@ -221,7 +221,10 @@ const stockChartTabs = [
   { value: 'amount', label: '估算金額', icon: 'pi-dollar' },
   { value: 'margin-long', label: '融資餘額', icon: 'pi-chart-line' },
   { value: 'margin-short', label: '融券餘額', icon: 'pi-sort-alt' },
-  { value: 'short-ratio', label: '券資比', icon: 'pi-percentage' }
+  { value: 'short-ratio', label: '券資比', icon: 'pi-percentage' },
+  // 估值／月營收（Phase2-籌碼面與基本面量化擴充 設計文件 FR-3）
+  { value: 'valuation', label: '估值走勢', icon: 'pi-chart-line' },
+  { value: 'revenue', label: '月營收', icon: 'pi-percentage' }
 ];
 
 // 指數目前只有 OHLCV（P1 爬蟲範圍，見 services/index_fetcher.py），頁籤只給 K 線圖／成交金額，
@@ -753,6 +756,44 @@ const currentChartOption = computed(() => {
         yAxis: { type: 'value', name: '%', scale: true },
         series: [{ name: '券資比', type: 'line', data: ratios, smooth: true, itemStyle: { color: '#64748b' }, lineStyle: { width: 3 } }]
       };
+    case 'valuation': {
+      const val = chartData.value?.valuation || {};
+      return {
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['本益比', '股價淨值比', '殖利率'], bottom: 0 },
+        dataZoom: dataZoomConfig,
+        grid: { left: '3%', right: '4%', bottom: '15%', top: '5%', containLabel: true },
+        xAxis: { type: 'category', data: d },
+        yAxis: [
+          { type: 'value', name: '倍', scale: true },
+          { type: 'value', name: '%', scale: true }
+        ],
+        series: [
+          { name: '本益比', type: 'line', yAxisIndex: 0, data: val.pe_ratio || [], connectNulls: false, showSymbol: false, itemStyle: { color: '#64748b' }, lineStyle: { width: 2 } },
+          { name: '股價淨值比', type: 'line', yAxisIndex: 0, data: val.pb_ratio || [], connectNulls: false, showSymbol: false, itemStyle: { color: '#94a3b8' }, lineStyle: { width: 2 } },
+          { name: '殖利率', type: 'line', yAxisIndex: 1, data: val.dividend_yield || [], connectNulls: false, showSymbol: false, itemStyle: { color: '#334155' }, lineStyle: { width: 2 } }
+        ]
+      };
+    }
+    case 'revenue': {
+      const rev = chartData.value?.revenue || {};
+      return {
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['YoY', 'MoM'], bottom: 0 },
+        dataZoom: dataZoomConfig,
+        grid: { left: '3%', right: '4%', bottom: '15%', top: '5%', containLabel: true },
+        xAxis: { type: 'category', data: d },
+        yAxis: { type: 'value', name: '%', scale: true },
+        series: [
+          {
+            name: 'YoY', type: 'line', data: rev.yoy || [], connectNulls: false, showSymbol: false,
+            itemStyle: { color: '#64748b' }, lineStyle: { width: 2 },
+            markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { type: 'dashed', color: '#94a3b8', width: 1 }, data: [{ yAxis: 0 }] }
+          },
+          { name: 'MoM', type: 'line', data: rev.mom || [], connectNulls: false, showSymbol: false, itemStyle: { color: '#334155' }, lineStyle: { width: 2 } }
+        ]
+      };
+    }
     case 'index-turnover': {
       const amounts = (chartData.value?.records || []).map((r) => r.amount || 0);
       return {

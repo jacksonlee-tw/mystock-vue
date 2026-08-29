@@ -158,6 +158,9 @@ const widgetDefinitions = [
   { id: 'margin-long', title: '融資餘額', icon: 'pi-chart-line', route: 'margin-long', panel: 'margin' },
   { id: 'margin-short', title: '融券餘額', icon: 'pi-sort-alt', route: 'margin-short', panel: 'margin' },
   { id: 'short-ratio', title: '券資比', icon: 'pi-percentage', route: 'short-ratio', panel: 'margin' },
+  // 估值／月營收（Phase2-籌碼面與基本面量化擴充 設計文件 FR-3）
+  { id: 'valuation', title: '估值走勢（PE／PB／殖利率）', icon: 'pi-chart-line', route: 'valuation', panel: 'valuation' },
+  { id: 'revenue', title: '月營收 YoY／MoM', icon: 'pi-percentage', route: 'revenue', panel: 'fundamental' },
   { id: 'short', title: '空頭持倉', icon: 'pi-sort-alt', panel: 'short', emptyPlaceholder: '歷史空頭趨勢圖表即將支援' },
   { id: 'holders', title: '機構持股', icon: 'pi-users', panel: 'holders', emptyPlaceholder: '歷史機構持股趨勢圖表即將支援' },
   // 指數專用（大盤指數功能規劃書 FR-IDX-04）：panel='index' 只在後端 meta.panels 含 'index' 時出現，
@@ -289,6 +292,8 @@ function getOption(id) {
     case 'margin-long': return marginLongOption.value;
     case 'margin-short': return marginShortOption.value;
     case 'short-ratio': return shortRatioOption.value;
+    case 'valuation': return valuationOption.value;
+    case 'revenue': return revenueOption.value;
     case 'index-turnover': return indexTurnoverOption.value;
     default: return null;
   }
@@ -816,6 +821,48 @@ const shortRatioOption = computed(() => {
         itemStyle: { color: '#f97316' },
         lineStyle: { width: 3 }
       }
+    ]
+  };
+});
+
+// 估值走勢 Option（Phase2-籌碼面與基本面量化擴充 設計文件 FR-3）：PE／PB／殖利率量級差異大，
+// PE／PB 共用左軸「倍」、殖利率獨用右軸「%」；缺值 connectNulls: false 斷線留白，不補 0、
+// 不沿用前一日（ADR-SP-08）。
+const valuationOption = computed(() => {
+  const val = props.chartData?.valuation || {};
+  return {
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['本益比', '股價淨值比', '殖利率'], bottom: 0 },
+    grid: { left: '3%', right: '4%', bottom: '15%', top: '5%', containLabel: true },
+    xAxis: { type: 'category', data: dates.value },
+    yAxis: [
+      { type: 'value', name: '倍', scale: true },
+      { type: 'value', name: '%', scale: true }
+    ],
+    series: [
+      { name: '本益比', type: 'line', yAxisIndex: 0, data: val.pe_ratio || [], connectNulls: false, showSymbol: false, itemStyle: { color: '#f59e0b' }, lineStyle: { width: 2 } },
+      { name: '股價淨值比', type: 'line', yAxisIndex: 0, data: val.pb_ratio || [], connectNulls: false, showSymbol: false, itemStyle: { color: '#0ea5e9' }, lineStyle: { width: 2 } },
+      { name: '殖利率', type: 'line', yAxisIndex: 1, data: val.dividend_yield || [], connectNulls: false, showSymbol: false, itemStyle: { color: '#8b5cf6' }, lineStyle: { width: 2 } }
+    ]
+  };
+});
+
+// 月營收 YoY／MoM Option（FR-3）：零軸需明顯標示（成長與衰退的分界），用虛線 markLine 標出。
+const revenueOption = computed(() => {
+  const rev = props.chartData?.revenue || {};
+  return {
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['YoY', 'MoM'], bottom: 0 },
+    grid: { left: '3%', right: '4%', bottom: '15%', top: '5%', containLabel: true },
+    xAxis: { type: 'category', data: dates.value },
+    yAxis: { type: 'value', name: '%', scale: true },
+    series: [
+      {
+        name: 'YoY', type: 'line', data: rev.yoy || [], connectNulls: false, showSymbol: false,
+        itemStyle: { color: '#ef4444' }, lineStyle: { width: 2 },
+        markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { type: 'dashed', color: '#94a3b8', width: 1 }, data: [{ yAxis: 0 }] }
+      },
+      { name: 'MoM', type: 'line', data: rev.mom || [], connectNulls: false, showSymbol: false, itemStyle: { color: '#3b82f6' }, lineStyle: { width: 2 } }
     ]
   };
 });

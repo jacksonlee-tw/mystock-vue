@@ -46,7 +46,7 @@ class TaiwanMarketAdapter(MarketAdapter):
             price_adjusted=False,
             up_down_convention="red_up",
             timezone="Asia/Taipei",
-            panels=["institutional", "margin", "valuation", "table"]
+            panels=["institutional", "margin", "valuation", "fundamental", "table"]
         )
 
     @property
@@ -62,7 +62,14 @@ class TaiwanMarketAdapter(MarketAdapter):
             Metric(key="pe_ratio", label="本益比", unit="倍", frequency="daily", markets=["tw"], tile=True, panel="valuation"),
             Metric(key="pb_ratio", label="股價淨值比", unit="倍", frequency="daily", markets=["tw"], tile=True, panel="valuation"),
             Metric(key="dividend_yield", label="殖利率", unit="%", frequency="daily", markets=["tw"], tile=True, panel="valuation"),
-            Metric(key="market_cap", label="市值", unit="元", frequency="daily", markets=["tw"], tile=True, panel="valuation"),
+            # 市值原始值為「元」（台積電量級約 10^13），直接顯示會是一長串數字，換算成「億元」放後端做
+            # （Phase2-籌碼面與基本面量化擴充 設計文件 FR-1、ADR-P2-06：避免前端各處各自硬編碼除數）。
+            Metric(key="market_cap", label="市值", unit="億元", frequency="daily", markets=["tw"], tile=True, panel="valuation"),
+            Metric(key="mcap_rank", label="市值排名", unit="名", frequency="daily", markets=["tw"], tile=True, panel="valuation"),
+            # 月營收（FR-2）：MOPS 每月約 10 日前後才公告上月數字，個股頁副標會標示實際資料月份
+            # （見 StockDashboard.vue revenue_visible_month 的顯示邏輯），避免使用者誤以為是當月數字。
+            Metric(key="revenue_yoy", label="營收年增率", unit="%", frequency="monthly", markets=["tw"], tile=True, panel="fundamental"),
+            Metric(key="revenue_mom", label="營收月增率", unit="%", frequency="monthly", markets=["tw"], tile=True, panel="fundamental"),
         ]
 
     def normalize_symbol(self, symbol: str) -> str:

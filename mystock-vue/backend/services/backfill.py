@@ -8,7 +8,7 @@ import logging
 from datetime import date, timedelta
 from typing import List, Tuple
 
-from config import get_backfill_max_days, get_enabled_markets, get_target_stocks
+from config import get_backfill_max_days, get_data_source, get_enabled_markets, get_target_stocks
 from repositories.stock_repository import StockRepository
 from services.fetcher import run_fetch_process
 from services.us_fetcher import run_us_fetch_process
@@ -39,6 +39,12 @@ async def _compute_missing_symbols(repo: StockRepository, market: str, max_days:
 
 
 async def run_startup_backfill() -> None:
+    # 缺漏偵測靠查詢 daily_stock_data / market_no_trading_days 兩張表，只有 DATA_SOURCE=postgres
+    # 時才有意義；json 模式下沒有 Postgres 可查，跑下去只會每次啟動都連線失敗噴警告，直接跳過。
+    if get_data_source() != "postgres":
+        logger.info("[啟動回補] DATA_SOURCE 非 postgres，略過啟動回補檢查")
+        return
+
     repo = StockRepository()
     max_days = get_backfill_max_days()
 
@@ -58,3 +64,25 @@ async def run_startup_backfill() -> None:
             )
         except Exception as e:
             logger.warning(f"[啟動回補] {market} 執行失敗: {e}")
+
+    # ── 全市場每日資料缺漏自動續傳（選股功能與爬蟲 規格書 §3.9.5）────────────
+    try:
+        from repositories.market_repository import MarketRepository
+        from services.market_fetcher import market_fetcher
+        market_repo = MarketRepository()
+        today = date.today()
+        start_check = today - timedelta(days=max_days)
+        missing_market_dates = await market_repo.get_missing_dates("quote", start_check, today, "tw")
+        if missing_market_dates:
+            logger.info(f"[啟動續傳] 全市場台股近 {max_days} 天內偵測到 {len(missing_market_dates)} 個缺漏交易日，啟動自動續傳: {missing_market_dates}")
+            await asyncio.to_thread(
+                market_fetcher.backfill_market,
+                start_date=min(missing_market_dates),
+                end_date=max(missing_market_dates),
+                targets=["quote", "chip", "valuation"],
+                trigger_type="resume",
+            )
+        else:
+            logger.info(f"[啟動續傳] 全市場台股近 {max_days} 天資料完整，無須續傳")
+    except Exception as e:
+        logger.warning(f"[啟動續傳] 全市場自動續傳失敗: {e}")

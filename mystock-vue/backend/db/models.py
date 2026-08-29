@@ -79,6 +79,7 @@ class MarketNoTradingDay(Base):
 
 
 class SymbolIndustry(Base):
+    """個股產業標籤（大盤指數功能規劃書 §8.2），見 db/migration/V6__Create_symbol_industry.sql。"""
     __tablename__ = "symbol_industry"
 
     symbol: Mapped[str] = mapped_column(String(20), ForeignKey("symbols.symbol"), primary_key=True)
@@ -88,7 +89,10 @@ class SymbolIndustry(Base):
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now())
 
 
+# ── 全市場每日資料表與作業紀錄（選股功能與爬蟲 規格書 §3.4、§3.9.4）───────────
+
 class DailyMarketQuote(Base):
+    """全市場每日收盤行情。"""
     __tablename__ = "daily_market_quote"
 
     symbol: Mapped[str] = mapped_column(String(20), ForeignKey("symbols.symbol"), primary_key=True)
@@ -111,6 +115,7 @@ class DailyMarketQuote(Base):
 
 
 class DailyMarketChip(Base):
+    """全市場每日籌碼（三大法人買賣超與融資融券）。"""
     __tablename__ = "daily_market_chip"
 
     symbol: Mapped[str] = mapped_column(String(20), ForeignKey("symbols.symbol"), primary_key=True)
@@ -138,6 +143,7 @@ class DailyMarketChip(Base):
 
 
 class DailyValuation(Base):
+    """全市場每日估值（PE/PB/殖利率）與市值。"""
     __tablename__ = "daily_valuation"
 
     symbol: Mapped[str] = mapped_column(String(20), ForeignKey("symbols.symbol"), primary_key=True)
@@ -154,6 +160,7 @@ class DailyValuation(Base):
 
 
 class MonthlyRevenue(Base):
+    """全市場每月營業收入。"""
     __tablename__ = "monthly_revenue"
 
     symbol: Mapped[str] = mapped_column(String(20), ForeignKey("symbols.symbol"), primary_key=True)
@@ -168,6 +175,7 @@ class MonthlyRevenue(Base):
 
 
 class MarketFetchJob(Base):
+    """全市場抓取與回補作業紀錄。"""
     __tablename__ = "market_fetch_job"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -184,3 +192,4 @@ class MarketFetchJob(Base):
     trigger_type: Mapped[str] = mapped_column(String(20), nullable=False, default="schedule")
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now())
+

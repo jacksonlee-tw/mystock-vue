@@ -20,12 +20,19 @@ SYSTEM_PROMPT = """你是一位任職於頂級對沖基金的資深技術分析�
 6. 動能與波動檢核：MACD 柱狀圖與 DIF／訊號線的交叉是否支持當前趨勢方向、RSI 所處位階、
    布林通道收斂或開口擴大所反映的波動狀態、ATR 反映的單日波動幅度。
    任一數值缺席時（如新上市個股尚未累積足夠交易日）略過該面向，不得臆測。
+7. 基本面與估值檢核：本益比／股價淨值比／殖利率所處的合理與偏貴／偏便宜區間、月營收年增率／月增率
+   所反映的營運動能是否與價格走勢相符（例如股價上漲但營收衰退屬於背離，須特別指出）。
+   任一數值缺席時（如美股無此類欄位、該股尚無月營收資料）略過該面向，不得臆測。
+8. 市場資金定位：市值與市值排名所反映的籌碼流動性與法人／指數化資金偏好程度，作為評估操作策略
+   （如波段持有 vs 短線價差）的參考背景之一。缺席時略過，不得臆測。
 
 輸出規範：
 - 所有價位必須是具體數字，不得寫「附近」「左右」而無數值。
 - 數值一律以【結構化量化數值】為準；圖片僅用於判讀型態與相對位置。
   兩者衝突時以數值為準，並在敘述中說明圖上觀察到的差異。
 - 若某項資料缺席（如美股無籌碼欄位），略過該面向，不得臆測。
+- 近期策略訊號（如提供）僅供佐證研判方向，不得直接複述訊號內容當成結論——訊號是規則引擎的獨立
+  觀察，你的研判必須基於自己對量化數值與圖片的分析。
 - 完整報告請拆成 sections 陣列輸出，陣列中每個元素是一個獨立段落 {title, body}：
   - title：只填精簡的章節標題本身（4～12 字），不要加「### 」前綴、不要加粗、不要包含標點。
   - body：該章節的完整說明文字，可用 **文字** 標出關鍵數字，但不要在 body 裡重複章節標題、
@@ -47,6 +54,10 @@ _LABELS: dict[str, str] = {
     "foreign_net_5d": "外資近5日買賣超(張)", "trust_net_5d": "投信近5日買賣超(張)",
     "dealer_net_5d": "自營商近5日買賣超(張)",
     "margin_balance": "融資餘額", "short_balance": "融券餘額", "short_ratio": "券資比(%)",
+    # Phase2-籌碼面與基本面量化擴充 設計文件 FR-4：估值／營收／市場定位
+    "pe_ratio": "本益比(倍)", "pb_ratio": "股價淨值比(倍)", "dividend_yield": "殖利率(%)",
+    "yoy_percent": "營收年增率(%)", "mom_percent": "營收月增率(%)", "visible_month": "資料月份",
+    "market_cap": "市值(億元)", "mcap_rank": "市值排名",
 }
 
 
@@ -109,6 +120,24 @@ def build_user_prompt(symbol: str, stock_name: str, market: str, summary: dict[s
         parts.append("")
     if summary.get("margin"):
         parts.append(_format_block("融資融券", summary["margin"]))
+        parts.append("")
+    if summary.get("valuation"):
+        parts.append(_format_block("估值", summary["valuation"]))
+        parts.append("")
+    if summary.get("revenue"):
+        parts.append(_format_block("月營收動能", summary["revenue"]))
+        parts.append("")
+    if summary.get("market_position"):
+        parts.append(_format_block("市場資金定位", summary["market_position"]))
+        parts.append("")
+    if summary.get("recent_alerts"):
+        lines = ["【近期策略訊號（僅供佐證，非結論）】"]
+        for a in summary["recent_alerts"]:
+            lines.append(
+                f"- {a.get('trade_date')}：{a.get('strategy_id')}"
+                f"（方向：{a.get('direction')}，強度：{a.get('signal_strength')}）"
+            )
+        parts.append("\n".join(lines))
         parts.append("")
 
     parts.append("請結合附帶的 K 線圖，依系統指示的研判框架與輸出規範產出結構化技術分析報告。")

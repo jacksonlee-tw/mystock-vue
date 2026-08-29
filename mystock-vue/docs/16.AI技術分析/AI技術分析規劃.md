@@ -1,7 +1,7 @@
 # AI 技術分析報告 系統開發規格書
 
 **模組**：AI 技術分析報告（AI Technical Analysis Report）
-**版本**：v3.5
+**版本**：v3.6
 **日期**：2026-08-29
 **狀態**：**已完成開發並通過端對端驗證**（後端 P1～P8、前端 P6～P7 皆已實作；Claude 走過完整失敗/重試/落地路徑，Gemini 走過真實成功的完整路徑，見 §11 WBS 與各階段驗證紀錄）
 **對應既有模組**：[strategies/](../../backend/strategies/)（策略警示）、[notify/](../../backend/notify/)（通知平台，本文多處沿用其架構慣例）
@@ -18,6 +18,7 @@
 | v3.3 | 2026-08-28 | **D-10／§4.5 修訂**：`report_markdown` 不再要求 LLM 直接產生自由文字（實測 Claude／Gemini 皆會不穩定地把「### 標題」黏在前一句話尾端，即使 Prompt 三令五申仍會失效）；改為 LLM 只填結構化的 `sections: [{title, body}]`，Markdown 標題與換行改由後端 `sections_to_markdown()` 自行組裝，100% 保證正確斷行；同時完成前端 `AiAnalysisDialog.vue` 的 UI/UX 重新設計（單一捲動區、標題左側色條、結論改為色塊摘要卡、支撐/壓力/停損卡片加圖示） |
 | v3.4 | 2026-08-28 | **ADR-AI-21：唯一鍵擴充為 `(market_type, symbol, trade_date, provider, model)`**（V15 遷移）——換模型視為另一份獨立報告，可再產生一次；新增 `GET /api/v1/ai/models`（**ADR-AI-22** 程式碼白名單）與 `POST /analyze-stock` 的 `model` 欄位；前端 `AiAnalysisDialog.vue` 新增「選擇模型」步驟（見 §0.4）。過程中實測發現 `gemini-2.5-flash-lite` 已對新用戶下架（官方指定改用 `gemini-3.5-flash-lite`），移出白名單並補上正確機型 |
 | v3.5 | 2026-08-29 | 依 [Phase1-基礎量化與技術面](Phase1-基礎量化與技術面.md) FR-P1-7～9 落地：`get_stock_chart_payload()`／`quant_summary`／System Prompt 新增 `macd`／`rsi`／`bollinger`／`atr` 與固定 20/60 日 `resistance`／`support`（§4.2 表格同步更新）；`AI_PROMPT_VERSION` 由 `v3` 遞增為 `v4`；對外七個結構化輸出欄位與既有 `ma`／`kd`／`chips`／`margin` 區塊不受影響（該文件 AC-P1-8） |
+| v3.6 | 2026-08-29 | 依 [Phase2-籌碼面與基本面量化擴充](Phase2-籌碼面與基本面量化擴充.md) FR-4 落地：`quant_summary` 新增 `valuation`（PE／PB／殖利率）、`revenue`（YoY／MoM／可見月份）、`market_position`（市值／市值排名，皆僅 TW）與選用的 `recent_alerts`（近期策略訊號，最多 5 筆，不含 `details`）四個區塊；System Prompt 研判框架新增第 7、8 點；`AI_PROMPT_VERSION` 由 `v4` 遞增為 `v5`；對外七個結構化輸出欄位不變（ADR-P2-05）。`market_cap`／`mcap_rank` 因來源端 `daily_valuation` 目前實際覆蓋率為 0%（`valuation_fetcher.py` 尚未實作市值計算），`market_position` 區塊在資料補齊前會持續省略——已記錄於 [Phase2-實作計畫.md](Phase2-實作計畫.md) |
 
 > **文件性質說明**
 > v1.0 是「可行性構想」，回答「做不做得到」；本版是**開發規格書**，回答「怎麼做才不會踩雷」。
@@ -423,7 +424,10 @@ api/v1/endpoints/ai_analysis.py
 | `volume_ma5`、`volume_ratio`（量能比） | `records` | 全部 |
 | `chips`：近 5 日外資／投信／自營商買賣超合計 | `indicators/chip.py` `cum_net()` | **僅 TW** |
 | `margin`：融資餘額、融券餘額、券資比 | `latest_summary` | **僅 TW** |
-| `recent_alerts`（選用）：該檔近 10 日已觸發的策略訊號 | `alert_repository` | 全部 |
+| `valuation`：本益比／股價淨值比／殖利率 | `latest_summary`（[Phase2-籌碼面與基本面量化擴充](Phase2-籌碼面與基本面量化擴充.md) FR-4，v3.6 新增） | **僅 TW** |
+| `revenue`：營收年增率／月增率／資料可見月份 | `latest_summary`（同上） | **僅 TW** |
+| `market_position`：市值（億元）／市值排名 | `latest_summary`（同上；`market_cap`／`mcap_rank` 來源覆蓋率目前為 0%，見 [Phase2-實作計畫.md](Phase2-實作計畫.md)） | **僅 TW** |
+| `recent_alerts`（選用）：該檔近 10 日已觸發的策略訊號（可調，`AI_RECENT_ALERTS_DAYS`），最多 5 筆（`AI_RECENT_ALERTS_LIMIT`），不含 `details` | `alert_repository`（v3.6 落地實作） | 全部 |
 
 **空值處理**：任何為 `None`／`0`（本專案以 `0` 代表缺值，見 `stock_service` 註解）的欄位**一律從摘要中移除，不得送出 `null` 或 `0`**——模型看到 `"ma240": 0` 會當成真實價位並據此推論。美股沒有籌碼欄位屬正常，整段略去即可。
 

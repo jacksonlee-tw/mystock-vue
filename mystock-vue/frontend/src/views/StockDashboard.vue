@@ -212,6 +212,10 @@
             <div v-else-if="metric.key === 'institutional_amount_est' && summary.trust_buy_sell !== undefined" class="num text-xs text-surface-500">
               投信 {{ formatLots(summary.trust_buy_sell) }}
             </div>
+            <!-- 月營收有公布時滯，副標標示實際資料月份，避免使用者誤以為是當月數字（FR-2） -->
+            <div v-else-if="metric.key === 'revenue_yoy' && summary.revenue_visible_month" class="num text-xs text-surface-500">
+              資料月份 {{ summary.revenue_visible_month }}
+            </div>
             <div v-else class="text-xs font-medium text-surface-500">{{ metric.label }}</div>
           </div>
         </div>
@@ -483,6 +487,10 @@ function setActiveChart(metricKey) {
   else if (metricKey === 'short_ratio') widgetId = 'short-ratio';
   else if (metricKey === 'short_interest') widgetId = 'short';
   else if (metricKey === 'institutional_holders') widgetId = 'holders';
+  // 估值／市值排名（FR-1／FR-5）與月營收（FR-2）：導去對應趨勢圖分頁，不落回預設的 K 線圖（G-2）。
+  // market_cap／mcap_rank 目前沒有專屬趨勢線，導去估值分頁至少維持在同一主題頁籤。
+  else if (['pe_ratio', 'pb_ratio', 'dividend_yield', 'market_cap', 'mcap_rank'].includes(metricKey)) widgetId = 'valuation';
+  else if (['revenue_yoy', 'revenue_mom'].includes(metricKey)) widgetId = 'revenue';
   activeChartId.value = widgetId;
 }
 
@@ -559,8 +567,11 @@ async function loadStockData() {
 
 // 後端 Metric 目前沒有 format 欄位（只有 key/label/unit/frequency/tile/panel/tone），
 // 所以「這是不是可正可負、要不要上色」用 key 的命名模式判斷，而不是不存在的 metric.format。
+// revenue_yoy／revenue_mom（Phase2-籌碼面與基本面量化擴充 設計文件 FR-2）：可正可負，
+// 需顯示正負號並依專案紅漲綠跌慣例上色。
 function isSignedMetric(metric) {
-  return metric.key.includes('buy_sell') || metric.key === 'institutional_total' || metric.key.includes('amount');
+  return metric.key.includes('buy_sell') || metric.key === 'institutional_total' || metric.key.includes('amount')
+    || metric.key === 'revenue_yoy' || metric.key === 'revenue_mom';
 }
 
 // KPI 卡數值：統一用千分位＋最多 2 位小數，可正可負的指標加上正負號。

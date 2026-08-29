@@ -1,12 +1,22 @@
 import os
 import json
 import calendar
-from datetime import datetime, timedelta
+import logging
+from datetime import date, datetime, timedelta
 from typing import Dict, Any, List, Optional
-from config import DATA_DIR, get_target_stocks, get_enabled_markets, get_data_source
+from config import DATA_DIR, MAX_HISTORY_MONTHS, get_target_stocks, get_enabled_markets, get_data_source
 from services.fetcher import load_stock_json
 from db.mapping import daily_row_to_record
 from repositories.stock_repository import StockRepository
+from indicators.moving_average import compute_ma_set
+from indicators.stochastic import stochastic
+from indicators.macd import macd
+from indicators.rsi import rsi
+from indicators.atr import atr
+from indicators.bollinger import bollinger_bands
+from indicators.levels import rolling_high_low
+
+logger = logging.getLogger("mystock-backend")
 
 # 定義欄位分類 (已轉換為英文鍵名)
 SUM_FIELDS = [
@@ -14,11 +24,25 @@ SUM_FIELDS = [
     "institutional_amount_est", "volume", "amount", "trades"
 ]
 
+# 均線策略警示系統 設計文件第 4 節「均線參數矩陣」的預設週期。獨立宣告於此（而非 import
+# strategies 套件），避免 services ↔ strategies 之間形成循環匯入（strategies/chip_provider.py
+# 本身就是靠呼叫 stock_service 取資料）。
+MA_PERIODS = [5, 10, 20, 60, 120, 240]
+
 END_FIELDS = ["margin_balance", "short_balance"]  # 餘額類欄位，0 是合法值，直接採最後一筆
 PRICE_END_FIELDS = ["close"]  # 收盤價 0 代表當天未回補到行情，須排除，改採最後一筆「有效」值
 START_FIELDS = ["open"]
 MAX_FIELDS = ["high"]
 MIN_FIELDS = ["low"]
+
+# 估值與月營收欄位（Phase2-籌碼面與基本面量化擴充 設計文件 FR-1／FR-2／FR-5）：週/月聚合時一律採
+# 「取群組內最後一筆非 None 值，若群組內全缺則整欄位回傳 None」——不可比照 END_FIELDS（缺值回傳 0），
+# 因為這裡的 0 在來源端（daily_valuation）已被定義為「不存在」，回傳 0 會讓 KPI 卡把「無資料」顯示成
+# 「0」而非「—」，違反 CLAUDE.md「不得顯示 0 代替缺值」鐵則。
+NULLABLE_END_FIELDS = [
+    "pe_ratio", "pb_ratio", "dividend_yield", "market_cap", "mcap_rank",
+    "revenue_yoy", "revenue_mom", "revenue_visible_month",
+]
 
 def months_ago(months: int, from_date: Optional[datetime] = None) -> datetime:
     base = from_date or datetime.now()
@@ -40,25 +64,41 @@ async def _list_stock_ids_db(market: str) -> List[str]:
     symbols = await StockRepository().list_symbols(market_type=market)
     return [s["symbol"] for s in symbols]
 
-async def load_stock_data(
-    stock_id: str,
-    market: str = "tw",
-    source: Optional[str] = None,
-    kind: str = "stock",
-) -> dict:
+async def load_stock_data(stock_id: str, market: str = "tw", source: Optional[str] = None,
+                           kind: str = "stock") -> dict:
     """讀取單一標的的每日資料；依 DATA_SOURCE 決定讀 JSON 檔案或 PostgreSQL（見 phase3_5 設計文件第 2 節）。
 
     `source` 可明確指定覆蓋 DATA_SOURCE（供 scripts/compare_data_sources.py 兩邊比對使用），一般呼叫端不需傳入。
+
+    `kind='index'`：讀取大盤指數而非個股（見大盤指數功能規劃書 ADR-I2）。只影響 JSON 路徑解析
+    （改讀 data/{market}/_indices/{code}.json），PostgreSQL 分支邏輯完全不變 —— daily_stock_data
+    以 symbol 為鍵、指數與個股同表（規劃書 ADR-I1），不需要（也不應該）為此新增
+    get_data_source() 的分支。
     """
     if (source or get_data_source()) != "postgres":
         if kind == "index":
             from services.index_fetcher import load_index_json
-
             return load_index_json(stock_id, market)
         return load_stock_json(stock_id, market)
 
     repo = StockRepository()
     rows = await repo.get_daily_data(stock_id)
+    if not rows and market == "tw" and kind != "index":
+        try:
+            from repositories.market_repository import MarketRepository
+            m_repo = MarketRepository()
+            m_rows = await m_repo.get_symbol_daily_series(stock_id)
+            if m_rows:
+                symbol_info = await repo.get_symbol(stock_id)
+                name = symbol_info["name"] if symbol_info else stock_id
+                result: Dict[str, Any] = {}
+                for r in m_rows:
+                    r["name"] = name
+                    result[r["date"]] = r
+                return result
+        except Exception as e:
+            logger.warning(f"[stock_service] 全市場資料庫 fallback 查詢失敗 ({stock_id}): {e}")
+
     if not rows:
         return {}
 
@@ -76,14 +116,39 @@ async def load_stock_data(
     return result
 
 async def get_latest_quote(stock_id: str, market: str = "tw") -> Optional[Dict[str, Any]]:
-    """取得單一標的最新一筆收盤報價（供 portfolio.py 批次估值使用），無資料時回傳 None。"""
+    """取最新一筆有效收盤價（供個人投資記帳模組 GET /api/v1/portfolio/quotes 批次報價使用）。
+
+    沿用 load_stock_data() 已經處理好的 DATA_SOURCE 分支，這裡不重新判斷 json/postgres；
+    收盤價 0 視為當天未回補到行情（見 PRICE_END_FIELDS 註解與 restore_price_from_legacy.py 的歷史成因），
+    往前找最近一筆非 0 的收盤價，都是 0（或沒有資料）就回傳 None，由呼叫端標示「待報價」。
+    """
     data = await load_stock_data(stock_id, market)
     if not data:
         return None
-    latest_date = sorted(data.keys())[-1]
-    latest_record = data[latest_date]
-    return {"date": latest_date, "close": latest_record.get("close", 0.0)}
+    for trade_date in sorted(data.keys(), reverse=True):
+        record = data[trade_date]
+        close = record.get("close")
+        if close:
+            return {"symbol": stock_id, "market": market, "date": trade_date, "close": close}
+    return None
 
+
+async def _discover_stocks_db(market: str, tracked_codes: set) -> List[Dict[str, Any]]:
+    """discover_available_stocks() 的 PostgreSQL 分支：見 StockRepository.get_symbol_summaries() 註解，
+    改用單一批次查詢取代逐 symbol 呼叫 load_stock_data() 的 N+1 寫法。"""
+    summaries = await StockRepository().get_symbol_summaries(market)
+    return [
+        {
+            "stock_id": s["symbol"],
+            "stock_name": s["name"] or s["symbol"],
+            "market": market,
+            "latest_date": s["latest_date"].isoformat(),
+            "latest_close": s["latest_close"],
+            "total_records": s["total_records"],
+            "is_tracked": s["symbol"] in tracked_codes
+        }
+        for s in summaries
+    ]
 
 async def discover_available_stocks() -> List[Dict[str, Any]]:
     """回傳系統中所有可用的股票清單與元資料（依 DATA_SOURCE 讀取 JSON 檔案或 PostgreSQL）。"""
@@ -93,10 +158,10 @@ async def discover_available_stocks() -> List[Dict[str, Any]]:
         tracked_codes = set(get_target_stocks(market=market))
 
         if get_data_source() == "postgres":
-            stock_ids = await _list_stock_ids_db(market)
-        else:
-            stock_ids = _list_stock_ids_json(os.path.join(DATA_DIR, market))
+            stocks.extend(await _discover_stocks_db(market, tracked_codes))
+            continue
 
+        stock_ids = _list_stock_ids_json(os.path.join(DATA_DIR, market))
         for stock_id in stock_ids:
             try:
                 data = await load_stock_data(stock_id, market)
@@ -106,7 +171,12 @@ async def discover_available_stocks() -> List[Dict[str, Any]]:
                 sorted_dates = sorted(data.keys())
                 latest_date = sorted_dates[-1]
                 latest_record = data[latest_date]
-                stock_name = latest_record.get("name", stock_id)
+                # 最新一天常常只回補到行情、三大法人資料尚未到齊（見 aggregate_stock_data 附近註解），
+                # 此時當天記錄不會有 name 欄位；往前找最近一筆有 name 的記錄，避免清單顯示代號取代公司名稱。
+                stock_name = next(
+                    (data[d]["name"] for d in reversed(sorted_dates) if data[d].get("name")),
+                    stock_id,
+                )
                 close_price = latest_record.get("close", 0.0)
 
                 stocks.append({
@@ -261,6 +331,10 @@ def aggregate_stock_data(data: Dict[str, Any], period: str = "daily", months: in
             valid_vals = [r[f] for r in records if f in r and r[f] is not None and r[f] > 0]
             aggregated[f] = min(valid_vals) if valid_vals else (aggregated.get("close", 0))
 
+        for f in NULLABLE_END_FIELDS:
+            valid_vals = [r[f] for r in records if f in r and r[f] is not None]
+            aggregated[f] = valid_vals[-1] if valid_vals else None
+
         m_long = aggregated.get("margin_balance", 0)
         m_short = aggregated.get("short_balance", 0)
         aggregated["short_ratio"] = round((m_short / m_long) * 100, 2) if m_long > 0 else None
@@ -269,11 +343,242 @@ def aggregate_stock_data(data: Dict[str, Any], period: str = "daily", months: in
 
     return result
 
+def _build_kd_payload(full_records: List[Dict[str, Any]], display_dates: List[str]) -> Dict[str, Any]:
+    """KD 副圖資料（KD指標 設計規格書 §6.1／§6.3）。
+
+    在完整歷史（full_records，聚合時 months=MAX_HISTORY_MONTHS）上計算 K/D，再依日期把結果
+    切到目前顯示區間（display_dates）——刻意不用 full_records 前 len(display_dates) 筆這種
+    位置切法，是因為非交易日／缺值會讓筆數與日期範圍對不齊，必須以日期本身比對才準確。
+    這樣同一天的 K/D 值不會因為使用者選 1 個月或 1 年而不同，也才會跟策略引擎（scanner.py，
+    同樣用 MAX_HISTORY_MONTHS 全歷史計算）算出的數字一致。
+
+    刻意不比照套用在 moving_averages（見下方呼叫端註解、KD指標 設計規格書 §12 決議 D5）：
+    MA 若資料不足只會誠實斷線（None），KD 若不做這層切片則會算出「看起來正常但其實錯誤」
+    的數字，兩者錯誤等級不同，只有 KD 需要這道全歷史切片。
+    """
+    # 延遲匯入：strategies 套件的 __init__ 會匯入 conditions_tech -> services.chip_provider ->
+    # services.stock_service，若在檔案頂層 import 會形成循環匯入（本函式所在的模組正是被匯入的
+    # 那一個）。等到實際呼叫時（伺服器啟動流程早已把 strategies 套件匯入完畢）才 import 即可
+    # 避開這個問題，同樣手法見 notify/events.py 既有的 _get_strategy_category()。
+    from strategies.config_loader import load_strategy_config
+
+    cfg = load_strategy_config()
+    kd_params_list = cfg.defaults.get("kd_params") or [[9, 3, 3]]
+    params = tuple(kd_params_list[0])
+    warmup_bars = cfg.defaults.get("kd_warmup_bars", 25)
+    smoothing = cfg.defaults.get("kd_smoothing", "wilder_1_3")
+
+    # 超買／超賣門檻取自 KD 策略設定，讓「YAML 改門檻 → 圖上基準線跟著動」
+    # （策略管理架構 設計文件第 9 節「不寫死參數」）；策略未設定或找不到時退回預設 80/20。
+    oversold, overbought = 20, 80
+    kd_strategy = cfg.get("kd_oversold_golden_cross")
+    if kd_strategy:
+        kd_cond = next((c for c in kd_strategy.conditions if c.get("type") == "kd_cross"), None)
+        if kd_cond:
+            oversold = kd_cond.get("oversold_threshold", oversold)
+            overbought = kd_cond.get("overbought_threshold", overbought)
+
+    highs = [r.get("high") or None for r in full_records]
+    lows = [r.get("low") or None for r in full_records]
+    closes = [r.get("close") or None for r in full_records]
+    k_full, d_full = stochastic(highs, lows, closes, *params, warmup_bars=warmup_bars, smoothing=smoothing)
+
+    index_by_date = {r["date"]: i for i, r in enumerate(full_records)}
+    k_sliced = [k_full[index_by_date[d]] if d in index_by_date else None for d in display_dates]
+    d_sliced = [d_full[index_by_date[d]] if d in index_by_date else None for d in display_dates]
+
+    return {
+        "params": list(params),
+        "smoothing": smoothing,
+        "k": k_sliced,
+        "d": d_sliced,
+        "overbought": overbought,
+        "oversold": oversold,
+    }
+
+
+def _build_recursive_indicator_payloads(full_records: List[Dict[str, Any]], display_dates: List[str]) -> Dict[str, Any]:
+    """MACD／RSI／ATR（Phase1-基礎量化與技術面 設計文件 FR-P1-7）。
+
+    這三者跟 KD 一樣是「遞迴型」指標，必須在完整歷史（full_records，聚合時
+    months=MAX_HISTORY_MONTHS）上算完再依日期切到目前顯示區間，作法完全比照
+    _build_kd_payload()（KD指標 設計規格書 §12 決議 D5 的延伸，見該文件 §3.3）：若比照 MA
+    在截斷視窗上計算，會產出「看似正常但其實錯誤」的數字——同一天的值不能因為使用者選
+    1 個月或 1 年而不同（AC-P1-4）。
+    """
+    from strategies.config_loader import load_strategy_config
+
+    cfg = load_strategy_config()
+    fast, slow, signal_period = cfg.defaults.get("macd_params") or [12, 26, 9]
+    rsi_periods = cfg.defaults.get("rsi_periods") or [6, 14]
+    atr_period = cfg.defaults.get("atr_period", 14)
+
+    highs = [r.get("high") or None for r in full_records]
+    lows = [r.get("low") or None for r in full_records]
+    closes = [r.get("close") or None for r in full_records]
+
+    index_by_date = {r["date"]: i for i, r in enumerate(full_records)}
+
+    def _slice(series: List[Optional[float]]) -> List[Optional[float]]:
+        return [series[index_by_date[d]] if d in index_by_date else None for d in display_dates]
+
+    dif, signal, histogram = macd(closes, fast, slow, signal_period)
+    macd_payload = {
+        "params": [fast, slow, signal_period],
+        "dif": _slice(dif),
+        "signal": _slice(signal),
+        "histogram": _slice(histogram),
+    }
+
+    # RSI 超買／超賣門檻取自策略設定，讓「YAML 改門檻 → 圖上基準線跟著動」（比照
+    # _build_kd_payload() 對 KD 門檻的既有作法，Phase1-基礎量化與技術面 設計文件 §9 Q-1）；
+    # 找不到對應策略時退回業界慣用 70/30（Q-3 決議，非 v1.0 草案的 80/20）。
+    rsi_oversold, rsi_overbought = 30, 70
+    rsi_strategy = cfg.get("rsi_oversold_recovery")
+    if rsi_strategy:
+        rsi_cond = next((c for c in rsi_strategy.conditions if c.get("type") == "rsi_zone"), None)
+        if rsi_cond:
+            rsi_oversold = rsi_cond.get("oversold_threshold", rsi_oversold)
+            rsi_overbought = rsi_cond.get("overbought_threshold", rsi_overbought)
+
+    rsi_payload: Dict[str, Any] = {
+        "periods": list(rsi_periods),
+        "oversold": rsi_oversold,
+        "overbought": rsi_overbought,
+    }
+    for p in rsi_periods:
+        rsi_payload[f"rsi_{p}"] = _slice(rsi(closes, p))
+
+    atr_payload = {
+        "period": atr_period,
+        f"atr_{atr_period}": _slice(atr(highs, lows, closes, atr_period)),
+    }
+
+    return {"macd": macd_payload, "rsi": rsi_payload, "atr": atr_payload}
+
+
+def _build_bollinger_and_levels_payload(
+    closes_for_ma: List[Optional[float]],
+    moving_averages: Dict[str, List[Optional[float]]],
+    aggregated_records: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """布林通道與近 N 日高低（Phase1-基礎量化與技術面 設計文件 FR-P1-7）。
+
+    這兩者是「視窗型」指標，比照 MA 在目前顯示區間（截斷後）上直接計算即可，資料不足只會
+    誠實斷線，不需要像 MACD／RSI／ATR／KD 那樣做全歷史切片（ADR-P1-04）。
+    """
+    from strategies.config_loader import load_strategy_config
+
+    cfg = load_strategy_config()
+    bollinger_period, bollinger_num_std = cfg.defaults.get("bollinger_params") or [20, 2.0]
+    levels_windows = cfg.defaults.get("levels_windows") or [20, 60]
+
+    # 中軌重用既有 SMA 結果，不重算一次（ADR-P1-05）；只有對應天期的 MA 未被納入
+    # MA_PERIODS（如改成非既有天期）時，才退回 bollinger_bands() 內部自算 SMA。
+    existing_middle = moving_averages.get(f"MA{bollinger_period}")
+    upper, middle, lower, bandwidth = bollinger_bands(
+        closes_for_ma, bollinger_period, bollinger_num_std, middle=existing_middle
+    )
+    bollinger_payload = {
+        "params": [bollinger_period, bollinger_num_std],
+        "upper": upper,
+        "middle": middle,
+        "lower": lower,
+        "bandwidth": bandwidth,
+    }
+
+    highs_for_levels = [r.get("high") or None for r in aggregated_records]
+    lows_for_levels = [r.get("low") or None for r in aggregated_records]
+    levels_payload: Dict[str, Any] = {"windows": list(levels_windows)}
+    for w in levels_windows:
+        resistance, support = rolling_high_low(highs_for_levels, lows_for_levels, w)
+        levels_payload[f"resistance_{w}d"] = resistance
+        levels_payload[f"support_{w}d"] = support
+
+    return {"bollinger": bollinger_payload, "levels": levels_payload}
+
+
+async def _attach_valuation_and_revenue(raw_data: Dict[str, Any], stock_id: str, months: int) -> None:
+    """把估值（PE／PB／殖利率／市值／市值排名）與月營收（YoY／MoM，Point-in-time 可見月份）併入每日
+    原始記錄（Phase2-籌碼面與基本面量化擴充 設計文件 FR-1／FR-2／FR-5）。原地補欄位即可讓既有的
+    aggregate_stock_data() 週期聚合與 latest_summary 組裝自動帶到這些值，不需另開一條資料流；
+    raw_data 是每次呼叫重新讀出的新 dict（JSON 重新讀檔／Postgres 重新查詢），原地寫入不會污染快取
+    或其他呼叫端。
+
+    估值僅 Postgres 有資料，DATA_SOURCE=json 或查詢失敗時明確降級為缺席，不做任何替代估算
+    （ADR-P2-02）；月營收優先讀同一次 preload 的 Postgres monthly_revenue，查無資料時退回逐檔 JSON
+    （比照 services/chip_provider.py 既有的雙來源判斷式）。任何一段失敗都不得影響 K 線／籌碼等既有
+    區塊——全程只原地新增欄位，不會動到既有的 OHLC／籌碼欄位。
+    """
+    from indicators.fundamental import latest_visible_month
+    from services.mops_fetcher import load_stock_revenue
+
+    valuation_by_date: Dict[str, dict] = {}
+    revenue_dict: Dict[str, dict] = {}
+
+    if get_data_source() == "postgres":
+        try:
+            from repositories.market_repository import MarketRepository
+
+            # preload_market_data() 也順帶查了行情／籌碼（quotes），這裡用不到、直接丟棄——
+            # ADR-P2-01 明確決議「單檔查詢傳入單元素清單即可，不需為此新增窄查詢方法」，
+            # 換一次多餘的索引範圍掃描（單檔、(symbol, trade_date) 主鍵）換取只維護一條查詢路徑，
+            # 是文件里已經權衡過的取捨，不在此處另開一條窄查詢。
+            cutoff = date.fromisoformat(months_ago(months).strftime("%Y-%m-%d"))
+            preload = await MarketRepository().preload_market_data([stock_id], cutoff, date.today(), market="tw")
+            valuation_by_date = preload.get("valuation", {}).get(stock_id, {})
+            rev_by_month = preload.get("revenue", {}).get(stock_id, {})
+            revenue_dict = {
+                ym: {"yoy_percent": v.get("yoy_percent"), "mom_percent": v.get("mom_percent")}
+                for ym, v in rev_by_month.items()
+            }
+        except Exception as e:
+            # 明確降級為缺席（ADR-P2-02），但仍記警告——不記錄的話，真正的查詢失敗會跟
+            # 「這檔本來就沒有估值資料」長得一模一樣，難以排查。
+            logger.warning(f"[估值/營收] 查詢 {stock_id} 的 Postgres 估值／營收資料失敗，本次降級為缺席: {e}")
+            valuation_by_date = {}
+            revenue_dict = {}
+
+    if not revenue_dict:
+        revenue_dict = load_stock_revenue(stock_id)
+
+    if not valuation_by_date and not revenue_dict:
+        return
+
+    cutoff_str = months_ago(months).strftime("%Y-%m-%d")
+    for date_str, rec in raw_data.items():
+        if date_str < cutoff_str:
+            continue
+
+        v = valuation_by_date.get(date_str)
+        if v:
+            rec["pe_ratio"] = v.get("pe_ratio")
+            rec["pb_ratio"] = v.get("pb_ratio")
+            rec["dividend_yield"] = v.get("dividend_yield")
+            mcap = v.get("market_cap")
+            rec["market_cap"] = (mcap / 1e8) if mcap is not None else None  # 元 → 億元（ADR-P2-06）
+            rec["mcap_rank"] = v.get("mcap_rank")
+
+        if revenue_dict:
+            try:
+                vis_month = latest_visible_month(revenue_dict, date.fromisoformat(date_str))
+            except ValueError:
+                vis_month = None
+            if vis_month and vis_month in revenue_dict:
+                rec["revenue_yoy"] = revenue_dict[vis_month].get("yoy_percent")
+                rec["revenue_mom"] = revenue_dict[vis_month].get("mom_percent")
+                rec["revenue_visible_month"] = vis_month
+
+
 async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: int = 3, market: str = "tw",
                                    source: Optional[str] = None, kind: str = "stock") -> Dict[str, Any]:
     raw_data = await load_stock_data(stock_id, market, source=source, kind=kind)
     if not raw_data:
-        return {"error": f"找不到股票 {stock_id} 的數據資料"}
+        label = "指數" if kind == "index" else "股票"
+        return {"error": f"找不到{label} {stock_id} 的數據資料"}
+
+    if market == "tw" and kind == "stock":
+        await _attach_valuation_and_revenue(raw_data, stock_id, months)
 
     aggregated_records = aggregate_stock_data(raw_data, period=period, months=months)
     if not aggregated_records:
@@ -303,10 +608,37 @@ async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: 
     margin_short = [r.get("short_balance", 0) for r in aggregated_records]
     short_ratio = [r.get("short_ratio") for r in aggregated_records]
 
+    # 估值／營收序列（Phase2 FR-3 趨勢圖分頁）：缺值一律留 None，前端 ECharts connectNulls: false
+    # 會自動斷線留白，不補 0、不沿用前一日（ADR-SP-08）。
+    pe_ratio_series = [r.get("pe_ratio") for r in aggregated_records]
+    pb_ratio_series = [r.get("pb_ratio") for r in aggregated_records]
+    dividend_yield_series = [r.get("dividend_yield") for r in aggregated_records]
+    revenue_yoy_series = [r.get("revenue_yoy") for r in aggregated_records]
+    revenue_mom_series = [r.get("revenue_mom") for r in aggregated_records]
+    revenue_visible_month_series = [r.get("revenue_visible_month") for r in aggregated_records]
+
     latest = aggregated_records[-1]
 
     start_date = dates[0] if dates else ""
     end_date = dates[-1] if dates else ""
+
+    # 均線由後端統一計算，確保策略掃描（strategies/）與前端繪圖使用同一組數值，避免精度不一致
+    # （均線策略警示系統 設計文件第 6.1 節設計決策）。0 視為缺值（比照上方 kline_data 的處理）。
+    # 注意：這裡是「先依 months 截斷、再計算」，不像下面 KD 是在全歷史上算完才切片
+    # （KD指標 設計規格書 §12 決議 D5：MA 資料不足只會誠實斷線，不像 KD 會算出看似正常但
+    # 其實錯誤的數字，兩者錯誤等級不同，本次只有 KD 需要全歷史切片，MA 維持現狀）——因此短
+    # 區間（如 1 個月）會看不到 MA60／MA240 的線，這是已知限制，不是遺漏。
+    closes_for_ma = [r.get("close") or None for r in aggregated_records]
+    moving_averages = compute_ma_set(closes_for_ma, MA_PERIODS)
+
+    # KD（KD指標 設計規格書 §6.1／§6.3）：在完整歷史上計算後再依 dates 切片，見 _build_kd_payload()。
+    full_records = aggregate_stock_data(raw_data, period=period, months=MAX_HISTORY_MONTHS)
+    kd_payload = _build_kd_payload(full_records, dates)
+
+    # MACD／RSI／ATR（遞迴型，全歷史計算後切片）＋ 布林通道／近N日高低（視窗型，截斷後計算）
+    # ——見 Phase1-基礎量化與技術面 設計文件 §3.3、FR-P1-7。
+    recursive_indicators = _build_recursive_indicator_payloads(full_records, dates)
+    bollinger_and_levels = _build_bollinger_and_levels_payload(closes_for_ma, moving_averages, aggregated_records)
 
     return {
         "stock_id": stock_id,
@@ -336,9 +668,26 @@ async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: 
             # backward compatibility for old frontend code expecting these exact keys
             "foreign": latest.get("foreign_buy_sell", 0),
             "trust": latest.get("trust_buy_sell", 0),
-            "dealer": latest.get("dealer_buy_sell", 0)
+            "dealer": latest.get("dealer_buy_sell", 0),
+            # 估值與月營收（Phase2-籌碼面與基本面量化擴充 設計文件 FR-1／FR-2／FR-5）：僅 TW 有值，
+            # 缺值一律 None，前端 formatMetricValue() 遇 None/undefined 已會顯示「—」，不塞 0。
+            "pe_ratio": latest.get("pe_ratio"),
+            "pb_ratio": latest.get("pb_ratio"),
+            "dividend_yield": latest.get("dividend_yield"),
+            "market_cap": latest.get("market_cap"),
+            "mcap_rank": latest.get("mcap_rank"),
+            "revenue_yoy": latest.get("revenue_yoy"),
+            "revenue_mom": latest.get("revenue_mom"),
+            "revenue_visible_month": latest.get("revenue_visible_month")
         },
         "kline": kline_data,
+        "moving_averages": moving_averages,
+        "kd": kd_payload,
+        "macd": recursive_indicators["macd"],
+        "rsi": recursive_indicators["rsi"],
+        "atr": recursive_indicators["atr"],
+        "bollinger": bollinger_and_levels["bollinger"],
+        "levels": bollinger_and_levels["levels"],
         "institutional": {
             "foreign": foreign,
             "trust": trust,
@@ -350,6 +699,16 @@ async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: 
             "long_balance": margin_long,
             "short_balance": margin_short,
             "short_ratio": short_ratio
+        },
+        "valuation": {
+            "pe_ratio": pe_ratio_series,
+            "pb_ratio": pb_ratio_series,
+            "dividend_yield": dividend_yield_series
+        },
+        "revenue": {
+            "yoy": revenue_yoy_series,
+            "mom": revenue_mom_series,
+            "visible_month": revenue_visible_month_series
         },
         "records": aggregated_records
     }
