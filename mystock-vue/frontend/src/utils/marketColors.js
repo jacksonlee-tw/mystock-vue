@@ -42,3 +42,18 @@ export function getUpDownColorFromCSS(el) {
     const down = style.getPropertyValue('--down').trim() || MARKET_COLORS[DEFAULT_MARKET].down;
     return { up, down };
 }
+
+/**
+ * HEX 色碼轉 rgba() 字串，供 ECharts areaStyle/itemStyle 需要透明度分級的地方共用
+ * （原本各圖表元件各自寫一份，抽成共用函式）。非 HEX 開頭時原樣（或 transparent）回傳。
+ * @param {string} hex
+ * @param {number} alpha - 0~1
+ */
+export function hexToRgba(hex, alpha) {
+    if (!hex || !hex.startsWith('#')) return alpha <= 0 ? 'transparent' : hex;
+    const r = parseInt(hex.slice(1, 3), 16) || 0;
+    const g = parseInt(hex.slice(3, 5), 16) || 0;
+    const b = parseInt(hex.slice(5, 7), 16) || 0;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+

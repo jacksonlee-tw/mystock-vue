@@ -38,6 +38,23 @@
          這兩個既有分區因為缺標籤而意外消失。查無概念標籤資料時（種子檔尚未建立、或該市場沒有
          對應檔案）優雅隱藏「依標籤」切換與篩選器，只留排序控制，不阻擋熱力圖本體。 -->
     <div v-if="!loading && !error" class="flex flex-wrap items-center gap-2">
+      <!-- 檢視模式：卡片／樹狀圖，僅套用在「一般個股」，指數／ETF 兩區不受影響 -->
+      <div class="flex items-center gap-1 bg-surface-100 dark:bg-surface-800 p-1 rounded-lg border border-surface-200 dark:border-surface-700">
+        <button
+          v-for="v in viewModeOptions"
+          :key="v.value"
+          @click="viewMode = v.value"
+          :class="[
+            'px-3 py-1.5 text-xs font-bold rounded-md transition-colors',
+            viewMode === v.value
+              ? 'bg-primary text-primary-contrast shadow-sm'
+              : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-0'
+          ]"
+        >
+          {{ v.label }}
+        </button>
+      </div>
+
       <div
         v-if="conceptTags.tags.length > 0"
         class="flex items-center gap-1 bg-surface-100 dark:bg-surface-800 p-1 rounded-lg border border-surface-200 dark:border-surface-700"
@@ -98,7 +115,13 @@
 
     <!-- 熱力圖網格 -->
     <div v-else class="space-y-5">
-      <div v-for="category in categories" :key="category.name" v-show="category.stocks.length > 0">
+      <!-- 指數／ETF 兩區在兩種 viewMode 下都維持卡片顯示（決策）；其餘分類（一般個股）只在
+           viewMode==='card' 時以卡片呈現，viewMode==='treemap' 時改由下方樹狀圖區塊接手。 -->
+      <div
+        v-for="category in categories"
+        :key="category.name"
+        v-show="category.stocks.length > 0 && (viewMode === 'card' || category.name === '指數' || category.name === 'ETF')"
+      >
         <h2 class="text-base font-bold text-surface-900 dark:text-surface-0 mb-2 flex items-center gap-2">
           <i :class="['pi text-primary text-sm', category.icon]"></i>
           {{ category.name }}
@@ -179,6 +202,20 @@
           </div>
         </div>
       </div>
+
+      <!-- 一般個股樹狀圖檢視：同分類股票合併顯示在同一分區框內，區塊大小＝|漲跌幅%| -->
+      <div v-if="viewMode === 'treemap'">
+        <h2 class="text-base font-bold text-surface-900 dark:text-surface-0 mb-2 flex items-center gap-2">
+          <i class="pi pi-th-large text-primary text-sm"></i>
+          一般個股（依{{ groupBy === 'concept' && conceptTags.tags.length > 0 ? '標籤' : '產業' }}分組）
+        </h2>
+        <div v-if="!treemapData.length" class="card !m-0 p-8 text-center text-surface-400 text-sm rounded-xl border border-surface-200 dark:border-surface-700">
+          沒有符合篩選條件的股票
+        </div>
+        <div v-else class="card !m-0 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm p-2">
+          <v-chart :option="treemapOption" style="height: 640px" autoresize @click="onTreemapClick" />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -197,15 +234,15 @@ import { useRouter } from 'vue-router';
 import { stockApi } from '@/service/stockApi';
 import { indexApi } from '@/service/indexApi';
 import { useMarket } from '@/composables/useMarket';
-import { getUpDownColorFromCSS } from '@/utils/marketColors';
+import { getUpDownColorFromCSS, hexToRgba } from '@/utils/marketColors';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import { LineChart } from 'echarts/charts';
+import { LineChart, TreemapChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 import WatchlistStarButton from '@/components/WatchlistStarButton.vue';
 
-use([CanvasRenderer, LineChart, GridComponent, TooltipComponent]);
+use([CanvasRenderer, LineChart, TreemapChart, GridComponent, TooltipComponent]);
 
 const router = useRouter();
 const stocks = ref([]);
@@ -223,6 +260,13 @@ const groupByOptions = [
 ];
 const groupBy = ref('industry');
 const tagFilter = ref([]); // 概念標籤 id 陣列，OR 語意（ADR-CT3：跟 WatchlistView 既有的 AND 語意刻意不同）
+
+// 檢視模式：卡片／樹狀圖（僅套用在「一般個股」，指數／ETF 兩區不受影響）
+const viewModeOptions = [
+  { label: '卡片檢視', value: 'card' },
+  { label: '樹狀圖檢視', value: 'treemap' }
+];
+const viewMode = ref('card');
 const sortOptions = [
   { label: '預設排序', value: 'default' },
   { label: '漲跌幅：高到低', value: 'change_desc' },
@@ -385,6 +429,109 @@ const categories = computed(() => {
   return result;
 });
 
+// ── 樹狀圖檢視（僅套用在「一般個股」，指數／ETF 兩區在兩種 viewMode 下都維持卡片顯示）──────
+// 直接重用依產業／依標籤分組的 computed，繞過卡片模式的「不足 3 檔合併」邏輯——樹狀圖對小分類
+// 天生會分配到小區塊，不需要像卡片版面那樣手動合併成「其他個股」。
+const treemapGroups = computed(() => (
+  groupBy.value === 'concept' && conceptTags.value.tags.length > 0
+    ? stocksByConceptTag.value
+    : generalStocksByIndustry.value
+));
+
+// 顏色分級門檻：|漲跌幅%| 達到此值視為視覺上「顏色最深」，數值本身是可調的視覺參數
+const TREEMAP_COLOR_CAP_PCT = 5;
+const TREEMAP_MIN_VALUE = 0.05; // 區塊大小下限，讓漲跌 0% 的個股仍有可見面積，不會在畫面上消失
+const TREEMAP_FONT_MIN = 14; // 個股字體大小下限（漲跌幅小或平盤）
+const TREEMAP_FONT_MAX = 26; // 個股字體大小上限（|漲跌幅%| 達 TREEMAP_COLOR_CAP_PCT 即封頂）
+
+function treemapColor(changePercent) {
+  if (!changePercent) return '#94a3b8'; // 平盤：中性灰
+  const { up, down } = getUpDownColorFromCSS();
+  const base = changePercent > 0 ? up : down;
+  const alpha = 0.35 + 0.65 * Math.min(Math.abs(changePercent) / TREEMAP_COLOR_CAP_PCT, 1);
+  return hexToRgba(base, alpha);
+}
+
+// 個股字體大小依 |漲跌幅%| 等比例縮放：漲跌幅越大字體越大，跟顏色深淺共用同一個封頂門檻，
+// 讓「這檔股票變化很大」在色彩與文字大小上呈現一致的視覺強度。
+function treemapFontSize(changePercent) {
+  const ratio = Math.min(Math.abs(changePercent || 0) / TREEMAP_COLOR_CAP_PCT, 1);
+  return Math.round(TREEMAP_FONT_MIN + (TREEMAP_FONT_MAX - TREEMAP_FONT_MIN) * ratio);
+}
+
+// ECharts treemap 巢狀資料：區塊大小＝|漲跌幅%|（決策：不用市值／成交量，見規劃書評估）
+const treemapData = computed(() => (
+  treemapGroups.value
+    .filter(g => g.stocks.length > 0)
+    .map(g => ({
+      name: g.name,
+      // 明確在分類節點上開啟 upperLabel：series 層級預設關閉，避免 echarts 連隱形的 root
+      // 節點也畫出一條沒有文字的空白橫條（root 沒有 name，會顯示在所有分類標題列的最上方）。
+      upperLabel: { show: true },
+      children: g.stocks.map(s => {
+        const pct = s.change_percent;
+        const sign = pct > 0 ? '+' : '';
+        return {
+          name: s.stock_name,
+          value: Math.max(Math.abs(pct), TREEMAP_MIN_VALUE),
+          stockId: s.stock_id,
+          stockName: s.stock_name,
+          changePercent: pct,
+          price: s.latest_close,
+          volume: s.volume,
+          itemStyle: { color: treemapColor(pct) },
+          // 直接掛在資料節點上的 label 優先權高於 levels 設定，繞開 levels[].label.formatter
+          // 函式在這個 echarts 版本對葉節點不生效的問題（只顯示 {b} 預設名稱、不套用 formatter）。
+          label: { formatter: `{b}\n${sign}${pct.toFixed(2)}%`, fontSize: treemapFontSize(pct) }
+        };
+      })
+    }))
+));
+
+const treemapOption = computed(() => ({
+  tooltip: {
+    formatter: (params) => {
+      if (params.data?.stockId == null) return params.name;
+      const pct = params.data.changePercent;
+      const sign = pct > 0 ? '+' : '';
+      return `<b>${params.data.stockId} ${params.data.stockName}</b><br/>股價：${params.data.price}`
+        + `<br/>漲跌幅：${sign}${pct.toFixed(2)}%<br/>成交量：${(params.data.volume || 0).toLocaleString()}`;
+    }
+  },
+  series: [{
+    type: 'treemap',
+    data: treemapData.value,
+    roam: false,
+    nodeClick: false, // 不做分類下鑽，維持與卡片版面一致的「一眼看完」瀏覽方式
+    breadcrumb: { show: false },
+    itemStyle: { borderColor: 'rgba(255,255,255,0.5)', gapWidth: 2 },
+    // upperLabel／label 需放在 series 層級（不能塞進 levels[] 裡，levels[].upperLabel／label
+    // 的子欄位不會生效，只會顯示空白色塊）：echarts 會依節點是否仍有可見子節點自動二選一——
+    // 有子節點（分類層）顯示 upperLabel 置頂標題列，葉節點（個股）顯示 label。show 預設關閉，
+    // 只由 treemapData 裡各分類節點自己的 upperLabel.show=true 開啟，避免隱形 root 節點也顯示。
+    // upperLabel 自帶 backgroundColor（不透明實色）：不依賴節點 itemStyle 或頁面明暗主題背景，
+    // 確保標題列本身在淺色／深色底色下都有固定、足夠的對比度。
+    upperLabel: { show: false, height: 24, backgroundColor: '#334155', color: '#fff', fontWeight: 'bold', fontSize: 12 },
+    // fontSize 為預設值，實際大小由每個葉節點的 label.fontSize（依 |漲跌幅%| 等比例縮放）覆寫
+    label: { show: true, color: '#fff', fontSize: TREEMAP_FONT_MIN, fontWeight: 'bold' },
+    levels: [
+      {
+        // depth 1：分類底色（upperLabel 標題列會蓋在這個底色上緣），呼應附圖「電子科技 ﹥」樣式
+        itemStyle: { color: '#64748b', borderWidth: 0, gapWidth: 4 }
+      },
+      {
+        // depth 2：個股葉節點，顏色由資料節點自己的 itemStyle.color 決定，文字由 label.formatter 決定（見上）
+        itemStyle: { borderWidth: 1, gapWidth: 1 }
+      }
+    ]
+  }]
+}));
+
+function onTreemapClick(params) {
+  if (params?.data?.stockId == null) return; // 點到分類標題列，不導頁
+  goToItem({ stock_id: params.data.stockId, is_index: false });
+}
+
 function isEtf(stock) {
   if (stock.market === 'tw') {
     // 台股 ETF 通常以 00 開頭
@@ -525,24 +672,10 @@ function getSparklineOption(stock) {
   const isUp = stock.change >= 0;
   const { up, down } = getUpDownColorFromCSS();
   const color = isUp ? up : down;
-  
-  // ECharts 支援 rgba() 語法，但如果 up/down 變數是 HEX 色碼，
-  // 我們可以簡單用 echarts 漸層，或者需要 HEX 轉 RGBA。
-  // 為簡化，使用 color 加上 ECharts 內建 opacity 處理，
-  // 或是自己寫個 hex to rgba，這裡偷懶直接用 colorStops 0.4 和 0。
-  
-  // 簡易 hexToRgba
-  const hexToRgba = (hex, alpha) => {
-    const r = parseInt(hex.slice(1, 3), 16) || 0;
-    const g = parseInt(hex.slice(3, 5), 16) || 0;
-    const b = parseInt(hex.slice(5, 7), 16) || 0;
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  };
 
-  const color04 = color.startsWith('#') ? hexToRgba(color, 0.4) : color;
-  const color00 = color.startsWith('#') ? hexToRgba(color, 0.0) : 'transparent';
+  const color04 = hexToRgba(color, 0.4);
+  const color00 = hexToRgba(color, 0.0);
 
-  
   return {
     grid: { left: 0, right: 0, top: 5, bottom: 5 },
     xAxis: { type: 'category', show: false, boundaryGap: false },
