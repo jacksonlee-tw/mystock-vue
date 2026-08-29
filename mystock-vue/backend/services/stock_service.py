@@ -413,7 +413,22 @@ def _build_recursive_indicator_payloads(full_records: List[Dict[str, Any]], disp
         "histogram": _slice(histogram),
     }
 
-    rsi_payload: Dict[str, Any] = {"periods": list(rsi_periods)}
+    # RSI 超買／超賣門檻取自策略設定，讓「YAML 改門檻 → 圖上基準線跟著動」（比照
+    # _build_kd_payload() 對 KD 門檻的既有作法，Phase1-基礎量化與技術面 設計文件 §9 Q-1）；
+    # 找不到對應策略時退回業界慣用 70/30（Q-3 決議，非 v1.0 草案的 80/20）。
+    rsi_oversold, rsi_overbought = 30, 70
+    rsi_strategy = cfg.get("rsi_oversold_recovery")
+    if rsi_strategy:
+        rsi_cond = next((c for c in rsi_strategy.conditions if c.get("type") == "rsi_zone"), None)
+        if rsi_cond:
+            rsi_oversold = rsi_cond.get("oversold_threshold", rsi_oversold)
+            rsi_overbought = rsi_cond.get("overbought_threshold", rsi_overbought)
+
+    rsi_payload: Dict[str, Any] = {
+        "periods": list(rsi_periods),
+        "oversold": rsi_oversold,
+        "overbought": rsi_overbought,
+    }
     for p in rsi_periods:
         rsi_payload[f"rsi_{p}"] = _slice(rsi(closes, p))
 

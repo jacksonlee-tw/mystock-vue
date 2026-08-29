@@ -48,6 +48,11 @@ _SUGGESTED_ACTION_TEMPLATES = {
     # KD 隨機指標
     ("kd_oversold_golden_cross", "bullish"): "KD 於超賣區黃金交叉，短線動能可能轉強；建議確認是否站上 MA{ma_period} 再行進場",
     ("kd_overbought_death_cross", "bearish"): "KD 於超買區死亡交叉，短線動能轉弱，留意獲利了結賣壓",
+    # MACD／RSI（Phase1-基礎量化與技術面 設計文件 §9 Q-1／Q-3：RSI 門檻採業界慣用 70/30）
+    ("macd_golden_cross", "bullish"): "MACD 出現黃金交叉（DIF 上穿訊號線），中期動能轉強，可留意進場時機",
+    ("macd_death_cross", "bearish"): "MACD 出現死亡交叉（DIF 下穿訊號線），中期動能轉弱，建議降低持股比重",
+    ("rsi_oversold_recovery", "bullish"): "RSI 由超賣區（30 以下）回升，短線止跌訊號浮現，可留意反彈機會",
+    ("rsi_overbought_reversal", "bearish"): "RSI 由超買區（70 以上）回落，短線動能轉弱，留意獲利了結賣壓",
     # ── 選股策略範本（選股功能與爬蟲 規格書 §13）────────────────────────
     ("pick_valuation_low_pe", "bullish"): "低本益比/高殖利率價值選股標的，基本面估值偏低，具安全邊際",
     ("pick_revenue_growth_momentum", "bullish"): "營收連續高成長，營運動能充沛，可搭配技術面均線支撐逢低買進",
@@ -130,6 +135,11 @@ async def scan_market(
     kd_params = [tuple(p) for p in cfg.defaults.get("kd_params", [])]
     kd_warmup_bars = cfg.defaults.get("kd_warmup_bars", 25)
     kd_smoothing = cfg.defaults.get("kd_smoothing", "wilder_1_3")
+    # MACD／RSI（Phase1-基礎量化與技術面 設計文件 §9 Q-1）：defaults 只有單一組 MACD 參數
+    # （非 kd_params 那種允許多組的 list of list），包成單元素 list 比照 ChipDataProvider.get_bars()
+    # 對 macd_params 的介面（Dict[Tuple, MACDSeries] 鍵集合）。
+    macd_params = [tuple(cfg.defaults.get("macd_params", [12, 26, 9]))]
+    rsi_periods = cfg.defaults.get("rsi_periods", [6, 14])
 
     strategies = cfg.enabled_for_market(market)
     provider = ChipDataProvider()
@@ -190,6 +200,7 @@ async def scan_market(
             ctx = await provider.get_bars(
                 symbol, market, ma_periods, volume_ma_period,
                 kd_params=kd_params, kd_warmup_bars=kd_warmup_bars, kd_smoothing=kd_smoothing,
+                macd_params=macd_params, rsi_periods=rsi_periods,
                 with_valuation=needs_valuation, preloaded=preload_src,
             )
         except Exception as e:

@@ -1,8 +1,8 @@
 # AI 技術分析報告 系統開發規格書
 
 **模組**：AI 技術分析報告（AI Technical Analysis Report）
-**版本**：v3.4
-**日期**：2026-08-28
+**版本**：v3.5
+**日期**：2026-08-29
 **狀態**：**已完成開發並通過端對端驗證**（後端 P1～P8、前端 P6～P7 皆已實作；Claude 走過完整失敗/重試/落地路徑，Gemini 走過真實成功的完整路徑，見 §11 WBS 與各階段驗證紀錄）
 **對應既有模組**：[strategies/](../../backend/strategies/)（策略警示）、[notify/](../../backend/notify/)（通知平台，本文多處沿用其架構慣例）
 
@@ -17,6 +17,7 @@
 | v3.2 | 2026-08-28 | 完成開發與端對端驗證（含真實 Claude／Gemini 呼叫）；過程中修正 3 個實作 bug（DATE 參數型別、`INTERVAL` 串接、`force` 旗標邏輯）與 1 個 Gemini `finish_reason` enum 解析 bug；**推翻 ADR-AI-07：移除所有 AI 端點的 `require_owner` 授權**（前端無登入入口，見 §0.3）；補上 Gemini 2.5 Flash／Flash-Lite 官方定價 |
 | v3.3 | 2026-08-28 | **D-10／§4.5 修訂**：`report_markdown` 不再要求 LLM 直接產生自由文字（實測 Claude／Gemini 皆會不穩定地把「### 標題」黏在前一句話尾端，即使 Prompt 三令五申仍會失效）；改為 LLM 只填結構化的 `sections: [{title, body}]`，Markdown 標題與換行改由後端 `sections_to_markdown()` 自行組裝，100% 保證正確斷行；同時完成前端 `AiAnalysisDialog.vue` 的 UI/UX 重新設計（單一捲動區、標題左側色條、結論改為色塊摘要卡、支撐/壓力/停損卡片加圖示） |
 | v3.4 | 2026-08-28 | **ADR-AI-21：唯一鍵擴充為 `(market_type, symbol, trade_date, provider, model)`**（V15 遷移）——換模型視為另一份獨立報告，可再產生一次；新增 `GET /api/v1/ai/models`（**ADR-AI-22** 程式碼白名單）與 `POST /analyze-stock` 的 `model` 欄位；前端 `AiAnalysisDialog.vue` 新增「選擇模型」步驟（見 §0.4）。過程中實測發現 `gemini-2.5-flash-lite` 已對新用戶下架（官方指定改用 `gemini-3.5-flash-lite`），移出白名單並補上正確機型 |
+| v3.5 | 2026-08-29 | 依 [Phase1-基礎量化與技術面](Phase1-基礎量化與技術面.md) FR-P1-7～9 落地：`get_stock_chart_payload()`／`quant_summary`／System Prompt 新增 `macd`／`rsi`／`bollinger`／`atr` 與固定 20/60 日 `resistance`／`support`（§4.2 表格同步更新）；`AI_PROMPT_VERSION` 由 `v3` 遞增為 `v4`；對外七個結構化輸出欄位與既有 `ma`／`kd`／`chips`／`margin` 區塊不受影響（該文件 AC-P1-8） |
 
 > **文件性質說明**
 > v1.0 是「可行性構想」，回答「做不做得到」；本版是**開發規格書**，回答「怎麼做才不會踩雷」。
@@ -414,7 +415,11 @@ api/v1/endpoints/ai_analysis.py
 | `ma`：`ma5`／`ma10`／`ma20`／`ma60`／`ma120`／`ma240`（各取最新值） | `moving_averages` | 全部 |
 | `bias`：收盤相對各均線乖離率 | 由 `ma` 與 `close` 直接得出 | 全部 |
 | `kd`：最新 `K`／`D` | `kd` | 全部 |
-| `range_high`／`range_low`：區間最高最低與其日期 | `records` | 全部 |
+| `macd`：最新 `dif`／`signal`／`histogram` | `macd`（[Phase1-基礎量化與技術面](Phase1-基礎量化與技術面.md) FR-P1-8，v3.5 新增） | 全部 |
+| `rsi`：最新 `rsi_6`／`rsi_14` | `rsi`（同上） | 全部 |
+| `bollinger`：最新 `upper`／`middle`／`lower`／`bandwidth`（`middle` 與 `ma.ma20` 同值，不重算，見該文件 ADR-P1-05） | `bollinger`（同上） | 全部 |
+| `atr`：最新 `atr_14` | `atr`（同上） | 全部 |
+| `range_high`／`range_low`：區間最高最低與其日期；另含固定 `resistance_20d`／`support_20d`／`resistance_60d`／`support_60d`（同上 FR-P1-6，兩組視窗語意不同、並存不取代，見該文件 §9 Q-5） | `records`／`levels` | 全部 |
 | `volume_ma5`、`volume_ratio`（量能比） | `records` | 全部 |
 | `chips`：近 5 日外資／投信／自營商買賣超合計 | `indicators/chip.py` `cum_net()` | **僅 TW** |
 | `margin`：融資餘額、融券餘額、券資比 | `latest_summary` | **僅 TW** |

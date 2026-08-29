@@ -263,11 +263,15 @@ def _kd_zone_ok(zone_rule: str, k: float, d: float, in_zone) -> bool:
     return in_zone(k) and in_zone(d)  # "both"（預設）
 
 
-def _kd_trend_guard(ctx: ScanContext, idx: int, guard: Optional[dict]) -> Optional[dict]:
+def _trend_guard(ctx: ScanContext, idx: int, guard: Optional[dict]) -> Optional[dict]:
     """趨勢守衛（KD指標 設計規格書 §5.4）。回傳 None 代表未通過，訊號整筆擋掉；
     回傳 dict（可能為空）代表通過，內容併入 details（key 沿用既有 MA 條件慣用的
     ma_period／ma_value，讓 scanner._suggested_action() 不需另外改讀取邏輯）。
-    只能讀 ctx.ma[period]，不得自行計算均線（策略管理架構 設計文件第 9 節鐵則）。"""
+    只能讀 ctx.ma[period]，不得自行計算均線（策略管理架構 設計文件第 9 節鐵則）。
+
+    原僅供 kd_cross 使用（故舊名 _kd_trend_guard），邏輯本身與 KD 無關，只是讀 ctx.ma，
+    Phase1-基礎量化與技術面 設計文件 §9 Q-1 新增 macd_cross／rsi_zone 後一併共用，
+    避免同一段「收盤價相對某均線」判斷分散成三份幾乎相同的程式碼。"""
     if not guard:
         return {}
     mode = guard.get("mode", "off")
@@ -362,7 +366,7 @@ def kd_cross(ctx: ScanContext, idx: int, params: dict) -> List[dict]:
         if not _kd_zone_ok(zone_rule, k_now, d_now, in_zone):
             continue
 
-        trend_extra = _kd_trend_guard(ctx, idx, params.get("trend_guard"))
+        trend_extra = _trend_guard(ctx, idx, params.get("trend_guard"))
         if trend_extra is None:
             continue  # 趨勢守衛未通過，訊號整筆擋掉（非缺值容錯，是策略層的刻意過濾）
 
@@ -381,5 +385,108 @@ def kd_cross(ctx: ScanContext, idx: int, params: dict) -> List[dict]:
             **trend_extra,
         }
         results.append({"direction": direction, "details": details})
+
+    return results
+
+
+# ══ MACD（Phase1-基礎量化與技術面 設計文件 §9 Q-1）══════════════════════════
+# min_bars=40：slow_period(26) + signal_period(9) 暖身 + 前一日比較 1 根，抓寬一點的安全邊際
+# （比照 kd_cross 的 min_bars=35 同樣抓「理論最短暖身 + 1」的作法）。
+
+@condition(type="macd_cross", min_bars=40, requires=("macd",))
+def macd_cross(ctx: ScanContext, idx: int, params: dict) -> List[dict]:
+    """MACD 黃金交叉 / 死亡交叉：DIF 上穿／下穿訊號線（Phase1-基礎量化與技術面 設計文件 §9 Q-1）。
+
+    只讀 ctx.macd（indicators/macd.py 預先算好、經 stock_service 全歷史計算後切片的結果，
+    見該設計文件 §3.3），不在此重算 EMA 或 DIF（策略管理架構 設計文件第 9 節鐵則）。
+    """
+    if idx < 1:
+        return []
+
+    macd_params = tuple(params.get("macd_params", (12, 26, 9)))
+    series = ctx.macd.get(macd_params)
+    if series is None:
+        return []
+
+    dif_now, dif_prev = series.dif[idx], series.dif[idx - 1]
+    sig_now, sig_prev = series.signal[idx], series.signal[idx - 1]
+    if None in (dif_now, dif_prev, sig_now, sig_prev):
+        return []
+
+    golden = dif_prev <= sig_prev and dif_now > sig_now
+    death = dif_prev >= sig_prev and dif_now < sig_now
+    if not golden and not death:
+        return []
+
+    directions_wanted = set(params.get("directions", ["golden_cross", "death_cross"]))
+    close = ctx.closes[idx]
+    details_base = {
+        "close": close, "dif": dif_now, "signal": sig_now,
+        "histogram": series.histogram[idx], "macd_params": list(macd_params),
+    }
+
+    results = []
+    if golden and "golden_cross" in directions_wanted:
+        trend_extra = _trend_guard(ctx, idx, params.get("trend_guard"))
+        if trend_extra is not None:
+            results.append({"direction": "macd_golden_cross", "details": {**details_base, **trend_extra}})
+    if death and "death_cross" in directions_wanted:
+        trend_extra = _trend_guard(ctx, idx, params.get("trend_guard"))
+        if trend_extra is not None:
+            results.append({"direction": "macd_death_cross", "details": {**details_base, **trend_extra}})
+
+    return results
+
+
+# ══ RSI（Phase1-基礎量化與技術面 設計文件 §9 Q-1／Q-3）══════════════════════
+# 門檻採業界慣用 70/30（Q-3 決議，非 v1.0 草案的 80/20）。與 kd_cross 一樣採「跨越門檻的
+# 當天觸發」而非「持續位於區間內每天都觸發」，避免同一段超賣／超買期間洗版警示看板。
+# min_bars=20：預設 14 期 RSI 的 Wilder 暖身（period+1=15 根）+ 前一日比較，抓寬安全邊際。
+
+@condition(type="rsi_zone", min_bars=20, requires=("rsi",))
+def rsi_zone(ctx: ScanContext, idx: int, params: dict) -> List[dict]:
+    """RSI 超賣區止跌 / 超買區轉弱：RSI 由極端區間穿越回中性區（Phase1-基礎量化與技術面 設計文件 §9 Q-1）。
+
+    只讀 ctx.rsi（indicators/rsi.py 預先算好、經 stock_service 全歷史計算後切片的結果，
+    見該設計文件 §3.3），不在此重算漲跌幅或平均漲跌（策略管理架構 設計文件第 9 節鐵則）。
+    """
+    if idx < 1:
+        return []
+
+    period = params.get("rsi_period", 14)
+    series = ctx.rsi.get(period)
+    if not series:
+        return []
+
+    curr, prev = series[idx], series[idx - 1]
+    if curr is None or prev is None:
+        return []
+
+    oversold = params.get("oversold_threshold", 30)
+    overbought = params.get("overbought_threshold", 70)
+    directions_wanted = set(params.get("directions", ["oversold_recovery", "overbought_reversal"]))
+    close = ctx.closes[idx]
+
+    results = []
+    if "oversold_recovery" in directions_wanted and prev <= oversold and curr > oversold:
+        trend_extra = _trend_guard(ctx, idx, params.get("trend_guard"))
+        if trend_extra is not None:
+            results.append({
+                "direction": "rsi_oversold_recovery",
+                "details": {
+                    "close": close, "rsi": curr, "rsi_prev": prev,
+                    "rsi_period": period, "threshold": oversold, **trend_extra,
+                },
+            })
+    if "overbought_reversal" in directions_wanted and prev >= overbought and curr < overbought:
+        trend_extra = _trend_guard(ctx, idx, params.get("trend_guard"))
+        if trend_extra is not None:
+            results.append({
+                "direction": "rsi_overbought_reversal",
+                "details": {
+                    "close": close, "rsi": curr, "rsi_prev": prev,
+                    "rsi_period": period, "threshold": overbought, **trend_extra,
+                },
+            })
 
     return results

@@ -13,6 +13,8 @@ _BULLISH_PREFIXES = (
     "bottom_turnover",
     "short_squeeze",
     "kd_golden_cross",  # KD 超賣區黃金交叉（KD指標 設計規格書 §5.5）
+    "macd_golden_cross",       # MACD 黃金交叉（Phase1-基礎量化與技術面 設計文件 §9 Q-1）
+    "rsi_oversold_recovery",   # RSI 超賣區回升（同上）
     "pick_",            # 選股買進訊號（選股功能與爬蟲 規格書 §13）
 )
 _BEARISH_PREFIXES = (
@@ -23,6 +25,8 @@ _BEARISH_PREFIXES = (
     "distribution_top",
     "revenue_yoy_decline",
     "kd_death_cross",
+    "macd_death_cross",        # MACD 死亡交叉（Phase1-基礎量化與技術面 設計文件 §9 Q-1）
+    "rsi_overbought_reversal", # RSI 超買區回落（同上）
     "exit_",            # 出場風控賣出訊號（選股功能與爬蟲 規格書 §13）
 )
 

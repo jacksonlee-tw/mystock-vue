@@ -1,9 +1,9 @@
 # Phase 1：基礎量化與技術面 — 技術指標庫補齊 功能需求文件
 
 **模組**：技術面純函式指標庫（`backend/indicators/`）擴充，及其於圖表 payload 與 AI 診股報告的落地
-**版本**：v3.0（v1.0 為外部貼入草案；v2.0 已對照現況重寫；本版補上三項跨文件／跨層的關鍵約束，見 §0）
-**日期**：2026-08-28
-**狀態**：**功能需求 — 待審核。本文件只定義需求、介面契約與驗收條件，不含程式開發**
+**版本**：v3.1（v1.0 為外部貼入草案；v2.0 已對照現況重寫；v3.0 補上三項跨文件／跨層的關鍵約束；本版 P0～P2 已全部開發完成，見 §0）
+**日期**：2026-08-29
+**狀態**：**P0～P2 已完成開發並通過驗證**（`scripts/verify_indicators.py` 全數 PASS；策略條件與前端副圖已實作，見 §7、§8）
 
 **對應既有模組**
 [indicators/moving_average.py](../../backend/indicators/moving_average.py)（SMA／BIAS，**無 EMA**）、
@@ -52,6 +52,7 @@
 | v1.0 | 從外部貼入、未核對本專案現況的構想清單：`BaseProvider`／`TWSEProvider`／`YahooProvider` 抽象層、`data/raw/` JSON → `data/curated/` Parquet 兩段式落地、`DataFrame in → DataFrame out` 指標函式、`pytest` 單元測試。方向可理解，但四項技術假設在本專案**全部不成立**（見 §2.1） |
 | v2.0 | 對照現行程式碼重寫：加入 §0 改版說明與 §2 現況盤點，把範圍從「重建資料管線」收斂為「補齊 MACD／RSI／布林通道／ATR 四項缺席指標」，修正 Parquet／pytest／DataFrame 三項技術假設 |
 | v3.0 | 本次優化，補上 v2.0 漏掉的三項關鍵約束，並改寫為 FR 編號式的功能需求文件：<br/>① **AI 摘要層不得自行算指標**（《AI 報告規格》§4.2 鐵則）——新指標必須先落在 `get_stock_chart_payload()`，`ai/summary.py` 只能讀，v2.0 誤寫成由摘要層計算（→ §3.2、FR-P1-7）<br/>② **遞迴型指標必須「全歷史計算後切片」**（KD 決議 D5）——MACD／RSI／ATR 若比照 MA 在截斷視窗上計算，會產出「看似正常但其實錯誤」的數字（→ §3.3、FR-P1-7）<br/>③ **RSI 與《相對低點》ADR-RL-02 的決議關係**——該文件已決定不新增 RSI 並列為 P3／Q-3，本文件若交付 RSI 等同回答其 Q-3，需明講而非各寫各的（→ §2.3、ADR-P1-06）<br/>另補：§3.1 資料流圖、FR 編號與 AC 對應、§5 設定項目、前後端算法對齊的兩種模式（ADR-P1-07） |
+| **v3.1** | **P0～P2 全部開發完成，本版記錄實際決議與交付狀態**（§9 開放問題逐項回填、§7 分階段交付更新）：<br/>**Q-1＝是**：新增 `macd_cross`／`rsi_zone` 策略條件（`strategies/conditions_tech.py`），比照 `kd_cross` 拆成黃金/死亡交叉各一策略（`macd_golden_cross`／`macd_death_cross`／`rsi_oversold_recovery`／`rsi_overbought_reversal`，見 `strategy_config/strategies.yaml`）；`_kd_trend_guard()` 一併通用化為 `_trend_guard()` 供三種指標共用（ADR-P1-09）<br/>**Q-2＝是**：`StockCharts.vue`／`ChartDetailView.vue` 的 KD 副圖開關擴充為 KD／MACD／RSI 三選一（`subchartMode`，取代原本的單一布林 `kdVisible`，localStorage 相容遷移舊值），同一時間只顯示一張副圖（ADR-P1-10）<br/>**Q-3＝業界慣用 70/30**（取代 v1.0 的 80/20），`rsi_zone` 預設門檔與 `stock_service._build_recursive_indicator_payloads()` 的 RSI 副圖基準線皆採此值，且門檻仍可由 YAML 覆寫（不寫死，比照 KD 既有慣例）<br/>**Q-4＝維持不做**：ATR 不接入 `stop_loss` 規則式計算，本階段仍只是 Context 數值<br/>**Q-5＝保留既有四鍵並新增四鍵**：`quant_summary.range` 維持 P0 的既定作法（已在 FR-P1-8 落地，非本版新增）<br/>**Q-6＝未決議**：《相對低點》`relative_low_zone` 的 C4 是否改用 RSI 維持懸而未決，不在本文件範圍內動作 |
 
 ---
 
@@ -198,8 +199,8 @@ flowchart TB
     PROMPT["ai/prompt.py<br/>【本文件 P0】"]
     LLM["Claude / Gemini"]
 
-    COND["strategies/conditions_tech.py<br/>【P1，視 Q-1】"]
-    FE["前端 K 線副圖<br/>【P2，視 Q-2】"]
+    COND["strategies/conditions_tech.py<br/>【P1，已完成】"]
+    FE["前端 K 線副圖<br/>【P2，已完成】"]
     VERIFY["scripts/verify_indicators.py<br/>【本文件 P0】"]
 
     DATA --> SVC
@@ -381,16 +382,18 @@ v1.0 的「量能均線與爆量偵測（判定是否達均量 1.5 或 2 倍）�
 | **ADR-P1-06** | 交付 RSI，不推翻《相對低點》ADR-RL-02，而是滿足其自身預留的觸發條件 | ADR-RL-02 原文即載明「若日後有多個策略都需要 RSI，再另立指標規格」。現有兩個獨立消費者（AI 報告 Context、《進出場策略規劃》§5-3 假設其存在），符合該觸發條件。既有 `relative_low_zone` 的 C4 **維持用 KD 不動**，是否改用 RSI 屬該文件 Q-3 範圍 |
 | **ADR-P1-07** | 新指標採「後端算、前端只畫」（KD 模式），不比照 MA 在前端另寫一份等值實作 | 專案現有兩種模式：MA 是前後端各一份（`moving_average.py` 與 `utils/movingAverage.js`），KD 是後端算好隨 payload 下送。前者已出現細微分歧徵兆（後端 `round(…, 4)`、前端 `toFixed(2)`），且每新增一個指標就多一份需同步維護的 JS 實作。新指標一律採 KD 模式，P2 若做副圖也不需要新的 JS 算法 |
 | **ADR-P1-08** | 指標計算與其下游整合（策略 condition、前端副圖）分階段交付，本階段不預先決定後兩者 | 「算得出指標」與「要不要因此新增策略與 UI」是可分離的兩件事；先交付 P0 觀察實際需求，避免範圍蔓延（見 §7、§9 Q-1／Q-2） |
+| **ADR-P1-09** | `macd_cross`／`rsi_zone` 比照 `kd_cross` 拆成黃金/死亡交叉（或超賣回升/超買回落）各一個獨立策略，而非一個策略同時掛兩個方向 | 與既有 `kd_oversold_golden_cross`／`kd_overbought_death_cross` 的既有慣例一致，方便個別設定 `cooldown_days` 與濾網；`_kd_trend_guard()` 通用化為 `_trend_guard()`，三種指標共用同一段「收盤價相對某均線」判斷，避免重複程式碼 |
+| **ADR-P1-10** | 前端副圖從「KD 單一布林開關」擴充為「KD／MACD／RSI 三選一」（`subchartMode`），同一時間只顯示一張，而非三個獨立開關各自疊加 | 三張副圖同時開啟會讓 K 線圖被壓得過扁、資訊過載；三選一維持與既有 KD 副圖相同的版面高度與互動複雜度。`localStorage` 舊鍵（`mystock:chart:kd-visible`）保留讀取相容，不強迫使用者重新設定 |
 
 ---
 
 ## 7. 分階段交付
 
-| 階段 | 內容 | 前置條件 |
+| 階段 | 內容 | 狀態 |
 |---|---|---|
-| **P0** | FR-P1-1～FR-P1-10 全部：六個純函式指標 ＋ `get_stock_chart_payload()` 落地（含全歷史切片）＋ `ai/summary.py`／`ai/prompt.py` 整合 ＋ 驗證腳本。**四者為同一批工作，不可只做頭尾**（§3.2） | 無（OHLCV 資料 TW／US 皆已完整累積） |
-| **P1** | 視 §9 Q-1 決議：`ScanContext` 擴充對應欄位（比照 `ctx.kd`）＋ `conditions_tech.py` 新增 `macd_cross`／`rsi_zone` 等條件＋ `strategies.yaml` 設定範例。須比照既有慣例宣告 `min_bars` 與 `requires`（`@condition` 裝飾器，如 `kd_cross` 的 `min_bars=35`） | P0 穩定運行，且 AI 報告已累積一段觀察期 |
-| **P2** | 視 §9 Q-2 決議：前端 MACD／RSI 副圖切換，比照既有 KD 副圖的完整慣例（`localStorage` 記憶開關、`kdAvailable` 式的資料不足停用、`?indicator=` 深連結、副圖開啟時主圖加高） | P1（有 condition 才有從警示看板跳轉看副圖的需求） |
+| **P0** | FR-P1-1～FR-P1-10 全部：六個純函式指標 ＋ `get_stock_chart_payload()` 落地（含全歷史切片）＋ `ai/summary.py`／`ai/prompt.py` 整合 ＋ 驗證腳本 | ✅ **已完成**（`scripts/verify_indicators.py` 全數 PASS，含 TW/US 真實標的端到端檢查） |
+| **P1** | §9 Q-1 決議為「是」：`ScanContext` 新增 `macd`／`rsi` 欄位（`services/chip_provider.py`）＋ `conditions_tech.py` 新增 `macd_cross`（`min_bars=40`）／`rsi_zone`（`min_bars=20`）條件＋ `strategy_config/strategies.yaml` 新增 `macd_golden_cross`／`macd_death_cross`／`rsi_oversold_recovery`／`rsi_overbought_reversal` 四個策略＋ `direction.py`／`scanner._SUGGESTED_ACTION_TEMPLATES` 登記新方向文案 | ✅ **已完成**（見 §0 v3.1、ADR-P1-09） |
+| **P2** | §9 Q-2 決議為「是」：前端 `StockCharts.vue`／`ChartDetailView.vue` 的 KD 副圖開關擴充為 KD／MACD／RSI 三選一（`subchartMode`），沿用既有 `localStorage` 記憶、資料不足停用、`?indicator=` 深連結、副圖開啟時主圖加高等 KD 既有慣例；`alertDirection.js`／`chartExplanations.js` 同步登記新方向與說明文字 | ✅ **已完成**（見 §0 v3.1、ADR-P1-10） |
 
 ---
 
@@ -414,14 +417,14 @@ v1.0 的「量能均線與爆量偵測（判定是否達均量 1.5 或 2 倍）�
 
 ## 9. 開放問題
 
-| # | 問題 | 影響範圍 | 建議 |
-|---|---|---|---|
-| **Q-1** | MACD／RSI 是否要做成策略 `condition`（比照 `kd_cross`），串進 `strategies.yaml` 與通知平台？ | 決定 P1 是否啟動，及是否需要擴充 `ScanContext` | 建議 P0 上線、AI 報告觀察 1～2 個月後再決定（同 ADR-P1-08，也與《相對低點》Q-3 建議「先跑一段再評估」的既有節奏一致） |
-| **Q-2** | 前端是否需要 MACD／RSI 副圖？ | 決定 P2 是否啟動 | 待 Q-1 決議「要做 condition」後再評估；純 AI Context 用途不需要圖表。採 ADR-P1-07 後不需新增 JS 算法 |
-| **Q-3** | RSI 超買／超賣門檻：沿用 v1.0 的 **80/20**，或業界慣用的 **70/30**？ | Prompt 措辭、（若做 condition）預設參數 | 門檻已設計為設定值（§5），不阻塞 P0 開發。數字由使用者決定；註記：v1.0 的 80/20 明顯較嚴格，與既有 KD 的 80/20 一致，若追求兩指標語意對齊可沿用 |
-| **Q-4** | ATR 是否要用於停損位階（如 `close − 2×ATR`）？ | 現行 `stop_loss` 完全由 LLM 產出；若引入規則式計算，會變成規則式與 LLM 並存的雙軌停損 | 本階段**不做**。ATR 先以純數值併入 Context 供 LLM 參考，維持「技術面數值是佐證、不是直接決策」的既有定位。若日後要做，應在《進出場策略規劃》而非本文件 |
-| **Q-5** | `quant_summary.range` 既有的 `high`／`low`／`high_date`／`low_date` 四個鍵，在改用 20／60 日固定視窗後是保留並存還是取代？ | 歷史報告快照的欄位一致性、Prompt 分節長度 | 建議**保留既有四鍵並新增四鍵**：既有鍵語意是「本次圖表顯示區間的高低點」（與 AI 看到的圖一致），新鍵是「固定 20／60 日位階」，兩者語意不同不應互相取代 |
-| **Q-6** | 交付 RSI 後，《相對低點》的 C4（現用 KD）是否改用或並用 RSI？ | 該策略的訊號數量與既有回溯一致性 | **不在本文件範圍**（ADR-P1-06）。建議該文件的 Q-3 在本文件 P0 完成後另行決議，且變更既有策略條件前應先評估對歷史訊號的影響 |
+| # | 問題 | 決議 |
+|---|---|---|
+| **Q-1** | MACD／RSI 是否要做成策略 `condition`（比照 `kd_cross`），串進 `strategies.yaml` 與通知平台？ | ✅ **是**——已交付（見 §7 P1、ADR-P1-09）。訊號沿用既有 `alert_repository`／通知平台管線，不另開推播路徑 |
+| **Q-2** | 前端是否需要 MACD／RSI 副圖？ | ✅ **是**——已交付（見 §7 P2、ADR-P1-10） |
+| **Q-3** | RSI 超買／超賣門檻：沿用 v1.0 的 **80/20**，或業界慣用的 **70/30**？ | ✅ **改用業界慣用 70/30**（取代 v1.0 的 80/20）。`rsi_zone` 條件與 RSI 副圖基準線皆採此預設值，門檻本身仍可由 `strategies.yaml` 覆寫 |
+| **Q-4** | ATR 是否要用於停損位階（如 `close − 2×ATR`）？ | ❌ **本階段維持不做**。ATR 先以純數值併入 Context 供 LLM 參考，維持「技術面數值是佐證、不是直接決策」的既有定位。若日後要做，應在《進出場策略規劃》而非本文件 |
+| **Q-5** | `quant_summary.range` 既有的 `high`／`low`／`high_date`／`low_date` 四個鍵，在改用 20／60 日固定視窗後是保留並存還是取代？ | ✅ **保留既有四鍵並新增四鍵**（已在 P0／FR-P1-8 落地）：既有鍵語意是「本次圖表顯示區間的高低點」，新鍵是「固定 20／60 日位階」，兩者語意不同不互相取代 |
+| **Q-6** | 交付 RSI 後，《相對低點》的 C4（現用 KD）是否改用或並用 RSI？ | **未決議，維持開放**。**不在本文件範圍**（ADR-P1-06）；本文件不變更 `relative_low_zone` 既有條件，變更前應先評估對歷史訊號的影響，留待《相對低點》自行決議 |
 
 ---
 
@@ -459,6 +462,13 @@ v1.0 的「量能均線與爆量偵測（判定是否達均量 1.5 或 2 倍）�
 | `backend/scripts/verify_indicators.py` | 新增（FR-P1-10） | P0 |
 | `docs/13.選股功能/股價相對低點.md` | 回填註記：其 P3／Q-3（RSI）已由本文件承接（§2.3、ADR-P1-06） | P0 |
 | [AI技術分析規劃.md](AI技術分析規劃.md) | 依其既有版本紀錄慣例新增一列（比照 Phase 2 §5-6 的作法） | P0 |
-| `backend/services/chip_provider.py`、`backend/strategies/conditions_tech.py`、`strategies.yaml` | 視 Q-1：`ScanContext` 擴充＋新增 condition | P1 |
-| `frontend/src/views/ChartDetailView.vue`、`StockCharts.vue` | 視 Q-2：副圖切換（採 ADR-P1-07 則**不需**新增 JS 算法檔） | P2 |
+| `backend/services/chip_provider.py` | ✅ 已異動：`ScanContext` 新增 `macd`／`rsi` 欄位、`MACDSeries` dataclass、`get_bars()` 新增 `macd_params`／`rsi_periods` 參數 | P1 |
+| `backend/strategies/conditions_tech.py` | ✅ 已異動：`_kd_trend_guard` 通用化為 `_trend_guard`；新增 `macd_cross`／`rsi_zone` 條件函式 | P1 |
+| `backend/strategies/scanner.py` | ✅ 已異動：`scan_market()` 傳入 `macd_params`／`rsi_periods`；`_SUGGESTED_ACTION_TEMPLATES` 新增四筆文案 | P1 |
+| `backend/strategies/direction.py` | ✅ 已異動：新增 `macd_golden_cross`／`macd_death_cross`／`rsi_oversold_recovery`／`rsi_overbought_reversal` 前綴 | P1 |
+| `backend/strategy_config/strategies.yaml` | ✅ 已異動：新增四個策略（`macd_golden_cross`／`macd_death_cross`／`rsi_oversold_recovery`／`rsi_overbought_reversal`） | P1 |
+| `backend/services/stock_service.py` | ✅ 已異動（P1 部分）：`_build_recursive_indicator_payloads()` 的 `rsi_payload` 新增 `overbought`／`oversold`（取自 `rsi_oversold_recovery`／`rsi_overbought_reversal` 策略設定，供前端副圖畫基準線） | P1 |
+| `frontend/src/components/StockCharts.vue`、`frontend/src/views/ChartDetailView.vue` | ✅ 已異動：KD 單一開關擴充為 KD／MACD／RSI 三選一（`subchartMode`），新增對應 series／grid／tooltip 邏輯；符合 ADR-P1-07——三種副圖皆是後端算好、前端只畫，未新增任何 JS 指標演算法檔 | P2 |
+| `frontend/src/utils/alertDirection.js` | ✅ 已異動：新增四個方向的分類前綴與文案 | P1 |
+| `frontend/src/utils/chartExplanations.js` | ✅ 已異動：新增 `macd`／`rsi` 說明區塊 | P2 |
 | **不需異動** | `services/fetcher.py`／`us_fetcher.py`（OHLCV 管線已完成）、`db/dual_write.py`、`db/migration/`（**無資料表變更**）、`indicators/stochastic.py`／`chip.py`／`fundamental.py`、`strategies/filters.py`（爆量偵測已存在，§4.5） | — |

@@ -9,7 +9,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from config import MAX_HISTORY_MONTHS
 from indicators.fundamental import latest_visible_month
+from indicators.macd import macd as compute_macd
 from indicators.moving_average import bias_series, sma
+from indicators.rsi import rsi as compute_rsi
 from indicators.stochastic import compute_kd_set
 from services.mops_fetcher import load_stock_revenue
 from services.stock_service import aggregate_stock_data, load_stock_data
@@ -20,6 +22,15 @@ class KDSeries:
     """單一 KD 參數組（如 (9,3,3)）的 K/D 序列（KD指標 設計規格書 §4.1）。"""
     k: List[Optional[float]]
     d: List[Optional[float]]
+
+
+@dataclass
+class MACDSeries:
+    """單一 MACD 參數組（如 (12,26,9)）的 DIF／訊號線／柱狀圖序列
+    （Phase1-基礎量化與技術面 設計文件 §9 Q-1：策略引擎串接 macd_cross）。"""
+    dif: List[Optional[float]]
+    signal: List[Optional[float]]
+    histogram: List[Optional[float]]
 
 
 @dataclass
@@ -59,6 +70,8 @@ class ScanContext:
     bias: Dict[int, List[Optional[float]]] = field(default_factory=dict)
     volume_ma: List[Optional[float]] = field(default_factory=list)
     kd: Dict[Tuple[int, int, int], KDSeries] = field(default_factory=dict)
+    macd: Dict[Tuple[int, int, int], MACDSeries] = field(default_factory=dict)
+    rsi: Dict[int, List[Optional[float]]] = field(default_factory=dict)
     revenue: Dict[str, dict] = field(default_factory=dict)
     # ── 估值與營收 Point-in-time 平行序列（選股功能與爬蟲 規格書 §4.1）──────────
     valuation: Dict[str, List[Optional[float]]] = field(default_factory=dict)
@@ -92,6 +105,8 @@ class ChipDataProvider:
         kd_params: Optional[List[Tuple[int, int, int]]] = None,
         kd_warmup_bars: int = 25,
         kd_smoothing: str = "wilder_1_3",
+        macd_params: Optional[List[Tuple[int, int, int]]] = None,
+        rsi_periods: Optional[List[int]] = None,
         with_valuation: bool = False,
         preloaded: Optional[MarketPreload] = None,
         position: Optional[PositionContext] = None,
@@ -124,6 +139,16 @@ class ChipDataProvider:
         # KD 指標計算
         kd_raw = compute_kd_set(highs, lows, closes, kd_params or [], warmup_bars=kd_warmup_bars, smoothing=kd_smoothing)
         kd = {params: KDSeries(k=k_series, d=d_series) for params, (k_series, d_series) in kd_raw.items()}
+
+        # MACD／RSI（Phase1-基礎量化與技術面 設計文件 §9 Q-1）：只在策略引擎需要時算
+        # （scanner.py 傳入 macd_params/rsi_periods 才會有值，比照 kd_params 的既有作法，
+        # 未傳入時維持空 dict，不佔用不需要這兩項指標的呼叫端（如 scan_positions）的計算成本）。
+        macd = {
+            tuple(params): MACDSeries(dif=dif, signal=sig, histogram=hist)
+            for params in (macd_params or [])
+            for dif, sig, hist in [compute_macd(closes, *params)]
+        }
+        rsi = {period: compute_rsi(closes, period) for period in (rsi_periods or [])}
 
         # 月營收字典載入 (MOPS 既有或預載)
         if preloaded and symbol in preloaded.revenue:
@@ -184,6 +209,8 @@ class ChipDataProvider:
             volume_ma=volume_ma,
             revenue=revenue_dict,
             kd=kd,
+            macd=macd,
+            rsi=rsi,
             valuation=val_series,
             revenue_visible_month=rev_visible_months,
             revenue_yoy=rev_yoy_series,

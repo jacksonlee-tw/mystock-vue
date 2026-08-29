@@ -197,6 +197,63 @@ strategies:
           window: 5
           mode: "downgrade"
 
+  # ══ MACD 指標策略（Phase1-基礎量化與技術面 設計文件 §9 Q-1）══════════════
+  # 純 OHLC 指標，台股／美股皆適用，比照 KD 策略拆成黃金/死亡交叉各一個策略，方便各自設定
+  # cooldown 與濾網。DIF/訊號線參數沿用 defaults.macd_params，改這裡不影響圖表顯示。
+  - id: "macd_golden_cross"
+    name: "MACD 黃金交叉"
+    category: "technical"
+    enabled: true
+    markets: ["tw", "us"]
+    cooldown_days: 10
+    conditions:
+      - type: "macd_cross"
+        macd_params: [12, 26, 9]
+        directions: ["golden_cross"]
+    filters:
+      - type: "volume_confirm"
+        params: { multiple: 1.2 }
+
+  - id: "macd_death_cross"
+    name: "MACD 死亡交叉"
+    category: "technical"
+    enabled: true
+    markets: ["tw", "us"]
+    cooldown_days: 10
+    conditions:
+      - type: "macd_cross"
+        macd_params: [12, 26, 9]
+        directions: ["death_cross"]
+
+  # ══ RSI 指標策略（Phase1-基礎量化與技術面 設計文件 §9 Q-1／Q-3）══════════════
+  # 門檻採業界慣用 70/30（Q-3 決議，取代 v1.0 草案的 80/20）；僅在跨越門檻的當天觸發，
+  # 不對區間內每天都發警示（比照 kd_cross 的既有設計）。
+  - id: "rsi_oversold_recovery"
+    name: "RSI 超賣區止跌"
+    category: "technical"
+    enabled: true
+    markets: ["tw", "us"]
+    cooldown_days: 10
+    conditions:
+      - type: "rsi_zone"
+        rsi_period: 14
+        oversold_threshold: 30
+        overbought_threshold: 70
+        directions: ["oversold_recovery"]
+
+  - id: "rsi_overbought_reversal"
+    name: "RSI 超買區轉弱"
+    category: "technical"
+    enabled: true
+    markets: ["tw", "us"]
+    cooldown_days: 10
+    conditions:
+      - type: "rsi_zone"
+        rsi_period: 14
+        oversold_threshold: 30
+        overbought_threshold: 70
+        directions: ["overbought_reversal"]
+
   # ══ 基本面出場警示（賣股策略 設計文件第四節 §1「成長動能衰竭」）══════════════
   - id: "fundamental_revenue_decline"
     name: "營收連續衰退出場"
