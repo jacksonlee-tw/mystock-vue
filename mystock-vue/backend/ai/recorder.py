@@ -36,14 +36,19 @@ class AIRecorder:
     async def start_execution(
         self, *, report_id: int, provider: str, model: str, symbol: str, market: str,
         trade_date: date, attempt_no: int, prompt_version: str, request_meta: dict,
-        is_dry_run: bool = False,
+        is_dry_run: bool = False, view_id: str | None = None,
     ) -> int:
         """呼叫 LLM 之前的佔位寫入。刻意不吞例外：這一步失敗代表還沒送出請求、還沒花錢，
-        中止比繼續呼叫卻沒有紀錄安全（§5.7 關鍵約束）。"""
+        中止比繼續呼叫卻沒有紀錄安全（§5.7 關鍵約束）。
+
+        view_id：這次呼叫是哪個功能觸發的（執行歷史頁面「功能」欄位，見規格書外的
+        docs/16.AI技術分析/執行歷史頁面開發計劃.md §2.1）。呼叫端本來就知道自己是哪個 view——
+        呼叫其餘 log_* 方法時已經在傳這個字串，這裡補齊讓 ai_llm_execution 也記得住。"""
         return await self._exec_repo.start(
             report_id=report_id, provider=provider, model=model,
             symbol=symbol, market=market, trade_date=trade_date, attempt_no=attempt_no,
             prompt_version=prompt_version, request_meta=request_meta, is_dry_run=is_dry_run,
+            view_id=view_id,
         )
 
     async def record_success(
