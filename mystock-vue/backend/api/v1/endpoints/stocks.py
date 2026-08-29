@@ -55,6 +55,11 @@ async def get_heatmap(
     data = await get_heatmap_data(period=period, market=market)
     return {"success": True, "data": data}
 
+@router.get("/industries", summary="取得產業分類資料")
+async def get_industries(market: str = Query("tw", description="市場代碼")):
+    from services.industry_fetcher import load_industries_json
+    return {"success": True, "data": load_industries_json(market)}
+
 @router.post("/tracked", summary="新增追蹤股票代號")
 async def add_tracked_stock(req: TrackedStockAddRequest, market: str = Query("tw")):
     stock_id = req.stock_id.strip()

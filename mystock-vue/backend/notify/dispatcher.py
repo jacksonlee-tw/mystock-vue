@@ -130,6 +130,16 @@ class DispatcherWorker:
                 "provider_message_id": result.provider_message_id,
                 "latency_ms":         ms,
             })
+            from repositories.activity_log_repository import ActivityLogRepository
+            await ActivityLogRepository(repo.session).log(
+                "NOTIFY_MESSAGE_SENT",
+                view_id="notify_dispatcher",
+                detail=f"{channel_code} 通知發送成功：message_id={msg_id}, endpoint_id={endpoint_id}",
+                success=True,
+                rel_id=msg_id,
+                comments=(f"provider_message_id={result.provider_message_id}; latency_ms={ms}")[:1024],
+                created_by="system",
+            )
             await repo.reset_channel_failures(channel_code)
         else:
             await self._handle_failure(msg, result, repo)

@@ -1,20 +1,48 @@
 import asyncio
 import logging
-import os
-import uvicorn
 from contextlib import asynccontextmanager
+
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from config import CORS_ORIGINS
-from api.v1.endpoints.stocks import router as stocks_router
-from api.v1.endpoints.fetch import router as fetch_router
-from api.v1.endpoints.markets import router as markets_router
-from core.exceptions import SymbolNotFoundException
-from db.session import dispose_engine
-from services.scheduler import create_scheduler
-from services.backfill import run_startup_backfill
 from fastapi.responses import JSONResponse
+
+from api.v1.endpoints.ai_analysis import router as ai_analysis_router
+from api.v1.endpoints.alerts import router as alerts_router
+from api.v1.endpoints.cashflow import cashflow_router, dividend_router
+from api.v1.endpoints.exchange_rates import router as exchange_rates_router
+from api.v1.endpoints.fetch import router as fetch_router
+from api.v1.endpoints.fundamentals import router as fundamentals_router
+from api.v1.endpoints.indices import router as indices_router
+from api.v1.endpoints.investment_notes import router as investment_notes_router
+from api.v1.endpoints.market import router as market_router
+from api.v1.endpoints.markets import router as markets_router
+from api.v1.endpoints.notify_admin import router as notify_admin_router
+from api.v1.endpoints.notify_admin import session_router as notify_session_router
+from api.v1.endpoints.notify_public import router as notify_public_router
+from api.v1.endpoints.notify_self import router as notify_self_router
+from api.v1.endpoints.performance import router as performance_router
+from api.v1.endpoints.portfolio import router as portfolio_router
+from api.v1.endpoints.portfolio_settings import router as portfolio_settings_router
+from api.v1.endpoints.schedule import router as schedule_router
+from api.v1.endpoints.stocks import router as stocks_router
+from api.v1.endpoints.strategies import router as strategies_router
+from api.v1.endpoints.transactions import router as transactions_router
+from api.v1.endpoints.watchlist import router as watchlist_router
+from config import CORS_ORIGINS
+from core.exceptions import SymbolNotFoundException
+from core.owner_auth import OwnerUnauthorizedException
+from db.session import dispose_engine
+from notify.security import (
+    ChannelUnavailableException,
+    NotifyForbiddenException,
+    NotifyNotFoundException,
+    NotifyUnauthorizedException,
+    NotifyValidationException,
+    PreferenceWideningException,
+)
+from services.backfill import run_startup_backfill
+from services.scheduler import create_scheduler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("mystock-backend")
@@ -48,12 +76,81 @@ app.add_middleware(
 app.include_router(stocks_router)
 app.include_router(fetch_router)
 app.include_router(markets_router)
+app.include_router(market_router)
+app.include_router(indices_router)
+app.include_router(alerts_router)
+app.include_router(watchlist_router)
+app.include_router(notify_session_router)
+app.include_router(notify_admin_router)
+app.include_router(notify_public_router)
+app.include_router(notify_self_router)
+app.include_router(ai_analysis_router)
+app.include_router(investment_notes_router)
+app.include_router(transactions_router)
+app.include_router(portfolio_router)
+app.include_router(portfolio_settings_router)
+app.include_router(performance_router)
+app.include_router(dividend_router)
+app.include_router(cashflow_router)
+app.include_router(exchange_rates_router)
+app.include_router(fundamentals_router)
+app.include_router(schedule_router)
+app.include_router(strategies_router)
 
 @app.exception_handler(SymbolNotFoundException)
 async def symbol_not_found_handler(request, exc):
     return JSONResponse(status_code=404, content={
         "success": False,
         "error": {"code": "SYMBOL_NOT_FOUND", "message": str(exc)}
+    })
+
+@app.exception_handler(OwnerUnauthorizedException)
+async def owner_unauthorized_handler(request, exc):
+    return JSONResponse(status_code=401, content={
+        "success": False,
+        "error": {"code": "OWNER_UNAUTHORIZED", "message": str(exc)}
+    })
+
+@app.exception_handler(NotifyUnauthorizedException)
+async def notify_unauthorized_handler(request, exc):
+    return JSONResponse(status_code=401, content={
+        "success": False,
+        "error": {"code": "NOTIFY_UNAUTHORIZED", "message": str(exc)}
+    })
+
+@app.exception_handler(NotifyForbiddenException)
+async def notify_forbidden_handler(request, exc):
+    return JSONResponse(status_code=403, content={
+        "success": False,
+        "error": {"code": "NOTIFY_FORBIDDEN", "message": str(exc)}
+    })
+
+@app.exception_handler(NotifyNotFoundException)
+async def notify_not_found_handler(request, exc):
+    return JSONResponse(status_code=404, content={
+        "success": False,
+        "error": {"code": "NOTIFY_NOT_FOUND", "message": str(exc)}
+    })
+
+@app.exception_handler(NotifyValidationException)
+async def notify_validation_handler(request, exc):
+    return JSONResponse(status_code=400, content={
+        "success": False,
+        "error": {"code": "NOTIFY_VALIDATION_ERROR", "message": str(exc)}
+    })
+
+@app.exception_handler(PreferenceWideningException)
+async def notify_preference_widening_handler(request, exc):
+    return JSONResponse(status_code=400, content={
+        "success": False,
+        "error": {"code": "NOTIFY_PREFERENCE_WIDENING", "message": str(exc)}
+    })
+
+@app.exception_handler(ChannelUnavailableException)
+async def notify_channel_unavailable_handler(request, exc):
+    return JSONResponse(status_code=503, content={
+        "success": False,
+        "error": {"code": "NOTIFY_CHANNEL_UNAVAILABLE", "message": str(exc)}
     })
 
 @app.get("/health", summary="健康檢查端點", tags=["Health"])

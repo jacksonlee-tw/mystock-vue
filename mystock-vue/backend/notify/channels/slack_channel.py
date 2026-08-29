@@ -103,10 +103,11 @@ class SlackChannel(ChannelAdapter):
             logger.warning("[通知] Slack 發送例外 [%s] %s", kind.value, reason)
             return SendResult(ok=False, failure_kind=kind, failure_reason=reason)
 
-    async def health_check(self, settings: dict) -> HealthResult:
+    async def health_check(self, settings: dict, test_addresses: list[str] | None = None) -> HealthResult:
         """
         連線測試：Incoming Webhook 是單向端點，沒有等效於 getMe 的唯讀查詢 API，
         驗證連線的唯一方式是實際 POST 一則低調的測試訊息（非模擬）。
+        test_addresses 不使用：Webhook 已綁定固定頻道，與收件人端點無關。
         """
         webhook_url = settings.get("webhook_url", "")
         if not webhook_url:

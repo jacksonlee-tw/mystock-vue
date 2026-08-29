@@ -117,6 +117,24 @@ class MarketRepository:
     def __init__(self, session_factory=None):
         self._session_factory = session_factory or get_session_factory()
 
+    async def upsert_symbol_industries(self, records: List[Dict[str, Any]]) -> int:
+        if not records:
+            return 0
+        async with self._session_factory() as session:
+            async with session.begin():
+                stmt = pg_insert(SymbolIndustry).values(records)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["symbol"],
+                    set_={
+                        "market_type": stmt.excluded.market_type,
+                        "industry_code": stmt.excluded.industry_code,
+                        "industry_name": stmt.excluded.industry_name,
+                        "updated_at": func.now(),
+                    },
+                )
+                result = await session.execute(stmt)
+                return result.rowcount
+
     # ── 1. UPSERT 行情資料 ─────────────────────────────────────────────
     async def upsert_quotes(self, records: List[Dict[str, Any]]) -> int:
         """整批 UPSERT 全市場行情，單日交易（§3.9.3）。

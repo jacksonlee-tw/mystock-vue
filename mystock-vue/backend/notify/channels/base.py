@@ -74,8 +74,15 @@ class ChannelAdapter(ABC):
         ...
 
     @abstractmethod
-    async def health_check(self, settings: dict) -> HealthResult:
-        """連線測試，不寫入任何資料（UC-09）"""
+    async def health_check(self, settings: dict, test_addresses: list[str] | None = None) -> HealthResult:
+        """
+        連線測試，不寫入任何資料（UC-09）。
+        test_addresses：該管道目前已驗證且啟用中的收件位址（由呼叫端查好傳入，channels/ 不得直接查 DB，鐵則 R3）。
+        多數管道（如 Email）光測連線/認證即可判斷是否可用，可忽略此參數；
+        Incoming Webhook 類管道（Slack）沒有唯讀查詢 API，本來就得送出試發訊息才能驗證；
+        Telegram 的 getMe 雖可驗證 Token，但收到「連線測試通過」不代表使用者真的會收到訊息，
+        故有位址時應一併送出試發訊息，讓測試結果更貼近實際使用情境。
+        """
         ...
 
     @abstractmethod

@@ -5,16 +5,52 @@ from typing import Any, Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 from db.models import CrawlerLog, DailyStockData, MarketNoTradingDay, Symbol
-from db.session import get_session_factory
+from db.session import _database_url, get_session_factory
+
+
+# ── 背景執行緒專用連線池（跟 db/session.py 的主 loop 全域單例脫鉤）──────────
+# fetcher.py / us_fetcher.py 的批次抓取是丟進 asyncio.to_thread() 背景執行緒跑的，跟 FastAPI 主
+# event loop 同時併發服務其他請求；若沿用 db/session.py 的全域 get_session_factory()，run_async()
+# 結束時 dispose 掉的會是主 loop 上其他請求也在用的連線池，直接把它們弄壞（比照
+# repositories/market_repository.py 同名機制的說明）。這裡另外維護一份只給同步橋接方法使用的
+# 獨立 engine，不跟主 loop 共用。
+_bg_engine: AsyncEngine | None = None
+_bg_session_factory: async_sessionmaker | None = None
+
+
+def _get_bg_session_factory() -> async_sessionmaker:
+    global _bg_engine, _bg_session_factory
+    if _bg_session_factory is None:
+        _bg_engine = create_async_engine(_database_url(), pool_pre_ping=True)
+        _bg_session_factory = async_sessionmaker(_bg_engine, expire_on_commit=False)
+    return _bg_session_factory
+
+
+async def _dispose_bg_engine() -> None:
+    global _bg_engine, _bg_session_factory
+    if _bg_engine is not None:
+        await _bg_engine.dispose()
+    _bg_engine = None
+    _bg_session_factory = None
+
+
+class _BackgroundSessionFactory:
+    """比照 market_repository.py 的同名包裝：每次呼叫都重新取用（必要時重建）背景專用 engine，
+    讓每次 run_async() 呼叫結束 dispose 後，下一次呼叫能接上重新建立的新連線池。"""
+
+    def __call__(self):
+        return _get_bg_session_factory()()
 
 
 def run_async(coro):
     """讓同步的爬蟲模組（fetcher.py / us_fetcher.py）可以呼叫 async 版的 Repository 方法。
 
-    每次呼叫都是獨立的 asyncio.run()（新的 event loop），結束後主動釋放連線池，
-    避免下一次呼叫沿用綁定在舊 loop 的 asyncpg 連線而炸掉（見 db/session.py 的 dispose_engine()）。
+    每次呼叫都是獨立的 asyncio.run()（新的 event loop），結束後主動釋放上面的背景專用連線池
+    （不是 db/session.py 的主 loop 全域單例），避免下一次呼叫沿用綁定在舊 loop 的 asyncpg 連線
+    而炸掉，也不會誤傷主 loop 上其他並行請求正在用的連線。
     """
     try:
         asyncio.get_running_loop()
@@ -27,8 +63,7 @@ def run_async(coro):
         try:
             return await coro
         finally:
-            from db.session import dispose_engine
-            await dispose_engine()
+            await _dispose_bg_engine()
 
     return asyncio.run(_runner())
 
@@ -94,6 +129,26 @@ class StockRepository:
                 stmt = stmt.where(Symbol.market_type == market_type)
             result = await session.execute(stmt.order_by(Symbol.symbol))
             return [_symbol_to_dict(row) for row in result.scalars().all()]
+
+    async def get_coverage_summary(self, symbols: list[str], market: str) -> dict[str, dict]:
+        """批次取得每檔代號的價格資料涵蓋範圍（供追蹤清單缺漏警示使用）。
+
+        刻意透過 load_stock_data() 取值而不直接下 SQL，維持 CLAUDE.md 規定的唯一 DATA_SOURCE
+        分支點（json/postgres）在 services/stock_service.py，本類別不得自行另開分支。
+        """
+        from services.stock_service import load_stock_data
+
+        result: dict[str, dict] = {}
+        for symbol in symbols:
+            data = await load_stock_data(symbol, market)
+            dates = sorted(data.keys()) if data else []
+            result[symbol] = {
+                "start_date": dates[0] if dates else None,
+                "end_date": dates[-1] if dates else None,
+                "count": len(dates),
+                "missing_price_days": sum(1 for d in dates if not data[d].get("close")),
+            }
+        return result
 
     async def upsert_symbol(
         self,
@@ -233,12 +288,25 @@ class StockRepository:
             await session.execute(stmt)
             await session.commit()
 
-    # ── 給同步爬蟲模組使用的橋接方法（見 db/dual_write.py） ──────────────
+    # ── 給同步爬蟲模組使用的橋接方法（見 db/dual_write.py）───────────────
+    # 一律另建一個綁定背景專用連線池的 repository 執行，不使用 self._session_factory
+    # （self 可能是用預設全域單例建立的，直接沿用會讓 run_async() 誤 dispose 主 loop 的連線池）。
+    def upsert_symbol_sync(self, symbol: str, market_type: str, **kwargs: Any) -> None:
+        run_async(
+            StockRepository(session_factory=_BackgroundSessionFactory()).upsert_symbol(
+                symbol, market_type, **kwargs
+            )
+        )
+
     def upsert_daily_data_sync(self, rows: list[dict]) -> None:
-        run_async(self.upsert_daily_data(rows))
+        run_async(StockRepository(session_factory=_BackgroundSessionFactory()).upsert_daily_data(rows))
 
     def log_crawler_run_sync(self, **kwargs: Any) -> None:
-        run_async(self.log_crawler_run(**kwargs))
+        run_async(StockRepository(session_factory=_BackgroundSessionFactory()).log_crawler_run(**kwargs))
 
     def add_no_trading_days_sync(self, market_type: str, dates, source: str = "probed") -> None:
-        run_async(self.add_no_trading_days(market_type, dates, source))
+        run_async(
+            StockRepository(session_factory=_BackgroundSessionFactory()).add_no_trading_days(
+                market_type, dates, source
+            )
+        )

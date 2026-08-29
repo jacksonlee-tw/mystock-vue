@@ -10,7 +10,28 @@ from typing import Optional
 logger = logging.getLogger("mystock-backend")
 
 
-def dual_write_daily_data(symbol: str, market_type: str, dated_records: dict) -> None:
+def dual_write_symbol_industry(records: list[dict]) -> None:
+    if not records:
+        return
+    try:
+        from repositories.market_repository import (
+            MarketRepository,
+            _BackgroundSessionFactory,
+            run_async,
+        )
+
+        repository = MarketRepository(session_factory=_BackgroundSessionFactory())
+        run_async(repository.upsert_symbol_industries(records))
+    except Exception as e:
+        logger.warning(f"symbol_industry 寫入失敗: {e}")
+
+
+def dual_write_daily_data(
+    symbol: str,
+    market_type: str,
+    dated_records: dict,
+    security_type: Optional[str] = None,
+) -> None:
     if not dated_records:
         return
     try:
@@ -21,7 +42,10 @@ def dual_write_daily_data(symbol: str, market_type: str, dated_records: dict) ->
             record_to_daily_row(symbol, market_type, date_key, record)
             for date_key, record in dated_records.items()
         ]
-        StockRepository().upsert_daily_data_sync(rows)
+        repository = StockRepository()
+        if security_type:
+            repository.upsert_symbol_sync(symbol, market_type, security_type=security_type)
+        repository.upsert_daily_data_sync(rows)
     except Exception as e:
         logger.warning(f"PostgreSQL 雙寫失敗 ({market_type}/{symbol}): {e}")
 

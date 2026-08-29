@@ -40,12 +40,21 @@ async def _list_stock_ids_db(market: str) -> List[str]:
     symbols = await StockRepository().list_symbols(market_type=market)
     return [s["symbol"] for s in symbols]
 
-async def load_stock_data(stock_id: str, market: str = "tw", source: Optional[str] = None) -> dict:
+async def load_stock_data(
+    stock_id: str,
+    market: str = "tw",
+    source: Optional[str] = None,
+    kind: str = "stock",
+) -> dict:
     """讀取單一標的的每日資料；依 DATA_SOURCE 決定讀 JSON 檔案或 PostgreSQL（見 phase3_5 設計文件第 2 節）。
 
     `source` 可明確指定覆蓋 DATA_SOURCE（供 scripts/compare_data_sources.py 兩邊比對使用），一般呼叫端不需傳入。
     """
     if (source or get_data_source()) != "postgres":
+        if kind == "index":
+            from services.index_fetcher import load_index_json
+
+            return load_index_json(stock_id, market)
         return load_stock_json(stock_id, market)
 
     repo = StockRepository()
@@ -65,6 +74,16 @@ async def load_stock_data(stock_id: str, market: str = "tw", source: Optional[st
             record["symbol"] = stock_id
         result[row["trade_date"].isoformat()] = record
     return result
+
+async def get_latest_quote(stock_id: str, market: str = "tw") -> Optional[Dict[str, Any]]:
+    """取得單一標的最新一筆收盤報價（供 portfolio.py 批次估值使用），無資料時回傳 None。"""
+    data = await load_stock_data(stock_id, market)
+    if not data:
+        return None
+    latest_date = sorted(data.keys())[-1]
+    latest_record = data[latest_date]
+    return {"date": latest_date, "close": latest_record.get("close", 0.0)}
+
 
 async def discover_available_stocks() -> List[Dict[str, Any]]:
     """回傳系統中所有可用的股票清單與元資料（依 DATA_SOURCE 讀取 JSON 檔案或 PostgreSQL）。"""
@@ -250,8 +269,8 @@ def aggregate_stock_data(data: Dict[str, Any], period: str = "daily", months: in
     return result
 
 async def get_stock_chart_payload(stock_id: str, period: str = "daily", months: int = 3, market: str = "tw",
-                                   source: Optional[str] = None) -> Dict[str, Any]:
-    raw_data = await load_stock_data(stock_id, market, source=source)
+                                   source: Optional[str] = None, kind: str = "stock") -> Dict[str, Any]:
+    raw_data = await load_stock_data(stock_id, market, source=source, kind=kind)
     if not raw_data:
         return {"error": f"找不到股票 {stock_id} 的數據資料"}
 

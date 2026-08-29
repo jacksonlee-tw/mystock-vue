@@ -118,8 +118,12 @@ class TelegramChannel(ChannelAdapter):
             logger.warning("[通知] Telegram 發送例外 → %s [%s] %s", address, kind.value, reason)
             return SendResult(ok=False, failure_kind=kind, failure_reason=reason, latency_ms=latency)
 
-    async def health_check(self, settings: dict) -> HealthResult:
-        """連線測試：呼叫 getMe API"""
+    async def health_check(self, settings: dict, test_addresses: list[str] | None = None) -> HealthResult:
+        """
+        連線測試：先呼叫 getMe API 驗證 Token，
+        若已有綁定完成（已驗證且啟用中）的 chat_id，再實際送出一則試發訊息，
+        讓「連線測試通過」代表使用者真的收得到，而不只是 Token 有效。
+        """
         import httpx
         bot_token = settings.get("bot_token", "")
         if not bot_token:
@@ -129,9 +133,36 @@ class TelegramChannel(ChannelAdapter):
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(url)
             data = resp.json()
-            if data.get("ok"):
-                bot_name = data.get("result", {}).get("username", "")
-                return HealthResult(ok=True, detail=f"已連接機器人：@{bot_name}")
-            return HealthResult(ok=False, detail=data.get("description", "未知錯誤")[:200])
+            if not data.get("ok"):
+                return HealthResult(ok=False, detail=data.get("description", "未知錯誤")[:200])
+
+            bot_name = data.get("result", {}).get("username", "")
+            if not test_addresses:
+                return HealthResult(
+                    ok=True,
+                    detail=f"已連接機器人：@{bot_name}（尚無已綁定的收件人，未送出試發訊息）"
+                )
+
+            sent, failed = 0, 0
+            for address in test_addresses:
+                result = await self.send(
+                    subject=None,
+                    body="🔔 MyStock 投資系統：連線測試訊息",
+                    address=address,
+                    settings=settings,
+                )
+                if result.ok:
+                    sent += 1
+                else:
+                    failed += 1
+                    logger.warning("[通知] Telegram 連線測試試發失敗 → chat_id=%s：%s", address, result.failure_reason)
+
+            if sent and not failed:
+                detail = f"已連接機器人：@{bot_name}，試發訊息已送出（{sent} 位收件人）"
+            elif sent:
+                detail = f"已連接機器人：@{bot_name}，試發訊息 {sent} 成功／{failed} 失敗"
+            else:
+                detail = f"已連接機器人：@{bot_name}，但試發訊息全數失敗（{failed} 位），請確認收件人是否已封鎖機器人"
+            return HealthResult(ok=sent > 0, detail=detail)
         except Exception as exc:
             return HealthResult(ok=False, detail=str(exc)[:200])

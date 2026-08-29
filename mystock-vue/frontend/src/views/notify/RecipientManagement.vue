@@ -37,11 +37,12 @@
           </div>
           <Button label="加 Email" icon="pi pi-envelope" size="small" severity="secondary" outlined @click="openAddEmail(r)" />
           <Button label="綁 Telegram" icon="pi pi-send" size="small" severity="secondary" outlined @click="openBinding(r)" />
+          <Button label="加 Slack" icon="pi pi-slack" size="small" severity="secondary" outlined @click="openAddSlack(r)" />
         </div>
 
         <div class="divide-y divide-surface-100 dark:divide-surface-800">
           <div v-for="e in r.endpoints" :key="e.endpoint_code" class="flex items-center gap-3 p-3 px-4">
-            <i class="pi text-lg text-surface-400" :class="e.channel_code === 'email' ? 'pi-envelope' : 'pi-send'"></i>
+            <i class="pi text-lg text-surface-400" :class="CHANNEL_ICON[e.channel_code] || 'pi-send'"></i>
             <div class="flex-1 min-w-0">
               <div class="font-semibold text-sm flex items-center gap-2 flex-wrap">
                 {{ e.address }}
@@ -50,10 +51,19 @@
                 <Tag v-if="e.status === 'disabled'" value="已停用" severity="danger" size="small" />
               </div>
               <div class="text-xs text-surface-400">
-                模式 {{ MODE_LABEL[e.delivery_mode] }}　上限 {{ e.daily_limit }} 則/日
+                上限 {{ e.daily_limit }} 則/日
               </div>
             </div>
-            <Button v-if="e.verify_status !== 'verified' && e.channel_code === 'email'" label="重寄驗證信" size="small" text @click="resendVerify(r, e)" />
+            <Select
+              :modelValue="e.delivery_mode"
+              :options="MODE_OPTIONS"
+              optionLabel="label"
+              optionValue="value"
+              size="small"
+              class="w-28"
+              @update:modelValue="(mode) => updateEndpointMode(e, mode)"
+            />
+            <Button v-if="e.verify_status !== 'verified' && e.channel_code === 'email'" label="取得驗證連結" size="small" text @click="resendVerify(r, e)" />
             <Button icon="pi pi-send" size="small" text @click="testSend(e)" title="測試發送" />
             <Button icon="pi pi-times" size="small" text severity="danger" @click="disableEndpoint(e)" title="停用" />
           </div>
@@ -115,7 +125,31 @@
       </div>
       <template #footer>
         <Button label="取消" text @click="emailDialog = false" />
-        <Button label="建立並寄出驗證信" icon="pi pi-send" @click="submitAddEmail" :loading="creating" />
+        <Button label="建立並取得驗證連結" icon="pi pi-link" @click="submitAddEmail" :loading="creating" />
+      </template>
+    </Dialog>
+
+    <Dialog v-model:visible="verifyDialog" header="驗證 Email 端點" modal style="width: 32rem">
+      <Message severity="info" :closable="false">請在 24 小時內開啟下方連結完成 Email 驗證；驗證前不會收到正式通知。</Message>
+      <a :href="verifyUrl" target="_blank" rel="noopener noreferrer" class="block mt-3 break-all text-primary underline">{{ verifyUrl }}</a>
+      <template #footer>
+        <Button label="關閉" text @click="verifyDialog = false" />
+        <Button label="開啟驗證連結" icon="pi pi-external-link" as="a" :href="verifyUrl" target="_blank" rel="noopener noreferrer" />
+      </template>
+    </Dialog>
+
+    <!-- 新增 Slack 端點 -->
+    <Dialog v-model:visible="slackDialog" header="新增 Slack 收件端點" modal style="width: 28rem">
+      <div class="space-y-3">
+        <div>
+          <label class="text-sm font-bold text-surface-600 dark:text-surface-300 mb-1 block">目的地名稱</label>
+          <InputText v-model="newSlackAddress" fluid placeholder="例如：#投資警示" />
+        </div>
+        <Message severity="info" :closable="false">實際 Incoming Webhook 請先在「通知管道」設定；此名稱用來識別規則的收件目的地。</Message>
+      </div>
+      <template #footer>
+        <Button label="取消" text @click="slackDialog = false" />
+        <Button label="建立端點" icon="pi pi-check" @click="submitAddSlack" :loading="creating" />
       </template>
     </Dialog>
 
@@ -161,6 +195,8 @@ const toast = useToast();
 const confirm = useConfirm();
 
 const MODE_LABEL = { realtime: '即時', digest: '每日摘要', critical_only: '僅緊急' };
+const MODE_OPTIONS = Object.entries(MODE_LABEL).map(([value, label]) => ({ value, label }));
+const CHANNEL_ICON = { email: 'pi-envelope', telegram: 'pi-send', slack: 'pi-slack' };
 
 const recipients = ref([]);
 const sharedEndpoints = ref([]);
@@ -175,6 +211,12 @@ const creating = ref(false);
 const emailDialog = ref(false);
 const newEmailAddress = ref('');
 let emailTargetRecipient = null;
+const verifyDialog = ref(false);
+const verifyUrl = ref('');
+
+const slackDialog = ref(false);
+const newSlackAddress = ref('');
+let slackTargetRecipient = null;
 
 const bindDialog = ref(false);
 const bindCode = ref('');
@@ -232,9 +274,32 @@ async function submitAddEmail() {
   if (!newEmailAddress.value.trim() || !emailTargetRecipient) return;
   creating.value = true;
   try {
-    await notifyApi.admin.createEmailEndpoint(emailTargetRecipient.recipient_code, newEmailAddress.value.trim());
-    toast.add({ severity: 'success', summary: '已建立，驗證信 24 小時內有效', life: 3500 });
+    const result = await notifyApi.admin.createEmailEndpoint(emailTargetRecipient.recipient_code, newEmailAddress.value.trim());
+    verifyUrl.value = result.verify_url;
+    verifyDialog.value = true;
+    toast.add({ severity: 'success', summary: '已建立 Email 端點', life: 3000 });
     emailDialog.value = false;
+    await load();
+  } catch (err) {
+    toast.add({ severity: 'error', summary: '新增失敗', detail: err.message, life: 4000 });
+  } finally {
+    creating.value = false;
+  }
+}
+
+function openAddSlack(r) {
+  slackTargetRecipient = r;
+  newSlackAddress.value = '';
+  slackDialog.value = true;
+}
+
+async function submitAddSlack() {
+  if (!newSlackAddress.value.trim() || !slackTargetRecipient) return;
+  creating.value = true;
+  try {
+    await notifyApi.admin.createSlackEndpoint(slackTargetRecipient.recipient_code, newSlackAddress.value.trim());
+    toast.add({ severity: 'success', summary: '已建立 Slack 收件端點', life: 3000 });
+    slackDialog.value = false;
     await load();
   } catch (err) {
     toast.add({ severity: 'error', summary: '新增失敗', detail: err.message, life: 4000 });
@@ -245,10 +310,12 @@ async function submitAddEmail() {
 
 async function resendVerify(r, e) {
   try {
-    await notifyApi.admin.resendVerification(r.recipient_code, e.endpoint_code);
-    toast.add({ severity: 'success', summary: '驗證信已重新寄出', life: 2500 });
+    const result = await notifyApi.admin.resendVerification(r.recipient_code, e.endpoint_code);
+    verifyUrl.value = result.verify_url;
+    verifyDialog.value = true;
+    toast.add({ severity: 'success', summary: '已重新產生驗證連結', life: 2500 });
   } catch (err) {
-    toast.add({ severity: 'error', summary: '寄送失敗', detail: err.message, life: 4000 });
+    toast.add({ severity: 'error', summary: '產生驗證連結失敗', detail: err.message, life: 4000 });
   }
 }
 
@@ -270,6 +337,17 @@ async function testSend(e) {
     toast.add({ severity: result.ok ? 'success' : 'error', summary: result.ok ? '測試訊息已送出' : '發送失敗', detail: result.detail, life: 4000 });
   } catch (err) {
     toast.add({ severity: 'error', summary: '測試失敗', detail: err.message, life: 4000 });
+  }
+}
+
+async function updateEndpointMode(endpoint, deliveryMode) {
+  try {
+    await notifyApi.admin.updateEndpoint(endpoint.endpoint_code, { delivery_mode: deliveryMode });
+    endpoint.delivery_mode = deliveryMode;
+    toast.add({ severity: 'success', summary: `已切換為${MODE_LABEL[deliveryMode]}`, life: 2500 });
+  } catch (err) {
+    toast.add({ severity: 'error', summary: '模式更新失敗', detail: err.message, life: 4000 });
+    await load();
   }
 }
 

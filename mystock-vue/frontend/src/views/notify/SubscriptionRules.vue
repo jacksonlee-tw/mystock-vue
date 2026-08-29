@@ -29,7 +29,7 @@
       <div v-for="s in subscriptions" :key="s.rule_code" class="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm" :class="{ 'opacity-60': s.status !== 'enabled' }">
         <div class="flex items-center justify-between p-3 px-4 border-b border-surface-100 dark:border-surface-800">
           <div class="font-black flex items-center gap-2">
-            <i class="pi pi-bookmark text-primary"></i>{{ s.rule_name }}
+            <i class="pi pi-bookmark text-primary"></i>{{ displayRuleName(s) }}
             <Tag v-if="s.status !== 'enabled'" value="已停用" severity="secondary" />
           </div>
           <div class="flex items-center gap-2">
@@ -53,6 +53,10 @@
           <div>
             <div class="text-xs font-bold text-surface-400 uppercase mb-1"><i class="pi pi-users"></i> 目標對象</div>
             <div class="font-bold">{{ targetLabel(s) }}</div>
+            <div class="flex items-center flex-wrap gap-1 mt-1">
+              <Tag v-for="channel in ruleChannels(s)" :key="channel" :value="CHANNEL_LABEL[channel] || channel" severity="info" />
+              <span v-if="!ruleChannels(s).length" class="text-xs text-red-400">無可用收件端點</span>
+            </div>
           </div>
         </div>
       </div>
@@ -192,6 +196,7 @@ const EVENT_LABEL = {
   FETCH_FAILED: '抓取失敗',
   SYSTEM_HEALTH: '系統異常'
 };
+const CHANNEL_LABEL = { email: 'Email', telegram: 'Telegram', slack: 'Slack' };
 
 const SAMPLE_ALERTS = [
   {
@@ -306,6 +311,38 @@ function targetLabel(s) {
   }
   if (s.target_endpoint_id) return `單一端點 #${s.target_endpoint_id}`;
   return '—';
+}
+
+function displayRuleName(s) {
+  if (s.target_endpoint_id) return s.rule_name;
+  return s.rule_name.replace(/^Telegram\s*通知/, '多管道通知');
+}
+
+function ruleChannels(s) {
+  const channels = new Set();
+  const addRecipientChannels = (recipient) => {
+    for (const ep of recipient?.endpoints || []) {
+      if (ep.status === 'active' && ep.verify_status === 'verified') channels.add(ep.channel_code);
+    }
+  };
+
+  if (s.target_recipient_id) {
+    addRecipientChannels(recipients.value.find((r) => r.id === s.target_recipient_id));
+  } else if (s.target_group_id) {
+    const group = groups.value.find((g) => g.id === s.target_group_id);
+    for (const member of group?.members || []) {
+      addRecipientChannels(recipients.value.find((r) => r.id === member.id));
+    }
+  } else if (s.target_endpoint_id) {
+    for (const recipient of recipients.value) {
+      const endpoint = (recipient.endpoints || []).find((ep) => ep.id === s.target_endpoint_id);
+      if (endpoint?.status === 'active' && endpoint.verify_status === 'verified') channels.add(endpoint.channel_code);
+    }
+    const shared = sharedEndpoints.value.find((ep) => ep.id === s.target_endpoint_id);
+    if (shared?.status === 'active' && shared.verify_status === 'verified') channels.add(shared.channel_code);
+  }
+
+  return [...channels];
 }
 
 async function load() {

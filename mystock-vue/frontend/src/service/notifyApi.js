@@ -33,6 +33,10 @@ export const notifyApi = {
         // ── 端點 ──
         createEmailEndpoint: (code, address, opts = {}) =>
             unwrap(client.post(`/notify/recipients/${code}/endpoints/email`, { address, ...opts })),
+        createSlackEndpoint: (code, address, opts = {}) =>
+            unwrap(client.post(`/notify/recipients/${code}/endpoints/slack`, { address, ...opts })),
+        createSlackEndpoint: (code, address, opts = {}) =>
+            unwrap(client.post(`/notify/recipients/${code}/endpoints/slack`, { address, ...opts })),
         resendVerification: (code, endpointCode) =>
             unwrap(client.post(`/notify/recipients/${code}/endpoints/${endpointCode}/resend-verification`)),
         issueBindingCode: (code) => unwrap(client.post(`/notify/recipients/${code}/binding-code`)),

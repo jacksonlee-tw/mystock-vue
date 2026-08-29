@@ -59,6 +59,28 @@
             />
           </div>
 
+          <button
+            v-if="helpFor(ch)"
+            type="button"
+            class="text-xs text-primary font-semibold flex items-center gap-1 mt-1 hover:underline"
+            @click="toggleHelp(ch.channel_code)"
+          >
+            <i class="pi" :class="openHelp[ch.channel_code] ? 'pi-chevron-down' : 'pi-question-circle'"></i>
+            {{ openHelp[ch.channel_code] ? '收合說明' : `如何取得${helpFor(ch).fieldLabel}？` }}
+          </button>
+          <div
+            v-if="helpFor(ch) && openHelp[ch.channel_code]"
+            class="text-xs text-surface-600 dark:text-surface-300 bg-surface-50 dark:bg-surface-800/50 rounded-lg p-3 space-y-1.5"
+          >
+            <ol class="list-decimal list-inside space-y-1">
+              <li v-for="(step, i) in helpFor(ch).steps" :key="i">{{ step }}</li>
+            </ol>
+            <p v-if="helpFor(ch).warning" class="text-amber-600 dark:text-amber-400 font-semibold flex items-start gap-1 pt-1">
+              <i class="pi pi-exclamation-triangle mt-0.5"></i>
+              <span>{{ helpFor(ch).warning }}</span>
+            </p>
+          </div>
+
           <div class="flex items-center gap-2 mt-3">
             <Button label="連線測試" icon="pi pi-bolt" severity="secondary" outlined size="small" class="flex-1" :loading="testingCode === ch.channel_code" @click="test(ch)" />
             <Button label="儲存設定" icon="pi pi-save" size="small" class="flex-1" :loading="savingCode === ch.channel_code" @click="save(ch)" />
@@ -93,10 +115,10 @@ const testingCode = ref(null);
 
 const FIELD_DEFS = {
   email: [
-    { key: 'smtp_host', label: 'SMTP 主機' },
-    { key: 'smtp_port', label: 'SMTP 埠' },
+    { key: 'smtp_host', label: 'SMTP 主機', default: 'smtp.gmail.com' },
+    { key: 'smtp_port', label: 'SMTP 埠', default: '587' },
     {
-      key: 'smtp_security', label: '加密方式', type: 'select',
+      key: 'smtp_security', label: '加密方式', type: 'select', default: 'starttls',
       options: [
         { label: '自動（依埠號判斷）', value: '' },
         { label: 'STARTTLS（587）', value: 'starttls' },
@@ -122,8 +144,59 @@ const CHANNEL_ICONS = {
   slack: 'pi-hashtag'
 };
 
+// 各管道憑證的取得步驟（純說明文字，不影響送出邏輯）
+const CHANNEL_HELP = {
+  email: {
+    fieldLabel: 'Gmail 密碼（App Password）',
+    steps: [
+      'SMTP 主機／埠／加密方式已預設為 Gmail 設定（smtp.gmail.com、587、STARTTLS），帳號填完整 Gmail 地址即可，通常不需更動',
+      '密碼欄位不能填平常登入 Gmail 用的密碼——Google 會直接回 534 5.7.9 拒絕，必須改用「應用程式密碼」',
+      '前往 https://myaccount.google.com/security，確認「兩步驟驗證」已是開啟狀態（沒開的話要先開啟，需要手機驗證一次）',
+      '兩步驟驗證開啟後，前往 https://myaccount.google.com/apppasswords',
+      '應用程式名稱填 MyStock，按建立，會產生一組 16 碼（4 組英文字母，例如 abcd efgh ijkl mnop）',
+      '把這組 16 碼複製貼到左側「密碼」欄位（連空格一起貼也沒關係，Google 會自動忽略）',
+      '這組密碼只會顯示一次，沒複製到的話回同一頁刪除舊的、重新產生一組即可'
+    ],
+    warning: '若在 apppasswords 頁面看不到「應用程式密碼」選項，通常是兩步驟驗證還沒真的開啟，或此帳號是進階保護計畫／企業 Workspace 管理員關閉了此功能——後者需改用另一個一般 Gmail 帳號寄信。'
+  },
+  telegram: {
+    fieldLabel: '機器人憑證',
+    steps: [
+      '在 Telegram 搜尋 @BotFather（官方認證帳號，藍勾勾）並開啟對話',
+      '傳送指令 /newbot',
+      '依提示輸入機器人的顯示名稱（例如「MyStock 通知」）',
+      '再輸入機器人的使用者名稱，必須以 bot 結尾（例如 mystock_jackson_bot）',
+      '建立成功後，BotFather 會回傳一段包含 Token 的訊息（例如 8745986133:AAH2wZ...），複製整串貼到左側「機器人憑證」欄位',
+      '儲存並連線測試成功後，還要到「收件人管理」頁對你自己按「綁 Telegram」，取得 4 位數綁定碼，再到 Telegram 對該機器人傳送這組碼完成綁定，才會真的收到通知'
+    ],
+    warning: '這組 Token 等同機器人的帳號密碼，請勿分享給他人或貼在公開頁面。'
+  },
+  slack: {
+    fieldLabel: 'Webhook URL',
+    steps: [
+      '瀏覽器開啟 https://api.slack.com/apps（用你 Slack 工作區的帳號登入）',
+      '點「Create New App」→「From scratch」，輸入 App 名稱並選擇你的工作區',
+      '進入 App 設定頁，左側選單點「Incoming Webhooks」',
+      '把右上角開關切到 On',
+      '往下捲，點「Add New Webhook to Workspace」',
+      '選擇這個 Webhook 要發送到「哪一個頻道」（例如 #mystock），按 Allow',
+      '複製產生的網址（格式為 https://hooks.slack.com/services/…），貼到左側「Webhook URL」欄位'
+    ],
+    warning: '這組網址等同密碼，任何拿到它的人都能對該頻道發訊息，請勿分享或貼在公開頁面。'
+  }
+};
+
 function fieldsFor(ch) {
   return FIELD_DEFS[ch.channel_code] || [];
+}
+
+function helpFor(ch) {
+  return CHANNEL_HELP[ch.channel_code] || null;
+}
+
+const openHelp = reactive({});
+function toggleHelp(code) {
+  openHelp[code] = !openHelp[code];
 }
 
 function iconFor(ch) {
@@ -152,7 +225,7 @@ async function load({ preserveEditing = false } = {}) {
       if (preserveEditing && editing[ch.channel_code]) continue;
       editing[ch.channel_code] = {};
       for (const f of fieldsFor(ch)) {
-        editing[ch.channel_code][f.key] = f.masked ? '' : (ch.settings?.[f.key] ?? '');
+        editing[ch.channel_code][f.key] = f.masked ? '' : (ch.settings?.[f.key] ?? f.default ?? '');
       }
     }
   } catch (err) {

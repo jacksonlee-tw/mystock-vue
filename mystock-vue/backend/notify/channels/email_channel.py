@@ -122,8 +122,9 @@ class EmailChannel(ChannelAdapter):
             logger.warning("[通知] Email 發送失敗 → %s [%s] %s", address, kind.value, reason)
             return SendResult(ok=False, failure_kind=kind, failure_reason=reason, latency_ms=latency)
 
-    async def health_check(self, settings: dict) -> HealthResult:
-        """連線測試（UC-09）：只驗證 SMTP 連線與認證，不發送任何訊息"""
+    async def health_check(self, settings: dict, test_addresses: list[str] | None = None) -> HealthResult:
+        """連線測試（UC-09）：只驗證 SMTP 連線與認證，不發送任何訊息
+        （test_addresses 不使用：SMTP 連線/認證成功與否已足以判斷可用性，送測試信反而會製造垃圾郵件）"""
         import aiosmtplib
         try:
             smtp_host = settings.get("smtp_host", "")

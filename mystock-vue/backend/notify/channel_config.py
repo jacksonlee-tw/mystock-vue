@@ -46,9 +46,11 @@ def decrypt_settings(ciphertext: str) -> dict:
 
 
 # ── 連線測試（UC-09）──────────────────────────────────────────
-async def test_connection(channel_code: str, settings: dict) -> dict:
+async def test_connection(channel_code: str, settings: dict, repo=None) -> dict:
     """
     呼叫對應管道的 health_check()，不修改任何資料。
+    repo 有給時，會先查出該管道目前「已驗證且啟用中」的收件位址一併傳入，
+    讓有能力試發的管道（如 Telegram）可以送出真正的試發訊息，而不只是驗證憑證本身。
     回傳 {"ok": bool, "detail": str, "latency_ms": int}
     """
     import time
@@ -58,8 +60,16 @@ async def test_connection(channel_code: str, settings: dict) -> dict:
     if adapter is None:
         return {"ok": False, "detail": f"未知管道代碼：{channel_code}", "latency_ms": 0}
 
+    test_addresses = None
+    if repo is not None:
+        try:
+            endpoints = await repo.list_deliverable_endpoints_for_channel(channel_code)
+            test_addresses = [ep["address"] for ep in endpoints] or None
+        except Exception as exc:
+            logger.warning("[通知] 查詢管道 %s 可試發端點失敗（已略過試發）：%s", channel_code, exc)
+
     start  = time.monotonic()
-    result = await adapter.health_check(settings)
+    result = await adapter.health_check(settings, test_addresses)
     ms     = int((time.monotonic() - start) * 1000)
     return {"ok": result.ok, "detail": result.detail, "latency_ms": ms}
 

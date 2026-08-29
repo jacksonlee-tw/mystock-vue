@@ -200,7 +200,7 @@ async def test_channel(code: str, db=Depends(get_db)):
     if not channel:
         raise NotifyNotFoundException(f"管道不存在：{code}")
     settings = decrypt_settings(channel.get("settings_enc") or "")
-    result = await test_connection(code, settings)
+    result = await test_connection(code, settings, repo)
     await repo.update_channel(code, {
         "last_health_at": datetime.now(timezone.utc),  # TIMESTAMPTZ：需原生 datetime
         "last_health_detail": (result.get("detail") or "")[:200],
@@ -324,7 +324,13 @@ class EmailEndpointRequest(BaseModel):
     daily_limit: int = 30
 
 
-@router.post("/recipients/{code}/endpoints/email", summary="新增 Email 端點並寄出驗證信（FR-BD-01）")
+class SlackEndpointRequest(BaseModel):
+    address: str
+    delivery_mode: str = "realtime"
+    daily_limit: int = 30
+
+
+@router.post("/recipients/{code}/endpoints/email", summary="新增 Email 端點並產生驗證連結（FR-BD-01）")
 async def create_email_endpoint(code: str, req: EmailEndpointRequest, db=Depends(get_db)):
     from notify import recipients as recipients_mod, binding
     repo = NotifyRepository(db)
@@ -336,10 +342,26 @@ async def create_email_endpoint(code: str, req: EmailEndpointRequest, db=Depends
     verify_url = await binding.issue_email_verification(ep["id"], recipient["id"], req.address, repo)
     await _audit(repo, "owner", "create_email_endpoint", ep["endpoint_code"], "success")
     # Phase 1：驗證信實際寄送交由 Email 管道發送（此處僅回傳連結，供未接妥 SMTP 前也能手動驗證測試）
-    return envelope({"endpoint": ep, "verify_url": verify_url}, "已建立，驗證信將於 24 小時內有效")
+    return envelope({"endpoint": ep, "verify_url": verify_url}, "已建立，驗證連結於 24 小時內有效")
 
 
-@router.post("/recipients/{code}/endpoints/{endpoint_code}/resend-verification", summary="重寄驗證信")
+@router.post("/recipients/{code}/endpoints/slack", summary="新增 Slack 收件端點")
+async def create_slack_endpoint(code: str, req: SlackEndpointRequest, db=Depends(get_db)):
+    from notify import recipients as recipients_mod
+    repo = NotifyRepository(db)
+    if not req.address.strip():
+        raise NotifyValidationException("Slack 目的地名稱不可為空")
+    ep = await recipients_mod.create_personal_endpoint(
+        code, "slack", req.address, repo,
+        delivery_mode=req.delivery_mode, daily_limit=req.daily_limit,
+    )
+    await repo.update_endpoint(ep["id"], {"verify_status": "verified"})
+    ep = await repo.get_endpoint(ep["id"])
+    await _audit(repo, "owner", "create_slack_endpoint", ep["endpoint_code"], "success")
+    return envelope(ep, "已建立 Slack 收件端點")
+
+
+@router.post("/recipients/{code}/endpoints/{endpoint_code}/resend-verification", summary="重新產生驗證連結")
 async def resend_verification(code: str, endpoint_code: str, db=Depends(get_db)):
     from notify import binding
     repo = NotifyRepository(db)
@@ -349,7 +371,7 @@ async def resend_verification(code: str, endpoint_code: str, db=Depends(get_db))
         raise NotifyNotFoundException("端點不存在")
     verify_url = await binding.issue_email_verification(ep["id"], recipient["id"], ep["address"], repo)
     await _audit(repo, "owner", "resend_verification", endpoint_code, "success")
-    return envelope({"verify_url": verify_url}, "驗證信已重新寄出")
+    return envelope({"verify_url": verify_url}, "已重新產生驗證連結")
 
 
 @router.post("/recipients/{code}/binding-code", summary="產生 Telegram 一次性綁定碼（15 分鐘，FR-BD-03/04）")

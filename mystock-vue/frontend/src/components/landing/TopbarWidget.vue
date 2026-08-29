@@ -30,7 +30,7 @@ function smoothScroll(id) {
                 />
             </g>
         </svg>
-        <span class="text-surface-900 dark:text-surface-0 font-medium text-2xl leading-normal mr-20">TCCI</span>
+        <span class="text-surface-900 dark:text-surface-0 font-medium text-2xl leading-normal mr-20">Jackson</span>
     </a>
     <Button
         class="lg:!hidden"

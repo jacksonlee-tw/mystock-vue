@@ -207,6 +207,18 @@ class NotifyRepository:
         result = await self._s.execute(text("SELECT * FROM notify_endpoint ORDER BY id"))
         return [dict(r) for r in result.mappings()]
 
+    async def list_deliverable_endpoints_for_channel(self, channel_code: str) -> list[dict]:
+        """該管道目前「已驗證且啟用中」的端點（供連線測試判斷要不要送出試發訊息）"""
+        result = await self._s.execute(
+            text("""
+                SELECT * FROM notify_endpoint
+                WHERE channel_code = :cc AND status = 'active' AND verify_status = 'verified'
+                ORDER BY id
+            """),
+            {"cc": channel_code}
+        )
+        return [dict(r) for r in result.mappings()]
+
     # ────────────────────────────────────────────────────────
     # 群組
     # ────────────────────────────────────────────────────────

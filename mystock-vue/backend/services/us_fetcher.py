@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import math
 from datetime import datetime
 import yfinance as yf
 from typing import Optional, List
@@ -10,6 +11,12 @@ from services.fetcher import fetch_status, load_stock_json
 from db.dual_write import dual_write_daily_data, log_crawler_run
 
 logger = logging.getLogger(__name__)
+
+def _safe_int(value) -> int:
+    """yfinance 對未收盤或缺漏的交易日可能回傳 NaN，直接 int() 會拋出 ValueError，改成 0（見 CLAUDE.md 「缺漏改寫 0 而非中斷」慣例）。"""
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return 0
+    return int(value)
 
 def stock_json_path(stock_id: str, market: str = "us") -> str:
     market_dir = os.path.join(DATA_DIR, market)
@@ -75,7 +82,7 @@ def run_us_fetch_process(target_stocks: Optional[List[str]] = None, months: Opti
                 try:
                     holders_df = ticker.institutional_holders
                     if holders_df is not None and not holders_df.empty:
-                        inst_holders = int(holders_df["Shares"].sum())
+                        inst_holders = _safe_int(holders_df["Shares"].sum())
                 except Exception:
                     pass
 
@@ -92,8 +99,8 @@ def run_us_fetch_process(target_stocks: Optional[List[str]] = None, months: Opti
                         "high": float(row["High"]),
                         "low": float(row["Low"]),
                         "close": float(row["Close"]),
-                        "volume": int(row["Volume"]),
-                        "amount": int(row["Volume"] * row["Close"])
+                        "volume": _safe_int(row["Volume"]),
+                        "amount": _safe_int(row["Volume"] * row["Close"])
                     })
                     stock_data[date_key] = record
 
