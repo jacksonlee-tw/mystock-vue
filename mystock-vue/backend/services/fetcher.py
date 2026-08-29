@@ -1,7 +1,6 @@
 import os
 import json
 import time
-import random
 import calendar
 import logging
 import requests
@@ -12,8 +11,6 @@ import threading
 
 from config import DATA_DIR, BASE_DIR, get_target_stocks, get_months_range
 from db.dual_write import dual_write_daily_data, dual_write_no_trading_days, log_crawler_run
-
-logger = logging.getLogger("mystock-backend")
 
 # ── 抓取進度狀態管理類別 ─────────────────────────────────────────
 
@@ -88,44 +85,6 @@ class FetchStatusManager:
             }
 
 fetch_status = FetchStatusManager()
-
-# ── TWSE 請求（含重試）──────────────────────────────────────────
-# 證交所對高頻爬蟲會直接 drop 連線或延遲回應，單純拉長 timeout 不夠，
-# 需搭配 Session（重用連線 + 固定 Referer）與指數退避重試。
-
-_TWSE_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Referer": "https://www.twse.com.tw/zh/trading/historical/stock-day.html",
-}
-_TWSE_TIMEOUT = (5, 20)  # (連線 timeout, 讀取 timeout)
-
-_twse_session = requests.Session()
-_twse_session.headers.update(_TWSE_HEADERS)
-
-
-def _twse_get_json(url: str, max_retries: int = 3) -> dict:
-    """對 TWSE API 發送請求，遇到逾時/連線錯誤時以指數退避 + jitter 重試。
-    重試耗盡後拋出例外，由呼叫端既有的 try/except 決定該筆資料視為抓取失敗。"""
-    last_exc: Optional[Exception] = None
-    for attempt in range(max_retries):
-        try:
-            resp = _twse_session.get(url, timeout=_TWSE_TIMEOUT)
-            resp.raise_for_status()
-            return resp.json()
-        except (requests.exceptions.Timeout, requests.exceptions.RequestException) as e:
-            last_exc = e
-            if attempt == max_retries - 1:
-                break
-            backoff = (2 ** attempt) * 5 + random.uniform(1, 3)
-            logger.warning(
-                f"[TWSE] 請求逾時/失敗（第 {attempt + 1}/{max_retries} 次），"
-                f"{backoff:.1f}s 後重試: {url} ({e})"
-            )
-            time.sleep(backoff)
-    raise last_exc
 
 # ── 輔助函式 ──────────────────────────────────────────────────
 
@@ -237,6 +196,7 @@ def _parse_quote_field(row: list, index: int, cast):
         return None
 
 def fetch_daily_quotes(target_stocks: list, days_by_stock: dict) -> dict:
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     quote_lookup = {stock_id: {} for stock_id in target_stocks}
     
     months_by_stock = {}
@@ -256,7 +216,7 @@ def fetch_daily_quotes(target_stocks: list, days_by_stock: dict) -> dict:
             url = f"https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date={date_param}&stockNo={stock_id}&response=json"
             fetch_status.update(n, total * 2, f"行情抓取 [{n}/{total}]: {stock_id} {year}-{month:02d} | URL: {url}")
             try:
-                res = _twse_get_json(url)
+                res = requests.get(url, headers=headers, timeout=10).json()
                 if res.get("stat") == "OK":
                     rows = res.get("data", [])
                     for row in rows:
@@ -276,7 +236,7 @@ def fetch_daily_quotes(target_stocks: list, days_by_stock: dict) -> dict:
             except Exception as e:
                 fetch_status.update(n, total * 2, f"⚠️ 行情抓取失敗 ({stock_id} {year}-{month:02d}): {e}")
 
-            time.sleep(random.uniform(3.5, 5.5))
+            time.sleep(3)
 
     return quote_lookup
 
@@ -332,67 +292,6 @@ def _parse_margin_row(row: list):
     except (ValueError, IndexError, AttributeError):
         return None
 
-# T86「selectType=ALL」實際回傳 19 欄，且欄位順序不保證跨時間穩定（籌碼選股策略
-# 設計文件第 1.2 節 P0 缺陷：舊碼寫死索引 4/7/10/11，其中 7/10/11 全部錯位——
-# 「投信買賣超」誤讀到恆為 0 的「外資自營商」欄、「三大法人合計」誤讀到「自營商合計」）。
-# 改為依 fields 標頭動態定位，找不到就整批放棄、絕不用猜的索引落檔。
-#
-# 每條規則都先要求含「買賣超」，排除掉同一類別下的「買進/賣出」毛額欄位；
-# 自營商合計還要排除「外資自營商」「自行買賣」「避險」三種子分類欄位，
-# 否則字串比對會撞到 T86 實際存在的「外資自營商買進股數」「自營商買賣超股數(避險)」等欄。
-def _is_foreign_excl_net(f: str) -> bool:
-    return "買賣超" in f and ("外陸資" in f or (f.startswith("外資") and "自營商" not in f))
-
-
-def _is_foreign_dealer_net(f: str) -> bool:
-    return "買賣超" in f and "外資自營商" in f
-
-
-def _is_trust_net(f: str) -> bool:
-    return "買賣超" in f and "投信" in f
-
-
-def _is_dealer_total_net(f: str) -> bool:
-    return (
-        "買賣超" in f and "自營商" in f
-        and "外資" not in f and "自行買賣" not in f and "避險" not in f
-    )
-
-
-def _is_institutional_net(f: str) -> bool:
-    return "買賣超" in f and "三大法人" in f
-
-
-_T86_FIELD_RULES = [
-    ("foreign_excl_idx", _is_foreign_excl_net),
-    ("foreign_dealer_idx", _is_foreign_dealer_net),
-    ("trust_idx", _is_trust_net),
-    ("dealer_idx", _is_dealer_total_net),
-    ("institutional_idx", _is_institutional_net),
-]
-
-
-def _locate_t86_columns(fields: list) -> Optional[dict]:
-    """依 T86 回應的 fields 標頭動態定位欄位索引。回傳 None 代表格式不符預期，
-    呼叫端必須放棄該次法人數字，不可用寫死索引當備援（設計文件第 1.2 節修正要求 1）。"""
-    if not fields:
-        return None
-    located: dict = {}
-    used: set = set()
-    for key, match in _T86_FIELD_RULES:
-        idx = next((i for i, f in enumerate(fields) if match(f) and i not in used), None)
-        if idx is None:
-            return None
-        located[key] = idx
-        used.add(idx)
-    return located
-
-
-def _lots(shares: int) -> int:
-    """股 → 張，無條件捨去絕對值。取代舊碼的 `// 1000`（floor division 對負數
-    系統性低估賣超，例如 -188,933 股會變成 -189 張而非正確的 -188 張，見設計文件第 1.2 節）。"""
-    return int(shares / 1000)
-
 def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup: dict):
     today = datetime.now()
     all_records = []
@@ -408,6 +307,7 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
         record = existing_data[stock_id].get(date_key)
         return record is not None and _field(record, "margin_balance") is not None
 
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     skipped_count = 0
 
     valid_days = [today - timedelta(days=i) for i in range(days) if (today - timedelta(days=i)).weekday() < 5]
@@ -433,7 +333,7 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
 
         margin_by_stock = {}
         try:
-            res_margn = _twse_get_json(margn_url)
+            res_margn = requests.get(margn_url, headers=headers, timeout=10).json()
             if res_margn.get("stat") == "OK":
                 tables = res_margn.get("tables", [])
                 stock_rows = tables[1].get("data", []) if len(tables) > 1 else []
@@ -446,17 +346,11 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
         except Exception as e:
             pass
 
-        time.sleep(random.uniform(3.5, 5.5))
+        time.sleep(3)
 
         try:
-            res_t86 = _twse_get_json(t86_url)
+            res_t86 = requests.get(t86_url, headers=headers, timeout=10).json()
             if res_t86.get("stat") == "OK":
-                columns = _locate_t86_columns(res_t86.get("fields", []))
-                if columns is None:
-                    logger.error(
-                        f"[T86] {date_key} 欄位定位失敗，本日不落檔法人數字（欄位: {res_t86.get('fields')}）"
-                    )
-
                 for row in res_t86.get("data", []):
                     stock_id = row[0].strip()
                     stock_name = row[1].strip()
@@ -464,37 +358,20 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
                     if stock_id in target_stocks:
                         quote = quote_lookup.get(stock_id, {}).get(date_key, {})
 
+                        foreign_lots = int(row[4].replace(",", "")) // 1000
+                        trust_lots = int(row[7].replace(",", "")) // 1000
+                        dealer_lots = int(row[10].replace(",", "")) // 1000
+                        total_lots = int(row[11].replace(",", "")) // 1000
+
                         record = {
                             "日期": date_key,
                             "股票代號": stock_id,
                             "股票名稱": stock_name,
+                            "外資買賣超(張)": foreign_lots,
+                            "投信買賣超(張)": trust_lots,
+                            "自營商買賣超(張)": dealer_lots,
+                            "合計買賣超(張)": total_lots,
                         }
-                        total_lots = None  # 供下方「估算買賣超金額」使用；欄位定位失敗時保持 None
-                        if columns is not None:
-                            try:
-                                foreign_lots = _lots(
-                                    int(row[columns["foreign_excl_idx"]].replace(",", ""))
-                                    + int(row[columns["foreign_dealer_idx"]].replace(",", ""))
-                                )
-                                trust_lots = _lots(int(row[columns["trust_idx"]].replace(",", "")))
-                                dealer_lots = _lots(int(row[columns["dealer_idx"]].replace(",", "")))
-                                total_lots = _lots(int(row[columns["institutional_idx"]].replace(",", "")))
-                            except (ValueError, IndexError):
-                                foreign_lots = trust_lots = dealer_lots = total_lots = None
-
-                            if total_lots is not None:
-                                if foreign_lots + trust_lots + dealer_lots != total_lots:
-                                    logger.debug(
-                                        f"[T86] {date_key} {stock_id} 法人合計對不上（"
-                                        f"{foreign_lots}+{trust_lots}+{dealer_lots} != {total_lots}），"
-                                        "張數四捨五入誤差，僅記錄不阻斷"
-                                    )
-                                record.update({
-                                    "外資買賣超(張)": foreign_lots,
-                                    "投信買賣超(張)": trust_lots,
-                                    "自營商買賣超(張)": dealer_lots,
-                                    "合計買賣超(張)": total_lots,
-                                })
                         # 只有真的抓到行情才寫價格欄位。缺漏的欄位會在 DataFrame 中
                         # 變成 NaN，由 save_data_to_json 既有的 pd.isna 過濾略過，
                         # 絕不能填 0.0 —— 那會覆蓋掉檔案裡原本正確的價格。
@@ -508,9 +385,8 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
                                 "成交股數(股)": quote["成交股數(股)"],
                                 "成交金額(元)": quote["成交金額(元)"],
                                 "成交筆數(筆)": quote["成交筆數(筆)"],
+                                "估算買賣超金額(萬元)": round(total_lots * close_price / 10, 2),
                             })
-                            if total_lots is not None:
-                                record["估算買賣超金額(萬元)"] = round(total_lots * close_price / 10, 2)
                         if stock_id in margin_by_stock:
                             record.update(margin_by_stock[stock_id])
 
@@ -521,7 +397,7 @@ def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup:
         except Exception:
             pass
 
-        time.sleep(random.uniform(3.5, 5.5))
+        time.sleep(3)
 
     if newly_confirmed_no_trading:
         save_no_trading_days(no_trading_days | newly_confirmed_no_trading)

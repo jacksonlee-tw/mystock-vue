@@ -497,6 +497,7 @@ def run_index_fetch_process(
                 save_index_json(definition.code, definition.market, existing)
                 dual_write_daily_data(definition.code, definition.market, existing, security_type="index")
                 result["success"].append(definition.code)
+                continue
 
             elif definition.source == "yfinance":
                 if need_full_range:

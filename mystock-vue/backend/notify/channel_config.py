@@ -33,12 +33,15 @@ def decrypt_settings(ciphertext: str) -> dict:
     """解密 Fernet 密文，回傳 settings dict"""
     if not ciphertext:
         return {}
+    if not notify_config.get_secret_key():
+        logger.error("[通知] NOTIFY_SECRET_KEY 未設定，無法解密管道設定")
+        return {}
     try:
         f   = _get_fernet()
         raw = f.decrypt(ciphertext.encode())
         return json.loads(raw)
     except Exception as exc:
-        logger.error("[通知] 解密管道設定失敗：%s", exc)
+        logger.error("[通知] 解密管道設定失敗（%s）：%s", type(exc).__name__, exc)
         return {}
 
 

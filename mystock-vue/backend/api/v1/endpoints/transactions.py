@@ -12,12 +12,17 @@ from pydantic import BaseModel
 
 from decimal import Decimal
 
+from core.owner_auth import require_owner
 from db.session import get_db
 from repositories.exchange_rate_repository import ExchangeRateRepository
 from repositories.portfolio_repository import PortfolioRepository
 from services.portfolio_ledger import D, Settings, compute_fee, compute_tax, to_float, validate_no_oversell
 
-router = APIRouter(prefix="/api/v1/transactions", tags=["Portfolio - Transactions"])
+router = APIRouter(
+    prefix="/api/v1/transactions",
+    tags=["Portfolio - Transactions"],
+    dependencies=[Depends(require_owner)],
+)
 
 CSV_HEADER = ["date", "time", "market", "side", "symbol", "name", "shares", "price", "odd_lot", "fee", "tax"]
 

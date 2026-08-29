@@ -1,5 +1,5 @@
-// 投資筆記（docs/8.個人投資記帳功能/個人投資筆記.md），比照 portfolioApi.js 共用 apiClient。
-import { apiClient } from '@/service/stockApi';
+// 投資筆記（docs/8.個人投資記帳功能/個人投資筆記.md）。
+import { privateApiClient as apiClient } from '@/service/ownerApi';
 
 export const investmentNoteApi = {
     // status 預設後端為 'published'；帶 'all' 代表不篩選狀態（含草稿／已封存）

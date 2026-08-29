@@ -1,5 +1,5 @@
-// 個人投資記帳與績效追蹤模組（docs/8.個人投資記帳功能/），比照 stockApi.js/alertApi.js 共用 apiClient。
-import { apiClient } from '@/service/stockApi';
+// 個人投資記帳與績效追蹤模組（docs/8.個人投資記帳功能/）。
+import { privateApiClient as apiClient } from '@/service/ownerApi';
 
 export const portfolioApi = {
     // ── 交易紀錄 ──────────────────────────────────────────────

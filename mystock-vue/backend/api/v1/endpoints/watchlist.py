@@ -13,12 +13,17 @@ from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from core.owner_auth import require_owner
 from db.session import get_db
 from repositories.portfolio_repository import PortfolioRepository
 from services import tracking_service
 from services.portfolio_ledger import D, Settings, to_float
 
-router = APIRouter(prefix="/api/v1/watchlist", tags=["Portfolio - Watchlist"])
+router = APIRouter(
+    prefix="/api/v1/watchlist",
+    tags=["Portfolio - Watchlist"],
+    dependencies=[Depends(require_owner)],
+)
 
 
 class WatchlistIn(BaseModel):

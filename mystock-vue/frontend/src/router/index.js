@@ -1,7 +1,7 @@
 import AppLayout from '@/layout/AppLayout.vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import { useMarket } from '@/composables/useMarket';
-import { notifyApi } from '@/service/notifyApi';
+import { ownerApi } from '@/service/ownerApi';
 
 const router = createRouter({
     history: createWebHistory(),
@@ -100,75 +100,89 @@ const router = createRouter({
                 {
                     path: '/notify/channels',
                     name: 'notify-channels',
-                    component: () => import('@/views/notify/ChannelSettings.vue')
+                    component: () => import('@/views/notify/ChannelSettings.vue'),
+                    meta: { requiresOwner: true }
                 },
                 {
                     path: '/notify/recipients',
                     name: 'notify-recipients',
-                    component: () => import('@/views/notify/RecipientManagement.vue')
+                    component: () => import('@/views/notify/RecipientManagement.vue'),
+                    meta: { requiresOwner: true }
                 },
                 {
                     path: '/notify/subscriptions',
                     name: 'notify-subscriptions',
-                    component: () => import('@/views/notify/SubscriptionRules.vue')
+                    component: () => import('@/views/notify/SubscriptionRules.vue'),
+                    meta: { requiresOwner: true }
                 },
                 {
                     path: '/notify/templates',
                     name: 'notify-templates',
-                    component: () => import('@/views/notify/MessageTemplates.vue')
+                    component: () => import('@/views/notify/MessageTemplates.vue'),
+                    meta: { requiresOwner: true }
                 },
                 {
                     path: '/notify/logs',
                     name: 'notify-logs',
-                    component: () => import('@/views/notify/DeliveryLogs.vue')
+                    component: () => import('@/views/notify/DeliveryLogs.vue'),
+                    meta: { requiresOwner: true }
                 },
                 // ── 個人投資記帳與績效追蹤模組（docs/8.個人投資記帳功能/）─────────
                 {
                     path: '/portfolio',
                     name: 'portfolio-dashboard',
-                    component: () => import('@/views/portfolio/PortfolioDashboard.vue')
+                    component: () => import('@/views/portfolio/PortfolioDashboard.vue'),
+                    meta: { requiresOwner: true }
                 },
                 {
                     path: '/portfolio/transactions',
                     name: 'portfolio-transactions',
-                    component: () => import('@/views/portfolio/TransactionList.vue')
+                    component: () => import('@/views/portfolio/TransactionList.vue'),
+                    meta: { requiresOwner: true }
                 },
                 {
                     path: '/portfolio/holdings',
                     name: 'portfolio-holdings',
-                    component: () => import('@/views/portfolio/HoldingsView.vue')
+                    component: () => import('@/views/portfolio/HoldingsView.vue'),
+                    meta: { requiresOwner: true }
                 },
                 {
                     path: '/portfolio/realized',
                     name: 'portfolio-realized',
-                    component: () => import('@/views/portfolio/RealizedPnlView.vue')
+                    component: () => import('@/views/portfolio/RealizedPnlView.vue'),
+                    meta: { requiresOwner: true }
                 },
                 {
                     path: '/portfolio/cashflow',
                     name: 'portfolio-cashflow',
-                    component: () => import('@/views/portfolio/CashflowView.vue')
+                    component: () => import('@/views/portfolio/CashflowView.vue'),
+                    meta: { requiresOwner: true }
                 },
                 {
                     path: '/portfolio/watchlist',
                     name: 'portfolio-watchlist',
-                    component: () => import('@/views/portfolio/WatchlistView.vue')
+                    component: () => import('@/views/portfolio/WatchlistView.vue'),
+                    meta: { requiresOwner: true }
                 },
                 {
                     path: '/portfolio/notes',
                     name: 'portfolio-notes',
-                    component: () => import('@/views/portfolio/InvestmentNotesView.vue')
+                    component: () => import('@/views/portfolio/InvestmentNotesView.vue'),
+                    meta: { requiresOwner: true }
                 },
                 {
                     path: '/portfolio/settings',
                     name: 'portfolio-settings',
-                    component: () => import('@/views/portfolio/PortfolioSettingsView.vue')
+                    component: () => import('@/views/portfolio/PortfolioSettingsView.vue'),
+                    meta: { requiresOwner: true }
                 }
             ]
         },
         {
             // 管理端登入：不掛在 AppLayout 之下，避免未登入時先閃過整個殼層（見系統開發規格書 §9.1）
-            path: '/notify/login',
-            name: 'notify-login',
+            path: '/login',
+            alias: '/notify/login',
+            name: 'owner-login',
             component: () => import('@/views/notify/OwnerLogin.vue')
         },
         {
@@ -190,12 +204,10 @@ router.beforeEach(async (to, from, next) => {
         const { setMarket } = useMarket();
         setMarket(to.params.market);
     }
-    // 管理端頁面的登入檢查只是體驗上的導向；真正的授權一律由後端 require_owner 強制
-    // （NFR-22，不得只靠前端隱藏），所以這裡失敗只導去登入頁，不做任何權限判斷邏輯。
-    if (to.path.startsWith('/notify/') && to.name !== 'notify-login') {
-        const authenticated = await notifyApi.session.whoami();
+    if (to.meta.requiresOwner) {
+        const authenticated = await ownerApi.whoami();
         if (!authenticated) {
-            next({ name: 'notify-login', query: { redirect: to.fullPath } });
+            next({ name: 'owner-login', query: { redirect: to.fullPath } });
             return;
         }
     }

@@ -12,9 +12,12 @@ from pydantic import BaseModel
 
 from db.session import get_db
 from repositories.notify_repository import NotifyRepository
+from core.owner_auth import (
+    COOKIE_NAME, create_owner_session_token, get_owner_session_ttl_hours,
+    require_owner, set_owner_password, verify_owner_password,
+)
 from notify import config as notify_config
 from notify.security import (
-    require_owner, verify_owner_password, create_owner_session_token,
     mask_settings, NotifyNotFoundException, NotifyValidationException,
 )
 
@@ -24,8 +27,8 @@ router = APIRouter(
     dependencies=[Depends(require_owner)],
 )
 
-# /session 本身不能要求已登入，另掛一個沒有 dependency 的 router
-session_router = APIRouter(prefix="/api/v1/notify", tags=["Notify Admin"])
+# Session 本身不能要求已登入，另掛一個沒有 dependency 的 router。
+session_router = APIRouter(prefix="/api/v1", tags=["Owner Session"])
 
 
 def envelope(data: Any = None, message: str | None = None) -> dict:
@@ -49,26 +52,49 @@ class LoginRequest(BaseModel):
     password: str
 
 
-@session_router.post("/session", summary="系統擁有者登入")
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+def _set_owner_cookie(response: Response) -> None:
+    response.set_cookie(
+        COOKIE_NAME, create_owner_session_token(), httponly=True, samesite="lax",
+        secure=not notify_config.allow_insecure_cookie(),
+        max_age=get_owner_session_ttl_hours() * 3600,
+    )
+
+
+@session_router.post("/notify/session", include_in_schema=False)
+@session_router.post("/auth/session", summary="系統擁有者登入")
 async def login(req: LoginRequest, response: Response):
     if not verify_owner_password(req.password):
-        return {"success": False, "error": {"code": "NOTIFY_UNAUTHORIZED", "message": "密碼錯誤"}}
-    token = create_owner_session_token()
-    response.set_cookie(
-        "mystock_owner", token, httponly=True, samesite="lax",
-        secure=not notify_config.allow_insecure_cookie(),
-        max_age=notify_config.get_owner_session_ttl_hours() * 3600,
-    )
+        return {"success": False, "error": {"code": "OWNER_UNAUTHORIZED", "message": "密碼錯誤"}}
+    _set_owner_cookie(response)
     return envelope({"authenticated": True})
 
 
-@session_router.delete("/session", summary="系統擁有者登出")
+@session_router.put("/auth/password", summary="變更系統擁有者密碼")
+async def change_password(req: ChangePasswordRequest, response: Response):
+    if not verify_owner_password(req.current_password):
+        return {"success": False, "error": {"code": "OWNER_UNAUTHORIZED", "message": "原密碼錯誤"}}
+    if len(req.new_password) < 8:
+        return {"success": False, "error": {"code": "INVALID_PASSWORD", "message": "新密碼至少需要 8 個字元"}}
+
+    set_owner_password(req.new_password)
+    _set_owner_cookie(response)
+    return envelope({"authenticated": True}, "密碼已變更")
+
+
+@session_router.delete("/notify/session", include_in_schema=False)
+@session_router.delete("/auth/session", summary="系統擁有者登出")
 async def logout(response: Response):
-    response.delete_cookie("mystock_owner")
+    response.delete_cookie(COOKIE_NAME)
     return envelope({"authenticated": False})
 
 
-@router.get("/session", summary="檢查目前是否已登入")
+@session_router.get("/notify/session", dependencies=[Depends(require_owner)], include_in_schema=False)
+@session_router.get("/auth/session", dependencies=[Depends(require_owner)], summary="檢查目前是否已登入")
 async def whoami():
     return envelope({"authenticated": True})
 

@@ -23,7 +23,7 @@ _BIND_CODE_RE = re.compile(r"^\d{4}$")
 async def _get_bot_token(repo: Any) -> str | None:
     from notify.channel_config import decrypt_settings
     channel_row = await repo.get_channel("telegram")
-    if not channel_row:
+    if not channel_row or channel_row.get("status") != "enabled":
         return None
     settings = decrypt_settings(channel_row.get("settings_enc") or "")
     return settings.get("bot_token")

@@ -1,7 +1,6 @@
 """
 notify/security.py
 安全工具（§7.1、§7.2、§7.3）
-- require_owner：管理端伺服器授權（NFR-22）
 - authenticate_self_service_token：自助端 Cookie 授權
 - mask_settings：遮蔽機敏欄位（NFR-08）
 - redact：過濾 logger 輸出中的機敏字串
@@ -10,14 +9,9 @@ notify/security.py
 from __future__ import annotations
 import hashlib
 import logging
-import secrets
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
-try:
-    import bcrypt
-except ImportError:
-    bcrypt = None
 
 from fastapi import Request
 from itsdangerous import TimestampSigner, SignatureExpired, BadSignature
@@ -66,40 +60,6 @@ def sha256_hex(raw: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-# ── 管理端授權（§7.3，FR-AU-01/02）──────────────────────────
-def _owner_signer() -> TimestampSigner:
-    return TimestampSigner(notify_config.get_owner_session_secret(), salt="owner-session")
-
-
-def create_owner_session_token() -> str:
-    """產生簽章 Session Cookie 值"""
-    signer = _owner_signer()
-    return signer.sign("owner").decode()
-
-
-def verify_owner_session_token(token: str) -> bool:
-    signer = _owner_signer()
-    ttl    = notify_config.get_owner_session_ttl_hours() * 3600
-    try:
-        signer.unsign(token, max_age=ttl)
-        return True
-    except (SignatureExpired, BadSignature):
-        return False
-
-
-def verify_owner_password(plain: str) -> bool:
-    if not bcrypt:
-        return False
-    stored_hash = notify_config.get_owner_password_hash()
-    if not stored_hash:
-        # 未設定密碼：僅允許 Bearer Token 存取（dev 模式）
-        return False
-    try:
-        return bcrypt.checkpw(plain.encode(), stored_hash.encode())
-    except Exception:
-        return False
-
-
 class NotifyUnauthorizedException(Exception):
     pass
 
@@ -122,27 +82,6 @@ class ChannelUnavailableException(Exception):
 
 class PreferenceWideningException(Exception):
     pass
-
-
-async def require_owner(request: Request) -> str:
-    """
-    FastAPI dependency：驗證管理端擁有者身分（§7.3）
-    1. Session Cookie（mystock_owner）
-    2. Bearer Token（腳本用）
-    兩者都失敗 → 401 NOTIFY_UNAUTHORIZED
-    """
-    # 1. Cookie
-    cookie = request.cookies.get("mystock_owner", "")
-    if cookie and verify_owner_session_token(cookie):
-        return "owner"
-
-    # 2. Bearer Token
-    auth  = request.headers.get("Authorization", "")
-    token = notify_config.get_owner_api_token()
-    if token and auth.startswith("Bearer ") and secrets.compare_digest(auth[7:], token):
-        return "owner:api"
-
-    raise NotifyUnauthorizedException("管理端存取需要授權")
 
 
 # ── 自助連結 Session（§7.2，ADR-09）──────────────────────────

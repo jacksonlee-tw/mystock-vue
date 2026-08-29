@@ -7,12 +7,17 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from core.owner_auth import require_owner
 from db.session import get_db
 from repositories.portfolio_repository import PortfolioRepository
 from services.portfolio_ledger import D, Settings, build_ledger, to_twd, to_float
 from services.stock_service import get_latest_quote
 
-router = APIRouter(prefix="/api/v1/portfolio", tags=["Portfolio - Holdings"])
+router = APIRouter(
+    prefix="/api/v1/portfolio",
+    tags=["Portfolio - Holdings"],
+    dependencies=[Depends(require_owner)],
+)
 
 
 def _parse_symbol_pairs(raw: str) -> list[tuple[str, str]]:

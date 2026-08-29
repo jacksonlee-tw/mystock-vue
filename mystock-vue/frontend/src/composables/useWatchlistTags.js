@@ -39,6 +39,5 @@ async function refresh() {
 }
 
 export function useWatchlistTags() {
-    if (!loaded && !loading.value) refresh();
     return { tags, loading, refresh };
 }

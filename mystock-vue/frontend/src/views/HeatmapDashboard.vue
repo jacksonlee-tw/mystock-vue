@@ -58,7 +58,7 @@
           {{ category.name }}
           <span class="text-xs font-medium text-surface-400">({{ category.stocks.length }})</span>
         </h2>
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+        <div class="heatmap-card-grid">
           <div
             v-for="stock in category.stocks"
             :key="stock.stock_id + '-' + selectedPeriod"
@@ -107,8 +107,8 @@
               </div>
             </div>
 
-            <div class="h-10 mb-1.5">
-              <v-chart :key="stock.stock_id + '-' + selectedPeriod" :option="getSparklineOption(stock)" :update-options="{ notMerge: true }" autoforesize />
+            <div class="h-10 mb-1.5 overflow-hidden">
+              <v-chart :key="stock.stock_id + '-' + selectedPeriod" :option="getSparklineOption(stock)" :update-options="{ notMerge: true }" autoresize />
             </div>
 
             <div class="flex items-center justify-between text-[10px] text-surface-500 border-t border-surface-100 dark:border-surface-800 pt-1.5">
@@ -124,6 +124,14 @@
     </div>
   </div>
 </template>
+
+<style scoped>
+.heatmap-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+  gap: 0.75rem;
+}
+</style>
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';

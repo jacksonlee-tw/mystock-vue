@@ -1,31 +1,6 @@
 // 整合訊息通知平台 API 封裝（對照系統開發規格書 §6.2、§9.4）。
-// 管理端／自助端都靠 Cookie 授權（require_owner / require_self_service），
-// 因此這裡另外開一個帶 withCredentials 的 axios 實例，不共用 stockApi.js 的 apiClient
-// （既有 apiClient 不需要帶 Cookie，維持原行為不變）。
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api/v1';
-
-const client = axios.create({
-    baseURL: API_BASE,
-    headers: { 'Content-Type': 'application/json' },
-    timeout: 15000,
-    withCredentials: true
-});
-
-// 統一把後端的 {success:false, error:{code,message}} 轉成好讀的 Error，
-// 呼叫端只需 try/catch 拿 err.message、err.code 即可，不用每處都檢查 res.success。
-client.interceptors.response.use(
-    (res) => res,
-    (err) => {
-        const payload = err.response?.data;
-        const message = payload?.error?.message || err.message || '請求失敗';
-        const wrapped = new Error(message);
-        wrapped.code = payload?.error?.code;
-        wrapped.status = err.response?.status;
-        return Promise.reject(wrapped);
-    }
-);
+// 管理端與個人投資功能共用 Owner Session；自助端仍使用獨立的 ns_session Cookie。
+import { ownerApi, privateApiClient as client } from '@/service/ownerApi';
 
 async function unwrap(promise) {
     const res = await promise;
@@ -33,28 +8,7 @@ async function unwrap(promise) {
 }
 
 export const notifyApi = {
-    session: {
-        async login(password) {
-            const res = await client.post('/notify/session', { password });
-            if (!res.data.success) {
-                const e = new Error(res.data.error?.message || '登入失敗');
-                e.code = res.data.error?.code;
-                throw e;
-            }
-            return res.data.data;
-        },
-        async logout() {
-            return unwrap(client.delete('/notify/session'));
-        },
-        async whoami() {
-            try {
-                await client.get('/notify/session');
-                return true;
-            } catch {
-                return false;
-            }
-        }
-    },
+    session: ownerApi,
 
     admin: {
         // ── 管道 ──

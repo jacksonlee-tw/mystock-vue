@@ -37,7 +37,7 @@ import { useTrackingList } from '@/composables/useTrackingList';
 import { marketMeta } from '@/composables/usePortfolioFormat';
 
 const { state } = useWatchlistQuickAdd();
-const { tags: knownTags } = useWatchlistTags();
+const { tags: knownTags, refresh: refreshTags } = useWatchlistTags();
 const { refresh: refreshTrackingList } = useTrackingList();
 const toast = useToast();
 
@@ -51,8 +51,9 @@ const saving = ref(false);
 // 避免殘留上一次操作的殘值
 watch(
   () => state.visible,
-  (visible) => {
+  async (visible) => {
     if (visible) {
+      await refreshTags();
       targetPrice.value = state.price;
       note.value = state.note || '';
       tagInputs.value = [...(state.tags || [])];

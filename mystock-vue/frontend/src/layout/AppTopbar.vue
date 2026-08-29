@@ -6,6 +6,7 @@ import { stockApi } from '@/service/stockApi';
 import { indexApi } from '@/service/indexApi';
 import { useToast } from 'primevue/usetoast';
 import { useMarket } from '@/composables/useMarket';
+import { ownerApi } from '@/service/ownerApi';
 import Omnibox from '@/components/Omnibox.vue';
 
 const route = useRoute();
@@ -182,9 +183,15 @@ function toggleUserMenu() {
     showUserMenu.value = !showUserMenu.value;
 }
 
-function logout() {
-    toast.add({ severity: 'info', summary: '已登出', life: 3000 });
-    showUserMenu.value = false;
+async function logout() {
+    try {
+        await ownerApi.logout();
+        toast.add({ severity: 'info', summary: '已登出', life: 3000 });
+        showUserMenu.value = false;
+        await router.replace({ name: 'owner-login' });
+    } catch (error) {
+        toast.add({ severity: 'error', summary: '登出失敗', detail: error.message, life: 3000 });
+    }
 }
 
 function handleClickOutside(event) {

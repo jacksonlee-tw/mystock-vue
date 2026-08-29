@@ -6,13 +6,18 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from core.owner_auth import require_owner
 from db.session import get_db
 from repositories.portfolio_repository import PortfolioRepository
 from services.portfolio_ledger import (
     D, Settings, build_ledger, compute_irr, compute_twr_approx, summarize_periods, to_float, to_twd,
 )
 
-router = APIRouter(prefix="/api/v1/performance", tags=["Portfolio - Performance"])
+router = APIRouter(
+    prefix="/api/v1/performance",
+    tags=["Portfolio - Performance"],
+    dependencies=[Depends(require_owner)],
+)
 
 
 async def _settings_and_ledger(db, cost_method: Optional[str] = None):

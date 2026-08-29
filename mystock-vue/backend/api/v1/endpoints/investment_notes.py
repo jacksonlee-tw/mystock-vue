@@ -10,12 +10,17 @@ from __future__ import annotations
 from datetime import date
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from core.owner_auth import require_owner
 from services import investment_note_service
 
-router = APIRouter(prefix="/api/v1/investment-notes", tags=["Portfolio - Investment Notes"])
+router = APIRouter(
+    prefix="/api/v1/investment-notes",
+    tags=["Portfolio - Investment Notes"],
+    dependencies=[Depends(require_owner)],
+)
 
 
 class NoteCreate(BaseModel):

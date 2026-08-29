@@ -232,7 +232,7 @@ async function load() {
     hasLoadedOnce.value = true;
   }
 }
-onMounted(load);
+onMounted(() => Promise.all([load(), refreshTags()]));
 
 // 篩選切換即時重查；關鍵字搜尋做輕量 debounce，避免每次按鍵都打一次 API
 let keywordTimer = null;

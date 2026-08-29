@@ -32,11 +32,17 @@ from repositories.portfolio_repository import PortfolioRepository
 logger = logging.getLogger("mystock-backend")
 
 
+# ── DB 清單讀取 ────────────────────────────────────────────────────────
+async def get_crawl_enabled_symbols(market: str) -> list[str]:
+    """取得 DB 中目前啟用抓取的代號，供 API 與畫面清單使用。"""
+    async with get_async_session() as session:
+        return await PortfolioRepository(session).list_crawl_enabled_symbols(market)
+
+
 # ── .env 鏡像 ────────────────────────────────────────────────────────────
 async def sync_env_mirror(market: str) -> None:
     """依 DB 目前 is_crawl_enabled=TRUE 的清單重寫 .env 鏡像。"""
-    async with get_async_session() as session:
-        symbols = await PortfolioRepository(session).list_crawl_enabled_symbols(market)
+    symbols = await get_crawl_enabled_symbols(market)
     save_target_stocks(symbols, market=market)
 
 

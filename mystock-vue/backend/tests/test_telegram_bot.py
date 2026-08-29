@@ -31,6 +31,20 @@ class _Client:
 
 
 class TelegramPollerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_disabled_channel_does_not_decrypt_settings(self):
+        repo = AsyncMock()
+        repo.get_channel.return_value = {
+            "channel_code": "telegram",
+            "status": "disabled",
+            "settings_enc": "invalid-old-ciphertext",
+        }
+
+        with patch("notify.channel_config.decrypt_settings") as decrypt_settings:
+            token = await telegram_bot._get_bot_token(repo)
+
+        self.assertIsNone(token)
+        decrypt_settings.assert_not_called()
+
     async def test_poller_stops_when_another_instance_owns_get_updates(self):
         with (
             patch("db.session.get_async_session", return_value=_SessionContext()),

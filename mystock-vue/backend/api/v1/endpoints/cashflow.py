@@ -8,12 +8,21 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from core.owner_auth import require_owner
 from db.session import get_db
 from repositories.portfolio_repository import PortfolioRepository
 from services.portfolio_ledger import to_float
 
-dividend_router = APIRouter(prefix="/api/v1/dividends", tags=["Portfolio - Dividends"])
-cashflow_router = APIRouter(prefix="/api/v1/cashflow", tags=["Portfolio - Cashflow"])
+dividend_router = APIRouter(
+    prefix="/api/v1/dividends",
+    tags=["Portfolio - Dividends"],
+    dependencies=[Depends(require_owner)],
+)
+cashflow_router = APIRouter(
+    prefix="/api/v1/cashflow",
+    tags=["Portfolio - Cashflow"],
+    dependencies=[Depends(require_owner)],
+)
 
 
 class DividendIn(BaseModel):

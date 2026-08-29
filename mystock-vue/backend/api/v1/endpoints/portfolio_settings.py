@@ -8,11 +8,16 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from core.owner_auth import require_owner
 from db.session import get_db
 from repositories.portfolio_repository import PortfolioRepository
 from services.portfolio_ledger import to_float
 
-router = APIRouter(prefix="/api/v1/settings", tags=["Portfolio - Settings"])
+router = APIRouter(
+    prefix="/api/v1/settings",
+    tags=["Portfolio - Settings"],
+    dependencies=[Depends(require_owner)],
+)
 
 
 class SettingsUpdate(BaseModel):

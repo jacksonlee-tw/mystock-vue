@@ -330,6 +330,10 @@ async function saveToInvestmentNotes() {
     savedNoteId.value = response.data?.id;
     toast.add({ severity: 'success', summary: '已儲存到投資筆記', detail: response.message, life: 3000 });
   } catch (err) {
+    if (err.status === 401) {
+      await router.push({ name: 'owner-login', query: { redirect: router.currentRoute.value.fullPath } });
+      return;
+    }
     toast.add({
       severity: 'error',
       summary: '儲存投資筆記失敗',
