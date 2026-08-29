@@ -116,7 +116,7 @@ function searchCountry(event) {
                 <InputText v-model.number="sliderValue" />
                 <Slider v-model="sliderValue" />
 
-                <div class="flex flex-row mt-6">
+                <div class="flex items-center flex-row mt-6">
                     <div class="flex flex-col gap-4 w-1/2">
                         <div class="font-semibold text-xl">Rating</div>
                         <Rating v-model="ratingValue" />
@@ -209,7 +209,7 @@ function searchCountry(event) {
         </div>
     </Fluid>
 
-    <Fluid class="flex mt-8">
+    <Fluid class="flex items-center mt-8">
         <div class="card flex flex-col gap-4 w-full">
             <div class="font-semibold text-xl">InputGroup</div>
             <div class="flex flex-col md:flex-row gap-4">

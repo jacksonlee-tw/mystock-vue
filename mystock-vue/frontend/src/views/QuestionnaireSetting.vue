@@ -65,7 +65,7 @@
                     <Button label="新增選項" icon="pi pi-plus" size="small" @click="addOption(idx)" type="button" class="mt-1" />
                 </div>
             </div>
-            <div class="flex justify-end gap-2 mt-4">
+            <div class="flex items-center justify-end gap-2 mt-4">
                 <Button label="取消" icon="pi pi-times" class="p-button-secondary" @click="onCancel" type="button" />
                 <Button label="儲存" icon="pi pi-check" type="submit" />
             </div>

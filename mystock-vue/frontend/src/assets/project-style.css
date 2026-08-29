@@ -578,11 +578,6 @@ select + .p-button,
 
 .p-select-fluid{width: auto !important;}
 
-.flex {
-    display: flex;
-    align-items: center;
-}
-
 .module-content{padding: 0!important;}
 
 .p-datatable-paginator-bottom{border: none !important;}

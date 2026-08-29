@@ -62,7 +62,7 @@
         <div class="p-4 space-y-4">
           <div v-for="dim in DIMENSIONS" :key="dim.key">
             <div class="text-xs font-bold text-surface-400 uppercase mb-1.5">{{ dim.label }}</div>
-            <div class="flex flex-wrap gap-1.5">
+            <div class="flex items-center flex-wrap gap-1.5">
               <span
                 v-for="opt in dim.options"
                 :key="opt.value"

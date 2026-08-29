@@ -29,7 +29,7 @@ function showError() {
         <div class="md:w-1/2">
             <div class="card">
                 <div class="font-semibold text-xl mb-4">Toast</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button @click="showSuccess()" label="Success" severity="success" />
                     <Button @click="showInfo()" label="Info" severity="info" />
                     <Button @click="showWarn()" label="Warn" severity="warn" />
@@ -37,11 +37,11 @@ function showError() {
                 </div>
 
                 <div class="font-semibold text-xl mt-4 mb-4">Inline</div>
-                <div class="flex flex-wrap mb-4 gap-2">
+                <div class="flex items-center flex-wrap mb-4 gap-2">
                     <InputText v-model="username" placeholder="Username" aria-label="username" invalid />
                     <Message severity="error">Username is required</Message>
                 </div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <InputText v-model="email" placeholder="Email" aria-label="email" invalid />
                     <Message severity="error" icon="pi pi-times-circle" />
                 </div>

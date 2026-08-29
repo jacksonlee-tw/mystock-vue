@@ -1,7 +1,7 @@
 <template>
   <div class="p-6 max-w-7xl mx-auto space-y-6">
     <!-- 頂部標題 -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
+    <div class="flex items-center flex-col md:flex-row md:items-center justify-between gap-4 card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
       <div>
         <h1 class="text-2xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-3">
           <i class="pi pi-cog text-primary text-2xl"></i>
@@ -57,7 +57,7 @@
 
       <!-- 進度條 -->
       <div class="space-y-1.5">
-        <div class="flex justify-between text-xs font-semibold text-surface-600 dark:text-surface-400">
+        <div class="flex items-center justify-between text-xs font-semibold text-surface-600 dark:text-surface-400">
           <span>{{ fetchStatus.message || '準備就緒' }}</span>
           <span>{{ fetchStatus.progress_percent }}%</span>
         </div>
@@ -115,7 +115,7 @@
 
     <!-- 每日自動排程設定 -->
     <div class="card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900 space-y-4">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="flex items-center flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
             <i class="pi pi-clock text-primary"></i> 每日自動排程
@@ -221,7 +221,7 @@
     <!-- 追蹤股票清單：已整合至「追蹤與觀察名單」單一頁面（見規劃書 §6.1 方案 A），
          這裡只留摘要卡與導向按鈕，不再管理清單內容 -->
     <div class="card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900 space-y-4">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="flex items-center flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 class="text-lg font-bold text-surface-900 dark:text-surface-0 flex items-center gap-2">
             <i class="pi pi-list text-primary"></i> 追蹤股票清單

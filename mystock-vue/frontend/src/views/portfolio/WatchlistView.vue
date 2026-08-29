@@ -1,6 +1,6 @@
 <template>
   <div class="p-6 max-w-7xl mx-auto space-y-6">
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
+    <div class="flex items-center flex-col md:flex-row md:items-center justify-between gap-4 card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
       <div>
         <h1 class="text-2xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-3">
           <i class="pi pi-eye text-primary text-2xl"></i>追蹤與觀察名單
@@ -83,7 +83,7 @@
                     </td>
                     <td class="p-3"><span class="px-2 py-0.5 text-xs font-bold rounded bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300">{{ marketMeta[w.market].label }}</span></td>
                     <td class="p-3">
-                      <div class="flex flex-wrap gap-1 max-w-[150px]">
+                      <div class="flex items-center flex-wrap gap-1 max-w-[150px]">
                         <button v-for="tag in w.tags" :key="tag.id" @click="toggleTagFilter(tag.id)" :title="`篩選標籤：${tag.name}`" :class="tagColorClass(tag.color)" class="px-1.5 py-0.5 text-[10px] font-bold rounded hover:opacity-75 transition-opacity">{{ tag.name }}</button>
                         <span v-if="!w.tags.length" class="text-surface-300 text-xs">—</span>
                       </div>
@@ -130,7 +130,7 @@
           </div>
           <div>
             <label class="block text-xs font-bold text-surface-500 mb-1">股票代碼</label>
-            <div class="flex gap-1.5">
+            <div class="flex items-center gap-1.5">
               <InputText v-model="form.symbol" :disabled="!!editingId" class="w-full" placeholder="例如: 2317" />
               <Button v-if="!editingId" icon="pi pi-search" outlined @click="lookupName" title="查詢名稱" />
             </div>

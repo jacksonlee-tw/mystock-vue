@@ -19,7 +19,7 @@
                         <Button label="清除" icon="pi pi-times" class="p-button-secondary" @click="onClear" />
                     </div>
                     <div class="flex items-center mt-4">
-                        <div class="flex gap-2">
+                        <div class="flex items-center gap-2">
                             <Button label="新增使用者" icon="pi pi-plus" @click="openDialog('add')" />
                         </div>
                     </div>
@@ -73,7 +73,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="flex justify-end gap-2 mt-4">
+                <div class="flex items-center justify-end gap-2 mt-4">
                     <Button label="取消" icon="pi pi-times" class="p-button-secondary" @click="dialogVisible = false" type="button" />
                     <Button label="儲存" icon="pi pi-check" type="submit" />
                 </div>
@@ -108,7 +108,7 @@
                     </div>
                 </div>
             </div>
-            <div class="flex justify-end gap-2 mt-4">
+            <div class="flex items-center justify-end gap-2 mt-4">
                 <Button label="取消" icon="pi pi-times" class="p-button-secondary" @click="dialogVisible = false" type="button" />
                 <Button label="儲存" icon="pi pi-check" type="submit" />
             </div>

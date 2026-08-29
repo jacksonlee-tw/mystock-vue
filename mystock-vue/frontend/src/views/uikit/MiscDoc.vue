@@ -45,7 +45,7 @@ onBeforeUnmount(() => {
         <div class="md:w-1/2">
             <div class="card">
                 <div class="font-semibold text-xl mb-4">Badge</div>
-                <div class="flex gap-2">
+                <div class="flex items-center gap-2">
                     <Badge :value="2"></Badge>
                     <Badge :value="8" severity="success"></Badge>
                     <Badge :value="4" severity="info"></Badge>
@@ -54,7 +54,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="font-semibold my-4">Overlay</div>
-                <div class="flex gap-6">
+                <div class="flex items-center gap-6">
                     <OverlayBadge value="2">
                         <i class="pi pi-bell" style="font-size: 2rem" />
                     </OverlayBadge>
@@ -67,7 +67,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="font-semibold my-4">Button</div>
-                <div class="flex gap-2">
+                <div class="flex items-center gap-2">
                     <Button label="Emails" badge="8" class="mr-2"></Button>
                     <Button label="Messages" icon="pi pi-users" severity="warn" badge="8" badgeClass="p-badge-danger"></Button>
                 </div>
@@ -121,7 +121,7 @@ onBeforeUnmount(() => {
             <div class="card">
                 <div class="font-semibold text-xl mb-4">Tag</div>
                 <div class="font-semibold mb-4">Default</div>
-                <div class="flex gap-2">
+                <div class="flex items-center gap-2">
                     <Tag value="Primary"></Tag>
                     <Tag severity="success" value="Success"></Tag>
                     <Tag severity="info" value="Info"></Tag>
@@ -130,7 +130,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="font-semibold my-4">Pills</div>
-                <div class="flex gap-2">
+                <div class="flex items-center gap-2">
                     <Tag value="Primary" :rounded="true"></Tag>
                     <Tag severity="success" value="Success" :rounded="true"></Tag>
                     <Tag severity="info" value="Info" :rounded="true"></Tag>
@@ -139,7 +139,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="font-semibold my-4">Icons</div>
-                <div class="flex gap-2">
+                <div class="flex items-center gap-2">
                     <Tag icon="pi pi-user" value="Primary"></Tag>
                     <Tag icon="pi pi-check" severity="success" value="Success"></Tag>
                     <Tag icon="pi pi-info-circle" severity="info" value="Info"></Tag>
@@ -177,7 +177,7 @@ onBeforeUnmount(() => {
             <div class="card">
                 <div class="font-semibold text-xl mb-4">Skeleton</div>
                 <div class="rounded-border border border-surface p-6">
-                    <div class="flex mb-4">
+                    <div class="flex items-center mb-4">
                         <Skeleton shape="circle" size="4rem" class="mr-2"></Skeleton>
                         <div>
                             <Skeleton width="10rem" class="mb-2"></Skeleton>
@@ -186,7 +186,7 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
                     <Skeleton width="100%" height="150px"></Skeleton>
-                    <div class="flex justify-between mt-4">
+                    <div class="flex items-center justify-between mt-4">
                         <Skeleton width="4rem" height="2rem"></Skeleton>
                         <Skeleton width="4rem" height="2rem"></Skeleton>
                     </div>

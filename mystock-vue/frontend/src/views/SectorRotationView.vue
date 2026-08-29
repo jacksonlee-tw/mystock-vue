@@ -1,7 +1,7 @@
 <template>
   <div class="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
     <!-- 頁面頂部 Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="flex items-center flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
         <div class="flex flex-wrap items-center gap-3">
           <h1 class="text-2xl sm:text-3xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-3">
@@ -136,7 +136,7 @@
           </span>
         </div>
         <!-- 比例進度條 -->
-        <div class="w-full h-2.5 rounded-full overflow-hidden flex bg-surface-200 dark:bg-surface-700 mt-2">
+        <div class="w-full h-2.5 rounded-full overflow-hidden flex items-center bg-surface-200 dark:bg-surface-700 mt-2">
           <div
             class="h-full bg-up transition-all duration-500"
             :style="{ width: `${breadthPercent.up}%` }"
@@ -192,7 +192,7 @@
 
     <!-- 控制工具列：週期選擇、視圖模式切換、大板塊篩選、搜尋 -->
     <div class="card !m-0 p-4 rounded-2xl bg-surface-0 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 shadow-sm space-y-4">
-      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <div class="flex items-center flex-col lg:flex-row lg:items-center justify-between gap-3">
         <!-- 輪動週期切換 (Time Horizon) -->
         <div class="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
           <span class="text-xs font-bold text-surface-500 shrink-0 mr-1 flex items-center gap-1">
@@ -235,7 +235,7 @@
       </div>
 
       <!-- 分類標籤、搜尋與排序 -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-surface-100 dark:border-surface-800">
+      <div class="flex items-center flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-surface-100 dark:border-surface-800">
         <!-- 大板塊標籤 (Super Sector Tabs) -->
         <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           <button
@@ -418,7 +418,7 @@
                 {{ matrixGroups.leading.length }} 檔
               </span>
             </div>
-            <div class="flex flex-wrap gap-2 pt-1">
+            <div class="flex items-center flex-wrap gap-2 pt-1">
               <button
                 v-for="s in matrixGroups.leading"
                 :key="s.stock_id"
@@ -448,7 +448,7 @@
                 {{ matrixGroups.defensive.length }} 檔
               </span>
             </div>
-            <div class="flex flex-wrap gap-2 pt-1">
+            <div class="flex items-center flex-wrap gap-2 pt-1">
               <button
                 v-for="s in matrixGroups.defensive"
                 :key="s.stock_id"
@@ -479,7 +479,7 @@
                 {{ matrixGroups.lagging.length }} 檔
               </span>
             </div>
-            <div class="flex flex-wrap gap-2 pt-1">
+            <div class="flex items-center flex-wrap gap-2 pt-1">
               <button
                 v-for="s in matrixGroups.lagging"
                 :key="s.stock_id"
@@ -509,7 +509,7 @@
                 {{ matrixGroups.correcting.length }} 檔
               </span>
             </div>
-            <div class="flex flex-wrap gap-2 pt-1">
+            <div class="flex items-center flex-wrap gap-2 pt-1">
               <button
                 v-for="s in matrixGroups.correcting"
                 :key="s.stock_id"
@@ -894,17 +894,17 @@ const rankOption = computed(() => {
               <span class="text-surface-400 font-normal">(${sector.industry_code})</span>
             </div>
             <div class="text-surface-500">${sector.category_name}</div>
-            <div class="flex justify-between gap-4 mt-1">
+            <div class="flex items-center justify-between gap-4 mt-1">
               <span class="text-surface-500">最新收盤:</span>
               <span class="font-bold">${formatIndexValue(sector.latest_close)}</span>
             </div>
-            <div class="flex justify-between gap-4">
+            <div class="flex items-center justify-between gap-4">
               <span class="text-surface-500">累積漲跌:</span>
               <span class="font-bold" style="color:${sector.change_percent >= 0 ? up : down}">
                 ${chgSign}${sector.change_percent.toFixed(2)}%
               </span>
             </div>
-            <div class="flex justify-between gap-4 border-t border-surface-200 dark:border-surface-700 pt-1 mt-1">
+            <div class="flex items-center justify-between gap-4 border-t border-surface-200 dark:border-surface-700 pt-1 mt-1">
               <span class="text-surface-500">領先大盤 (Alpha):</span>
               <span class="font-bold" style="color:${sector.alpha >= 0 ? up : down}">
                 ${alphaSign}${sector.alpha.toFixed(2)}%

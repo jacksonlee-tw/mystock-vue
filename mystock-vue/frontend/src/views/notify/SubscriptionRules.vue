@@ -2,7 +2,7 @@
   <div class="p-6 max-w-6xl mx-auto space-y-6">
     <Toast />
 
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div class="flex items-center flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <h1 class="text-3xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-3">
           <i class="pi pi-filter text-primary text-3xl"></i>
@@ -10,7 +10,7 @@
         </h1>
         <p class="text-base text-surface-500 mt-1">以「事件類型 → 過濾條件 → 目標對象」三段式定義誰該收到什麼</p>
       </div>
-      <div class="flex gap-2">
+      <div class="flex items-center gap-2">
         <Button label="規則測試" icon="pi pi-play" severity="secondary" outlined @click="testDialog = true" />
         <Button label="新增規則" icon="pi pi-plus" @click="openCreate" />
       </div>
@@ -46,7 +46,7 @@
           <div>
             <div class="text-xs font-bold text-surface-400 uppercase mb-1"><i class="pi pi-filter"></i> 過濾條件</div>
             <div v-if="!Object.keys(s.filter_conditions || {}).length" class="text-surface-400">不過濾（全部）</div>
-            <div v-else class="flex flex-wrap gap-1">
+            <div v-else class="flex items-center flex-wrap gap-1">
               <Tag v-for="(vals, key) in s.filter_conditions" :key="key" :value="`${key}: ${Array.isArray(vals) ? vals.join('、') : vals}`" severity="secondary" />
             </div>
           </div>

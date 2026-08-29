@@ -205,7 +205,7 @@ function onMenuModeChange() {
         <div class="flex flex-col gap-4">
             <div>
                 <span class="text-sm text-muted-color font-semibold">Primary</span>
-                <div class="pt-2 flex gap-2 flex-wrap justify-between">
+                <div class="pt-2 flex items-center gap-2 flex-wrap justify-between">
                     <button
                         v-for="primaryColor of primaryColors"
                         :key="primaryColor.name"
@@ -219,7 +219,7 @@ function onMenuModeChange() {
             </div>
             <div>
                 <span class="text-sm text-muted-color font-semibold">Surface</span>
-                <div class="pt-2 flex gap-2 flex-wrap justify-between">
+                <div class="pt-2 flex items-center gap-2 flex-wrap justify-between">
                     <button
                         v-for="surface of surfaces"
                         :key="surface.name"

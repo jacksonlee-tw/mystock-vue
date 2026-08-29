@@ -2,7 +2,7 @@
   <div class="p-6 max-w-7xl mx-auto space-y-6">
     <Toast />
 
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div class="flex items-center flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <h1 class="text-3xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-3">
           <i class="pi pi-history text-primary text-3xl"></i>

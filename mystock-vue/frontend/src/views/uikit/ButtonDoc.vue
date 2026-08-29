@@ -32,7 +32,7 @@ function load(index) {
         <div class="md:w-1/2">
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">Default</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button label="Submit"></Button>
                     <Button label="Disabled" :disabled="true"></Button>
                     <Button label="Link" class="p-button-link" />
@@ -40,7 +40,7 @@ function load(index) {
             </div>
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">Severities</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button label="Primary" />
                     <Button label="Secondary" severity="secondary" />
                     <Button label="Success" severity="success" />
@@ -53,7 +53,7 @@ function load(index) {
             </div>
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">Text</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button label="Primary" text />
                     <Button label="Secondary" severity="secondary" text />
                     <Button label="Success" severity="success" text />
@@ -66,7 +66,7 @@ function load(index) {
             </div>
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">Outlined</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button label="Primary" outlined />
                     <Button label="Secondary" severity="secondary" outlined />
                     <Button label="Success" severity="success" outlined />
@@ -79,7 +79,7 @@ function load(index) {
             </div>
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">Group</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <ButtonGroup>
                         <Button label="Save" icon="pi pi-check" />
                         <Button label="Delete" icon="pi pi-trash" />
@@ -89,7 +89,7 @@ function load(index) {
             </div>
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">SplitButton</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <SplitButton label="Save" :model="items"></SplitButton>
                     <SplitButton label="Save" :model="items" severity="secondary"></SplitButton>
                     <SplitButton label="Save" :model="items" severity="success"></SplitButton>
@@ -102,7 +102,7 @@ function load(index) {
             </div>
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">Templating</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button type="button">
                         <img alt="logo" src="/demo/images/logo-white.svg" style="width: 1.5rem" />
                     </Button>
@@ -116,7 +116,7 @@ function load(index) {
         <div class="md:w-1/2">
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">Icons</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button icon="pi pi-star-fill" class="mr-2 mb-2"></Button>
                     <Button label="Bookmark" icon="pi pi-bookmark" class="mr-2 mb-2"></Button>
                     <Button label="Bookmark" icon="pi pi-bookmark" iconPos="right" class="mr-2 mb-2"></Button>
@@ -124,7 +124,7 @@ function load(index) {
             </div>
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">Raised</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button label="Primary" raised />
                     <Button label="Secondary" severity="secondary" raised />
                     <Button label="Success" severity="success" raised />
@@ -137,7 +137,7 @@ function load(index) {
             </div>
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">Rounded</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button label="Primary" rounded />
                     <Button label="Secondary" severity="secondary" rounded />
                     <Button label="Success" severity="success" rounded />
@@ -150,7 +150,7 @@ function load(index) {
             </div>
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">Rounded Icons</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button icon="pi pi-check" rounded />
                     <Button icon="pi pi-bookmark" severity="secondary" rounded />
                     <Button icon="pi pi-search" severity="success" rounded />
@@ -162,7 +162,7 @@ function load(index) {
             </div>
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">Rounded Text</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button icon="pi pi-check" text raised rounded />
                     <Button icon="pi pi-bookmark" severity="secondary" text raised rounded />
                     <Button icon="pi pi-search" severity="success" text raised rounded />
@@ -174,7 +174,7 @@ function load(index) {
             </div>
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">Rounded Outlined</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button icon="pi pi-check" rounded outlined />
                     <Button icon="pi pi-bookmark" severity="secondary" rounded outlined />
                     <Button icon="pi pi-search" severity="success" rounded outlined />
@@ -186,7 +186,7 @@ function load(index) {
             </div>
             <div class="card flex flex-col gap-4">
                 <div class="font-semibold text-xl">Loading</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button type="button" class="mr-2 mb-2" label="Search" icon="pi pi-search" :loading="loading[0]" @click="load(0)" />
                     <Button type="button" class="mr-2 mb-2" label="Search" icon="pi pi-search" iconPos="right" :loading="loading[1]" @click="load(1)" />
                     <Button type="button" class="mr-2 mb-2" icon="pi pi-search" :loading="loading[2]" @click="load(2)" />

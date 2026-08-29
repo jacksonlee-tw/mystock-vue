@@ -180,7 +180,7 @@ function toggle() {
                         <label for="password">Password</label>
                         <InputText id="password" type="password" />
                     </div>
-                    <div class="flex">
+                    <div class="flex items-center">
                         <Button label="Login" icon="pi pi-user" class="w-full max-w-[17.35rem] mx-auto"></Button>
                     </div>
                 </div>

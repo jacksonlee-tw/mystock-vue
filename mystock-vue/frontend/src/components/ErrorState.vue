@@ -14,7 +14,7 @@
     </div>
 
     <!-- 操作按鈕 -->
-    <div class="flex gap-2 mt-2">
+    <div class="flex items-center gap-2 mt-2">
       <button
         v-if="primaryAction"
         @click="primaryAction.handler"

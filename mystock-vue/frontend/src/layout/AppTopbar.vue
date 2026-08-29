@@ -281,7 +281,7 @@ function handleResize() {
                 >
                     <div>
                         <span class="text-[11px] font-bold uppercase tracking-wide text-surface-400">主題色</span>
-                        <div class="flex gap-2 mt-2">
+                        <div class="flex items-center gap-2 mt-2">
                             <button
                                 v-for="a in accentOptions"
                                 :key="a.name"
@@ -299,7 +299,7 @@ function handleResize() {
                     </div>
                     <div class="pt-2 border-t border-surface-100 dark:border-surface-800">
                         <span class="text-[11px] font-bold uppercase tracking-wide text-surface-400">中性色調</span>
-                        <div class="flex gap-2 mt-2">
+                        <div class="flex items-center gap-2 mt-2">
                             <button
                                 v-for="s in surfaceOptions"
                                 :key="s.name"

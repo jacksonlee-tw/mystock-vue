@@ -55,7 +55,7 @@
               <label class="text-sm font-bold text-surface-600 dark:text-surface-300 mb-1 block">內文</label>
               <Textarea v-model="bodyFormat" fluid rows="12" class="font-mono text-sm" />
             </div>
-            <div class="flex gap-2">
+            <div class="flex items-center gap-2">
               <Button label="預覽" icon="pi pi-eye" severity="secondary" outlined @click="doPreview" :loading="previewing" />
               <Button label="儲存模板" icon="pi pi-save" @click="doSave" :loading="saving" />
             </div>
@@ -66,7 +66,7 @@
           <div class="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm p-4">
             <div class="font-bold text-sm mb-2 flex items-center gap-2"><i class="pi pi-code text-primary"></i>可用變數</div>
             <div class="space-y-1 max-h-64 overflow-y-auto">
-              <div v-for="v in variables" :key="v.var" class="text-xs flex gap-2">
+              <div v-for="v in variables" :key="v.var" class="text-xs flex items-center gap-2">
                 <span class="font-mono font-bold text-primary cursor-pointer" @click="insertVar(v.var)">{{ varToken(v.var) }}</span>
                 <span class="text-surface-400">{{ v.desc }}</span>
               </div>

@@ -90,7 +90,7 @@ function confirm(event) {
 
             <div class="card">
                 <div class="font-semibold text-xl mb-4">Popover</div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex items-center flex-wrap gap-2">
                     <Button type="button" label="Show" @click="toggleDataTable" />
                     <Popover ref="op" id="overlay_panel" style="width: 450px">
                         <DataTable v-model:selection="selectedProduct" :value="products" selectionMode="single" :paginator="true" :rows="5" @row-select="onProductSelect">

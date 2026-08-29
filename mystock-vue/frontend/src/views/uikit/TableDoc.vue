@@ -158,7 +158,7 @@ function calculateCustomerTotal(name) {
             showGridlines
         >
             <template #header>
-                <div class="flex justify-between">
+                <div class="flex items-center justify-between">
                     <Button type="button" icon="pi pi-filter-slash" label="Clear" outlined @click="clearFilter()" />
                     <IconField>
                         <InputIcon>
@@ -291,7 +291,7 @@ function calculateCustomerTotal(name) {
         <div class="font-semibold text-xl mb-4">Row Expansion</div>
         <DataTable v-model:expandedRows="expandedRows" :value="products" dataKey="id" tableStyle="min-width: 60rem">
             <template #header>
-                <div class="flex flex-wrap justify-end gap-2">
+                <div class="flex items-center flex-wrap justify-end gap-2">
                     <Button text icon="pi pi-plus" label="Expand All" @click="expandAll" />
                     <Button text icon="pi pi-minus" label="Collapse All" @click="collapseAll" />
                 </div>
@@ -374,7 +374,7 @@ function calculateCustomerTotal(name) {
             </Column>
             <Column field="date" header="Date" style="min-width: 200px"></Column>
             <template #groupfooter="slotProps">
-                <div class="flex justify-end font-bold w-full">Total Customers: {{ calculateCustomerTotal(slotProps.data.representative.name) }}</div>
+                <div class="flex items-center justify-end font-bold w-full">Total Customers: {{ calculateCustomerTotal(slotProps.data.representative.name) }}</div>
             </template>
         </DataTable>
     </div>

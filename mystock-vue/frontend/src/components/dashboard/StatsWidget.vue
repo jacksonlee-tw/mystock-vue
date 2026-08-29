@@ -1,7 +1,7 @@
 <template>
     <div class="col-span-12 lg:col-span-6 xl:col-span-3">
         <div class="card mb-0">
-            <div class="flex justify-between mb-4">
+            <div class="flex items-center justify-between mb-4">
                 <div>
                     <span class="block text-muted-color font-medium mb-4">Orders</span>
                     <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">152</div>
@@ -16,7 +16,7 @@
     </div>
     <div class="col-span-12 lg:col-span-6 xl:col-span-3">
         <div class="card mb-0">
-            <div class="flex justify-between mb-4">
+            <div class="flex items-center justify-between mb-4">
                 <div>
                     <span class="block text-muted-color font-medium mb-4">Revenue</span>
                     <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">$2.100</div>
@@ -31,7 +31,7 @@
     </div>
     <div class="col-span-12 lg:col-span-6 xl:col-span-3">
         <div class="card mb-0">
-            <div class="flex justify-between mb-4">
+            <div class="flex items-center justify-between mb-4">
                 <div>
                     <span class="block text-muted-color font-medium mb-4">Customers</span>
                     <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">28441</div>
@@ -46,7 +46,7 @@
     </div>
     <div class="col-span-12 lg:col-span-6 xl:col-span-3">
         <div class="card mb-0">
-            <div class="flex justify-between mb-4">
+            <div class="flex items-center justify-between mb-4">
                 <div>
                     <span class="block text-muted-color font-medium mb-4">Comments</span>
                     <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">152 Unread</div>

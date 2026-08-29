@@ -373,35 +373,35 @@ onMounted(async () => {
                 <template #content>
                     <!-- 查詢條件區域 -->
                     <div class="text-lg font-bold mb-4">查詢條件</div>
-                    <Fluid class="flex flex-wrap gap-4">
+                    <Fluid class="flex items-center flex-wrap gap-4">
                         <div class="flex items-center w-full md:w-1/4">
                             <label for="loginAccount" class="w-32 text-right pr-2">登入帳號:</label>
                             <InputText id="loginAccount" v-model="searchConditions.loginAccount" type="text" class="w-20" />
                         </div>
-                        <div class="flex item-center w-full md:w-1/4">
+                        <div class="flex items-center item-center w-full md:w-1/4">
                             <label for="empId" class="w-32 text-right pr-2">員工編號:</label>
                             <InputText id="empId" v-model="searchConditions.empId" type="text" class="w-20" />
                         </div>
-                        <div class="flex item-center w-full md:w-1/4">
+                        <div class="flex items-center item-center w-full md:w-1/4">
                             <label for="cname" class="w-32 text-right pr-2">員工姓名:</label>
                             <InputText id="cname" v-model="searchConditions.cname" type="text" class="w-20" />
                         </div>
-                        <div class="flex item-center w-full md:w-1/4">
+                        <div class="flex items-center item-center w-full md:w-1/4">
                             <label for="tcUserGroupCollection" class="w-32 text-right pr-2">群組:</label>
                             <Dropdown id="tcUserGroupCollection" v-model="searchConditions.selectedGroup" :options="tcGroup" optionLabel="displayIdentifier" class="w-20" placeholder="請選擇"></Dropdown>
                         </div>
-                        <div class="flex item-center w-full md:w-1/4">
+                        <div class="flex items-center item-center w-full md:w-1/4">
                             <label for="email" class="w-32 text-right pr-2">電子信箱:</label>
                             <InputText id="email" v-model="searchConditions.email" type="text" class="w-20" />
                         </div>
-                        <div class="flex item-center w-full md:w-1/4">
+                        <div class="flex items-center item-center w-full md:w-1/4">
                             <label for="disabled" class="w-32 text-right pr-2">帳號停用:</label>
                             <RadioButton id="option1" name="option" value="false" v-model="searchConditions.disabled" />
                             <label for="option1" class="leading-none ml-2">啓用</label>
                             <RadioButton id="option2" name="option" value="true" v-model="searchConditions.disabled" />
                             <label for="option2" class="leading-none ml-2">停用</label>
                         </div>
-                        <div class="flex flex-wrap gap-2">
+                        <div class="flex items-center flex-wrap gap-2">
                             <Button type="button" label="查詢" :loading="loading[0]" @click="searchUsers" />
                         </div>
                     </Fluid>
@@ -427,7 +427,7 @@ onMounted(async () => {
                 currentPageReportTemplate="顯示第 {first} 至 {last} 筆，總共 {totalRecords} 筆"
             >
                 <template #header>
-                    <div class="flex flex-column md:flex-row md:justify-content-between md:align-items-center">
+                    <div class="flex items-center flex-column md:flex-row md:justify-content-between md:align-items-center">
                         <h5 class="m-0">查詢結果</h5>
                     </div>
                 </template>
@@ -474,8 +474,8 @@ onMounted(async () => {
                 </Column>
                 <Column header="動作" :sortable="true" headerStyle="width:15%; min-width:2rem;">
                     <template #body="slotProps">
-                        <div class="flex flex-column gap-2">
-                            <div class="flex gap-2">
+                        <div class="flex items-center flex-column gap-2">
+                            <div class="flex items-center gap-2">
                                 <Button icon="pi pi-pencil" severity="success" rounded @click="editUser(slotProps.data)" />
                                 <Button icon="pi pi-trash" severity="danger" rounded @click="confirmDeleteUser(slotProps.data)" />
                             </div>

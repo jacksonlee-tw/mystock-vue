@@ -1,6 +1,6 @@
 <template>
   <div class="p-6 max-w-7xl mx-auto space-y-6">
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
+    <div class="flex items-center flex-col md:flex-row md:items-center justify-between gap-4 card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
       <div>
         <h1 class="text-2xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-3">
           <i class="pi pi-book text-primary text-2xl"></i>投資筆記
@@ -66,7 +66,7 @@
               <div v-else class="space-y-2.5">
                 <article
                   v-for="note in notes" :key="note.id"
-                  class="group flex gap-5 p-5 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm hover:shadow-md hover:border-primary-200 dark:hover:border-primary-500/40 transition-all"
+                  class="group flex items-center gap-5 p-5 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm hover:shadow-md hover:border-primary-200 dark:hover:border-primary-500/40 transition-all"
                 >
                   <div class="w-16 shrink-0 text-center pt-0.5">
                     <div class="text-lg font-black text-surface-800 dark:text-surface-100 num leading-tight">{{ dateParts(note.note_date).day }}</div>
@@ -86,8 +86,8 @@
                         v-for="t in note.tags" :key="t.id" type="button" @click="tagFilter = tagFilter === t.name ? '' : t.name"
                         class="px-2 py-0.5 text-[11px] font-bold rounded bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-300 hover:opacity-75"
                       >{{ t.name }}</button>
-                      <span v-if="note.symbol" class="px-2 py-0.5 text-[11px] font-medium rounded border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 num">
-                        {{ note.market?.toUpperCase() }} · {{ note.symbol }}<span v-if="note.symbol_name">（{{ note.symbol_name }}）</span>
+                      <span v-if="note.market" class="px-2 py-0.5 text-[11px] font-medium rounded border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 num">
+                        {{ note.market?.toUpperCase() }}<template v-if="note.symbol"> · {{ note.symbol }}<span v-if="note.symbol_name">（{{ note.symbol_name }}）</span></template>
                       </span>
                     </div>
                   </div>
@@ -112,7 +112,7 @@
               <div class="flex items-center justify-between mb-3 text-sm font-extrabold text-surface-800 dark:text-surface-100">
                 <span>標籤索引</span><i class="pi pi-tag text-primary"></i>
               </div>
-              <div class="flex flex-wrap gap-1.5">
+              <div class="flex items-center flex-wrap gap-1.5">
                 <button
                   v-for="t in tags" :key="t.id" type="button" @click="tagFilter = tagFilter === t.name ? '' : t.name"
                   :class="tagFilter === t.name ? 'border-primary-300 text-primary bg-primary-50 dark:bg-primary-500/10' : 'border-surface-200 dark:border-surface-700 text-surface-500'"
@@ -289,7 +289,9 @@ function escapeHtml(value) {
 async function renderPreviewTab(previewWindow, note) {
   const title = escapeHtml(note.subject || '投資筆記');
   const tags = (note.tags || []).map((tag) => `<span class="tag">${escapeHtml(tag.name)}</span>`).join('');
-  const symbol = note.symbol ? `<span class="meta-pill">${escapeHtml(note.market?.toUpperCase())} · ${escapeHtml(note.symbol)}${note.symbol_name ? `（${escapeHtml(note.symbol_name)}）` : ''}</span>` : '';
+  const symbol = note.market
+    ? `<span class="meta-pill">${escapeHtml(note.market?.toUpperCase())}${note.symbol ? ` · ${escapeHtml(note.symbol)}${note.symbol_name ? `（${escapeHtml(note.symbol_name)}）` : ''}` : ''}</span>`
+    : '';
   const renderedContent = await renderMarkdownWithMermaid(note.content || '');
   const html = `<!doctype html>
 <html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} | 投資筆記</title>

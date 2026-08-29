@@ -64,7 +64,7 @@
                         <Calendar v-model="form.dateRange" selectionMode="range" placeholder="開始/結束日期" dateFormat="yy-mm-dd" class="form-input" />
                     </div>
                 </div>
-                <div class="flex justify-end gap-2 mt-4">
+                <div class="flex items-center justify-end gap-2 mt-4">
                     <Button label="取消" icon="pi pi-times" class="p-button-secondary" @click="dialogVisible = false" type="button" />
                     <Button label="儲存" icon="pi pi-check" type="submit" />
                 </div>

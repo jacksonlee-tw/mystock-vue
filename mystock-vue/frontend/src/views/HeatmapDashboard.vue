@@ -1,6 +1,6 @@
 <template>
   <div class="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+    <div class="flex items-center flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
       <div>
         <h1 class="text-xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-2">
           <i class="pi pi-th-large text-primary text-xl"></i>

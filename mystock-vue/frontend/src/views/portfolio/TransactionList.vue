@@ -1,6 +1,6 @@
 <template>
   <div class="p-6 max-w-7xl mx-auto space-y-6">
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
+    <div class="flex items-center flex-col md:flex-row md:items-center justify-between gap-4 card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
       <div>
         <h1 class="text-2xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-3">
           <i class="pi pi-list text-primary text-2xl"></i>交易紀錄
@@ -105,7 +105,7 @@
     <!-- ══════ 新增／編輯交易 ══════ -->
     <Dialog v-model:visible="showModal" :header="editingId ? '編輯交易紀錄' : '新增交易紀錄'" modal style="width: 37rem">
       <div class="space-y-4">
-        <div class="flex gap-3">
+        <div class="flex items-center gap-3">
           <label class="flex-1 flex items-center justify-center gap-2 cursor-pointer font-bold px-4 py-2.5 rounded-lg border-2 transition-colors"
             :class="form.side === 'buy' ? 'text-red-600 bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30' : 'text-surface-400 border-surface-200 dark:border-surface-700'">
             <RadioButton v-model="form.side" value="buy" /> 買進
@@ -128,7 +128,7 @@
           </div>
           <div class="col-span-3">
             <label class="block text-xs font-bold text-surface-500 mb-1">交易日期 / 時間</label>
-            <div class="flex gap-1.5">
+            <div class="flex items-center gap-1.5">
               <DatePicker v-model="form.trade_date" dateFormat="yy-mm-dd" showIcon class="flex-1 min-w-0" />
               <InputText v-model="form.trade_time" placeholder="HH:MM" class="w-20 shrink-0" />
             </div>

@@ -3,7 +3,7 @@
     <Toast />
     <ConfirmDialog />
 
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div class="flex items-center flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <h1 class="text-3xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-3">
           <i class="pi pi-users text-primary text-3xl"></i>
@@ -11,7 +11,7 @@
         </h1>
         <p class="text-base text-surface-500 mt-1">新增收件對象是純資料操作——不需修改設定檔，也不需重啟系統</p>
       </div>
-      <div class="flex gap-2">
+      <div class="flex items-center gap-2">
         <Button label="收件群組" icon="pi pi-folder" severity="secondary" outlined @click="groupDialog = true" />
         <Button label="新增收件人" icon="pi pi-user-plus" @click="openCreateRecipient" />
       </div>
@@ -142,7 +142,7 @@
             <div class="text-xs text-surface-400">{{ (g.members || []).length }} 位成員</div>
           </div>
         </div>
-        <div class="flex gap-2 mt-2">
+        <div class="flex items-center gap-2 mt-2">
           <InputText v-model="newGroupName" placeholder="新群組名稱" class="flex-1" size="small" />
           <Button icon="pi pi-plus" size="small" @click="submitCreateGroup" />
         </div>

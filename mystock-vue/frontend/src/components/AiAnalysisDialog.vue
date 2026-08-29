@@ -59,7 +59,7 @@
       <template v-else>
         <div>
           <label class="block text-xs font-bold text-surface-500 mb-2">選擇 AI 服務</label>
-          <div class="flex flex-wrap gap-2">
+          <div class="flex items-center flex-wrap gap-2">
             <button
               v-for="code in providerCodes"
               :key="code"

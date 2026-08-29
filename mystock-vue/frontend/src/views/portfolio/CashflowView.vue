@@ -1,6 +1,6 @@
 <template>
   <div class="p-6 max-w-7xl mx-auto space-y-6">
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
+    <div class="flex items-center flex-col md:flex-row md:items-center justify-between gap-4 card p-6 shadow-sm border border-surface-200 dark:border-surface-700 rounded-2xl bg-surface-0 dark:bg-surface-900">
       <div>
         <h1 class="text-2xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-3">
           <i class="pi pi-sync text-primary text-2xl"></i>現金流 / 股利

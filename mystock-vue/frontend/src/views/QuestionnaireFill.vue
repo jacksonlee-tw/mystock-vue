@@ -53,7 +53,7 @@
                 <label class="block mb-1">意見建議</label>
                 <InputText v-model="form.feedback" class="w-full" />
             </div>
-            <div class="flex justify-end gap-2 mt-4">
+            <div class="flex items-center justify-end gap-2 mt-4">
                 <Button label="取消" icon="pi pi-times" class="p-button-secondary" @click="onCancel" type="button" />
                 <Button label="送出" icon="pi pi-check" type="submit" />
             </div>

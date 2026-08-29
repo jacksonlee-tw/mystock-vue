@@ -78,8 +78,8 @@
         </div>
         <div>
           <label class="block text-xs font-bold text-surface-500 mb-1">關聯標的<span class="font-normal text-surface-300 ml-1">選填</span></label>
-          <div class="flex gap-1.5">
-            <Select v-model="form.market" :options="marketOptions" optionLabel="label" optionValue="value" showClear placeholder="市場" class="w-28" />
+          <div class="flex items-center gap-1.5">
+            <Select v-model="form.market" :options="marketOptions" optionLabel="label" optionValue="value" showClear placeholder="市場" class="w-32 shrink-0" />
             <InputText v-model="form.symbol" placeholder="例如 2330" class="flex-1 min-w-0" />
           </div>
         </div>
@@ -92,7 +92,7 @@
           <i class="pi pi-hashtag"></i>
           {{ isEditing ? `當日流水號 #${note.sequence_no}` : '儲存後自動取得當日流水號' }}
         </span>
-        <div class="flex gap-2">
+        <div class="flex items-center gap-2">
           <Button label="取消" text :disabled="saving" @click="$emit('update:visible', false)" />
           <Button :label="isEditing ? '儲存變更' : '儲存筆記'" icon="pi pi-check" :loading="saving" @click="save" />
         </div>
