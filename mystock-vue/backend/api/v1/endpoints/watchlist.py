@@ -1,10 +1,10 @@
 """追蹤與觀察名單（原「潛力股觀察名單」，設計文件 §五；整合擴充見
-docs/14.追蹤個股清單優化/追蹤與觀察名單整合_規劃書.md §5.2）。
+docs/15.追蹤個股清單優化/追蹤與觀察名單整合_規劃書.md §5.2）。
 
 系統唯一的個股清單頁 API：一檔股票加入後即納入每日爬蟲抓取範圍（is_crawl_enabled），可選填目標
 買進價（觀察標的，算距目標／到價提醒）與追蹤原因，並可掛多個自訂 tag。所有寫入一律經
-services/tracking_service.py（唯一寫入點），不得直接呼叫 PortfolioRepository 或
-config.save_target_stocks()。到價推播（串接整合訊息通知平台）尚未串接，目前僅頁面顯示距目標價。
+services/tracking_service.py（唯一寫入點），不得直接呼叫 PortfolioRepository。到價推播（串接
+整合訊息通知平台）尚未串接，目前僅頁面顯示距目標價。
 """
 from __future__ import annotations
 
@@ -35,6 +35,20 @@ class WatchlistIn(BaseModel):
     tags: Optional[List[str]] = None
     source: Optional[str] = "manual"
     is_crawl_enabled: Optional[bool] = None
+
+
+class WatchlistBatchItem(BaseModel):
+    symbol: str
+    name: Optional[str] = None
+    target_price: Optional[float] = None
+    note: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class WatchlistBatchIn(BaseModel):
+    market: str
+    items: List[WatchlistBatchItem]
+    source: Optional[str] = "manual"
 
 
 class WatchlistUpdate(BaseModel):
@@ -127,7 +141,7 @@ async def add_watchlist(payload: WatchlistIn, background_tasks: BackgroundTasks,
     if "target_price" in data and data["target_price"] is not None:
         data["target_price"] = D(data["target_price"])
 
-    item, created, mirror_warning = await tracking_service.upsert_item(data)
+    item, created = await tracking_service.upsert_item(data)
     # 加入後自動補抓（ADR-06）：沒有歷史資料的才會觸發，已有資料或已有抓取任務執行中時是 no-op
     fetch_triggered = await tracking_service.ensure_data([symbol], payload.market, background_tasks)
     settings = Settings.from_row(await PortfolioRepository(db).get_settings())
@@ -136,8 +150,41 @@ async def add_watchlist(payload: WatchlistIn, background_tasks: BackgroundTasks,
         "success": True,
         "data": _watch_out(item, quotes.get((item["market"], item["symbol"])), to_float(settings.near_target_pct)),
         "message": "已加入追蹤清單" if created else "該股已在清單中，已更新設定",
-        "mirror_warning": mirror_warning,
         "fetch_triggered": fetch_triggered,
+    }
+
+
+@router.post("/batch", summary="批次加入追蹤／觀察（貼表格匯入用；逐筆 upsert，單筆失敗不擋其他筆）")
+async def add_watchlist_batch(payload: WatchlistBatchIn, background_tasks: BackgroundTasks):
+    if payload.market not in ("tw", "us"):
+        raise HTTPException(400, "market 必須為 tw 或 us")
+    if not payload.items:
+        raise HTTPException(400, "items 不可為空")
+
+    raw_items = []
+    pre_failed = []
+    for it in payload.items:
+        data = it.model_dump(exclude_unset=True)
+        if data.get("target_price") is not None:
+            if data["target_price"] <= 0:
+                pre_failed.append({"symbol": it.symbol, "error": "目標買進價若填寫，必須大於 0"})
+                continue
+            data["target_price"] = D(data["target_price"])
+        raw_items.append(data)
+
+    results = await tracking_service.bulk_upsert_items(payload.market, raw_items, payload.source or "manual")
+    ok_symbols = [r["symbol"] for r in results if r["ok"]]
+    fetch_triggered = await tracking_service.ensure_data(ok_symbols, payload.market, background_tasks)
+
+    created = sum(1 for r in results if r["ok"] and r["created"])
+    updated = sum(1 for r in results if r["ok"] and not r["created"])
+    failed = pre_failed + [{"symbol": r["symbol"], "error": r["error"]} for r in results if not r["ok"]]
+
+    return {
+        "success": True,
+        "data": {"total": len(payload.items), "created": created, "updated": updated, "failed": failed},
+        "fetch_triggered": fetch_triggered,
+        "message": f"已匯入 {created + updated} 檔（新增 {created}、更新 {updated}）" + (f"，{len(failed)} 檔失敗" if failed else ""),
     }
 
 
@@ -152,10 +199,9 @@ async def update_watchlist(watch_id: int, payload: WatchlistUpdate, background_t
     if patch.get("name") is not None and not patch["name"].strip():
         patch.pop("name")
 
-    result = await tracking_service.update_item(watch_id, patch)
-    if result is None:
+    item = await tracking_service.update_item(watch_id, patch)
+    if item is None:
         raise HTTPException(404, "找不到清單項目")
-    item, mirror_warning = result
 
     # 加入後自動補抓（ADR-06）：只在目前是「納入抓取」狀態時才檢查，暫停抓取的項目編輯備註/tag
     # 不該連帶觸發抓取；涵蓋前端編輯彈窗把「恢復抓取」跟其他欄位一起送出（走 PUT 而非 PATCH /crawl）的情況。
@@ -170,7 +216,6 @@ async def update_watchlist(watch_id: int, payload: WatchlistUpdate, background_t
         "fetch_triggered": fetch_triggered,
         "data": _watch_out(item, quotes.get((item["market"], item["symbol"])), to_float(settings.near_target_pct)),
         "message": "已更新清單項目",
-        "mirror_warning": mirror_warning,
     }
 
 
@@ -193,10 +238,9 @@ async def toggle_crawl(watch_id: int, payload: CrawlToggleIn, background_tasks: 
         if item_before is not None:
             had_position, _ = await tracking_service.has_open_position(item_before["market"], item_before["symbol"])
 
-    result = await tracking_service.set_crawl_enabled(watch_id, payload.enabled)
-    if result is None:
+    item = await tracking_service.set_crawl_enabled(watch_id, payload.enabled)
+    if item is None:
         raise HTTPException(404, "找不到清單項目")
-    item, mirror_warning = result
 
     fetch_triggered: list[str] = []
     if payload.enabled:
@@ -207,7 +251,6 @@ async def toggle_crawl(watch_id: int, payload: CrawlToggleIn, background_tasks: 
         "success": True,
         "message": "已恢復抓取" if payload.enabled else "已暫停抓取（設定仍保留）",
         "data": {"id": item["id"], "is_crawl_enabled": item["is_crawl_enabled"]},
-        "mirror_warning": mirror_warning,
         "fetch_triggered": fetch_triggered,
         "had_position": had_position,
     }
@@ -221,11 +264,10 @@ async def delete_watchlist(watch_id: int):
         raise HTTPException(404, "找不到清單項目")
     had_position, _ = await tracking_service.has_open_position(item_before["market"], item_before["symbol"])
 
-    result = await tracking_service.delete_item(watch_id)
-    if result is None:
+    market = await tracking_service.delete_item(watch_id)
+    if market is None:
         raise HTTPException(404, "找不到清單項目")
-    _market, mirror_warning = result
-    return {"success": True, "message": "已從清單移除", "mirror_warning": mirror_warning, "had_position": had_position}
+    return {"success": True, "message": "已從清單移除", "had_position": had_position}
 
 
 # ── 自訂標籤 ──────────────────────────────────────────────────────────

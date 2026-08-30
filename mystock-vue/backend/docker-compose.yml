@@ -1,4 +1,15 @@
 # 於 backend/ 目錄下執行 `docker compose up -d`（會自動讀取同目錄的 .env，見設計文件第 2.2 節）。
+#
+# 專案名寫死在這裡當保底：Compose 預設拿「所在目錄名」當專案名（也就是 backend），
+# 本機只要還有另一個 backend/ 目錄 + app 服務的專案，雙方推導出的資源名稱就會互撞
+# ——實際發生過，兩邊的 image 都叫 backend-app，後建的直接蓋掉先建的，導致
+# mystock_app 啟動起來跑的其實是另一個專案的程式。
+#
+# 注意優先序：backend/.env 的 COMPOSE_PROJECT_NAME 會蓋過這裡的 name，
+# 兩者刻意設成同一個值，避免哪天 .env 沒帶到就悄悄換成別的專案名
+# （專案名一變，volume／network 名稱跟著變，看起來就像資料不見了）。
+name: mystock-backup
+
 services:
   db:
     image: postgres:15
@@ -56,6 +67,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # 同樣不可省略：省略時 Compose 會自動推導成 <專案名>-app，與上面 name 的理由相同。
+    image: mystock-backend
     container_name: mystock_app
     restart: unless-stopped
     depends_on:
@@ -73,8 +86,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       DATA_SOURCE: ${DATA_SOURCE:-json}
-      STOCK_CODES: ${STOCK_CODES:-}
-      US_STOCK_CODES: ${US_STOCK_CODES:-}
       MONTHS_RANGE: ${MONTHS_RANGE:-3}
       QUARTERS_RANGE: ${QUARTERS_RANGE:-4}
       ENABLED_MARKETS: ${ENABLED_MARKETS:-tw,us}
@@ -84,7 +95,7 @@ services:
     volumes:
       # 爬蟲落地的 JSON（data/tw、data/us、_alerts）跨容器重啟保留。
       - ./data:/app/data
-      # 透過 UI 觸發 save_target_stocks() 寫回的追蹤股票清單也要保留，掛回同一份 .env。
+      # 透過 UI 調整每日排程（save_schedule_config()）等設定會整份重寫 .env，掛回同一份檔案才會保留。
       # 注意：bind mount 單一檔案時，若宿主機端 .env 不存在，Docker 會自動建立成「目錄」
       # 而非檔案，導致容器內讀寫失敗；啟動前務必確認 backend/.env 已存在（複製 .env.example）。
       - ./.env:/app/.env

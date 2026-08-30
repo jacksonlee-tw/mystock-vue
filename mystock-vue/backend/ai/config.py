@@ -106,6 +106,16 @@ def get_activity_log_retention_days() -> int:
     return _env_int("AI_ACTIVITY_LOG_RETENTION_DAYS", 365)
 
 
+# ── 產業鏈知識圖譜 LLM 萃取成本閘門（見 docs/16.AI技術分析/
+#    Phase3-產業鏈知識圖譜與輪動模型.md §4.7.5、ADR-IC-13）─────────────
+# 放在這裡而非 industry_chain/config.py：這是「LLM 呼叫」的成本閘門參數，ai/config.py
+# 已是全站 LLM 相關設定的既有集中點；industry_chain/config.py 保留給「產業鏈骨架 YAML／
+# 功能旗標」。AI_DAILY_QUOTA 數不到本模組的呼叫（該閘門只數 ai_analysis_report），這是
+# 本模組唯一的花費天花板，需求量遠小於一般診股報告，預設 20 已遠大於 3 條鏈的正常用量。
+def get_industry_chain_monthly_call_cap() -> int:
+    return _env_int("IC_LLM_MONTHLY_CALL_CAP", 20)
+
+
 # ── 提示詞版本（§5.5）───────────────────────────────────────────
 def get_prompt_version() -> str:
     # v4：Phase1-基礎量化與技術面 FR-P1-9，System Prompt 新增第 6 點（MACD／RSI／布林／ATR）。

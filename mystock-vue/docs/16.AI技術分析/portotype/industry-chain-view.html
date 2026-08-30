@@ -1,0 +1,2324 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>產業鏈知識圖譜與輪動雷達 - 雛形畫面</title>
+<style>
+  /* ══════════════════════════════════════════════════════════════
+     Design tokens — 比照本專案 PrimeVue Aura + brass 品牌色系
+     （frontend/src/assets/layout/variables/_common-brass.scss），
+     與既有雛形 portotype/ai-execution-history.html 共用同一組色票
+     ══════════════════════════════════════════════════════════════ */
+  :root {
+    --surface-0: #ffffff;
+    --surface-50: #fafaf9;
+    --surface-100: #f4f4f3;
+    --surface-200: #e7e5e2;
+    --surface-300: #d6d3ce;
+    --surface-400: #a8a29a;
+    --surface-500: #79746c;
+    --surface-600: #57534a;
+    --surface-700: #423e37;
+    --surface-800: #2c2925;
+    --surface-900: #1c1a17;
+    --page-bg: #f6f5f2;
+
+    --primary: #8F6413;
+    --primary-600: #734F0F;
+    --primary-700: #5C400C;
+    --primary-50: #F8EEDA;
+    --primary-contrast: #ffffff;
+
+    --success: #388E3C;
+    --success-bg: #E8F5E9;
+    --success-border: #A8D5AA;
+    --danger: #903434;
+    --danger-bg: #fdefef;
+    --danger-border: #f0c2c2;
+    --warning: #B26A00;
+    --warning-bg: #FFF3E0;
+    --warning-border: #FFD699;
+    --claude-color: #6a4d12;
+    --claude-bg: #F0DCAE;
+    --gemini-color: #1a5c9e;
+    --gemini-bg: #dceaf7;
+
+    /* 節點狀態色（§8「節點顏色」三態，與紅漲綠跌無關，見 up-down-color-convention 備忘 */
+    --state-ignited: #8F6413;
+    --state-ignited-bg: #F8EEDA;
+    --state-candidate: #B26A00;
+    --state-candidate-bg: #FFF3E0;
+    --state-dormant: #a8a29a;
+    --state-dormant-bg: #f0efec;
+
+    --radius-lg: 14px;
+    --radius-md: 10px;
+    --radius-sm: 7px;
+    --shadow-sm: 0 1px 2px rgba(28,26,23,.06), 0 1px 1px rgba(28,26,23,.04);
+    --shadow-md: 0 8px 24px rgba(28,26,23,.14);
+    --font: "Segoe UI", "PingFang TC", "Microsoft JhengHei", system-ui, -apple-system, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--page-bg);
+    color: var(--surface-800);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  h1, h2, h3, p { margin: 0; }
+  button { font-family: inherit; cursor: pointer; }
+  input, select { font-family: inherit; }
+
+  .page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 28px 24px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────── */
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .page-header h1 {
+    font-size: 26px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--surface-900);
+  }
+  .page-header h1 .icon { font-size: 24px; }
+  .page-header .subtitle {
+    margin-top: 4px;
+    color: var(--surface-500);
+    font-size: 13px;
+    max-width: 720px;
+  }
+  .proto-badge {
+    display: inline-block;
+    margin-left: 10px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--warning-bg);
+    border: 1px solid var(--warning-border);
+    color: var(--warning);
+    font-size: 11px;
+    font-weight: 700;
+    vertical-align: middle;
+  }
+  .header-controls { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .scenario-switch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface-0);
+    border: 1px solid var(--surface-200);
+    border-radius: 999px;
+    padding: 4px;
+    box-shadow: var(--shadow-sm);
+  }
+  .scenario-switch span.label {
+    font-size: 11px;
+    color: var(--surface-400);
+    padding: 0 6px 0 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+  }
+  .scenario-switch button {
+    border: none;
+    background: transparent;
+    padding: 6px 11px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--surface-600);
+    white-space: nowrap;
+  }
+  .scenario-switch button.active {
+    background: var(--primary);
+    color: var(--primary-contrast);
+  }
+
+  /* ── Tabs ───────────────────────────────────────────────────── */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface-100);
+    border-radius: 999px;
+    padding: 4px;
+    width: fit-content;
+  }
+  .tab-btn {
+    border: none;
+    background: transparent;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--surface-500);
+  }
+  .tab-btn.active { background: var(--surface-0); color: var(--primary-700); box-shadow: var(--shadow-sm); }
+  .tab-btn .count-pill {
+    display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+    background: var(--danger-bg); color: var(--danger); font-size: 10.5px; font-weight: 800;
+  }
+
+  /* ── State banner（未啟用／DB 不可用／載入中）────────────────── */
+  .state-banner {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 80px 24px; text-align: center;
+    background: var(--surface-0); border: 1px solid var(--surface-200); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+  .state-banner .big-icon { font-size: 44px; }
+  .state-banner .headline { font-size: 16px; font-weight: 800; color: var(--surface-900); }
+  .state-banner .detail { font-size: 12.5px; color: var(--surface-500); max-width: 560px; }
+  .state-banner .detail code { background: var(--surface-100); padding: 1px 5px; border-radius: 4px; }
+  .state-banner.warning .big-icon { color: var(--warning); }
+  .state-banner.danger .big-icon { color: var(--danger); }
+
+  /* ── KPI cards（CLAUDE.md 鐵則 2：同列卡片高度需一致）────────── */
+  .kpi-section .kpi-caption { font-size: 12px; color: var(--surface-500); margin-bottom: 10px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+  @media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 620px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .kpi-card {
+    margin: 0; /* 鐵則 2：中和 _utils.scss 舊版 margin-bottom 規則，交由 grid gap 處理間距 */
+    background: var(--surface-0);
+    border: 1px solid var(--surface-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 15px 15px 13px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 90px;
+  }
+  .kpi-card .kpi-label {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+    color: var(--surface-400); display: flex; align-items: center; gap: 5px;
+  }
+  .kpi-card .kpi-value { font-size: 22px; font-weight: 800; color: var(--surface-900); margin-top: 7px; }
+  .kpi-card .kpi-sub { font-size: 10.5px; color: var(--surface-400); margin-top: 2px; }
+  .kpi-card.success .kpi-value { color: var(--success); }
+  .kpi-card.danger .kpi-value { color: var(--danger); }
+  .kpi-card.primary .kpi-value { color: var(--primary-700); }
+  .kpi-card.warning .kpi-value { color: var(--warning); }
+
+  /* ── Card shell ─────────────────────────────────────────────── */
+  .card { background: var(--surface-0); border: 1px solid var(--surface-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
+  .card-body { padding: 16px 18px; }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 14px 18px; border-bottom: 1px solid var(--surface-100); flex-wrap: wrap;
+  }
+  .card-head h3 { font-size: 14.5px; font-weight: 800; color: var(--surface-900); display: flex; align-items: center; gap: 7px; }
+  .card-head .hint { font-size: 11.5px; color: var(--surface-400); }
+  .card-head .head-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+  /* ── 縮放／平移工具列（真實 viewBox 操作，非裝飾）───────────── */
+  .zoom-toolbar { display: flex; align-items: center; gap: 2px; background: var(--surface-50); border: 1px solid var(--surface-200); border-radius: 999px; padding: 2px; }
+  .zoom-toolbar .icon-btn { width: 24px; height: 24px; font-size: 13px; border: none; background: transparent; }
+  .zoom-toolbar .icon-btn:hover { background: var(--surface-0); }
+  .zoom-level { font-size: 11px; font-weight: 700; color: var(--surface-500); min-width: 38px; text-align: center; }
+
+  /* ── Tier 欄位標題（移出 SVG，固定於畫布外，不受縮放／平移影響）─ */
+  .tier-header-row { display: flex; justify-content: space-between; padding: 9px 26px 7px; font-size: 10.5px; font-weight: 800; color: var(--surface-400); text-transform: uppercase; letter-spacing: .03em; background: var(--surface-50); border-bottom: 1px solid var(--surface-100); }
+  .tier-header-row span { flex: 1; }
+
+  /* ── 圖例作為互動篩選（關聯層級／驗證狀態）───────────────────── */
+  .lg-filter-btn { border: 1px solid var(--surface-300); background: var(--surface-0); color: var(--surface-600); padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .lg-filter-btn:hover { border-color: var(--primary); }
+  .lg-filter-btn.active { background: var(--primary); border-color: var(--primary); color: var(--primary-contrast); }
+
+  /* ── Chain selector bar ─────────────────────────────────────── */
+  .chain-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .chain-bar .field { display: flex; flex-direction: column; gap: 5px; }
+  .chain-bar .field label { font-size: 11px; font-weight: 700; color: var(--surface-400); text-transform: uppercase; letter-spacing: .02em; }
+  .chain-bar select {
+    border: 1px solid var(--surface-300); border-radius: var(--radius-sm); padding: 7px 10px;
+    font-size: 13px; background: var(--surface-0); color: var(--surface-800); min-width: 220px;
+  }
+  .chain-bar select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-50); }
+  .chain-meta { display: flex; flex-direction: column; gap: 2px; font-size: 11.5px; color: var(--surface-500); }
+  .chain-meta b { color: var(--surface-700); }
+  .chain-bar .spacer { flex: 1; }
+
+  .btn {
+    border-radius: var(--radius-sm); border: 1px solid transparent; padding: 8px 15px;
+    font-size: 12.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .btn-primary { background: var(--primary); color: var(--primary-contrast); }
+  .btn-primary:hover { background: var(--primary-600); }
+  .btn-primary:disabled { background: var(--surface-300); cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--surface-500); border-color: var(--surface-300); }
+  .btn-ghost:hover { background: var(--surface-100); }
+  .btn-ghost:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-danger-ghost { background: transparent; color: var(--danger); border-color: var(--danger-border); }
+  .btn-danger-ghost:hover { background: var(--danger-bg); }
+  .btn-success-ghost { background: transparent; color: var(--success); border-color: var(--success-border); }
+  .btn-success-ghost:hover { background: var(--success-bg); }
+
+  .check-field { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--surface-600); font-weight: 600; }
+  .check-field input { width: 14px; height: 14px; accent-color: var(--primary); }
+
+  /* ── Legend ─────────────────────────────────────────────────── */
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; padding: 10px 18px; background: var(--surface-50); border-bottom: 1px solid var(--surface-100); font-size: 11.5px; color: var(--surface-600); }
+  .legend .lg-group { display: flex; align-items: center; gap: 8px; }
+  .legend .lg-label { color: var(--surface-400); font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: .03em; margin-right: 2px; }
+  .legend .lg-item { display: inline-flex; align-items: center; gap: 4px; }
+  .legend .dot-swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .legend .line-swatch { width: 20px; height: 0; border-top: 2px solid; display: inline-block; }
+  .legend .line-swatch.dashed { border-top-style: dashed; }
+
+  /* ── Main grid: graph | radar ───────────────────────────────── */
+  .main-grid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 1050px) { .main-grid { grid-template-columns: 1fr; } }
+
+  /* overflow:hidden 是刻意的：平移改由 JS 操作 viewBox 完成（見「縮放／平移」章節），
+     不能再讓瀏覽器原生捲軸介入，否則兩套平移機制會互相打架 */
+  .graph-wrap { overflow: hidden; background: var(--surface-50); position: relative; }
+  .graph-svg { display: block; width: 100%; height: 460px; cursor: grab; touch-action: none; }
+  .graph-wrap.dragging .graph-svg, .graph-wrap-lg.dragging .graph-svg-lg { cursor: grabbing; }
+  .node-symbol-label { font-size: 11.5px; font-weight: 800; fill: var(--surface-900); pointer-events: none; }
+  .node-name-label { font-size: 9.5px; fill: var(--surface-500); pointer-events: none; }
+  .graph-node { cursor: pointer; stroke-width: 2; transition: opacity .15s ease; }
+  .graph-node.state-ignited { stroke: var(--state-ignited); }
+  .graph-node.state-candidate { stroke: var(--state-candidate); }
+  .graph-node.state-dormant { stroke: var(--state-dormant); }
+  .graph-node.selected { stroke-width: 3.5; }
+  .graph-node.dimmed { opacity: .28; }
+  .graph-edge { fill: none; stroke-width: 1.8; transition: opacity .15s ease, stroke-width .15s ease, stroke .15s ease; cursor: pointer; }
+  .graph-edge.verified { stroke: var(--surface-600); }
+  .graph-edge.unverified { stroke: var(--warning); stroke-dasharray: 5 4; animation: dashFlow 1.1s linear infinite; }
+  .graph-edge.dimmed { opacity: .15; animation-play-state: paused; }
+  /* 選取節點時，追蹤到的路徑一律改為品牌金色，與「已核可／待核對」的既有配色分開表達，
+     避免使用者把「這條邊在追蹤路徑上」跟「這條邊有沒有核可」兩件事搞混 */
+  .graph-edge.highlighted { stroke-width: 3; opacity: 1; stroke: var(--primary); }
+  @keyframes dashFlow { to { stroke-dashoffset: -18; } }
+  .edge-source-dot { r: 4; stroke: #fff; stroke-width: 1; }
+  .src-llm_gemini { fill: var(--gemini-color); }
+  .src-llm_claude { fill: var(--claude-color); }
+  .src-moneydj { fill: var(--surface-500); }
+  .src-manual { fill: var(--success); }
+
+  .inspector { border-top: 1px solid var(--surface-100); padding: 14px 18px; }
+  .inspector .placeholder { font-size: 12px; color: var(--surface-400); text-align: center; padding: 10px 0; }
+  .inspector .sel-title { font-size: 13px; font-weight: 800; color: var(--surface-900); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .inspector .edge-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .inspector .inspector-footer { margin-top: 10px; display: flex; justify-content: flex-end; }
+  .edge-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px;
+    background: var(--surface-50); border: 1px solid var(--surface-200); font-size: 11.5px; color: var(--surface-700);
+  }
+  .edge-chip:hover { border-color: var(--primary); background: var(--primary-50); }
+  .edge-chip .arrow { color: var(--surface-400); }
+
+  /* ── 自訂懸浮提示（取代原生 title，見 §8「圖形互動深度」）───── */
+  .float-tooltip {
+    position: fixed; z-index: 70; display: none; pointer-events: none;
+    background: var(--surface-900); color: #f3f1ec; padding: 9px 12px; border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md); font-size: 11.5px; line-height: 1.55; max-width: 280px;
+  }
+  .float-tooltip .tt-title { font-weight: 800; font-size: 12.5px; color: #fff; margin-bottom: 3px; }
+  .float-tooltip .tt-row { color: #cfcabf; }
+  .float-tooltip .tt-badges { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .float-tooltip .tag { border-color: transparent !important; }
+
+  /* ── Chips / badges (共用) ──────────────────────────────────── */
+  .tag {
+    display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; border: 1px solid transparent; white-space: nowrap;
+  }
+  .tag-success { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+  .tag-danger { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+  .tag-warning { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-border); }
+  .tag-neutral { background: var(--surface-100); color: var(--surface-600); }
+  .tag-claude { background: var(--claude-bg); color: var(--claude-color); }
+  .tag-gemini { background: var(--gemini-bg); color: var(--gemini-color); }
+  .tag-tier1 { background: #e4eefb; color: #2c5c94; }
+  .tag-tier2 { background: #efe9f8; color: #5d3f94; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .chip-pass { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+  .chip-fail { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); }
+  .chip-nodata { background: var(--surface-100); color: var(--surface-500); border: 1px solid var(--surface-200); }
+  .filter-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px; font-size: 10.5px; font-weight: 700; }
+
+  .sample-badge { font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 6px; }
+  .sample-normal { background: var(--surface-100); color: var(--surface-600); }
+  .sample-low { background: var(--warning-bg); color: var(--warning); }
+  .sample-unknown { background: var(--danger-bg); color: var(--danger); }
+
+  /* ── Radar list ─────────────────────────────────────────────── */
+  .radar-list { display: flex; flex-direction: column; }
+  .radar-item {
+    padding: 13px 18px; border-bottom: 1px solid var(--surface-100); display: flex; flex-direction: column; gap: 7px;
+    cursor: pointer;
+  }
+  .radar-item:last-child { border-bottom: none; }
+  .radar-item:hover { background: var(--surface-50); }
+  .radar-item.selected { background: var(--primary-50); }
+  .radar-row1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .radar-symbol { font-weight: 800; color: var(--surface-900); font-size: 13.5px; }
+  .radar-name { color: var(--surface-400); font-size: 11px; margin-left: 4px; }
+  .radar-row2 { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .radar-row3 { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--surface-600); flex-wrap: wrap; }
+  .corr-bar-wrap { display: flex; align-items: center; gap: 6px; }
+  .corr-bar-track { width: 64px; height: 6px; border-radius: 4px; background: var(--surface-200); overflow: hidden; }
+  .corr-bar-fill { height: 100%; background: var(--primary); border-radius: 4px; }
+  .corr-bar-fill.neg { background: var(--danger); }
+
+  .excluded-toggle-row { padding: 10px 18px; border-top: 1px solid var(--surface-100); }
+  .excluded-list { padding: 0 18px 12px; }
+  .excluded-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px dashed var(--surface-200); font-size: 12px; color: var(--surface-500); }
+  .excluded-item:last-child { border-bottom: none; }
+  .link-btn { background: none; border: none; color: var(--primary-700); font-size: 11.5px; font-weight: 700; padding: 0; text-decoration: underline; }
+
+  .radar-empty-note { padding: 40px 20px; text-align: center; color: var(--surface-400); font-size: 12.5px; }
+
+  /* ── Empty leader note card ─────────────────────────────────── */
+  .leader-note-card { padding: 46px 30px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .leader-note-card .big-icon { font-size: 36px; }
+  .leader-note-card .headline { font-size: 15px; font-weight: 800; color: var(--surface-900); }
+  .leader-note-card .detail { font-size: 12.5px; color: var(--surface-500); max-width: 620px; }
+  .leader-note-card .yaml-hint { font-family: "Cascadia Code", Consolas, monospace; font-size: 11.5px; background: var(--surface-900); color: #e6e3dd; border-radius: var(--radius-md); padding: 12px 16px; text-align: left; margin-top: 6px; }
+
+  /* ── Verify tab: filters / table ────────────────────────────── */
+  .filters-row { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 11px; font-weight: 700; color: var(--surface-400); text-transform: uppercase; letter-spacing: .02em; }
+  .field select, .field input[type="text"] {
+    border: 1px solid var(--surface-300); border-radius: var(--radius-sm); padding: 7px 10px; font-size: 13px;
+    background: var(--surface-0); color: var(--surface-800); min-width: 150px;
+  }
+  .field select:focus, .field input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-50); }
+  .field.narrow select, .field.narrow input { min-width: 110px; }
+  .field-check { display: flex; align-items: center; gap: 7px; padding-bottom: 7px; }
+  .field-check label { font-size: 12.5px; color: var(--surface-600); font-weight: 600; }
+  .field-check input { width: 15px; height: 15px; accent-color: var(--primary); }
+
+  .table-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; border-bottom: 1px solid var(--surface-100); flex-wrap: wrap; gap: 10px; }
+  .table-toolbar .count { font-size: 13px; color: var(--surface-500); }
+  .table-toolbar .count b { color: var(--surface-900); }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 1180px; }
+  thead th {
+    text-align: left; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em;
+    color: var(--surface-400); background: var(--surface-50); padding: 10px 13px; border-bottom: 1px solid var(--surface-200); white-space: nowrap;
+  }
+  tbody td { padding: 11px 13px; border-bottom: 1px solid var(--surface-100); font-size: 12.5px; color: var(--surface-700); vertical-align: middle; }
+  tbody tr:hover { background: var(--surface-50); }
+  tbody tr:last-child td { border-bottom: none; }
+  .cell-edge .chain-tag { display: block; margin-bottom: 3px; }
+  .cell-edge .flow { font-weight: 700; color: var(--surface-900); white-space: nowrap; }
+  .cell-edge .flow .sym { }
+  .cell-edge .comp { color: var(--surface-400); font-size: 11px; }
+  .icon-btn {
+    width: 27px; height: 27px; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 999px; border: 1px solid var(--surface-200); background: var(--surface-0); color: var(--surface-500); font-size: 13px;
+  }
+  .icon-btn:hover { background: var(--primary-50); color: var(--primary-700); border-color: var(--primary-50); }
+  .icon-btn.danger:hover { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+  .icon-btn.success:hover { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+  .row-actions { display: flex; gap: 6px; }
+
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 20px; color: var(--surface-400); gap: 8px; }
+  .empty-state .big-icon { font-size: 38px; opacity: .5; }
+  .empty-state .primary-text { font-size: 15px; color: var(--surface-600); font-weight: 700; }
+  .empty-state .secondary-text { font-size: 12.5px; }
+
+  .skeleton-bar { height: 12px; border-radius: 5px; background: linear-gradient(90deg, var(--surface-100) 25%, var(--surface-200) 37%, var(--surface-100) 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+  /* ── Modal ──────────────────────────────────────────────────── */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(28,26,23,.45); display: flex; align-items: flex-start; justify-content: center; padding: 5vh 16px; overflow-y: auto; z-index: 50; }
+  .modal-backdrop.hidden { display: none; }
+  .modal { background: var(--surface-0); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); width: 100%; max-width: 720px; outline: 2px solid var(--surface-200); outline-offset: -1px; }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--surface-100); }
+  .modal-header h3 { font-size: 16px; font-weight: 800; color: var(--surface-900); }
+  .modal-header .icon-btn { border: none; }
+  .modal-body { padding: 20px; max-height: 68vh; overflow-y: auto; }
+  .modal-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--surface-100); }
+  .modal-footer .left-actions, .modal-footer .right-actions { display: flex; gap: 8px; }
+
+  .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  @media (max-width: 640px) { .info-grid { grid-template-columns: repeat(2, 1fr); } }
+  .info-cell { margin: 0; background: var(--surface-50); border-radius: var(--radius-md); padding: 10px 12px; min-height: 56px; display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+  .info-cell .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--surface-400); font-weight: 700; }
+  .info-cell .v { font-size: 13px; color: var(--surface-800); font-weight: 700; word-break: break-word; }
+  .info-cell.span-2 { grid-column: span 2; }
+  .info-cell.span-4 { grid-column: span 4; }
+
+  .section-title { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--surface-400); margin: 16px 0 8px; }
+  .section-title:first-child { margin-top: 0; }
+
+  .evidence-box { background: var(--surface-50); border: 1px solid var(--surface-200); border-radius: var(--radius-md); padding: 12px 14px; font-size: 12.5px; color: var(--surface-700); font-style: italic; }
+  .evidence-url { font-size: 11.5px; color: var(--primary-700); word-break: break-all; }
+  .note-box { background: var(--primary-50); border: 1px solid #e9d9ad; border-radius: var(--radius-md); padding: 10px 14px; font-size: 12px; color: var(--primary-700); margin-top: 10px; }
+
+  /* ── 力導向圖・放大檢視 Modal ─────────────────────────────────── */
+  .modal.graph-modal { max-width: 1360px; }
+  .graph-wrap-lg { overflow: hidden; background: var(--surface-50); border-radius: var(--radius-md); position: relative; }
+  .graph-svg-lg { display: block; width: 100%; height: 74vh; min-height: 460px; cursor: grab; touch-action: none; }
+
+  /* ── 轉為投資筆記 Modal（欄位比照既有 InvestmentNoteEditor.vue）── */
+  .modal.note-modal { max-width: 820px; }
+  .note-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  @media (max-width: 640px) { .note-field-grid { grid-template-columns: 1fr; } }
+  .note-field label { display: block; font-size: 11px; font-weight: 700; color: var(--surface-400); text-transform: uppercase; letter-spacing: .02em; margin-bottom: 5px; }
+  .note-field input[type="text"], .note-field input[type="date"], .note-field select {
+    width: 100%; border: 1px solid var(--surface-300); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 13px;
+    background: var(--surface-0); color: var(--surface-800);
+  }
+  .note-field input:focus, .note-field select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-50); }
+  .note-editor-shell { border: 1px solid var(--surface-200); border-radius: var(--radius-md); overflow: hidden; }
+  .note-editor-tabs { display: flex; gap: 4px; padding: 6px; border-bottom: 1px solid var(--surface-200); background: var(--surface-50); }
+  .note-editor-tab {
+    display: inline-flex; align-items: center; gap: 6px; border: none; background: transparent; padding: 6px 12px;
+    border-radius: var(--radius-sm); font-size: 12px; font-weight: 700; color: var(--surface-500);
+  }
+  .note-editor-tab.active { background: var(--surface-0); color: var(--primary-700); box-shadow: var(--shadow-sm); }
+  .note-source-textarea {
+    display: block; width: 100%; min-height: 260px; border: none; padding: 14px 16px; font-size: 12.5px;
+    font-family: "Cascadia Code", Consolas, monospace; line-height: 1.65; resize: vertical; color: var(--surface-800);
+  }
+  .note-source-textarea:focus { outline: none; }
+  .note-preview { min-height: 260px; max-height: 420px; overflow-y: auto; padding: 16px 18px; background: var(--surface-0); font-size: 12.5px; line-height: 1.7; color: var(--surface-800); }
+  .note-preview h1, .note-preview h2, .note-preview h3 { color: var(--surface-900); font-weight: 800; margin: 1.1em 0 .5em; }
+  .note-preview h1:first-child, .note-preview h2:first-child, .note-preview h3:first-child { margin-top: 0; }
+  .note-preview h1 { font-size: 17px; } .note-preview h2 { font-size: 15px; } .note-preview h3 { font-size: 13.5px; }
+  .note-preview p { margin: .6em 0; }
+  .note-preview blockquote { margin: .8em 0; padding: 8px 12px; border-left: 3px solid var(--primary); background: var(--primary-50); color: var(--primary-700); font-size: 12px; }
+  .note-preview table { width: 100%; border-collapse: collapse; margin: .8em 0; font-size: 11.5px; }
+  .note-preview th, .note-preview td { padding: 6px 8px; border: 1px solid var(--surface-200); text-align: left; }
+  .note-preview th { background: var(--surface-50); font-weight: 700; color: var(--surface-600); }
+  .note-preview ul { margin: .6em 0; padding-left: 1.4em; }
+  .note-preview code { background: var(--surface-100); padding: 1px 5px; border-radius: 4px; font-family: "Cascadia Code", Consolas, monospace; font-size: 11px; }
+  .note-preview pre { background: var(--surface-100); border-radius: var(--radius-md); padding: 12px; overflow-x: auto; }
+  .note-preview pre code { background: transparent; padding: 0; }
+  .note-preview .mermaid-diagram { margin: .9em 0; padding: 14px; border: 1px solid var(--surface-200); border-radius: var(--radius-md); background: #fff; overflow-x: auto; }
+  .note-preview .mermaid-diagram svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  .note-preview .mermaid-fallback-note { color: var(--warning); font-size: 11.5px; background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: var(--radius-md); padding: 8px 12px; margin: .6em 0; }
+
+  .tag-toggle-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .tag-toggle {
+    border: 1px solid var(--surface-300); background: var(--surface-0); color: var(--surface-600);
+    padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700;
+  }
+  .tag-toggle.on { background: var(--primary); border-color: var(--primary); color: var(--primary-contrast); }
+  .tag-chip-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--primary-50); color: var(--primary-700); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; }
+  .tag-chip button { border: none; background: transparent; color: var(--primary-700); font-size: 12px; padding: 0; line-height: 1; }
+  .tag-add-input { border: 1px dashed var(--surface-300); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; background: transparent; min-width: 90px; }
+  .tag-add-input:focus { outline: none; border-color: var(--primary); }
+
+  .symbol-hint { font-size: 11px; color: var(--surface-400); margin-top: 5px; line-height: 1.5; }
+  .symbol-hint b { color: var(--surface-600); }
+
+  .toast { position: fixed; top: 20px; right: 20px; z-index: 100; background: var(--surface-900); color: #fff; padding: 10px 18px; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; box-shadow: var(--shadow-md); opacity: 0; transform: translateY(-6px); transition: opacity .18s ease, transform .18s ease; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.hidden { display: none; }
+
+  .footnote { font-size: 11.5px; color: var(--surface-400); text-align: center; margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══════════════════════ 頁首 ══════════════════════ -->
+  <header class="page-header">
+    <div>
+      <h1><span class="icon">🕸️</span>產業鏈知識圖譜與輪動雷達<span class="proto-badge">雛形畫面・假資料</span></h1>
+      <p class="subtitle">力導向圖 + 輪動外溢雷達清單（對應 <code>GET /industry-chains/{id}/graph</code>、
+        <code>GET /industry-chains/spillover-radar</code>）＋ 最小可用的人工核對介面（P1，對應
+        <code>GET /industry-chains/{id}/edges?verified=false</code>）。見
+        docs/16.AI技術分析/Phase3-產業鏈知識圖譜與輪動模型.md §7、§8</p>
+    </div>
+    <div class="header-controls">
+      <div class="scenario-switch" title="僅供雛形走查切換畫面狀態，正式功能無此按鈕">
+        <span class="label">情境切換</span>
+        <button type="button" data-scenario="data" class="active">有資料</button>
+        <button type="button" data-scenario="loading">載入中</button>
+        <button type="button" data-scenario="disabled">功能未啟用</button>
+        <button type="button" data-scenario="dbdown">DB 不可用</button>
+      </div>
+      <div class="tabs">
+        <button type="button" class="tab-btn active" data-tab="overview">力導向圖總覽</button>
+        <button type="button" class="tab-btn" data-tab="verify">待核對佇列<span class="count-pill" id="pendingCountPill">0</span></button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════════════════ 狀態橫幅（未啟用／DB 不可用／載入中）══════════════════════ -->
+  <div id="stateBanner" style="display:none"></div>
+
+  <!-- ══════════════════════ Tab: 總覽 ══════════════════════ -->
+  <div id="tabOverview">
+
+    <!-- 產業鏈選擇列 -->
+    <section class="card">
+      <div class="card-body">
+        <div class="chain-bar">
+          <div class="field">
+            <label>產業鏈</label>
+            <select id="chainSelect"></select>
+          </div>
+          <div class="chain-meta" id="chainMeta"></div>
+          <div class="spacer"></div>
+          <button class="btn btn-ghost" id="btnLegendToggle">🗺️ 圖例／篩選</button>
+          <button class="btn btn-ghost" id="btnExportChainNote">📝 轉為投資筆記</button>
+          <button class="btn btn-primary" id="btnTrigger">⚡ 手動觸發本鏈萃取</button>
+        </div>
+      </div>
+      <div class="legend" id="legendRow">
+        <div class="lg-group">
+          <span class="lg-label">關聯層級篩選</span>
+          <button type="button" class="lg-filter-btn active" data-tier-filter="all">全部</button>
+          <button type="button" class="lg-filter-btn" data-tier-filter="1">Tier 1・主要供應線</button>
+          <button type="button" class="lg-filter-btn" data-tier-filter="2">Tier 2・次要供應線</button>
+        </div>
+        <div class="lg-group">
+          <span class="lg-label">驗證狀態篩選</span>
+          <button type="button" class="lg-filter-btn active" data-verified-filter="all">全部</button>
+          <button type="button" class="lg-filter-btn" data-verified-filter="true">✔ 已核可</button>
+          <button type="button" class="lg-filter-btn" data-verified-filter="false">┄ 待核對（LLM）</button>
+        </div>
+        <div class="lg-group">
+          <span class="lg-label">節點狀態</span>
+          <span class="lg-item"><span class="dot-swatch" style="background:var(--state-ignited)"></span>已突破（下游）</span>
+          <span class="lg-item"><span class="dot-swatch" style="background:var(--state-candidate)"></span>低位階候選（中／上游）</span>
+          <span class="lg-item"><span class="dot-swatch" style="background:var(--state-dormant)"></span>尚未連動</span>
+        </div>
+        <div class="lg-group">
+          <span class="lg-label">來源</span>
+          <span class="lg-item"><span class="dot-swatch" style="background:var(--gemini-color)"></span>Gemini</span>
+          <span class="lg-item"><span class="dot-swatch" style="background:var(--claude-color)"></span>Claude</span>
+          <span class="lg-item"><span class="dot-swatch" style="background:var(--surface-500)"></span>MoneyDJ</span>
+          <span class="lg-item"><span class="dot-swatch" style="background:var(--success)"></span>人工</span>
+        </div>
+        <div class="lg-group" style="color:var(--surface-400)">
+          <span>💡 節點橫向位置＝<b>relation_tier</b>（圖上距離）；顏色＝<b>price_position</b> 訊號狀態——兩者互相獨立，見規格書 §1.4「術語衝突警告」。本圖沒有「替代路徑」這個維度——供應鏈關聯的資料模型（§5.2）只有 <code>relation_tier</code> 與 <code>is_verified</code> 兩個可篩選欄位，不建構「主要／次要／備援」這種未在規格書定義的分類</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- KPI -->
+    <section class="kpi-section">
+      <p class="kpi-caption">彙總卡片僅套用於當前所選產業鏈</p>
+      <div class="kpi-grid" id="kpiGrid"></div>
+    </section>
+
+    <!-- 空下游龍頭提示（ccl_pcb 範例） -->
+    <section class="card" id="leaderNoteCard" style="display:none"></section>
+
+    <!-- 力導向圖 ＋ 輪動雷達 -->
+    <div class="main-grid" id="mainGrid">
+      <section class="card">
+        <div class="card-head">
+          <h3>📊 力導向圖（分層布局示意）</h3>
+          <span class="hint">正式功能採 ECharts <code>graph</code> series 力導向模擬；本鏈 <span id="graphScaleHint"></span>，分層布局實測仍可讀（評估結論見規格書 §8）</span>
+          <div class="head-actions">
+            <div class="zoom-toolbar" data-target="graphSvg">
+              <button type="button" class="icon-btn zoom-btn" data-action="out" title="縮小">－</button>
+              <span class="zoom-level" data-zoom-label>100%</span>
+              <button type="button" class="icon-btn zoom-btn" data-action="in" title="放大">＋</button>
+              <button type="button" class="icon-btn zoom-btn" data-action="reset" title="重設視角">⟲</button>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="btnGraphFullscreen">⛶ 放大檢視</button>
+          </div>
+        </div>
+        <div class="tier-header-row">
+          <span style="text-align:left">Tier 2・上游原料</span>
+          <span style="text-align:center">Tier 1・直接供應商</span>
+          <span style="text-align:right">下游龍頭</span>
+        </div>
+        <div class="graph-wrap" id="graphWrap">
+          <svg id="graphSvg" class="graph-svg" viewBox="0 0 900 540"></svg>
+        </div>
+        <div class="inspector" id="inspectorPanel">
+          <p class="placeholder">點選任一節點，沿供應鏈兩個方向追蹤完整關聯子圖（不只是直接相鄰的一跳）</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h3>🎯 輪動外溢雷達清單</h3>
+          <span class="hint" id="radarIgnitedHint"></span>
+        </div>
+        <div class="radar-list" id="radarList"></div>
+        <div class="excluded-toggle-row">
+          <button class="link-btn" id="btnToggleExcluded">顯示已排除候選（僅雛形示意用，正式清單不呈現）▾</button>
+        </div>
+        <div class="excluded-list" id="excludedList" style="display:none"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ Tab: 待核對佇列 ══════════════════════ -->
+  <div id="tabVerify" style="display:none">
+    <section class="kpi-section">
+      <p class="kpi-caption">跨所有產業鏈彙總（<code>is_verified = false</code> 的邊）</p>
+      <div class="kpi-grid" id="verifyKpiGrid"></div>
+    </section>
+
+    <section class="card" style="margin-top:16px">
+      <div class="card-body">
+        <div class="filters-row">
+          <div class="field">
+            <label>產業鏈</label>
+            <select id="vfChain">
+              <option value="">全部</option>
+            </select>
+          </div>
+          <div class="field narrow">
+            <label>來源</label>
+            <select id="vfSource">
+              <option value="">全部</option>
+              <option value="llm_gemini">LLM（Gemini）</option>
+              <option value="llm_claude">LLM（Claude）</option>
+              <option value="moneydj">MoneyDJ</option>
+            </select>
+          </div>
+          <div class="field narrow">
+            <label>模型信心</label>
+            <select id="vfConfidence">
+              <option value="">全部</option>
+              <option value="high">高</option>
+              <option value="medium">中</option>
+              <option value="low">低</option>
+            </select>
+          </div>
+          <div class="field narrow">
+            <label>股票代號</label>
+            <input type="text" id="vfSymbol" placeholder="例：2382" />
+          </div>
+          <div class="field-check">
+            <input type="checkbox" id="vfConceptOnly" />
+            <label for="vfConceptOnly">只看概念標籤命中</label>
+          </div>
+          <button class="btn btn-primary" id="btnVfQuery">🔍 查詢</button>
+          <button class="btn btn-ghost" id="btnVfReset">🧹 清除</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:16px">
+      <div class="table-toolbar">
+        <div class="count">待核對 <b id="vfTotalCount">0</b> 筆</div>
+        <span class="hint">點列開啟詳情，或直接用列上按鈕核可／刪除</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>產業鏈</th>
+              <th>上游 → 下游</th>
+              <th>層級</th>
+              <th>來源</th>
+              <th>模型信心</th>
+              <th>佐證</th>
+              <th>概念標籤</th>
+              <th>擷取時間</th>
+              <th style="width:90px">操作</th>
+            </tr>
+          </thead>
+          <tbody id="vfTableBody"></tbody>
+        </table>
+      </div>
+      <div id="vfEmptyState" class="empty-state" style="display:none">
+        <div class="big-icon">🎉</div>
+        <div class="primary-text">目前沒有待核對的邊</div>
+        <div class="secondary-text">所有已萃取的邊都已核可或刪除，或調整篩選條件後再查詢</div>
+      </div>
+    </section>
+  </div>
+
+  <p class="footnote">本頁全部資料為前端寫死的假資料，圖形布局、篩選與核可／刪除操作皆為本機 JavaScript 運算，未發出任何網路請求；核可／刪除會即時反映在總覽分頁的圖形上，供走查時體驗一致性。</p>
+</div>
+
+<!-- ══════════════════════ 邊詳情 Dialog（總覽節點檢視／核對佇列共用）══════════════════════ -->
+<div class="modal-backdrop hidden" id="edgeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>供應鏈關聯詳情</h3>
+      <button class="icon-btn" data-close="edgeModal">✕</button>
+    </div>
+    <div class="modal-body" id="edgeModalBody"></div>
+    <div class="modal-footer">
+      <div class="left-actions" id="edgeModalActions"></div>
+      <div class="right-actions">
+        <button class="btn btn-ghost btn-sm" data-close="edgeModal">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ 力導向圖・放大檢視 Modal ══════════════════════ -->
+<div class="modal-backdrop hidden" id="graphModal">
+  <div class="modal graph-modal">
+    <div class="modal-header">
+      <h3>📊 力導向圖・放大檢視</h3>
+      <div class="zoom-toolbar" data-target="graphSvgLarge">
+        <button type="button" class="icon-btn zoom-btn" data-action="out" title="縮小">－</button>
+        <span class="zoom-level" data-zoom-label>100%</span>
+        <button type="button" class="icon-btn zoom-btn" data-action="in" title="放大">＋</button>
+        <button type="button" class="icon-btn zoom-btn" data-action="reset" title="重設視角">⟲</button>
+      </div>
+      <button class="icon-btn" data-close="graphModal">✕</button>
+    </div>
+    <div class="tier-header-row">
+      <span style="text-align:left">Tier 2・上游原料</span>
+      <span style="text-align:center">Tier 1・直接供應商</span>
+      <span style="text-align:right">下游龍頭</span>
+    </div>
+    <div class="modal-body">
+      <div class="graph-wrap-lg" id="graphWrapLg">
+        <svg id="graphSvgLarge" class="graph-svg-lg" viewBox="0 0 900 540"></svg>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="left-actions"><span class="hint">滾輪縮放・拖曳平移，與小圖獨立</span></div>
+      <div class="right-actions">
+        <button class="btn btn-ghost btn-sm" data-close="graphModal">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ 轉為投資筆記 Modal（FR-21）══════════════════════ -->
+<div class="modal-backdrop hidden" id="noteModal">
+  <div class="modal note-modal">
+    <div class="modal-header">
+      <h3>📝 轉為投資筆記</h3>
+      <button class="icon-btn" data-close="noteModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="note-field-grid">
+        <div class="note-field">
+          <label>日期</label>
+          <input type="date" id="noteDate" />
+        </div>
+        <div class="note-field">
+          <label>狀態</label>
+          <select id="noteStatus">
+            <option value="draft" selected>草稿</option>
+            <option value="published">已發布</option>
+            <option value="archived">已封存</option>
+          </select>
+        </div>
+      </div>
+      <div class="note-field" style="margin-bottom:14px">
+        <label>主旨</label>
+        <input type="text" id="noteSubject" />
+      </div>
+
+      <div class="note-field" style="margin-bottom:14px">
+        <label>內容（Markdown，可直接編輯）</label>
+        <div class="note-editor-shell">
+          <div class="note-editor-tabs">
+            <button type="button" class="note-editor-tab active" id="noteTabSource">📄 原始 Markdown</button>
+            <button type="button" class="note-editor-tab" id="noteTabPreview">👁 渲染檢視</button>
+          </div>
+          <textarea id="noteContentSource" class="note-source-textarea" spellcheck="false"></textarea>
+          <div id="noteContentPreview" class="note-preview" style="display:none"></div>
+        </div>
+      </div>
+
+      <div class="note-field-grid">
+        <div class="note-field">
+          <label>標籤<span style="text-transform:none;font-weight:500;color:var(--surface-400)">（點擊加入建議標籤，或於下方輸入自訂）</span></label>
+          <div class="tag-toggle-row" id="noteTagSuggestions"></div>
+          <div class="tag-chip-list" id="noteTagChips"></div>
+          <input type="text" id="noteTagInput" class="tag-add-input" placeholder="輸入自訂標籤後按 Enter" style="margin-top:6px" />
+        </div>
+        <div class="note-field">
+          <label>關聯標的<span style="text-transform:none;font-weight:500;color:var(--surface-400)">（僅能綁定一個）</span></label>
+          <select id="noteSymbolSelect"></select>
+          <div class="symbol-hint">💡 <code>investment_note.symbol</code> 為單一欄位（見 V16／V17 遷移），只能綁定一個錨點標的；其餘涉及的標的已完整呈現於上方內容的表格與 Mermaid 圖中（ADR-IC-20）。</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="left-actions">
+        <button class="btn btn-ghost btn-sm" id="btnNoteCopy">📋 複製 Markdown</button>
+        <button class="btn btn-ghost btn-sm" id="btnNoteDownload">⬇ 下載 .md</button>
+      </div>
+      <div class="right-actions">
+        <button class="btn btn-ghost btn-sm" data-close="noteModal">取消</button>
+        <button class="btn btn-primary btn-sm" id="btnNoteSave">✔ 儲存至投資筆記（雛形）</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="float-tooltip" id="floatTooltip"></div>
+<div class="toast hidden" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ══════════════════════════════════════════════════════════════
+     假資料：欄位與命名對齊 docs/16.AI技術分析/Phase3-產業鏈知識圖譜與輪動模型.md
+     §5.2 industry_chain_edges、§5.3 industry_chain_lead_lag_cache、§6.1 YAML、§4.7 萃取管線
+     ══════════════════════════════════════════════════════════════ */
+
+  const SOURCE_LABEL = { llm_gemini: "LLM（Gemini）", llm_claude: "LLM（Claude）", moneydj: "MoneyDJ", manual: "人工建立" };
+  const CONFIDENCE_LABEL = { high: "高", medium: "中", low: "低" };
+  const TIER_LABEL = { 1: "Tier 1・直接上游", 2: "Tier 2・次一層上游" };
+  const ROLE_LABEL = { downstream: "下游龍頭", tier1: "Tier 1・直接供應商", tier2: "Tier 2・次一層供應商" };
+  const STATE_LABEL = { ignited: "已突破", candidate: "低位階候選", dormant: "尚未連動" };
+  // 三態節點色（供 FR-21 Mermaid 匯出使用，須與 :root 的 --state-* 變數保持一致，見 ADR-IC-21）
+  const STATE_COLORS = {
+    ignited: { fill: "#F8EEDA", stroke: "#8F6413" },
+    candidate: { fill: "#FFF3E0", stroke: "#B26A00" },
+    dormant: { fill: "#f0efec", stroke: "#a8a29a" }
+  };
+
+  function edgeId(chainId, up, down) { return `${chainId}__${up}__${down}`; }
+
+  // ── chain: ai_server ───────────────────────────────────────────
+  const AI_SERVER_NODES = [
+    { symbol: "2382", name: "廣達", role: "downstream", state: "ignited" },
+    { symbol: "3231", name: "緯創", role: "downstream", state: "dormant" },
+    { symbol: "6669", name: "緯穎", role: "downstream", state: "ignited" },
+    { symbol: "3017", name: "奇鋐", role: "tier1", state: "candidate" },
+    { symbol: "2308", name: "台達電", role: "tier1", state: "candidate" },
+    { symbol: "2313", name: "華通", role: "tier1", state: "dormant" },
+    { symbol: "3013", name: "晶技", role: "tier1", state: "dormant" },
+    { symbol: "2360", name: "致茂", role: "tier1", state: "candidate" },
+    { symbol: "6414", name: "樺漢", role: "tier1", state: "dormant" },
+    { symbol: "2383", name: "台光電", role: "tier2", state: "candidate" },
+    { symbol: "6188", name: "廣明", role: "tier2", state: "dormant" },
+    { symbol: "8046", name: "南電", role: "tier2", state: "candidate" },
+    { symbol: "3374", name: "精材", role: "tier2", state: "dormant" },
+    { symbol: "3665", name: "貿聯", role: "tier2", state: "candidate" },
+    // 以下 6 檔為 v2.6 新增，將本鏈規模拉近 §13 估算的「每鏈 20～50 檔標的」下緣，
+    // 用來實測分層布局在接近真實規模下是否仍可讀（評估結論見規格書 ADR-IC-20 附近說明）
+    { symbol: "3006", name: "晶豪科", role: "tier2", state: "dormant" },
+    { symbol: "8210", name: "勤誠", role: "tier2", state: "candidate" },
+    { symbol: "2371", name: "大同", role: "tier2", state: "dormant" },
+    { symbol: "6285", name: "啟碁", role: "tier2", state: "candidate" },
+    { symbol: "2059", name: "川湖", role: "tier2", state: "dormant" },
+    { symbol: "3450", name: "聯鈞", role: "tier2", state: "dormant" }
+  ];
+  const AI_SERVER_EDGES = [
+    { up: "3017", down: "2382", tier: 1, comp: "散熱模組", source: "manual", verified: true, confidence: null, evidenceUrl: null, conceptMatch: true, extractedAt: "2026-06-01", leadLag: { peakLagDay: 4, corr: 0.62, sampleSize: 340 } },
+    { up: "2308", down: "2382", tier: 1, comp: "電源供應器", source: "manual", verified: true, confidence: null, evidenceUrl: null, conceptMatch: true, extractedAt: "2026-06-01", leadLag: { peakLagDay: 6, corr: 0.55, sampleSize: 340 } },
+    { up: "2313", down: "2382", tier: 1, comp: "PCB 載板", source: "llm_gemini", verified: false, confidence: "high", evidenceUrl: "https://news.example.com/2026/07/quanta-huatong-pcb", conceptMatch: true, extractedAt: "2026-08-01", model: "gemini-2.5-flash", promptVersion: "v1", evidence: "2026 年法說會提及華通為廣達 AI 伺服器主機板主要 PCB 供應商之一，出貨占比逐季提升。", leadLag: { peakLagDay: 5, corr: 0.48, sampleSize: 210 } },
+    { up: "3013", down: "3231", tier: 1, comp: "石英振盪器", source: "llm_gemini", verified: false, confidence: "medium", evidenceUrl: null, conceptMatch: false, extractedAt: "2026-08-01", model: "gemini-2.5-flash", promptVersion: "v1", evidence: "晶技為多家伺服器主機板時脈元件供應商，與緯創的直接供應關係未見明確揭露，依產業慣例推論。", leadLag: null },
+    { up: "2360", down: "6669", tier: 1, comp: "伺服器測試設備", source: "llm_claude", verified: false, confidence: "low", evidenceUrl: null, conceptMatch: false, extractedAt: "2026-08-01", model: "claude-sonnet-5", promptVersion: "v1", evidence: "致茂為電子測試設備廠商，可能供應緯穎伺服器產線測試設備，但無直接證據佐證此供應關係。", leadLag: null },
+    { up: "6414", down: "6669", tier: 1, comp: "工業電腦模組", source: "moneydj", verified: true, confidence: null, evidenceUrl: "https://moneydj.example.com/chain/6669", conceptMatch: false, extractedAt: "2026-05-15", leadLag: { peakLagDay: 3, corr: 0.41, sampleSize: 118 } },
+    { up: "2383", down: "2313", tier: 2, comp: "CCL 銅箔基板", source: "llm_gemini", verified: false, confidence: "high", evidenceUrl: "https://news.example.com/2026/06/taiflex-huatong-ccl", conceptMatch: true, extractedAt: "2026-08-01", model: "gemini-2.5-flash", promptVersion: "v1", evidence: "台光電為華通高階 CCL 主要供應商之一，多篇財經媒體報導證實供貨關係。", leadLag: { peakLagDay: 9, corr: 0.37, sampleSize: 340 } },
+    { up: "6188", down: "3017", tier: 2, comp: "散熱風扇模組", source: "llm_gemini", verified: false, confidence: "medium", evidenceUrl: null, conceptMatch: false, extractedAt: "2026-08-01", model: "gemini-2.5-flash", promptVersion: "v1", evidence: "廣明為伺服器機殼與散熱周邊零組件廠商，與奇鋐存在同產業鏈上下游可能性，未有直接引用來源。", leadLag: { peakLagDay: 14, corr: 0.22, sampleSize: 95 } },
+    { up: "8046", down: "2308", tier: 2, comp: "ABF 載板", source: "llm_claude", verified: false, confidence: "medium", evidenceUrl: "https://news.example.com/2026/07/nanya-pcb-delta", conceptMatch: true, extractedAt: "2026-08-01", model: "claude-sonnet-5", promptVersion: "v1", evidence: "南電 ABF 載板應用範圍涵蓋電源模組相關 IC，與台達電存在潛在供應關係，媒體報導提及但未逐一列名客戶。", leadLag: { peakLagDay: 11, corr: 0.31, sampleSize: 340 } },
+    { up: "3374", down: "3013", tier: 2, comp: "晶圓代工封裝", source: "llm_gemini", verified: false, confidence: "low", evidenceUrl: null, conceptMatch: false, extractedAt: "2026-08-01", model: "gemini-2.5-flash", promptVersion: "v1", evidence: "精材與晶技同屬被動元件／半導體封裝供應鏈上游，具體供應對象无法確認，信心偏低。", leadLag: null },
+    { up: "3665", down: "6414", tier: 2, comp: "高速連接器", source: "llm_gemini", verified: false, confidence: "high", evidenceUrl: "https://news.example.com/2026/07/molex-bizlink-iei", conceptMatch: true, extractedAt: "2026-08-01", model: "gemini-2.5-flash", promptVersion: "v1", evidence: "貿聯為工業電腦與伺服器連接線束主要供應商，與樺漢合作關係於多篇供應鏈報導中提及。", leadLag: { peakLagDay: 7, corr: 0.53, sampleSize: 340 } },
+    // v2.6 新增（配合上方擴充的 6 個 tier2 節點）
+    { up: "3006", down: "3013", tier: 2, comp: "記憶體顆粒", source: "llm_gemini", verified: false, confidence: "medium", evidenceUrl: null, conceptMatch: false, extractedAt: "2026-08-01", model: "gemini-2.5-flash", promptVersion: "v1", evidence: "晶豪科為利基型記憶體 IC 廠商，與晶技的直接採購關係屬產業慣例推論，無直接引用來源。", leadLag: { peakLagDay: 16, corr: 0.21, sampleSize: 210 } },
+    { up: "8210", down: "2308", tier: 2, comp: "伺服器機殼", source: "manual", verified: true, confidence: null, evidenceUrl: null, conceptMatch: true, extractedAt: "2026-05-20", leadLag: { peakLagDay: 5, corr: 0.39, sampleSize: 340 } },
+    { up: "2371", down: "2360", tier: 2, comp: "電子零組件代工", source: "llm_claude", verified: false, confidence: "low", evidenceUrl: null, conceptMatch: false, extractedAt: "2026-08-01", model: "claude-sonnet-5", promptVersion: "v1", evidence: "大同集團旗下事業體涉及電子代工業務，與致茂的具體供應關係未見明確揭露。", leadLag: null },
+    { up: "6285", down: "2313", tier: 2, comp: "網通模組", source: "llm_gemini", verified: false, confidence: "high", evidenceUrl: "https://news.example.com/2026/07/wnc-huatong-networking", conceptMatch: true, extractedAt: "2026-08-01", model: "gemini-2.5-flash", promptVersion: "v1", evidence: "啟碁網通模組應用於伺服器管理介面卡，與華通的合作關係於多篇供應鏈報導中提及。", leadLag: { peakLagDay: 10, corr: 0.34, sampleSize: 250 } },
+    { up: "2059", down: "6414", tier: 2, comp: "精密滑軌／機構件", source: "llm_gemini", verified: false, confidence: "medium", evidenceUrl: null, conceptMatch: false, extractedAt: "2026-08-01", model: "gemini-2.5-flash", promptVersion: "v1", evidence: "川湖精密滑軌應用於伺服器機櫃導軌，與樺漢的具體採用關係屬推論，未見直接引用。", leadLag: { peakLagDay: 20, corr: 0.17, sampleSize: 76 } },
+    { up: "3450", down: "3017", tier: 2, comp: "光學／散熱周邊零件", source: "llm_gemini", verified: false, confidence: "low", evidenceUrl: null, conceptMatch: false, extractedAt: "2026-08-01", model: "gemini-2.5-flash", promptVersion: "v1", evidence: "聯鈞光學元件應用範圍與伺服器散熱模組重疊度低，信心偏低，建議人工核對後再採用。", leadLag: null }
+  ];
+
+  // ── chain: semiconductor ───────────────────────────────────────
+  const SEMI_NODES = [
+    { symbol: "2330", name: "台積電", role: "downstream", state: "ignited" },
+    { symbol: "3131", name: "家登", role: "tier1", state: "candidate" },
+    { symbol: "3583", name: "辛耘", role: "tier1", state: "candidate" },
+    { symbol: "8028", name: "昇陽半導體", role: "tier1", state: "dormant" },
+    { symbol: "2059", name: "川湖", role: "tier2", state: "dormant" },
+    { symbol: "3374", name: "精材", role: "tier2", state: "candidate" }
+  ];
+  const SEMI_EDGES = [
+    { up: "3131", down: "2330", tier: 1, comp: "晶圓傳送盒／EUV 載盤", source: "manual", verified: true, confidence: null, evidenceUrl: null, conceptMatch: true, extractedAt: "2026-04-10", leadLag: { peakLagDay: 8, corr: 0.44, sampleSize: 480 } },
+    { up: "3583", down: "2330", tier: 1, comp: "半導體製程設備", source: "llm_gemini", verified: false, confidence: "medium", evidenceUrl: "https://news.example.com/2026/07/hsin-yun-tsmc", conceptMatch: false, extractedAt: "2026-08-01", model: "gemini-2.5-flash", promptVersion: "v1", evidence: "辛耘為半導體濕製程設備代理與服務商，供應鏈報導指出其設備部分應用於先進製程產線。", leadLag: { peakLagDay: 12, corr: 0.29, sampleSize: 260 } },
+    { up: "8028", down: "2330", tier: 1, comp: "光阻剝離設備", source: "llm_claude", verified: false, confidence: "low", evidenceUrl: null, conceptMatch: false, extractedAt: "2026-08-01", model: "claude-sonnet-5", promptVersion: "v1", evidence: "昇陽半導體從事光阻剝離與清洗設備業務，與台積電的直接供應關係未見明確揭露文件。", leadLag: null },
+    { up: "2059", down: "3583", tier: 2, comp: "精密機械傳動零組件", source: "llm_gemini", verified: false, confidence: "medium", evidenceUrl: null, conceptMatch: false, extractedAt: "2026-08-01", model: "gemini-2.5-flash", promptVersion: "v1", evidence: "川湖精密機械滑軌應用範圍廣泛，與辛耘設備的具體採用關係屬推論。", leadLag: { peakLagDay: 18, corr: 0.19, sampleSize: 88 } },
+    { up: "3374", down: "3131", tier: 2, comp: "薄膜與封裝載板材料", source: "llm_gemini", verified: false, confidence: "low", evidenceUrl: null, conceptMatch: true, extractedAt: "2026-08-01", model: "gemini-2.5-flash", promptVersion: "v1", evidence: "精材與家登同屬半導體周邊材料供應商，具體採購關係無法確認。", leadLag: null }
+  ];
+
+  const CHAINS = {
+    ai_server: {
+      id: "ai_server", name: "AI 伺服器鏈", downstreamLeaders: ["2382", "3231", "6669"],
+      lastExtractedAt: "2026-08-01 09:00", nextScheduledAt: "2026-09-01 09:00",
+      nodes: AI_SERVER_NODES, edgesRaw: AI_SERVER_EDGES,
+      ignitedInfo: [
+        { symbol: "2382", label: "帶量突破（price_cross_ma）", date: "2026-08-28" },
+        { symbol: "6669", label: "法人連買（institutional_buy）", date: "2026-08-27" }
+      ]
+    },
+    semiconductor: {
+      id: "semiconductor", name: "半導體鏈", downstreamLeaders: ["2330"],
+      lastExtractedAt: "2026-08-01 09:15", nextScheduledAt: "2026-09-01 09:15",
+      nodes: SEMI_NODES, edgesRaw: SEMI_EDGES,
+      ignitedInfo: [{ symbol: "2330", label: "均線黃金交叉（ma_golden_death_cross）", date: "2026-08-25" }]
+    },
+    ccl_pcb: {
+      id: "ccl_pcb", name: "銅箔基板／PCB 鏈", downstreamLeaders: [],
+      lastExtractedAt: null, nextScheduledAt: null,
+      nodes: [], edgesRaw: [], ignitedInfo: []
+    }
+  };
+
+  const NODE_MAP = {}; // symbol -> { name }
+  Object.values(CHAINS).forEach((c) => c.nodes.forEach((n) => { NODE_MAP[n.symbol] = n; }));
+
+  // 展開邊資料（補上 id / chainId / chainName），作為唯一資料來源；
+  // 核可／刪除操作直接 mutate 這個陣列（比照後端「單一 SQL 入口」精神：本頁只有這裡改資料）
+  const EDGES = [];
+  Object.values(CHAINS).forEach((chain) => {
+    chain.edgesRaw.forEach((e) => {
+      EDGES.push(Object.assign({}, e, {
+        id: edgeId(chain.id, e.up, e.down),
+        chainId: chain.id,
+        chainName: chain.name,
+        upName: (NODE_MAP[e.up] || {}).name || e.up,
+        downName: (NODE_MAP[e.down] || {}).name || e.down
+      }));
+    });
+  });
+
+  // ── 輪動雷達（§4.3.2 BFS + 濾網結果，§4.3.3 跟漲勝率）──────────
+  // 濾網：revenue（FR-13 營收未衰退）／volume（FR-14 量縮整理）／valuation（FR-12 絕對門檻替代）
+  // valuation 為 'nodata' 時依 AC-IC-10 該候選須被排除，不得靜默預設
+  const RADAR = {
+    ai_server: [
+      { symbol: "2313", edgeId: edgeId("ai_server", "2313", "2382"), filters: { revenue: "pass", volume: "pass", valuation: "pass" }, winRate: { rate: 0.67, samples: 3 } },
+      { symbol: "3017", edgeId: edgeId("ai_server", "3017", "2382"), filters: { revenue: "pass", volume: "pass", valuation: "pass" }, winRate: { rate: 0.71, samples: 7 } },
+      { symbol: "2308", edgeId: edgeId("ai_server", "2308", "2382"), filters: { revenue: "pass", volume: "fail", valuation: "pass" }, winRate: { rate: 0.5, samples: 6 }, excludedByFilter: true },
+      { symbol: "2383", edgeId: edgeId("ai_server", "2383", "2313"), filters: { revenue: "pass", volume: "pass", valuation: "pass" }, winRate: { rate: 0.6, samples: 5 } },
+      { symbol: "8046", edgeId: edgeId("ai_server", "8046", "2308"), filters: { revenue: "fail", volume: "pass", valuation: "pass" }, winRate: { rate: 0.33, samples: 3 }, excludedByFilter: true },
+      { symbol: "3665", edgeId: edgeId("ai_server", "3665", "6414"), filters: { revenue: "pass", volume: "pass", valuation: "nodata" }, winRate: null, excluded: true, excludeReason: "估值歷史資料缺口（本益比分位數無法計算，見 ADR-IC-07），依 AC-IC-10 不得靜默以預設值代入" }
+    ],
+    semiconductor: [
+      { symbol: "3131", edgeId: edgeId("semiconductor", "3131", "2330"), filters: { revenue: "pass", volume: "pass", valuation: "pass" }, winRate: { rate: 0.8, samples: 4 } },
+      { symbol: "3583", edgeId: edgeId("semiconductor", "3583", "2330"), filters: { revenue: "pass", volume: "pass", valuation: "pass" }, winRate: { rate: 0.4, samples: 2 } },
+      { symbol: "2059", edgeId: edgeId("semiconductor", "2059", "3583"), filters: { revenue: "fail", volume: "pass", valuation: "pass" }, winRate: null, excludedByFilter: true }
+    ],
+    ccl_pcb: []
+  };
+
+  function edgeById(id) { return EDGES.find((e) => e.id === id); }
+
+  /* ══════════════════════════════════════════════════════════════
+     格式化工具
+     ══════════════════════════════════════════════════════════════ */
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function sourceTag(source) {
+    const cls = source === "llm_gemini" ? "tag-gemini" : source === "llm_claude" ? "tag-claude" : "tag-neutral";
+    return `<span class="tag ${cls}"><span class="dot"></span>${SOURCE_LABEL[source]}</span>`;
+  }
+  function confidenceTag(c) {
+    if (!c) return '<span class="tag tag-neutral">—</span>';
+    const cls = c === "high" ? "tag-success" : c === "medium" ? "tag-warning" : "tag-danger";
+    return `<span class="tag ${cls}">${CONFIDENCE_LABEL[c]}</span>`;
+  }
+  function tierTag(t) {
+    return `<span class="tag ${t === 1 ? "tag-tier1" : "tag-tier2"}">Tier ${t}</span>`;
+  }
+  function verifiedTag(v) {
+    return v ? '<span class="tag tag-success">✔ 已核可</span>' : '<span class="tag tag-warning">⏳ 待核對</span>';
+  }
+  function sampleBadge(sampleSize) {
+    if (sampleSize == null) return '<span class="sample-badge sample-unknown">樣本不足・未知（&lt;120）</span>';
+    if (sampleSize < 250) return `<span class="sample-badge sample-low">低信心（${sampleSize} 筆）</span>`;
+    return `<span class="sample-badge sample-normal">${sampleSize} 筆</span>`;
+  }
+  function winRateBadge(wr) {
+    if (!wr) return '<span class="tag tag-neutral">尚無勝率資料</span>';
+    const low = wr.samples < 5;
+    return `<span class="tag ${low ? "tag-neutral" : "tag-success"}" title="${low ? "樣本數 < IC_MIN_WINRATE_SAMPLE(5)，僅供參考" : ""}">
+      跟漲勝率 ${Math.round(wr.rate * 100)}%${low ? "・樣本不足" : ""}（${wr.samples} 次）</span>`;
+  }
+  function filterChip(label, status) {
+    const cls = status === "pass" ? "chip-pass" : status === "fail" ? "chip-fail" : "chip-nodata";
+    const icon = status === "pass" ? "✓" : status === "fail" ? "✕" : "—";
+    return `<span class="filter-chip ${cls}">${icon} ${label}</span>`;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     狀態
+     ══════════════════════════════════════════════════════════════ */
+  const state = {
+    scenario: "data",
+    activeTab: "overview",
+    chainId: "ai_server",
+    tierFilter: "all",       // "all" | 1 | 2 —— 圖例「關聯層級篩選」
+    verifiedFilter: "all",   // "all" | "true" | "false" —— 圖例「驗證狀態篩選」
+    selectedNodeSymbol: null,
+    selectedRadarSymbol: null,
+    showExcluded: false,
+    verifyFilters: { chain: "", source: "", confidence: "", symbol: "", conceptOnly: false }
+  };
+
+  // 圖形／inspector／筆記匯出共用同一組篩選判準，取代原本單一布林值的「只顯示已核可」
+  function edgeMatchesFilter(e) {
+    if (state.tierFilter !== "all" && e.tier !== Number(state.tierFilter)) return false;
+    if (state.verifiedFilter !== "all" && String(e.verified) !== state.verifiedFilter) return false;
+    return true;
+  }
+  function filteredChainEdges() {
+    return currentChainEdges().filter(edgeMatchesFilter);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     總覽分頁：KPI
+     ══════════════════════════════════════════════════════════════ */
+  function currentChainEdges() {
+    return EDGES.filter((e) => e.chainId === state.chainId);
+  }
+
+  function renderOverviewKpis() {
+    const chain = CHAINS[state.chainId];
+    const edges = currentChainEdges();
+    const verifiedCount = edges.filter((e) => e.verified).length;
+    const llmThisMonth = edges.filter((e) => e.source.startsWith("llm_")).length;
+    const lowConfCount = edges.filter((e) => e.leadLag && e.leadLag.sampleSize != null && e.leadLag.sampleSize < 250).length;
+    const unknownCount = edges.filter((e) => !e.leadLag).length;
+
+    const cards = [
+      { label: "本鏈邊總數", value: edges.length, sub: `${chain.nodes.length} 個節點`, cls: "" },
+      { label: "已核可比例", value: edges.length ? Math.round(verifiedCount / edges.length * 100) + "%" : "—", sub: `${verifiedCount} / ${edges.length} 筆`, cls: "success" },
+      { label: "LLM 萃取邊數", value: llmThisMonth, sub: "source 以 llm_ 開頭", cls: "primary" },
+      { label: "脫鉤警示（FR-9）", value: 0, sub: "近 60 日滾動相關係數皆 ≥ 門檻", cls: "" },
+      { label: "CCF 樣本不足／低信心", value: unknownCount + lowConfCount, sub: `未知 ${unknownCount}・低信心 ${lowConfCount}`, cls: unknownCount + lowConfCount > 0 ? "warning" : "" },
+      { label: "下次排程萃取", value: chain.nextScheduledAt ? chain.nextScheduledAt.slice(5, 10) : "—", sub: chain.nextScheduledAt || "此鏈無下游龍頭，不排程", cls: "" }
+    ];
+    document.getElementById("kpiGrid").innerHTML = cards.map((c) => `
+      <div class="kpi-card ${c.cls}">
+        <div class="kpi-label">${c.label}</div>
+        <div class="kpi-value">${c.value}</div>
+        <div class="kpi-sub">${c.sub}</div>
+      </div>
+    `).join("");
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     自訂懸浮提示（取代原生 SVG <title>：無延遲、可自訂樣式，見 §8「圖形互動深度」）
+     ══════════════════════════════════════════════════════════════ */
+  const tooltipEl = document.getElementById("floatTooltip");
+  function showTooltip(html, evt) {
+    tooltipEl.innerHTML = html;
+    tooltipEl.style.display = "block";
+    positionTooltip(evt);
+  }
+  function positionTooltip(evt) {
+    const pad = 16;
+    const rect = tooltipEl.getBoundingClientRect();
+    let x = evt.clientX + pad, y = evt.clientY + pad;
+    if (x + rect.width > window.innerWidth - 10) x = evt.clientX - rect.width - pad;
+    if (y + rect.height > window.innerHeight - 10) y = evt.clientY - rect.height - pad;
+    tooltipEl.style.left = x + "px";
+    tooltipEl.style.top = y + "px";
+  }
+  function hideTooltip() { tooltipEl.style.display = "none"; }
+
+  function nodeTooltipHtml(n, edges) {
+    const upstream = (edges || []).filter((e) => e.down === n.symbol).map((e) => `${e.up} ${e.upName}`);
+    const downstream = (edges || []).filter((e) => e.up === n.symbol).map((e) => `${e.down} ${e.downName}`);
+    return `<div class="tt-title">${n.symbol} ${n.name}</div>
+      <div class="tt-row">${ROLE_LABEL[n.role]}・${STATE_LABEL[n.state]}</div>
+      ${upstream.length ? `<div class="tt-row" style="margin-top:5px"><b>上游：</b>${upstream.join("、")}</div>` : ""}
+      ${downstream.length ? `<div class="tt-row"><b>下游：</b>${downstream.join("、")}</div>` : ""}`;
+  }
+  function edgeTooltipHtml(e) {
+    return `<div class="tt-title">${e.up} ${e.upName} → ${e.down} ${e.downName}</div>
+      <div class="tt-row">${e.comp}・${TIER_LABEL[e.tier]}</div>
+      <div class="tt-badges">${sourceTag(e.source)}${verifiedTag(e.verified)}</div>
+      <div class="tt-row" style="margin-top:5px">${e.leadLag ? `領先 ${e.leadLag.peakLagDay} 天・相關係數 ${e.leadLag.corr}` : "CCF 樣本不足，尚無領先天數"}</div>`;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     多跳追蹤：由選取節點沿邊向上游與下游兩個方向 BFS，取得完整連通子圖
+     （不只是直接相鄰的一跳，見 §8「圖形互動深度」）
+     ══════════════════════════════════════════════════════════════ */
+  function computeConnectedSubgraph(symbol, edges) {
+    const nodeSet = new Set([symbol]);
+    const edgeSet = new Set();
+    let frontier = [symbol];
+    while (frontier.length) {
+      const next = [];
+      frontier.forEach((sym) => {
+        edges.forEach((e) => {
+          if (e.up === sym && !nodeSet.has(e.down)) { nodeSet.add(e.down); next.push(e.down); }
+          if (e.down === sym && !nodeSet.has(e.up)) { nodeSet.add(e.up); next.push(e.up); }
+        });
+      });
+      frontier = next;
+    }
+    edges.forEach((e) => { if (nodeSet.has(e.up) && nodeSet.has(e.down)) edgeSet.add(e.id); });
+    return { nodes: nodeSet, edgeIds: edgeSet };
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     總覽分頁：力導向圖（分層布局）
+     ══════════════════════════════════════════════════════════════ */
+  const TIER_X = { tier2: 110, tier1: 450, downstream: 780 };
+  const NS = "http://www.w3.org/2000/svg";
+
+  function svgEl(tag, attrs, text) {
+    const el = document.createElementNS(NS, tag);
+    Object.keys(attrs || {}).forEach((k) => el.setAttribute(k, attrs[k]));
+    if (text != null) el.textContent = text;
+    return el;
+  }
+
+  function computeLayout(chain) {
+    const groups = { tier2: [], tier1: [], downstream: [] };
+    chain.nodes.forEach((n) => groups[n.role].push(n));
+    const pos = {};
+    // marginY 拉大到 58：標籤改為代號＋名稱兩行都疊在節點正下方（見 renderGraph），
+    // 需要比舊版更多的底部留白，避免最後一列節點的名稱標籤被畫布邊界裁切
+    const marginY = 58, height = 540;
+    ["tier2", "tier1", "downstream"].forEach((role) => {
+      const list = groups[role];
+      const step = list.length > 1 ? (height - 2 * marginY) / (list.length - 1) : 0;
+      list.forEach((n, i) => {
+        pos[n.symbol] = { x: TIER_X[role], y: list.length > 1 ? marginY + step * i : height / 2, role };
+      });
+    });
+    return pos;
+  }
+
+  // 三次貝茲曲線（水平切線的 S 曲線），比舊版單一控制點的二次貝茲更平滑，
+  // 是 Sankey／流程圖類節點連結圖的標準做法
+  function cubicPointAt(p1, c1, c2, p2, t) {
+    const mt = 1 - t;
+    const x = mt * mt * mt * p1.x + 3 * mt * mt * t * c1.x + 3 * mt * t * t * c2.x + t * t * t * p2.x;
+    const y = mt * mt * mt * p1.y + 3 * mt * mt * t * c1.y + 3 * mt * t * t * c2.y + t * t * t * p2.y;
+    return { x, y };
+  }
+  function buildEdgePath(p1, p2) {
+    const dx = (p2.x - p1.x) * 0.5;
+    const c1 = { x: p1.x + dx, y: p1.y };
+    const c2 = { x: p2.x - dx, y: p2.y };
+    const d = `M ${p1.x} ${p1.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${p2.x} ${p2.y}`;
+    return { d, mid: cubicPointAt(p1, c1, c2, p2, 0.5) };
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     縮放／平移：真實操作 SVG viewBox（滾輪縮放、拖曳平移、按鈕、重設），
+     小圖與放大檢視各自獨立一份視角狀態
+     ══════════════════════════════════════════════════════════════ */
+  const BASE_VIEWBOX = { x: 0, y: 0, w: 900, h: 540 };
+  const viewports = {};
+  function getViewport(svgId) {
+    if (!viewports[svgId]) viewports[svgId] = Object.assign({}, BASE_VIEWBOX);
+    return viewports[svgId];
+  }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function applyViewBox(svgId) {
+    const svg = document.getElementById(svgId);
+    if (!svg) return;
+    const vp = getViewport(svgId);
+    svg.setAttribute("viewBox", `${vp.x} ${vp.y} ${vp.w} ${vp.h}`);
+    const pct = Math.round((BASE_VIEWBOX.w / vp.w) * 100);
+    document.querySelectorAll(`.zoom-toolbar[data-target="${svgId}"] [data-zoom-label]`).forEach((el) => { el.textContent = pct + "%"; });
+  }
+  function clientToSvgPoint(svg, clientX, clientY) {
+    const pt = svg.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: BASE_VIEWBOX.w / 2, y: BASE_VIEWBOX.h / 2 };
+    const p = pt.matrixTransform(ctm.inverse());
+    return { x: p.x, y: p.y };
+  }
+  function zoomViewport(svgId, factor, pivot) {
+    const vp = getViewport(svgId);
+    const newW = clamp(vp.w / factor, BASE_VIEWBOX.w * 0.22, BASE_VIEWBOX.w * 2.2);
+    const newH = newW * (BASE_VIEWBOX.h / BASE_VIEWBOX.w);
+    const px = pivot ? pivot.x : vp.x + vp.w / 2;
+    const py = pivot ? pivot.y : vp.y + vp.h / 2;
+    const ratioX = (px - vp.x) / vp.w;
+    const ratioY = (py - vp.y) / vp.h;
+    vp.x = px - ratioX * newW;
+    vp.y = py - ratioY * newH;
+    vp.w = newW; vp.h = newH;
+    applyViewBox(svgId);
+  }
+  function panViewport(svgId, dxUser, dyUser) {
+    const vp = getViewport(svgId);
+    vp.x += dxUser; vp.y += dyUser;
+    applyViewBox(svgId);
+  }
+  function resetViewport(svgId) {
+    viewports[svgId] = Object.assign({}, BASE_VIEWBOX);
+    applyViewBox(svgId);
+  }
+  function attachViewportInteractions(wrapperId, svgId) {
+    const wrapper = document.getElementById(wrapperId);
+    const svg = document.getElementById(svgId);
+    if (!wrapper || !svg) return;
+    wrapper.addEventListener("wheel", (evt) => {
+      evt.preventDefault();
+      const pivot = clientToSvgPoint(svg, evt.clientX, evt.clientY);
+      zoomViewport(svgId, evt.deltaY < 0 ? 1.15 : 1 / 1.15, pivot);
+    }, { passive: false });
+
+    let dragging = false, lastX = 0, lastY = 0;
+    wrapper.addEventListener("mousedown", (evt) => {
+      if (evt.button !== 0) return;
+      dragging = true; lastX = evt.clientX; lastY = evt.clientY;
+      wrapper.classList.add("dragging");
+    });
+    window.addEventListener("mousemove", (evt) => {
+      if (!dragging) return;
+      const vp = getViewport(svgId);
+      const rect = svg.getBoundingClientRect();
+      const scaleX = vp.w / rect.width, scaleY = vp.h / rect.height;
+      panViewport(svgId, -(evt.clientX - lastX) * scaleX, -(evt.clientY - lastY) * scaleY);
+      lastX = evt.clientX; lastY = evt.clientY;
+    });
+    window.addEventListener("mouseup", () => { dragging = false; wrapper.classList.remove("dragging"); });
+  }
+  document.querySelectorAll(".zoom-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const svgId = btn.closest(".zoom-toolbar").dataset.target;
+      const action = btn.dataset.action;
+      if (action === "in") zoomViewport(svgId, 1.3);
+      else if (action === "out") zoomViewport(svgId, 1 / 1.3);
+      else resetViewport(svgId);
+    });
+  });
+
+  function renderGraph(svgId) {
+    const targetId = svgId || "graphSvg";
+    const chain = CHAINS[state.chainId];
+    const svg = document.getElementById(targetId);
+    svg.innerHTML = "";
+
+    if (!chain.nodes.length) return; // ccl_pcb：改由 leaderNoteCard 呈現
+
+    const pos = computeLayout(chain);
+    const edges = filteredChainEdges();
+
+    // defs：箭頭 ＋ 節點漸層／陰影（id 依 svg 目標區分，放大檢視與小圖同時存在於 DOM 時才不互搶）
+    const arrowVerifiedId = `arrowVerified-${targetId}`;
+    const arrowUnverifiedId = `arrowUnverified-${targetId}`;
+    const defs = svgEl("defs", {});
+    const marker = svgEl("marker", { id: arrowVerifiedId, viewBox: "0 0 10 10", refX: "9", refY: "5", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse" });
+    marker.appendChild(svgEl("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--surface-600)" }));
+    const markerHi = svgEl("marker", { id: `${arrowVerifiedId}-hi`, viewBox: "0 0 10 10", refX: "9", refY: "5", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse" });
+    markerHi.appendChild(svgEl("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--primary)" }));
+    const marker2 = svgEl("marker", { id: arrowUnverifiedId, viewBox: "0 0 10 10", refX: "9", refY: "5", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse" });
+    marker2.appendChild(svgEl("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--warning)" }));
+    defs.appendChild(marker); defs.appendChild(markerHi); defs.appendChild(marker2);
+
+    // 節點漸層與陰影：以計算後的三態色為底，左上角提亮，做出「精緻圓形節點」的光澤感，
+    // 取代原本的純平塗色（呼應「更精緻的配色」的要求；保留圓形而非做成立體圓柱，
+    // 是因為節點-連結圖的可讀性慣例上圓形辨識度最高，圓柱形在小尺寸下反而模糊焦點）
+    ["ignited", "candidate", "dormant"].forEach((st) => {
+      const c = STATE_COLORS[st];
+      const grad = svgEl("radialGradient", { id: `nodeGrad-${st}-${targetId}`, cx: "32%", cy: "28%", r: "80%" });
+      grad.appendChild(svgEl("stop", { offset: "0%", "stop-color": "#ffffff" }));
+      grad.appendChild(svgEl("stop", { offset: "45%", "stop-color": "#ffffff", "stop-opacity": "0.35" }));
+      grad.appendChild(svgEl("stop", { offset: "100%", "stop-color": c.fill }));
+      defs.appendChild(grad);
+    });
+    const shadow = svgEl("filter", { id: `nodeShadow-${targetId}`, x: "-60%", y: "-60%", width: "220%", height: "220%" });
+    shadow.appendChild(svgEl("feDropShadow", { dx: "0", dy: "1.5", stdDeviation: "1.6", "flood-color": "#1c1a17", "flood-opacity": "0.22" }));
+    defs.appendChild(shadow);
+    const shadowSel = svgEl("filter", { id: `nodeShadowSel-${targetId}`, x: "-80%", y: "-80%", width: "260%", height: "260%" });
+    shadowSel.appendChild(svgEl("feDropShadow", { dx: "0", dy: "0", stdDeviation: "3.2", "flood-color": "#8F6413", "flood-opacity": "0.55" }));
+    defs.appendChild(shadowSel);
+    svg.appendChild(defs);
+
+    // 多跳追蹤：選取節點時高亮整個連通子圖（BFS 兩個方向），不只是直接相鄰的一跳
+    const selected = state.selectedNodeSymbol;
+    const subgraph = selected ? computeConnectedSubgraph(selected, edges) : null;
+
+    // 邊：三次貝茲平滑曲線；選取路徑一律改為品牌金色箭頭，與核可／待核對的既有配色分開表達
+    edges.forEach((e) => {
+      const p1 = pos[e.up], p2 = pos[e.down];
+      if (!p1 || !p2) return;
+      const { d, mid } = buildEdgePath(p1, p2);
+      const isHighlighted = subgraph && subgraph.edgeIds.has(e.id);
+      const isDimmed = subgraph && !isHighlighted;
+      const path = svgEl("path", {
+        class: `graph-edge ${e.verified ? "verified" : "unverified"} ${isHighlighted ? "highlighted" : ""} ${isDimmed ? "dimmed" : ""}`,
+        d,
+        "marker-end": isHighlighted ? `url(#${arrowVerifiedId}-hi)` : (e.verified ? `url(#${arrowVerifiedId})` : `url(#${arrowUnverifiedId})`)
+      });
+      path.addEventListener("mouseenter", (evt) => showTooltip(edgeTooltipHtml(e), evt));
+      path.addEventListener("mousemove", positionTooltip);
+      path.addEventListener("mouseleave", hideTooltip);
+      path.addEventListener("click", () => openEdgeModal(e.id, { fromGraph: true }));
+      svg.appendChild(path);
+      const dot = svgEl("circle", { class: `edge-source-dot src-${e.source}`, cx: mid.x, cy: mid.y, opacity: isDimmed ? 0.2 : 1 });
+      svg.appendChild(dot);
+    });
+
+    // 節點：代號＋名稱兩行一併疊在節點正下方（比舊版「代號在上、名稱在下」更整齊易讀）；
+    // 懸浮提示改為聚合顯示上游／下游清單，介面本身不需要為了塞更多字而變擁擠
+    chain.nodes.forEach((n) => {
+      const p = pos[n.symbol];
+      if (!p) return;
+      const isSelected = n.symbol === selected;
+      const isDimmed = subgraph && !subgraph.nodes.has(n.symbol);
+      const r = n.role === "downstream" ? 24 : n.role === "tier1" ? 19 : 15;
+      const g = svgEl("g", { class: "node-group" });
+      const circle = svgEl("circle", {
+        class: `graph-node state-${n.state} ${isSelected ? "selected" : ""} ${isDimmed ? "dimmed" : ""}`,
+        cx: p.x, cy: p.y, r,
+        style: `fill:url(#nodeGrad-${n.state}-${targetId});filter:url(#${isSelected ? "nodeShadowSel" : "nodeShadow"}-${targetId})`
+      });
+      circle.addEventListener("mouseenter", (evt) => showTooltip(nodeTooltipHtml(n, edges), evt));
+      circle.addEventListener("mousemove", positionTooltip);
+      circle.addEventListener("mouseleave", hideTooltip);
+      circle.addEventListener("click", () => selectNode(n.symbol));
+      g.appendChild(circle);
+      const symLabel = svgEl("text", { class: "node-symbol-label", x: p.x, y: p.y + r + 15, "text-anchor": "middle", opacity: isDimmed ? 0.3 : 1 }, n.symbol);
+      const nameLabel = svgEl("text", { class: "node-name-label", x: p.x, y: p.y + r + 27, "text-anchor": "middle", opacity: isDimmed ? 0.3 : 1 }, n.name);
+      g.appendChild(symLabel); g.appendChild(nameLabel);
+      svg.appendChild(g);
+    });
+  }
+
+  // 小圖一律重繪；放大檢視 Modal 開啟時，一併重繪大圖，讓兩者狀態同步
+  function renderAllGraphs() {
+    renderGraph("graphSvg");
+    const graphModal = document.getElementById("graphModal");
+    if (graphModal && !graphModal.classList.contains("hidden")) renderGraph("graphSvgLarge");
+  }
+
+  function selectNode(symbol) {
+    state.selectedNodeSymbol = state.selectedNodeSymbol === symbol ? null : symbol;
+    renderAllGraphs();
+    renderInspector();
+  }
+
+  function renderInspector() {
+    const panel = document.getElementById("inspectorPanel");
+    if (!state.selectedNodeSymbol) {
+      panel.innerHTML = '<p class="placeholder">點選任一節點，沿供應鏈兩個方向追蹤完整關聯子圖（不只是直接相鄰的一跳）</p>';
+      return;
+    }
+    const symbol = state.selectedNodeSymbol;
+    const node = NODE_MAP[symbol];
+    const edges = filteredChainEdges();
+    const subgraph = computeConnectedSubgraph(symbol, edges);
+    const related = edges.filter((e) => subgraph.edgeIds.has(e.id));
+    panel.innerHTML = `
+      <div class="sel-title">
+        🔍 已追蹤：${symbol} ${node ? node.name : ""}
+        <span class="tag tag-neutral">${subgraph.nodes.size} 個節點</span>
+        <span class="tag tag-neutral">${related.length} 條邊</span>
+      </div>
+      <div class="edge-chip-row">
+        ${related.map((e) => `
+          <button class="edge-chip" onclick="__proto.openEdgeModal('${e.id}', {fromGraph:true})">
+            ${e.up}<span class="arrow">→</span>${e.down}
+            ${sourceTag(e.source)}
+            ${verifiedTag(e.verified)}
+          </button>
+        `).join("") || '<span class="hint">此標的在目前篩選條件下無關聯邊</span>'}
+      </div>
+      <div class="inspector-footer">
+        <button class="btn btn-ghost btn-sm" onclick="__proto.openNoteModal('path', '${symbol}')">📝 將此追蹤子圖轉為投資筆記</button>
+      </div>
+    `;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     總覽分頁：輪動雷達清單
+     ══════════════════════════════════════════════════════════════ */
+  function renderRadar() {
+    const chain = CHAINS[state.chainId];
+    // 只有「全部濾網皆通過」才是真正的候選（§4.3.2 濾網為 AND 條件）；未過濾網或資料缺失一律
+    // 移入下方「已排除候選」，避免主清單同時出現「顯示但標記未過」與「隱藏」兩套互相矛盾的規則
+    const list = (RADAR[state.chainId] || []).filter((r) => !r.excluded && !r.excludedByFilter);
+    const listEl = document.getElementById("radarList");
+    const hintEl = document.getElementById("radarIgnitedHint");
+
+    hintEl.textContent = chain.ignitedInfo.length
+      ? `點火：${chain.ignitedInfo.map((i) => `${i.symbol}（${i.label}）`).join("・")}`
+      : "本鏈今日無下游龍頭點火事件";
+
+    if (!chain.downstreamLeaders.length) {
+      listEl.innerHTML = '<div class="radar-empty-note">此鏈未設定 downstream_leaders，無法產生輪動雷達清單（見 §6.1）</div>';
+      document.getElementById("excludedList").innerHTML = "";
+      document.getElementById("btnToggleExcluded").style.display = "none";
+      return;
+    }
+    document.getElementById("btnToggleExcluded").style.display = "";
+
+    if (!list.length) {
+      listEl.innerHTML = '<div class="radar-empty-note">目前無符合濾網條件的候選標的</div>';
+      return;
+    }
+
+    listEl.innerHTML = list.map((r) => {
+      const e = edgeById(r.edgeId);
+      const node = NODE_MAP[r.symbol];
+      const corrPct = e.leadLag ? Math.min(100, Math.abs(e.leadLag.corr) * 100) : 0;
+      return `
+        <div class="radar-item ${state.selectedRadarSymbol === r.symbol ? "selected" : ""}" onclick="__proto.openEdgeModal('${r.edgeId}', {fromGraph:true})">
+          <div class="radar-row1">
+            <div><span class="radar-symbol">${r.symbol}</span><span class="radar-name">${node ? node.name : ""}</span></div>
+            <div>${tierTag(e.tier)} <span class="tag tag-success">符合全部濾網</span></div>
+          </div>
+          <div class="radar-row2">
+            ${filterChip("營收未衰退", r.filters.revenue)}
+            ${filterChip("量縮整理", r.filters.volume)}
+            ${filterChip("估值低位階", r.filters.valuation)}
+            ${sourceTag(e.source)} ${verifiedTag(e.verified)}
+          </div>
+          <div class="radar-row3">
+            <span>領先 <b>${e.leadLag ? e.leadLag.peakLagDay + " 天" : "—"}</b></span>
+            <div class="corr-bar-wrap">
+              <div class="corr-bar-track"><div class="corr-bar-fill ${e.leadLag && e.leadLag.corr < 0 ? "neg" : ""}" style="width:${corrPct}%"></div></div>
+              <span>相關係數 ${e.leadLag ? e.leadLag.corr.toFixed(2) : "—"}</span>
+            </div>
+            ${e.leadLag ? sampleBadge(e.leadLag.sampleSize) : sampleBadge(null)}
+          </div>
+          <div class="radar-row3">${winRateBadge(r.winRate)}</div>
+        </div>
+      `;
+    }).join("");
+
+    // 已排除候選（僅雛形示意）
+    const excludedByFilter = (RADAR[state.chainId] || []).filter((r) => r.excludedByFilter);
+    const excludedHard = (RADAR[state.chainId] || []).filter((r) => r.excluded);
+    const allExcluded = excludedByFilter.concat(excludedHard);
+    document.getElementById("excludedList").innerHTML = allExcluded.map((r) => {
+      const node = NODE_MAP[r.symbol];
+      const reason = r.excludeReason || `未通過濾網：${Object.entries(r.filters).filter(([, v]) => v === "fail").map(([k]) => k).join("、")}`;
+      return `<div class="excluded-item"><span><b>${r.symbol}</b> ${node ? node.name : ""}</span><span>${reason}</span></div>`;
+    }).join("") || '<div class="excluded-item">目前無已排除候選</div>';
+  }
+
+  document.getElementById("btnToggleExcluded").addEventListener("click", (e) => {
+    state.showExcluded = !state.showExcluded;
+    document.getElementById("excludedList").style.display = state.showExcluded ? "block" : "none";
+    e.target.textContent = state.showExcluded ? "隱藏已排除候選 ▴" : "顯示已排除候選（僅雛形示意用，正式清單不呈現）▾";
+  });
+
+  /* ══════════════════════════════════════════════════════════════
+     總覽分頁：其他控制
+     ══════════════════════════════════════════════════════════════ */
+  function populateChainSelect() {
+    const sel = document.getElementById("chainSelect");
+    sel.innerHTML = Object.values(CHAINS).map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+    sel.value = state.chainId;
+  }
+
+  function renderChainMeta() {
+    const chain = CHAINS[state.chainId];
+    const meta = document.getElementById("chainMeta");
+    if (!chain.lastExtractedAt) {
+      meta.innerHTML = `<span>尚無 LLM 萃取紀錄</span><span>此鏈 <code>downstream_leaders</code> 留空，無法自動萃取（§6.1）</span>`;
+    } else {
+      meta.innerHTML = `<span>上次萃取：<b>${chain.lastExtractedAt}</b></span><span>下次排程：<b>${chain.nextScheduledAt}</b></span>`;
+    }
+  }
+
+  function renderLeaderNoteOrGraph() {
+    const chain = CHAINS[state.chainId];
+    const noteCard = document.getElementById("leaderNoteCard");
+    const mainGrid = document.getElementById("mainGrid");
+    if (!chain.downstreamLeaders.length) {
+      mainGrid.style.display = "none";
+      noteCard.style.display = "block";
+      noteCard.innerHTML = `
+        <div class="leader-note-card">
+          <div class="big-icon">🧩</div>
+          <div class="headline">此鏈尚未核定下游龍頭標的（downstream_leaders 留空）</div>
+          <div class="detail">無法執行 §4.3.1 的點火偵測，也無法執行 §4.7 的 LLM 自動萃取（Prompt 需要下游龍頭作為錨點才能組成，見規格書 §6.1 表格「downstream_leaders 同時是 User Prompt 的錨點」）。此鏈目前只能透過 <code>source=manual</code> 人工新增邊。</div>
+          <div class="yaml-hint">chains:
+  - chain_id: "ccl_pcb"
+    name: "銅箔基板／PCB 鏈"
+    downstream_leaders: []   # 尚未核定，留空即不參與點火偵測與 LLM 萃取</div>
+        </div>
+      `;
+    } else {
+      mainGrid.style.display = "grid";
+      noteCard.style.display = "none";
+    }
+  }
+
+  function renderOverview() {
+    renderChainMeta();
+    renderOverviewKpis();
+    renderLeaderNoteOrGraph();
+    renderAllGraphs();
+    renderInspector();
+    renderRadar();
+    const chain = CHAINS[state.chainId];
+    document.getElementById("btnTrigger").disabled = !chain.downstreamLeaders.length;
+    document.getElementById("btnExportChainNote").disabled = !chain.nodes.length;
+    const scaleHint = document.getElementById("graphScaleHint");
+    if (scaleHint) scaleHint.textContent = chain.nodes.length ? `共 ${chain.nodes.length} 個節點、${currentChainEdges().length} 條邊` : "尚無節點";
+  }
+
+  document.getElementById("chainSelect").addEventListener("change", (e) => {
+    state.chainId = e.target.value;
+    state.selectedNodeSymbol = null;
+    resetViewport("graphSvg"); // 換一條鏈時重設視角，避免沿用上一條鏈時的縮放／平移位置
+    // 比照 CLAUDE.md 鐵則 1：切換控制項時保留既有內容掛載，用短暫遮罩取代整頁卸載，
+    // 不重置捲動位置（此處以極短 timeout 模擬「保留舊內容 + 覆蓋遮罩」的既有 pattern）
+    renderOverview();
+  });
+  document.querySelectorAll(".lg-filter-btn[data-tier-filter]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.tierFilter = btn.dataset.tierFilter;
+      document.querySelectorAll(".lg-filter-btn[data-tier-filter]").forEach((b) => b.classList.toggle("active", b === btn));
+      renderAllGraphs(); renderInspector();
+    });
+  });
+  document.querySelectorAll(".lg-filter-btn[data-verified-filter]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.verifiedFilter = btn.dataset.verifiedFilter;
+      document.querySelectorAll(".lg-filter-btn[data-verified-filter]").forEach((b) => b.classList.toggle("active", b === btn));
+      renderAllGraphs(); renderInspector();
+    });
+  });
+  document.getElementById("btnLegendToggle").addEventListener("click", () => {
+    const row = document.getElementById("legendRow");
+    row.style.display = row.style.display === "none" ? "flex" : "none";
+  });
+  document.getElementById("btnGraphFullscreen").addEventListener("click", () => {
+    document.getElementById("graphModal").classList.remove("hidden");
+    resetViewport("graphSvgLarge"); // 每次開啟放大檢視都從 100% 開始，行為可預期
+    renderGraph("graphSvgLarge");
+  });
+  document.getElementById("btnExportChainNote").addEventListener("click", () => openNoteModal("chain"));
+  document.getElementById("btnTrigger").addEventListener("click", function () {
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = "⏳ 執行中（單一飛行中防重入）…";
+    showToast("已觸發本鏈萃取，稍後可於 LLM 執行歷史頁面查看");
+    setTimeout(() => {
+      btn.disabled = !CHAINS[state.chainId].downstreamLeaders.length;
+      btn.innerHTML = "⚡ 手動觸發本鏈萃取";
+      showToast("本鏈萃取完成（雛形示意，未實際呼叫 API）");
+    }, 2600);
+  });
+
+  /* ══════════════════════════════════════════════════════════════
+     待核對佇列分頁
+     ══════════════════════════════════════════════════════════════ */
+  function pendingEdges() {
+    return EDGES.filter((e) => !e.verified);
+  }
+  function filteredPendingEdges() {
+    const f = state.verifyFilters;
+    return pendingEdges().filter((e) => {
+      if (f.chain && e.chainId !== f.chain) return false;
+      if (f.source && e.source !== f.source) return false;
+      if (f.confidence && e.confidence !== f.confidence) return false;
+      if (f.conceptOnly && !e.conceptMatch) return false;
+      if (f.symbol) {
+        const q = f.symbol.trim().toUpperCase();
+        if (!e.up.includes(q) && !e.down.includes(q) && !e.upName.includes(q) && !e.downName.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderPendingCountPill() {
+    document.getElementById("pendingCountPill").textContent = pendingEdges().length;
+  }
+
+  function renderVerifyKpis() {
+    const pending = pendingEdges();
+    const withEvidence = pending.filter((e) => e.evidenceUrl).length;
+    const conceptHit = pending.filter((e) => e.conceptMatch).length;
+    const thisMonth = pending.filter((e) => e.extractedAt >= "2026-08-01").length;
+    const highConf = pending.filter((e) => e.confidence === "high").length;
+
+    const cards = [
+      { label: "待核對總數", value: pending.length, sub: "is_verified = false", cls: "warning" },
+      { label: "本月新增", value: thisMonth, sub: "extracted_at ≥ 本月 1 號", cls: "" },
+      { label: "有佐證連結", value: withEvidence, sub: `${pending.length ? Math.round(withEvidence / pending.length * 100) : 0}% 有 evidence_url`, cls: "" },
+      { label: "概念標籤命中", value: conceptHit, sub: "僅供排序加分，非驗證依據", cls: "" },
+      { label: "模型高信心", value: highConf, sub: "confidence = high（僅供參考）", cls: "success" },
+      { label: "下次排程萃取", value: "09-01", sub: "3 條鏈依序執行", cls: "" }
+    ];
+    document.getElementById("verifyKpiGrid").innerHTML = cards.map((c) => `
+      <div class="kpi-card ${c.cls}">
+        <div class="kpi-label">${c.label}</div>
+        <div class="kpi-value">${c.value}</div>
+        <div class="kpi-sub">${c.sub}</div>
+      </div>
+    `).join("");
+  }
+
+  function populateVerifyChainFilter() {
+    const sel = document.getElementById("vfChain");
+    sel.innerHTML = '<option value="">全部</option>' + Object.values(CHAINS).map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+  }
+
+  function renderVerifyTable() {
+    const rows = filteredPendingEdges();
+    document.getElementById("vfTotalCount").textContent = rows.length;
+    const tbody = document.getElementById("vfTableBody");
+    const empty = document.getElementById("vfEmptyState");
+
+    if (!rows.length) {
+      tbody.innerHTML = "";
+      empty.style.display = "flex";
+      renderPendingCountPill();
+      return;
+    }
+    empty.style.display = "none";
+
+    tbody.innerHTML = rows.map((e) => `
+      <tr onclick="__proto.openEdgeModal('${e.id}', {fromVerify:true})" style="cursor:pointer">
+        <td><span class="tag tag-neutral">${e.chainName}</span></td>
+        <td class="cell-edge">
+          <div class="flow">${e.up} ${e.upName}<span style="color:var(--surface-400)"> → </span>${e.down} ${e.downName}</div>
+          <div class="comp">${e.comp}</div>
+        </td>
+        <td>${tierTag(e.tier)}</td>
+        <td>${sourceTag(e.source)}</td>
+        <td>${confidenceTag(e.confidence)}</td>
+        <td>${e.evidenceUrl ? '<span class="tag tag-success">🔗 有連結</span>' : '<span class="tag tag-neutral">無</span>'}</td>
+        <td>${e.conceptMatch ? '<span class="tag tag-warning">✓ 命中</span>' : '<span class="tag tag-neutral">—</span>'}</td>
+        <td>${e.extractedAt}</td>
+        <td onclick="event.stopPropagation()">
+          <div class="row-actions">
+            <button class="icon-btn success" title="核可" onclick="__proto.approveEdge('${e.id}')">✔</button>
+            <button class="icon-btn danger" title="刪除" onclick="__proto.rejectEdge('${e.id}')">🗑</button>
+          </div>
+        </td>
+      </tr>
+    `).join("");
+    renderPendingCountPill();
+  }
+
+  function renderVerify() {
+    renderVerifyKpis();
+    renderVerifyTable();
+  }
+
+  document.getElementById("vfChain").addEventListener("change", (e) => { state.verifyFilters.chain = e.target.value; });
+  document.getElementById("vfSource").addEventListener("change", (e) => { state.verifyFilters.source = e.target.value; });
+  document.getElementById("vfConfidence").addEventListener("change", (e) => { state.verifyFilters.confidence = e.target.value; });
+  document.getElementById("vfSymbol").addEventListener("keyup", (e) => {
+    state.verifyFilters.symbol = e.target.value;
+    if (e.key === "Enter") renderVerifyTable();
+  });
+  document.getElementById("vfConceptOnly").addEventListener("change", (e) => { state.verifyFilters.conceptOnly = e.target.checked; });
+  document.getElementById("btnVfQuery").addEventListener("click", () => { renderVerifyTable(); showToast("已套用篩選條件"); });
+  document.getElementById("btnVfReset").addEventListener("click", () => {
+    state.verifyFilters = { chain: "", source: "", confidence: "", symbol: "", conceptOnly: false };
+    document.getElementById("vfChain").value = "";
+    document.getElementById("vfSource").value = "";
+    document.getElementById("vfConfidence").value = "";
+    document.getElementById("vfSymbol").value = "";
+    document.getElementById("vfConceptOnly").checked = false;
+    renderVerifyTable();
+  });
+
+  function approveEdge(id) {
+    const e = edgeById(id);
+    if (!e) return;
+    e.verified = true;
+    showToast(`已核可 ${e.up} → ${e.down}（${e.comp}）`);
+    renderVerify();
+    renderOverview(); // 讓總覽分頁的圖形立即反映（切回總覽時可看到該邊變為實線）
+    closeModal("edgeModal");
+  }
+  function rejectEdge(id) {
+    const idx = EDGES.findIndex((e) => e.id === id);
+    if (idx === -1) return;
+    const e = EDGES[idx];
+    EDGES.splice(idx, 1);
+    showToast(`已刪除 ${e.up} → ${e.down}（${e.comp}），未通過校驗的邊不進入圖譜`);
+    renderVerify();
+    renderOverview();
+    closeModal("edgeModal");
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     邊詳情 Modal（總覽節點檢視／核對佇列共用）
+     ══════════════════════════════════════════════════════════════ */
+  let currentEdgeIdForModal = null;
+
+  function openEdgeModal(id) {
+    const e = edgeById(id);
+    if (!e) return;
+    currentEdgeIdForModal = id;
+    const body = document.getElementById("edgeModalBody");
+    body.innerHTML = `
+      <div class="section-title">供應鏈關聯</div>
+      <div class="info-grid">
+        <div class="info-cell span-2"><div class="k">關聯</div><div class="v">${e.up} ${e.upName} → ${e.down} ${e.downName}</div></div>
+        <div class="info-cell"><div class="k">產業鏈</div><div class="v">${e.chainName}</div></div>
+        <div class="info-cell"><div class="k">關聯層級</div><div class="v">${tierTag(e.tier)}</div></div>
+        <div class="info-cell"><div class="k">元件／服務</div><div class="v">${e.comp}</div></div>
+        <div class="info-cell"><div class="k">來源</div><div class="v">${sourceTag(e.source)}</div></div>
+        <div class="info-cell"><div class="k">驗證狀態</div><div class="v">${verifiedTag(e.verified)}</div></div>
+        <div class="info-cell"><div class="k">模型自評信心</div><div class="v">${confidenceTag(e.confidence)}${e.confidence ? '<div style="font-size:10.5px;color:var(--surface-400);font-weight:500;margin-top:3px">不等於 is_verified（ADR-IC-14）</div>' : ""}</div></div>
+        <div class="info-cell"><div class="k">概念標籤命中</div><div class="v">${e.conceptMatch ? '✓ 是（僅供排序加分）' : '—'}</div></div>
+      </div>
+
+      ${e.model ? `
+      <div class="section-title">LLM 萃取稽核（§4.7）</div>
+      <div class="info-grid">
+        <div class="info-cell"><div class="k">模型</div><div class="v">${e.model}</div></div>
+        <div class="info-cell"><div class="k">Prompt 版本</div><div class="v">${e.promptVersion}</div></div>
+        <div class="info-cell"><div class="k">擷取時間</div><div class="v">${e.extractedAt}</div></div>
+        <div class="info-cell"><div class="k">佐證連結</div><div class="v">${e.evidenceUrl ? `<span class="evidence-url">${e.evidenceUrl}</span>` : "無（純記憶萃取，未開啟檢索）"}</div></div>
+        <div class="info-cell span-4"><div class="k">模型依據（evidence，僅供顯示與人工核對，見 ADR-IC-10）</div><div class="evidence-box" style="margin-top:6px">${escapeHtml(e.evidence)}</div></div>
+      </div>
+      ` : `
+      <div class="section-title">來源說明</div>
+      <div class="note-box">此邊來源為 ${SOURCE_LABEL[e.source]}，非 LLM 萃取，無模型稽核欄位。</div>
+      `}
+
+      <div class="section-title">領先—落後量化檢定（§4.2，industry_chain_lead_lag_cache）</div>
+      ${e.leadLag ? `
+      <div class="info-grid">
+        <div class="info-cell"><div class="k">最佳延遲天數</div><div class="v">${e.leadLag.peakLagDay} 天</div></div>
+        <div class="info-cell"><div class="k">相關係數</div><div class="v">${e.leadLag.corr}</div></div>
+        <div class="info-cell span-2"><div class="k">樣本數（重疊交易日）</div><div class="v">${sampleBadge(e.leadLag.sampleSize)}</div></div>
+      </div>
+      ` : `<div class="note-box">重疊交易日 &lt; IC_MIN_SAMPLE_SIZE（120），依 FR-7a 不寫入快取，領先天數視為未知。</div>`}
+    `;
+
+    const actions = document.getElementById("edgeModalActions");
+    const noteBtn = `<button class="btn btn-ghost btn-sm" onclick="__proto.openNoteModal('edge', '${e.id}')">📝 轉為投資筆記</button>`;
+    if (!e.verified) {
+      actions.innerHTML = `
+        <button class="btn btn-success-ghost btn-sm" onclick="__proto.approveEdge('${e.id}')">✔ 核可</button>
+        <button class="btn btn-danger-ghost btn-sm" onclick="__proto.rejectEdge('${e.id}')">🗑 刪除</button>
+        ${noteBtn}
+      `;
+    } else {
+      actions.innerHTML = `${noteBtn}<span class="hint" style="align-self:center">此邊已核可，如需撤銷請至資料庫直接處理（本專案無管理者登入介面，見 FR-5）</span>`;
+    }
+
+    document.getElementById("edgeModal").classList.remove("hidden");
+  }
+
+  function closeModal(id) { document.getElementById(id).classList.add("hidden"); }
+
+  /* ══════════════════════════════════════════════════════════════
+     FR-21：轉為投資筆記（v2.6 新增，見規格書 §4.5、§8、ADR-IC-20、ADR-IC-21）
+     三種匯出範圍共用同一個 Modal；欄位對齊既有 InvestmentNoteEditor.vue：
+     日期／狀態／主旨／內容（原始 Markdown・渲染檢視）／標籤／關聯標的（單一 symbol）
+     ══════════════════════════════════════════════════════════════ */
+  const TODAY_ISO = "2026-08-30";
+
+  function roleLabelOf(role) { return ROLE_LABEL[role] || role; }
+  function stateLabelOf(st) { return STATE_LABEL[st] || st; }
+
+  // Mermaid 節點 id 一律加前綴，避免代號開頭是數字時觸發任何解析歧異（純防禦性作法，非已知問題）
+  function mmdNodeId(symbol) { return "n" + symbol; }
+  function mmdEscape(s) {
+    return String(s == null ? "" : s).replace(/["|\[\]]/g, "").replace(/\n/g, " ");
+  }
+
+  // 產生 Mermaid flowchart 原始碼：淡色系節點色沿用本頁既有三態色票（不沿用 §3.0 架構圖色票，
+  // 理由見 ADR-IC-21）；verified 邊實線、待核對邊虛線＋文字註記，方向一律上游 → 下游
+  function buildMermaidFlowchart(nodes, edges) {
+    const lines = [];
+    lines.push(`%%{init: {`);
+    lines.push(`  "theme": "base",`);
+    lines.push(`  "themeVariables": {`);
+    lines.push(`    "background": "#ffffff",`);
+    lines.push(`    "primaryColor": "#EAF2FB",`);
+    lines.push(`    "primaryBorderColor": "#9EC2E6",`);
+    lines.push(`    "primaryTextColor": "#33414F",`);
+    lines.push(`    "lineColor": "#9AA5B1",`);
+    lines.push(`    "textColor": "#33414F",`);
+    lines.push(`    "fontFamily": "Segoe UI, sans-serif"`);
+    lines.push(`  }`);
+    lines.push(`}}%%`);
+    lines.push(`flowchart LR`);
+    nodes.forEach((n) => { lines.push(`    ${mmdNodeId(n.symbol)}["${n.symbol}<br/>${mmdEscape(n.name)}"]`); });
+    edges.forEach((e) => {
+      const arrow = e.verified ? "-->" : "-.->";
+      const label = mmdEscape(e.comp) + (e.verified ? "" : "・待核對");
+      lines.push(`    ${mmdNodeId(e.up)} ${arrow}|${label}| ${mmdNodeId(e.down)}`);
+    });
+    nodes.forEach((n) => {
+      const c = STATE_COLORS[n.state] || STATE_COLORS.dormant;
+      lines.push(`    style ${mmdNodeId(n.symbol)} fill:${c.fill},stroke:${c.stroke},stroke-width:2px`);
+    });
+    return lines.join("\n");
+  }
+
+  function nodesTableMarkdown(nodes) {
+    let md = `| 代號 | 名稱 | 角色 | 狀態 |\n|---|---|---|---|\n`;
+    nodes.forEach((n) => { md += `| ${n.symbol} | ${n.name} | ${roleLabelOf(n.role)} | ${stateLabelOf(n.state)} |\n`; });
+    return md;
+  }
+  function edgesTableMarkdown(edges) {
+    let md = `| 上游 | 下游 | 元件／服務 | 層級 | 來源 | 模型信心 | 核可 | 領先天數 | 相關係數 |\n|---|---|---|---|---|---|---|---|---|\n`;
+    edges.forEach((e) => {
+      md += `| ${e.up} ${e.upName} | ${e.down} ${e.downName} | ${e.comp} | Tier ${e.tier} | ${SOURCE_LABEL[e.source]} `
+        + `| ${e.confidence ? CONFIDENCE_LABEL[e.confidence] : "—"} | ${e.verified ? "✔" : "⏳"} `
+        + `| ${e.leadLag ? e.leadLag.peakLagDay + " 天" : "—"} | ${e.leadLag ? e.leadLag.corr : "—"} |\n`;
+    });
+    return md;
+  }
+  function disclaimerMarkdown(scopeLabel) {
+    return `> 本筆記由《產業鏈知識圖譜》功能自動產生於 ${TODAY_ISO}，範圍：**${scopeLabel}**。內容可能包含 AI 萃取的推論資料（\`is_verified=false\`），正式決策前請自行核實佐證來源。`;
+  }
+
+  const noteState = {
+    scope: null, subject: "", content: "", status: "draft", noteDate: TODAY_ISO,
+    tags: [], suggestedTags: [], symbolOptions: [], symbol: ""
+  };
+
+  function buildChainNoteContent(chainId) {
+    const chain = CHAINS[chainId];
+    const edges = filteredChainEdges();
+    const nodes = chain.nodes;
+    const radarTop = (RADAR[chainId] || [])
+      .filter((r) => !r.excluded && !r.excludedByFilter)
+      .slice()
+      .sort((a, b) => {
+        const ea = edgeById(a.edgeId), eb = edgeById(b.edgeId);
+        return (eb.leadLag ? Math.abs(eb.leadLag.corr) : 0) - (ea.leadLag ? Math.abs(ea.leadLag.corr) : 0);
+      })
+      .slice(0, 5);
+
+    let md = `# 產業鏈快照：${chain.name}\n\n`;
+    const filterDesc = [];
+    if (state.tierFilter !== "all") filterDesc.push(`僅 Tier ${state.tierFilter}`);
+    if (state.verifiedFilter !== "all") filterDesc.push(state.verifiedFilter === "true" ? "僅已核可" : "僅待核對");
+    md += disclaimerMarkdown("整鏈快照" + (filterDesc.length ? `（篩選：${filterDesc.join("、")}）` : "（全部關聯）")) + "\n\n";
+    md += `## 節點清單\n\n${nodesTableMarkdown(nodes)}\n`;
+    md += `## 供應鏈關聯\n\n${edgesTableMarkdown(edges)}\n`;
+    md += "## 關聯圖\n\n```mermaid\n" + buildMermaidFlowchart(nodes, edges) + "\n```\n\n";
+    if (radarTop.length) {
+      md += `## 輪動雷達重點（依相關係數排序，取前 ${radarTop.length} 名）\n\n`;
+      md += `| 標的 | 領先天數 | 相關係數 | 跟漲勝率 |\n|---|---|---|---|\n`;
+      radarTop.forEach((r) => {
+        const e = edgeById(r.edgeId);
+        const node = NODE_MAP[r.symbol];
+        md += `| ${r.symbol} ${node ? node.name : ""} | ${e.leadLag ? e.leadLag.peakLagDay + " 天" : "—"} `
+          + `| ${e.leadLag ? e.leadLag.corr : "—"} | ${r.winRate ? Math.round(r.winRate.rate * 100) + "%（" + r.winRate.samples + " 次）" : "—"} |\n`;
+      });
+      md += "\n";
+    }
+    md += `## 我的判斷\n\n（在這裡寫下你對這條產業鏈目前狀態的看法、打算觀察的標的，以及下一步）\n`;
+
+    const defaultSymbol = (chain.ignitedInfo[0] && chain.ignitedInfo[0].symbol) || chain.downstreamLeaders[0] || (nodes[0] && nodes[0].symbol) || "";
+    return {
+      subject: `產業鏈快照：${chain.name}（${TODAY_ISO}）`,
+      content: md,
+      suggestedTags: ["產業鏈", chain.name, "AI萃取"],
+      symbolOptions: nodes.map((n) => ({ symbol: n.symbol, name: n.name })),
+      defaultSymbol
+    };
+  }
+
+  function buildEdgeNoteContent(edgeIdVal) {
+    const e = edgeById(edgeIdVal);
+    let md = `# 供應鏈關聯筆記：${e.up} ${e.upName} → ${e.down} ${e.downName}\n\n`;
+    md += disclaimerMarkdown("單一關聯") + "\n\n";
+    md += `## 關聯摘要\n\n`;
+    md += `- **產業鏈**：${e.chainName}\n`;
+    md += `- **元件／服務**：${e.comp}\n`;
+    md += `- **關聯層級**：Tier ${e.tier}（${TIER_LABEL[e.tier]}）\n`;
+    md += `- **來源**：${SOURCE_LABEL[e.source]}\n`;
+    md += `- **驗證狀態**：${e.verified ? "✔ 已核可" : "⏳ 待核對"}\n`;
+    if (e.confidence) md += `- **模型自評信心**：${CONFIDENCE_LABEL[e.confidence]}（不等於 is_verified，見 ADR-IC-14）\n`;
+    if (e.evidenceUrl) md += `- **佐證連結**：${e.evidenceUrl}\n`;
+    if (e.evidence) md += `\n> ${e.evidence}\n`;
+    md += "\n## 關聯圖\n\n```mermaid\n" + buildMermaidFlowchart(
+      [NODE_MAP[e.up] && Object.assign({}, NODE_MAP[e.up], { symbol: e.up }), NODE_MAP[e.down] && Object.assign({}, NODE_MAP[e.down], { symbol: e.down })].filter(Boolean),
+      [e]
+    ) + "\n```\n\n";
+    md += `## 領先—落後量化檢定\n\n`;
+    md += e.leadLag
+      ? `最佳延遲天數 **${e.leadLag.peakLagDay} 天**，相關係數 **${e.leadLag.corr}**（樣本數 ${e.leadLag.sampleSize} 筆）。\n\n`
+      : `重疊交易日 < IC_MIN_SAMPLE_SIZE（120），依 FR-7a 尚未寫入快取，領先天數視為未知。\n\n`;
+    md += `## 我的判斷\n\n（在這裡寫下你對這條關聯的看法，以及是否值得追蹤）\n`;
+
+    return {
+      subject: `供應鏈關聯筆記：${e.up} ${e.upName} → ${e.down} ${e.downName}`,
+      content: md,
+      suggestedTags: ["產業鏈", e.chainName, e.source.startsWith("llm_") ? "AI萃取" : null, !e.verified ? "待核對" : null].filter(Boolean),
+      symbolOptions: [{ symbol: e.up, name: e.upName }, { symbol: e.down, name: e.downName }],
+      defaultSymbol: e.down
+    };
+  }
+
+  function buildPathNoteContent(symbol) {
+    const chain = CHAINS[state.chainId];
+    const edges = filteredChainEdges();
+    const subgraph = computeConnectedSubgraph(symbol, edges);
+    const nodes = chain.nodes.filter((n) => subgraph.nodes.has(n.symbol));
+    const subEdges = edges.filter((e) => subgraph.edgeIds.has(e.id));
+    const node = NODE_MAP[symbol];
+    const hasLlm = subEdges.some((e) => e.source.startsWith("llm_"));
+
+    let md = `# 關聯路徑筆記：${symbol} ${node ? node.name : ""} 的供應鏈子圖\n\n`;
+    md += disclaimerMarkdown(`節點路徑追蹤（自 ${symbol} 沿供應鏈雙向展開）`) + "\n\n";
+    md += `## 節點清單\n\n${nodesTableMarkdown(nodes)}\n`;
+    md += `## 供應鏈關聯\n\n${edgesTableMarkdown(subEdges)}\n`;
+    md += "## 關聯圖\n\n```mermaid\n" + buildMermaidFlowchart(nodes, subEdges) + "\n```\n\n";
+    md += `## 我的判斷\n\n（在這裡寫下你對這條追蹤路徑的看法，以及下一步）\n`;
+
+    return {
+      subject: `關聯路徑筆記：${symbol} ${node ? node.name : ""} 的供應鏈子圖`,
+      content: md,
+      suggestedTags: ["產業鏈", chain.name, hasLlm ? "AI萃取" : null].filter(Boolean),
+      symbolOptions: nodes.map((n) => ({ symbol: n.symbol, name: n.name })),
+      defaultSymbol: symbol
+    };
+  }
+
+  function openNoteModal(scope, refId) {
+    let built;
+    if (scope === "chain") built = buildChainNoteContent(state.chainId);
+    else if (scope === "edge") built = buildEdgeNoteContent(refId);
+    else if (scope === "path") built = buildPathNoteContent(refId);
+    else return;
+
+    noteState.scope = scope;
+    noteState.subject = built.subject;
+    noteState.content = built.content;
+    noteState.status = "draft";
+    noteState.noteDate = TODAY_ISO;
+    noteState.suggestedTags = built.suggestedTags;
+    noteState.tags = built.suggestedTags.slice(); // 預設全選建議標籤，使用者可自行移除
+    noteState.symbolOptions = built.symbolOptions;
+    noteState.symbol = built.defaultSymbol || "";
+    noteState.mode = "source";
+
+    renderNoteModal();
+    document.getElementById("noteModal").classList.remove("hidden");
+  }
+
+  function renderNoteModal() {
+    document.getElementById("noteDate").value = noteState.noteDate;
+    document.getElementById("noteStatus").value = noteState.status;
+    document.getElementById("noteSubject").value = noteState.subject;
+    document.getElementById("noteContentSource").value = noteState.content;
+
+    // 標籤建議 chip（點擊切換是否加入）
+    const suggEl = document.getElementById("noteTagSuggestions");
+    suggEl.innerHTML = noteState.suggestedTags.map((t) => `
+      <button type="button" class="tag-toggle ${noteState.tags.includes(t) ? "on" : ""}" onclick="__proto.toggleNoteTag('${t}')">${t}</button>
+    `).join("");
+    renderNoteTagChips();
+
+    // 關聯標的下拉
+    const symSel = document.getElementById("noteSymbolSelect");
+    symSel.innerHTML = noteState.symbolOptions.map((s) => `<option value="${s.symbol}">${s.symbol} ${s.name}</option>`).join("")
+      + `<option value="">─ 不指定（本篇為多標的整體摘要）</option>`;
+    symSel.value = noteState.symbol;
+
+    setNoteMode("source");
+  }
+
+  function renderNoteTagChips() {
+    document.getElementById("noteTagChips").innerHTML = noteState.tags.map((t) => `
+      <span class="tag-chip">${t}<button type="button" onclick="__proto.removeNoteTag('${t}')">✕</button></span>
+    `).join("");
+  }
+  function toggleNoteTag(t) {
+    const idx = noteState.tags.indexOf(t);
+    if (idx === -1) noteState.tags.push(t); else noteState.tags.splice(idx, 1);
+    renderNoteModal();
+  }
+  function removeNoteTag(t) {
+    noteState.tags = noteState.tags.filter((x) => x !== t);
+    renderNoteModal();
+  }
+  document.getElementById("noteTagInput").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const v = e.target.value.trim();
+    if (v && !noteState.tags.includes(v)) { noteState.tags.push(v); renderNoteModal(); }
+    e.target.value = "";
+  });
+  document.getElementById("noteSymbolSelect").addEventListener("change", (e) => { noteState.symbol = e.target.value; });
+  document.getElementById("noteSubject").addEventListener("input", (e) => { noteState.subject = e.target.value; });
+  document.getElementById("noteDate").addEventListener("change", (e) => { noteState.noteDate = e.target.value; });
+  document.getElementById("noteStatus").addEventListener("change", (e) => { noteState.status = e.target.value; });
+  document.getElementById("noteContentSource").addEventListener("input", (e) => { noteState.content = e.target.value; });
+
+  // ── 原始 Markdown／渲染檢視 分頁（比照既有 InvestmentNoteEditor.vue 的 editorMode 切換）──
+  function setNoteMode(mode) {
+    noteState.mode = mode;
+    document.getElementById("noteTabSource").classList.toggle("active", mode === "source");
+    document.getElementById("noteTabPreview").classList.toggle("active", mode === "preview");
+    document.getElementById("noteContentSource").style.display = mode === "source" ? "block" : "none";
+    document.getElementById("noteContentPreview").style.display = mode === "preview" ? "block" : "none";
+    if (mode === "preview") renderNotePreview();
+  }
+  document.getElementById("noteTabSource").addEventListener("click", () => setNoteMode("source"));
+  document.getElementById("noteTabPreview").addEventListener("click", () => setNoteMode("preview"));
+
+  // ── 最小可用 Markdown 渲染（只涵蓋本模組實際會產生的語法子集：標題／表格／清單／
+  //    粗體／行內碼／引用／code fence，不是通用 Markdown 解析器；正式頁面用 markdown-it）──
+  function mdInline(s) {
+    return escapeHtml(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/`([^`]+)`/g, "<code>$1</code>");
+  }
+  function mdTable(rows) {
+    const parseRow = (r) => r.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+    const header = parseRow(rows[0]);
+    const body = rows.slice(2).map(parseRow);
+    let html = "<table><thead><tr>" + header.map((h) => `<th>${mdInline(h)}</th>`).join("") + "</tr></thead><tbody>";
+    body.forEach((r) => { html += "<tr>" + r.map((c) => `<td>${mdInline(c)}</td>`).join("") + "</tr>"; });
+    return html + "</tbody></table>";
+  }
+  function renderMiniMarkdown(md) {
+    const lines = (md || "").split("\n");
+    let html = "", i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (/^```/.test(line)) {
+        const lang = line.replace(/`/g, "").trim();
+        const code = [];
+        i++;
+        while (i < lines.length && !/^```/.test(lines[i])) { code.push(lines[i]); i++; }
+        i++;
+        html += `<pre><code class="language-${lang}">${escapeHtml(code.join("\n"))}</code></pre>`;
+        continue;
+      }
+      if (/^### /.test(line)) { html += `<h3>${mdInline(line.slice(4))}</h3>`; i++; continue; }
+      if (/^## /.test(line)) { html += `<h2>${mdInline(line.slice(3))}</h2>`; i++; continue; }
+      if (/^# /.test(line)) { html += `<h1>${mdInline(line.slice(2))}</h1>`; i++; continue; }
+      if (/^> /.test(line)) {
+        const quote = [];
+        while (i < lines.length && /^> /.test(lines[i])) { quote.push(lines[i].slice(2)); i++; }
+        html += `<blockquote>${mdInline(quote.join(" "))}</blockquote>`;
+        continue;
+      }
+      if (/^\|/.test(line)) {
+        const tbl = [];
+        while (i < lines.length && /^\|/.test(lines[i])) { tbl.push(lines[i]); i++; }
+        html += mdTable(tbl);
+        continue;
+      }
+      if (/^-\s+/.test(line)) {
+        const items = [];
+        while (i < lines.length && /^-\s+/.test(lines[i])) { items.push(lines[i].replace(/^-\s+/, "")); i++; }
+        html += `<ul>${items.map((it) => `<li>${mdInline(it)}</li>`).join("")}</ul>`;
+        continue;
+      }
+      if (!line.trim()) { i++; continue; }
+      html += `<p>${mdInline(line)}</p>`;
+      i++;
+    }
+    return html;
+  }
+
+  // ── Mermaid：延遲載入 CDN（正式頁面用前端已安裝的 npm 套件 mermaid@11，效果相同；
+  //    離線時優雅降級為原始碼＋提示，不擋住其餘預覽內容）──
+  let mermaidLoadPromise = null;
+  function ensureMermaid() {
+    if (window.mermaid) return Promise.resolve(window.mermaid);
+    if (mermaidLoadPromise) return mermaidLoadPromise;
+    mermaidLoadPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
+      s.onload = () => {
+        try {
+          window.mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: "neutral" });
+          resolve(window.mermaid);
+        } catch (err) { reject(err); }
+      };
+      s.onerror = () => reject(new Error("Mermaid CDN 載入失敗（可能離線）"));
+      document.head.appendChild(s);
+    });
+    return mermaidLoadPromise;
+  }
+  let mermaidSeq = 0;
+  async function renderMermaidBlocks(root) {
+    const blocks = [...root.querySelectorAll("pre > code.language-mermaid")];
+    if (!blocks.length) return;
+    let mermaid;
+    try {
+      mermaid = await ensureMermaid();
+    } catch (err) {
+      blocks.forEach((code) => {
+        const pre = code.parentElement;
+        if (!root.contains(pre)) return;
+        const note = document.createElement("p");
+        note.className = "mermaid-fallback-note";
+        note.textContent = "⚠️ 無法載入 Mermaid CDN（可能離線）。以下為原始碼，可複製到 http://localhost:5173/portfolio/notes 的「渲染檢視」分頁確認實際效果：";
+        pre.insertAdjacentElement("beforebegin", note);
+      });
+      return;
+    }
+    for (const code of blocks) {
+      const pre = code.parentElement;
+      if (!root.contains(pre)) continue;
+      const src = code.textContent || "";
+      const id = `note-mermaid-${Date.now()}-${mermaidSeq++}`;
+      try {
+        const { svg } = await mermaid.render(id, src);
+        if (!root.contains(pre)) continue;
+        const figure = document.createElement("figure");
+        figure.className = "mermaid-diagram";
+        figure.innerHTML = svg;
+        pre.replaceWith(figure);
+      } catch (err) {
+        if (!root.contains(pre)) continue;
+        const msg = document.createElement("p");
+        msg.className = "mermaid-fallback-note";
+        msg.textContent = `Mermaid 語法錯誤：${(err && err.message) || "無法渲染"}`;
+        pre.insertAdjacentElement("afterend", msg);
+      }
+    }
+  }
+
+  async function renderNotePreview() {
+    const root = document.getElementById("noteContentPreview");
+    root.innerHTML = renderMiniMarkdown(noteState.content);
+    await renderMermaidBlocks(root);
+  }
+
+  // ── 頁尾動作：複製／下載／儲存（雛形示意，未實際呼叫 API）──
+  document.getElementById("btnNoteCopy").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(noteState.content);
+      showToast("已複製 Markdown 到剪貼簿");
+    } catch (err) {
+      showToast("複製失敗，請手動選取內容複製");
+    }
+  });
+  document.getElementById("btnNoteDownload").addEventListener("click", () => {
+    const blob = new Blob([noteState.content], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${noteState.subject.replace(/[\\/:*?"<>|]/g, "_")}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast("已下載 .md 檔案");
+  });
+  document.getElementById("btnNoteSave").addEventListener("click", () => {
+    showToast(`已儲存草稿（雛形示意，未實際呼叫 POST /api/v1/investment-notes）；請至 http://localhost:5173/portfolio/notes 確認`);
+    closeModal("noteModal");
+  });
+
+  /* ══════════════════════════════════════════════════════════════
+     Toast
+     ══════════════════════════════════════════════════════════════ */
+  let toastTimer;
+  function showToast(msg) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.remove("hidden");
+    requestAnimationFrame(() => el.classList.add("show"));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      el.classList.remove("show");
+      setTimeout(() => el.classList.add("hidden"), 200);
+    }, 2400);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     Tabs ／ 情境切換
+     ══════════════════════════════════════════════════════════════ */
+  function applyTabVisibility() {
+    document.getElementById("tabOverview").style.display = state.activeTab === "overview" ? "block" : "none";
+    document.getElementById("tabVerify").style.display = state.activeTab === "verify" ? "block" : "none";
+  }
+
+  function renderStateBanner() {
+    const banner = document.getElementById("stateBanner");
+    const contentIds = ["tabOverview", "tabVerify"];
+    if (state.scenario === "data") {
+      banner.style.display = "none";
+      applyTabVisibility();
+      return;
+    }
+    contentIds.forEach((id) => { document.getElementById(id).style.display = "none"; });
+    banner.style.display = "block";
+    if (state.scenario === "loading") {
+      banner.innerHTML = `
+        <div class="card">
+          <div class="card-body">
+            ${Array.from({ length: 6 }, () => '<div class="skeleton-bar" style="width:100%;height:90px;border-radius:14px;margin-bottom:14px"></div>').join("")}
+          </div>
+        </div>
+      `;
+    } else if (state.scenario === "disabled") {
+      banner.innerHTML = `
+        <div class="state-banner warning">
+          <div class="big-icon">🚫</div>
+          <div class="headline">產業鏈知識圖譜功能未啟用</div>
+          <div class="detail"><code>INDUSTRY_CHAIN_ENABLED=false</code>。依 AC-IC-15，功能關閉時不得建立資料庫連線、不得發出任何外部請求；服務啟動與既有選股／警示功能完全不受影響。</div>
+        </div>
+      `;
+    } else if (state.scenario === "dbdown") {
+      banner.innerHTML = `
+        <div class="state-banner danger">
+          <div class="big-icon">⚠️</div>
+          <div class="headline">PostgreSQL 目前不可用（IC_STORAGE_UNAVAILABLE）</div>
+          <div class="detail">圖查詢與雷達清單暫時無法使用。依 AC-IC-5／AC-IC-11：LLM 萃取的 JSON 快照寫入仍完整成功、既有選股／警示功能不受影響——只有本模組的<b>讀取</b>面受阻。</div>
+        </div>
+      `;
+    }
+  }
+
+  document.querySelectorAll(".scenario-switch button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".scenario-switch button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.scenario = btn.dataset.scenario;
+      renderStateBanner();
+    });
+  });
+
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.activeTab = btn.dataset.tab;
+      renderStateBanner();
+    });
+  });
+
+  document.querySelectorAll("[data-close]").forEach((btn) => {
+    btn.addEventListener("click", () => closeModal(btn.dataset.close));
+  });
+  document.querySelectorAll(".modal-backdrop").forEach((bd) => {
+    bd.addEventListener("click", (e) => { if (e.target === bd) bd.classList.add("hidden"); });
+  });
+
+  // 供 inline onclick 呼叫（保持雛形檔案單檔、無建置流程）
+  window.__proto = {
+    openEdgeModal, approveEdge, rejectEdge,
+    openNoteModal, toggleNoteTag, removeNoteTag
+  };
+
+  /* ══════════════════════════════════════════════════════════════
+     初始化
+     ══════════════════════════════════════════════════════════════ */
+  populateChainSelect();
+  populateVerifyChainFilter();
+  attachViewportInteractions("graphWrap", "graphSvg");
+  attachViewportInteractions("graphWrapLg", "graphSvgLarge");
+  applyViewBox("graphSvg");
+  applyViewBox("graphSvgLarge");
+  renderOverview();
+  renderVerify();
+  applyTabVisibility();
+})();
+</script>
+</body>
+</html>

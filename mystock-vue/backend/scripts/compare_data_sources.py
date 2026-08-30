@@ -10,7 +10,8 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from config import get_enabled_markets, get_target_stocks
+from config import get_enabled_markets
+from services import tracking_service
 from services.stock_service import get_stock_chart_payload
 
 FLOAT_TOLERANCE = 2e-4  # daily_stock_data 價格欄位為 NUMERIC(15,4)，US 股價（yfinance 還原股利/分割後有效位數更長）
@@ -76,7 +77,7 @@ async def compare_all() -> int:
     total_checked = 0
 
     for market in get_enabled_markets():
-        for symbol in get_target_stocks(market=market):
+        for symbol in await tracking_service.get_crawl_enabled_symbols(market):
             for period in PERIODS:
                 for months in MONTHS_OPTIONS:
                     total_checked += 1

@@ -127,3 +127,24 @@ def net_buy_volume_ratio(records: Records, field: str, idx: int, window: int) ->
     tot_net_shares = sum(values) * 1000.0
     return (tot_net_shares / tot_vol) * 100.0
 
+
+def volume_contraction_ratio(volumes: List[Optional[float]], idx: int, short_window: int = 20, long_window: int = 60) -> Optional[float]:
+    """量縮整理判斷（docs/16.AI技術分析/Phase3-產業鏈知識圖譜與輪動模型.md FR-14）：
+    短窗期均量 / 長窗期均量，< 1 代表近期成交量相對長期基準是收斂的（量縮）。
+
+    簽章刻意跟本檔其餘函式（吃 `Records` + `field_value`）不同、改吃 `ScanContext.volumes`
+    這種已展開的純數值序列——因為 `volumes` 本身就是 ScanContext 上的頂層欄位（比照
+    `closes`/`opens`），不是要從原始日記錄裡挖某個具名欄位，直接重用
+    `indicators/moving_average.py` 的 `sma()` 算兩個窗期的均量即可，不需要 `_window()`／
+    `field_value()` 這層間接。"""
+    from indicators.moving_average import sma
+
+    short_ma = sma(volumes, short_window)
+    long_ma = sma(volumes, long_window)
+    if idx >= len(short_ma) or idx >= len(long_ma):
+        return None
+    short_val, long_val = short_ma[idx], long_ma[idx]
+    if short_val is None or not long_val:
+        return None
+    return short_val / long_val
+

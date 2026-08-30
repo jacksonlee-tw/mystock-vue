@@ -24,7 +24,7 @@ from ai.errors import (
     AIProviderMisconfiguredException, AIRateLimitedException,
     AITimeoutException, AIProviderUnreachableException, AIProviderError,
 )
-from ai.providers.base import AIProvider, AnalysisResult
+from ai.providers.base import AIProvider, AnalysisResult, ExtractionResult, ResearchResult
 from ai.providers import ai_provider
 from ai.schema import AnalysisReport, LLMAnalysisReport, from_llm_report
 
@@ -120,6 +120,161 @@ class ClaudeProvider(AIProvider):
             output_tokens=getattr(usage, "output_tokens", None),
             cache_read_tokens=getattr(usage, "cache_read_input_tokens", None),
             cache_write_tokens=getattr(usage, "cache_creation_input_tokens", None),
+            provider_request_id=getattr(response, "_request_id", None),
+            response_meta={
+                "elapsed_ms": elapsed_ms,
+                "stop_reason": stop_reason,
+            },
+        )
+
+    async def extract_structured(
+        self, system_prompt: str, user_prompt: str, response_schema: type, model: str | None = None,
+    ) -> ExtractionResult:
+        """純文字結構化萃取（見 ADR-IC-12）：與 analyze() 幾乎同一套呼叫骨架，差異只有
+        ① 沒有圖片 content block、② output_format 是呼叫端傳入的參數而非寫死 LLMAnalysisReport。
+        例外分類完全沿用同一套 except 鏈。"""
+        api_key = ai_config.get_claude_api_key()
+        if not api_key:
+            raise AIProviderMisconfiguredException("CLAUDE_API_KEY 未設定")
+
+        try:
+            import anthropic
+        except ImportError as exc:
+            raise AIProviderMisconfiguredException("anthropic 套件未安裝") from exc
+
+        model = model or ai_config.get_claude_model()
+        max_tokens = ai_config.get_max_output_tokens()
+        timeout_sec = ai_config.get_request_timeout_sec()
+
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        started = time.monotonic()
+        try:
+            response = await client.with_options(timeout=timeout_sec).messages.parse(
+                model=model,
+                max_tokens=max_tokens,
+                system=system_prompt,
+                messages=[{"role": "user", "content": [{"type": "text", "text": user_prompt}]}],
+                output_format=response_schema,
+            )
+        except anthropic.AuthenticationError as exc:
+            raise AIProviderMisconfiguredException("Claude API 金鑰無效") from exc
+        except anthropic.RateLimitError as exc:
+            retry_after = None
+            try:
+                retry_after = int(exc.response.headers.get("retry-after", "0")) or None
+            except Exception:
+                pass
+            raise AIRateLimitedException("Claude API 已達限流上限", retry_after_sec=retry_after) from exc
+        except anthropic.APITimeoutError as exc:
+            raise AITimeoutException("Claude API 呼叫逾時") from exc
+        except anthropic.APIConnectionError as exc:
+            raise AIProviderUnreachableException("無法連線至 Claude API") from exc
+        except anthropic.APIStatusError as exc:
+            raise AIProviderError(f"Claude API 錯誤（{exc.status_code}）：{exc.message}") from exc
+        finally:
+            elapsed_ms = int((time.monotonic() - started) * 1000)
+
+        stop_reason = response.stop_reason
+        truncated = stop_reason == "max_tokens"
+        parsed = getattr(response, "parsed_output", None)
+
+        usage = response.usage
+        return ExtractionResult(
+            data=parsed,
+            model=response.model,
+            stop_reason=stop_reason,
+            truncated=truncated,
+            input_tokens=getattr(usage, "input_tokens", None),
+            output_tokens=getattr(usage, "output_tokens", None),
+            provider_request_id=getattr(response, "_request_id", None),
+            response_meta={
+                "elapsed_ms": elapsed_ms,
+                "stop_reason": stop_reason,
+            },
+        )
+
+    async def research_grounded(
+        self, system_prompt: str, user_prompt: str, model: str | None = None, timeout_sec: int | None = None,
+    ) -> ResearchResult:
+        """開 Claude 內建 web_search 工具做「研究」（見 ADR-IC-17 兩段式萃取 Stage A）。
+        **不**用 `.parse()`／`output_format`——工具與結構化輸出兩段式分開呼叫，理由同
+        gemini_provider.py 的 research_grounded()。
+
+        SDK 呼叫介面已對照本機安裝的 anthropic==1.2.0 原始碼核對過（非僅憑文件記憶）：
+        工具宣告 `{"type": "web_search_20250305", "name": "web_search"}`；回應
+        `response.content` 混雜三種 block——`type="text"`（研究敘述）、
+        `type="server_tool_use"`（`name="web_search"` 時代表一次查詢）、
+        `type="web_search_tool_result"`（`.content` 是 `list[WebSearchResultBlock]` 或一個
+        error 物件，需先判斷是不是 list 再迭代取 `.url`/`.title`）。"""
+        api_key = ai_config.get_claude_api_key()
+        if not api_key:
+            raise AIProviderMisconfiguredException("CLAUDE_API_KEY 未設定")
+
+        try:
+            import anthropic
+        except ImportError as exc:
+            raise AIProviderMisconfiguredException("anthropic 套件未安裝") from exc
+
+        model = model or ai_config.get_claude_model()
+        max_tokens = ai_config.get_max_output_tokens()
+        timeout_sec = timeout_sec or ai_config.get_request_timeout_sec()
+
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        started = time.monotonic()
+        try:
+            response = await client.with_options(timeout=timeout_sec).messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                system=system_prompt,
+                messages=[{"role": "user", "content": [{"type": "text", "text": user_prompt}]}],
+                tools=[{"type": "web_search_20250305", "name": "web_search"}],
+            )
+        except anthropic.AuthenticationError as exc:
+            raise AIProviderMisconfiguredException("Claude API 金鑰無效") from exc
+        except anthropic.RateLimitError as exc:
+            retry_after = None
+            try:
+                retry_after = int(exc.response.headers.get("retry-after", "0")) or None
+            except Exception:
+                pass
+            raise AIRateLimitedException("Claude API 已達限流上限", retry_after_sec=retry_after) from exc
+        except anthropic.APITimeoutError as exc:
+            raise AITimeoutException("Claude API 呼叫逾時") from exc
+        except anthropic.APIConnectionError as exc:
+            raise AIProviderUnreachableException("無法連線至 Claude API") from exc
+        except anthropic.APIStatusError as exc:
+            raise AIProviderError(f"Claude API 錯誤（{exc.status_code}）：{exc.message}") from exc
+        finally:
+            elapsed_ms = int((time.monotonic() - started) * 1000)
+
+        text_parts: list[str] = []
+        citations: list[dict[str, str]] = []
+        query_count = 0
+        for block in response.content:
+            btype = getattr(block, "type", None)
+            if btype == "text":
+                text_parts.append(block.text)
+            elif btype == "server_tool_use" and getattr(block, "name", None) == "web_search":
+                query_count += 1
+            elif btype == "web_search_tool_result":
+                content = block.content if isinstance(block.content, list) else []
+                for item in content:
+                    url = getattr(item, "url", None)
+                    if url:
+                        citations.append({"url": url, "title": getattr(item, "title", None) or ""})
+
+        stop_reason = response.stop_reason
+        truncated = stop_reason == "max_tokens"
+        usage = response.usage
+        return ResearchResult(
+            text="\n".join(text_parts),
+            citations=citations,
+            model=response.model,
+            query_count=query_count or None,
+            stop_reason=stop_reason,
+            truncated=truncated,
+            input_tokens=getattr(usage, "input_tokens", None),
+            output_tokens=getattr(usage, "output_tokens", None),
             provider_request_id=getattr(response, "_request_id", None),
             response_meta={
                 "elapsed_ms": elapsed_ms,

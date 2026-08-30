@@ -8,8 +8,6 @@ ENV_PATH = os.path.join(BASE_DIR, ".env")
 # 載入 .env
 load_dotenv(ENV_PATH)
 
-DEFAULT_STOCKS = ["0050", "2330", "006208", "2317"]
-DEFAULT_US_STOCKS = ["AAPL", "MSFT", "GOOGL", "TSLA"]
 DEFAULT_MONTHS_RANGE = 3
 DEFAULT_QUARTERS_RANGE = 4
 ENABLED_MARKETS_DEFAULT = ["tw", "us"]
@@ -44,40 +42,17 @@ CORS_ORIGINS = [
 ]
 
 def get_target_stocks(market: str = "tw") -> list[str]:
-    load_dotenv(ENV_PATH, override=True)
-    if market == "us":
-        raw = os.getenv("US_STOCK_CODES", "")
-        stocks = [s.strip() for s in raw.split(",") if s.strip()]
-        return stocks or DEFAULT_US_STOCKS
-    else:
-        raw = os.getenv("STOCK_CODES", "")
-        stocks = [s.strip() for s in raw.split(",") if s.strip()]
-        return stocks or DEFAULT_STOCKS
+    """追蹤清單（爬蟲抓取範圍）的唯一資料來源：Postgres `portfolio_watchlist`
+    （`is_crawl_enabled = TRUE`）。2026-08-30 起不再讀寫 `.env` 的 `STOCK_CODES`/`US_STOCK_CODES`
+    （撤回 ADR-02「`.env` 為鏡像」設計，見 docs/15.追蹤個股清單優化/追蹤與觀察名單整合_規劃書.md）；
+    此後追蹤清單管理一律要求 Postgres 可連線，不再有 JSON-only 部署下的降級路徑。
 
-def save_target_stocks(stocks: list[str], market: str = "tw") -> None:
-    unique_stocks = list(dict.fromkeys(stocks))
-    raw = ",".join(unique_stocks)
-    env_key = "US_STOCK_CODES" if market == "us" else "STOCK_CODES"
-    
-    lines = []
-    if os.path.exists(ENV_PATH):
-        with open(ENV_PATH, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-            
-    found = False
-    for i, line in enumerate(lines):
-        if line.startswith(f"{env_key}="):
-            lines[i] = f"{env_key}={raw}\n"
-            found = True
-            break
-            
-    if not found:
-        lines.append(f"{env_key}={raw}\n")
-        
-    with open(ENV_PATH, "w", encoding="utf-8") as f:
-        f.writelines(lines)
-        
-    os.environ[env_key] = raw
+    只能在「目前沒有執行中事件迴圈」的同步呼叫端使用（爬蟲／背景任務／腳本）——內部用
+    asyncio.run() 橋接，會在既有事件迴圈中直接丟出 RuntimeError。已在事件迴圈內的呼叫端
+    （FastAPI async 端點、async service 函式）請改用
+    `services.tracking_service.get_crawl_enabled_symbols()`（await）。"""
+    from repositories.portfolio_repository import list_crawl_enabled_symbols_sync
+    return list_crawl_enabled_symbols_sync(market)
 
 def get_enabled_markets() -> list[str]:
     load_dotenv(ENV_PATH, override=True)
@@ -170,7 +145,7 @@ def get_default_universe_tier() -> str:
 # ── 排程設定 ──────────────────────────────────────────────────────────────
 
 def _set_env_values(pairs: dict[str, str]) -> None:
-    """一次寫入多個 .env 設定值（比照 save_target_stocks 的寫法，但只讀寫檔案一次）。
+    """一次寫入多個 .env 設定值（找到既有鍵就地覆寫、找不到就附加，只讀寫檔案一次）。
 
     排程是「一組」設定，逐鍵各自 rewrite 檔案會讓中途失敗留下半套狀態。
     """

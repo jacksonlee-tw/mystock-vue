@@ -144,6 +144,12 @@ export const portfolioApi = {
         return response.data;
     },
 
+    // 批次加入（貼表格匯入，見 WatchlistBatchImportDialog.vue）：payload = { market, items: [...], source? }
+    async addWatchlistBatch(payload) {
+        const response = await apiClient.post('/watchlist/batch', payload);
+        return response.data;
+    },
+
     async updateWatchlist(id, payload) {
         const response = await apiClient.put(`/watchlist/${id}`, payload);
         return response.data;

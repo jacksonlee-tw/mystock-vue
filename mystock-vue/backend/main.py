@@ -15,6 +15,7 @@ from api.v1.endpoints.exchange_rates import router as exchange_rates_router
 from api.v1.endpoints.fetch import router as fetch_router
 from api.v1.endpoints.fundamentals import router as fundamentals_router
 from api.v1.endpoints.indices import router as indices_router
+from api.v1.endpoints.industry_chains import router as industry_chains_router
 from api.v1.endpoints.investment_notes import router as investment_notes_router
 from api.v1.endpoints.market import router as market_router
 from api.v1.endpoints.markets import router as markets_router
@@ -43,6 +44,16 @@ from ai.errors import (
     AIStorageUnavailableException,
     AITimeoutException,
 )
+from industry_chain.errors import (
+    IndustryChainCapExceededException,
+    IndustryChainConfigInvalidException,
+    IndustryChainCrawlInProgressException,
+    IndustryChainDisabledException,
+    IndustryChainModelInvalidException,
+    IndustryChainNoKeyException,
+    IndustryChainNotFoundException,
+    IndustryChainStorageUnavailableException,
+)
 from config import CORS_ORIGINS
 from core.exceptions import SymbolNotFoundException
 from core.owner_auth import OwnerUnauthorizedException
@@ -57,25 +68,10 @@ from notify.security import (
 )
 from services.backfill import run_startup_backfill
 from services.scheduler import create_scheduler
-from services.tracking_service import diff_env_vs_db
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("mystock-backend")
 logging.getLogger("httpx").setLevel(logging.WARNING)
-
-async def _run_startup_tracking_reconcile():
-    """啟動對帳（追蹤與觀察名單整合規劃書 §4.3／§12.5）：比對 .env 與 DB 的追蹤代碼，
-    只印警告不自動修改（避免啟動時偷改使用者設定）；發現差異時提示改用
-    `scripts/sync_tracking_env.py` 手動修復。查詢本身失敗（例如 Postgres 未部署）
-    只記警告，不影響服務啟動。"""
-    for market in ("tw", "us"):
-        diff = await diff_env_vs_db(market)
-        if diff["checked"] and not diff["in_sync"]:
-            logger.warning(
-                "[追蹤清單] 啟動對帳發現 .env 與 DB 不同步（market=%s）：only_in_env=%s, only_in_db=%s，"
-                "如需修復請執行 scripts/sync_tracking_env.py",
-                market, diff["only_in_env"], diff["only_in_db"],
-            )
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -112,7 +108,6 @@ async def lifespan(app: FastAPI):
     scheduler = create_scheduler()
     scheduler.start()
     asyncio.create_task(run_startup_backfill())  # 背景執行，缺漏回補不阻塞服務啟動（見 phase3_5 設計文件第 3.1 節）
-    asyncio.create_task(_run_startup_tracking_reconcile())  # 背景執行，只印警告不阻塞服務啟動
 
     # 啟動時自動抓一次每日匯率（USD/JPY/CNY），失敗不阻塞服務啟動（見 services/exchange_rate_fetcher.py）
     from services.exchange_rate_fetcher import fetch_exchange_rates_startup
@@ -174,6 +169,7 @@ app.include_router(fetch_router)
 app.include_router(markets_router)
 app.include_router(market_router)
 app.include_router(indices_router)
+app.include_router(industry_chains_router)
 app.include_router(alerts_router)
 app.include_router(watchlist_router)
 app.include_router(notify_session_router)
@@ -315,6 +311,55 @@ async def ai_invalid_request_handler(request, exc):
 async def ai_image_too_large_handler(request, exc):
     return JSONResponse(status_code=400, content={
         "success": False, "error": {"code": "AI_IMAGE_TOO_LARGE", "message": str(exc) or "圖片超過大小上限"}
+    })
+
+# ── 產業鏈知識圖譜例外處理（規格書 §7）─────────────────────────────────
+@app.exception_handler(IndustryChainDisabledException)
+async def ic_disabled_handler(request, exc):
+    return JSONResponse(status_code=403, content={
+        "success": False, "error": {"code": "IC_DISABLED", "message": str(exc) or "產業鏈知識圖譜功能未啟用"}
+    })
+
+@app.exception_handler(IndustryChainStorageUnavailableException)
+async def ic_storage_unavailable_handler(request, exc):
+    return JSONResponse(status_code=503, content={
+        "success": False, "error": {"code": "IC_STORAGE_UNAVAILABLE", "message": str(exc) or "產業鏈資料庫目前無法使用"}
+    })
+
+@app.exception_handler(IndustryChainNotFoundException)
+async def ic_not_found_handler(request, exc):
+    return JSONResponse(status_code=404, content={
+        "success": False, "error": {"code": "IC_CHAIN_NOT_FOUND", "message": str(exc) or "找不到產業鏈"}
+    })
+
+@app.exception_handler(IndustryChainCrawlInProgressException)
+async def ic_crawl_in_progress_handler(request, exc):
+    return JSONResponse(status_code=409, content={
+        "success": False, "error": {"code": "IC_CRAWL_IN_PROGRESS", "message": str(exc) or "已有產業鏈萃取工作執行中"}
+    })
+
+@app.exception_handler(IndustryChainCapExceededException)
+async def ic_cap_exceeded_handler(request, exc):
+    return JSONResponse(status_code=429, content={
+        "success": False, "error": {"code": "IC_LLM_CAP_HIT", "message": str(exc) or "本月萃取呼叫已達上限"}
+    })
+
+@app.exception_handler(IndustryChainModelInvalidException)
+async def ic_model_invalid_handler(request, exc):
+    return JSONResponse(status_code=400, content={
+        "success": False, "error": {"code": "IC_LLM_MODEL_INVALID", "message": str(exc) or "模型不在白名單內"}
+    })
+
+@app.exception_handler(IndustryChainNoKeyException)
+async def ic_no_key_handler(request, exc):
+    return JSONResponse(status_code=500, content={
+        "success": False, "error": {"code": "IC_LLM_NO_KEY", "message": str(exc) or "API 金鑰未設定"}
+    })
+
+@app.exception_handler(IndustryChainConfigInvalidException)
+async def ic_config_invalid_handler(request, exc):
+    return JSONResponse(status_code=400, content={
+        "success": False, "error": {"code": "IC_CONFIG_INVALID", "message": str(exc) or "骨架設定未通過驗證"}
     })
 
 @app.get("/health", summary="健康檢查端點", tags=["Health"])

@@ -4,8 +4,9 @@ import calendar
 import logging
 from datetime import date, datetime, timedelta
 from typing import Dict, Any, List, Optional
-from config import DATA_DIR, MAX_HISTORY_MONTHS, get_target_stocks, get_enabled_markets, get_data_source
+from config import DATA_DIR, MAX_HISTORY_MONTHS, get_enabled_markets, get_data_source
 from services.fetcher import load_stock_json
+from services import tracking_service
 from db.mapping import daily_row_to_record
 from repositories.stock_repository import StockRepository
 from indicators.moving_average import compute_ma_set
@@ -155,7 +156,7 @@ async def discover_available_stocks() -> List[Dict[str, Any]]:
     stocks = []
 
     for market in get_enabled_markets():
-        tracked_codes = set(get_target_stocks(market=market))
+        tracked_codes = set(await tracking_service.get_crawl_enabled_symbols(market))
 
         if get_data_source() == "postgres":
             stocks.extend(await _discover_stocks_db(market, tracked_codes))
@@ -199,7 +200,7 @@ async def get_heatmap_data(period: str = "daily", market: Optional[str] = None) 
 
     enabled_markets = [market] if market and market in get_enabled_markets() else get_enabled_markets()
     for m in enabled_markets:
-        tracked_codes = set(get_target_stocks(market=m))
+        tracked_codes = set(await tracking_service.get_crawl_enabled_symbols(m))
         if not tracked_codes:
             continue
 

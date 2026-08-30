@@ -131,8 +131,8 @@ export const stockApi = {
     },
 
     // 查詢抓取狀態
-    async getFetchStatus() {
-        const response = await apiClient.get('/fetch/status');
+    async getFetchStatus(config = {}) {
+        const response = await apiClient.get('/fetch/status', config);
         return response.data;
     },
 

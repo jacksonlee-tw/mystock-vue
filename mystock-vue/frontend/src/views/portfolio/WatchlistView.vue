@@ -7,7 +7,10 @@
         </h1>
         <p class="text-sm text-surface-500 mt-1">追蹤候選股與觀察標的；加入後自動納入每日爬蟲抓取範圍，可選填目標買進價、追蹤原因與標籤</p>
       </div>
-      <Button label="加入追蹤" icon="pi pi-plus" @click="openAddModal" />
+      <div class="flex items-center gap-2">
+        <Button label="批次匯入" icon="pi pi-upload" outlined @click="batchImportVisible = true" />
+        <Button label="加入追蹤" icon="pi pi-plus" @click="openAddModal" />
+      </div>
     </div>
 
     <div class="p-4 rounded-xl bg-primary-50 dark:bg-primary-500/10 border border-primary-200 dark:border-primary-500/30 text-primary-800 dark:text-primary-300 text-sm flex items-start gap-2.5">
@@ -162,6 +165,8 @@
       </template>
     </Dialog>
 
+    <WatchlistBatchImportDialog v-model:visible="batchImportVisible" @imported="load" />
+
     <RefetchStockDialog
       v-model:visible="refetchVisible"
       :stock-id="refetchTarget?.symbol || ''"
@@ -187,6 +192,7 @@ import { useWatchlistTags, tagColorClass } from '@/composables/useWatchlistTags'
 import { useTrackingList } from '@/composables/useTrackingList';
 import { useCrawlerStatus } from '@/composables/useCrawlerStatus';
 import RefetchStockDialog from '@/components/RefetchStockDialog.vue';
+import WatchlistBatchImportDialog from '@/components/WatchlistBatchImportDialog.vue';
 
 const router = useRouter();
 const toast = useToast();
@@ -249,6 +255,7 @@ function toggleTagFilter(tagId) {
 }
 
 const showModal = ref(false);
+const batchImportVisible = ref(false);
 const editingId = ref(null);
 const saving = ref(false);
 const tagSuggestions = ref([]);
@@ -340,9 +347,6 @@ async function save() {
       });
       toast.add({ severity: 'success', summary: res.message, life: 2500 });
     }
-    if (res.mirror_warning) {
-      toast.add({ severity: 'warn', summary: '爬蟲設定檔同步失敗', detail: res.mirror_warning, life: 6000 });
-    }
     if (res.fetch_triggered?.length) {
       toast.add({ severity: 'info', summary: '背景抓取中', detail: `${res.fetch_triggered.join(', ')} 尚無歷史資料，已自動啟動背景抓取`, life: 4000 });
     }
@@ -362,11 +366,8 @@ async function confirmRemove(w) {
     message: `${holdingHint}確定要將 ${w.symbol} ${w.name} 從清單移除嗎？將同時停止每日抓取；此動作不影響任何交易紀錄或已抓取的歷史資料。`,
     header: '移除清單項目', icon: 'pi pi-exclamation-triangle', acceptLabel: '確定移除', rejectLabel: '取消', acceptClass: 'p-button-danger',
     accept: async () => {
-      const res = await portfolioApi.removeWatchlist(w.id);
+      await portfolioApi.removeWatchlist(w.id);
       toast.add({ severity: 'success', summary: '已從清單移除', life: 2500 });
-      if (res.mirror_warning) {
-        toast.add({ severity: 'warn', summary: '爬蟲設定檔同步失敗', detail: res.mirror_warning, life: 6000 });
-      }
       await Promise.all([load(), refreshTrackingList(w.market)]);
     }
   });

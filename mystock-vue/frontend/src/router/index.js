@@ -55,6 +55,12 @@ const router = createRouter({
                     name: 'sector-rotation',
                     component: () => import('@/views/SectorRotationView.vue')
                 },
+                // 產業鏈知識圖譜與輪動模型（docs/16.AI技術分析/Phase3-產業鏈知識圖譜與輪動模型.md §8）
+                {
+                    path: '/industry-chains',
+                    name: 'industry-chains',
+                    component: () => import('@/views/industry-chain/IndustryChainView.vue')
+                },
                 {
                     path: '/stocks',
                     name: 'stock-management',

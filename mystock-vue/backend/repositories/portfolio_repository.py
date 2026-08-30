@@ -2,16 +2,20 @@
 
 建構子採注入 AsyncSession（比照 repositories/notify_repository.py，配合 api/v1/endpoints 用
 `db=Depends(get_db)` 取得請求範圍的 session），查詢則用型別化 ORM `select()`（比照
-repositories/stock_repository.py／db/models.py 的風格）——這個新領域沒有同步爬蟲需要橋接
-async session 的需求，所以不採 StockRepository 的「每個方法自開 session_factory」寫法。
+repositories/stock_repository.py／db/models.py 的風格）——這個領域原本沒有同步爬蟲需要橋接
+async session 的需求，所以不採 StockRepository 的「每個方法自開 session_factory」寫法；直到
+2026-08-30 起追蹤清單（`list_crawl_enabled_symbols`）改為爬蟲／回補／掃描／腳本等同步呼叫端的
+唯一資料來源（撤回 `.env` 鏡像，即 ADR-02 的逆轉，見
+docs/15.追蹤個股清單優化/追蹤與觀察名單整合_規劃書.md），才另外補上下方的背景連線池橋接。
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import date
 from typing import Any, Optional
 
 from sqlalchemy import delete, func, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from db.portfolio_models import (
     PortfolioCashflow,
@@ -22,6 +26,7 @@ from db.portfolio_models import (
     WatchlistItemTag,
     WatchlistTag,
 )
+from db.session import _database_url
 
 
 def _tx_to_dict(row: PortfolioTransaction) -> dict:
@@ -71,6 +76,66 @@ def _settings_to_dict(row: PortfolioSettings) -> dict:
         "us_sec_fee_rate": row.us_sec_fee_rate, "fx_rate": row.fx_rate, "cost_method": row.cost_method,
         "dividend_mode": row.dividend_mode, "near_target_pct": row.near_target_pct, "updated_at": row.updated_at,
     }
+
+
+# ── 背景執行緒專用連線池（跟 db/session.py 的主 loop 全域單例脫鉤）───────────
+# 追蹤清單的同步呼叫端（services/fetcher.py／us_fetcher.py／mops_fetcher.py／mops_eps_fetcher.py／
+# scripts/*.py，經 config.get_target_stocks() 進來）可能跑在 APScheduler 的 ThreadPoolExecutor
+# 或獨立腳本行程裡；若沿用 db/session.py 的全域 get_session_factory()，run_async() 開的新 event
+# loop 會拿到綁定在別的 loop 上的 asyncpg 連線，直接炸 "attached to a different loop"，而且
+# dispose 下去還會把主 loop（或另一次背景呼叫）當下正在用的連線一併弄壞（見
+# repositories/stock_repository.py run_async() 的說明）。這裡另外維護一份只給背景同步呼叫用的
+# 獨立 engine，跟主 loop、跟其他 repository 模組各自的背景 engine 都不共用。
+_bg_engine: Optional[AsyncEngine] = None
+_bg_session_factory: Optional[async_sessionmaker] = None
+
+
+def _get_bg_session_factory() -> async_sessionmaker:
+    global _bg_engine, _bg_session_factory
+    if _bg_session_factory is None:
+        _bg_engine = create_async_engine(_database_url(), pool_pre_ping=True)
+        _bg_session_factory = async_sessionmaker(_bg_engine, expire_on_commit=False)
+    return _bg_session_factory
+
+
+async def _dispose_bg_engine() -> None:
+    global _bg_engine, _bg_session_factory
+    if _bg_engine is not None:
+        await _bg_engine.dispose()
+    _bg_engine = None
+    _bg_session_factory = None
+
+
+def run_async(coro):
+    """讓同步呼叫端（見上方模組註解）可以呼叫 async 版的 Repository 方法。
+
+    每次呼叫都是獨立的 asyncio.run()（新的 event loop），結束後主動釋放上面的背景專用連線池，
+    避免下一次呼叫沿用綁定在舊 loop 的 asyncpg 連線而炸掉，也不會誤傷主 loop（或其他背景呼叫）
+    正在用的連線（見 repositories/stock_repository.py 的同名函式）。"""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError("run_async() 不可在既有的事件迴圈中呼叫，請直接 await 對應的 async 方法")
+
+    async def _runner():
+        try:
+            return await coro
+        finally:
+            await _dispose_bg_engine()
+
+    return asyncio.run(_runner())
+
+
+def list_crawl_enabled_symbols_sync(market: str) -> list[str]:
+    """`list_crawl_enabled_symbols()` 的同步橋接版，供 config.get_target_stocks() 等
+    「目前沒有執行中事件迴圈」的同步呼叫端使用（見上方 run_async() 說明）。"""
+    async def _query() -> list[str]:
+        async with _get_bg_session_factory()() as session:
+            return await PortfolioRepository(session).list_crawl_enabled_symbols(market)
+
+    return run_async(_query())
 
 
 class PortfolioRepository:
@@ -287,7 +352,8 @@ class PortfolioRepository:
         return True
 
     async def list_crawl_enabled_symbols(self, market: str) -> list[str]:
-        """供 .env 鏡像使用：is_crawl_enabled=TRUE 的代號清單（見 services/tracking_service.py）。"""
+        """is_crawl_enabled=TRUE 的代號清單，即爬蟲抓取範圍（config.get_target_stocks() 的
+        唯一資料來源，見 services/tracking_service.py）。"""
         stmt = (
             select(PortfolioWatchlist.symbol)
             .where(PortfolioWatchlist.market == market, PortfolioWatchlist.is_crawl_enabled.is_(True))

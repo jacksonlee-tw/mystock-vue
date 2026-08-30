@@ -27,6 +27,7 @@ const model = computed(() => [
             { label: '動態熱力圖', icon: 'pi pi-fw pi-th-large', to: '/' },
             { label: '大盤指數分析', icon: 'pi pi-fw pi-globe', to: currentMarket.value === 'us' ? '/index/us/GSPC' : '/index/tw/TWII' },
             { label: '類股輪動監控', icon: 'pi pi-fw pi-sync', to: '/indices/sectors' },
+            { label: '產業鏈知識圖譜', icon: 'pi pi-fw pi-share-alt', to: '/industry-chains' },
             { label: '個股圖表分析', icon: 'pi pi-fw pi-chart-line', to: '/stock/2330' },
             { label: '多股綜合比較', icon: 'pi pi-fw pi-sliders-h', to: '/compare' }
         ]

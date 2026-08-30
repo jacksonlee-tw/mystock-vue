@@ -163,6 +163,68 @@ def _scheduled_us() -> None:
     _run_if_idle("us", run_us_fetch_process)
 
 
+# ── 產業鏈知識圖譜（industry_chain/，見 docs/16.AI技術分析/
+#    Phase3-產業鏈知識圖譜與輪動模型.md §4.6）背景工作（原生 async，比照 _notify_* 系列直接
+#    排進主 event loop；本模組的 extractor.py／lead_lag_job.py 皆為 async 實作，不走
+#    ThreadPoolExecutor）──────────────────────────────────────────
+async def _scheduled_industry_chain_extract() -> None:
+    """FR-18：每月 1 號 09:00，對每條鏈依序（不併發，避免撞 Provider 限流）觸發 LLM 萃取。
+    單鏈失敗只記警告，不影響其餘鏈（AC-IC-2）；旗標關閉時立即返回，不建連線不發請求
+    （AC-IC-15）。"""
+    try:
+        from industry_chain import config as ic_config
+        if not ic_config.is_enabled():
+            return
+        from industry_chain.extractor import extract_chain
+        for chain in ic_config.load_chains():
+            try:
+                result = await extract_chain(chain.chain_id)
+                logger.info(f"[排程] 產業鏈萃取 {chain.chain_id}: {result}")
+            except Exception as e:
+                logger.warning(f"[排程] 產業鏈萃取 {chain.chain_id} 失敗: {e}")
+    except Exception as e:
+        logger.warning(f"[排程] 產業鏈萃取工作異常: {e}")
+
+
+async def _scheduled_industry_chain_ccf() -> None:
+    """FR-19：每月 1 號 10:00，排在萃取之後執行，全量重算所有 active 邊的 CCF；成功後緊接著
+    執行 FR-10 的格蘭傑因果檢定批次（ADR-IC-05 延後已解除，見規格書修訂紀錄與新增 ADR-IC-22）
+    ——Granger 只處理 CCF 已確認樣本數足夠的邊，因此必須排在 CCF 重算之後，不另外新增排程
+    時段（同一個工作、同一個月執行一次即可）。"""
+    try:
+        from industry_chain import config as ic_config
+        if not ic_config.is_enabled():
+            return
+        from industry_chain.lead_lag_job import compute_granger_for_all_edges, recompute_all_lead_lag
+        result = await recompute_all_lead_lag()
+        logger.info(f"[排程] 產業鏈 CCF 全量重算: {result}")
+
+        try:
+            granger_result = await compute_granger_for_all_edges()
+            logger.info(f"[排程] 產業鏈 Granger 因果檢定: {granger_result}")
+        except Exception as e:
+            # CCF 已成功寫入快取，Granger 是在其上疊加的額外統計量；Granger 失敗不得回頭
+            # 影響已經成功的 CCF 結果，比照既有「單一批次工作內部子步驟失敗不拖垮已完成部分」慣例
+            logger.warning(f"[排程] 產業鏈 Granger 因果檢定失敗: {e}")
+    except Exception as e:
+        logger.warning(f"[排程] 產業鏈 CCF 重算失敗: {e}")
+
+
+async def _scheduled_industry_chain_decouple() -> None:
+    """FR-20：每月 1 號 11:00，排在 CCF 重算之後執行（直接讀 FR-19 剛算好的價格資料，
+    不重複計算相關係數本身，但脫鉤判定用的是固定 60 日窗口的單一相關係數，跟 CCF 快取的
+    1~30 天延遲掃描是兩個獨立的計算，見 decouple_job.py 檔頭說明）。"""
+    try:
+        from industry_chain import config as ic_config
+        if not ic_config.is_enabled():
+            return
+        from industry_chain.decouple_job import check_all_decoupling
+        result = await check_all_decoupling()
+        logger.info(f"[排程] 產業鏈脫鉤監控: {result}")
+    except Exception as e:
+        logger.warning(f"[排程] 產業鏈脫鉤監控失敗: {e}")
+
+
 # ── 整合訊息通知平台的背景工作（原生 async，AsyncIOScheduler 直接排入主 event loop）──
 async def _notify_digest_tick() -> None:
     try:
@@ -308,6 +370,25 @@ def create_scheduler() -> AsyncIOScheduler:
         _scheduled_monthly_revenue,
         CronTrigger(day=11, hour=9, minute=0, timezone=TAIPEI_TZ),
         id="monthly_revenue_tw",
+    )
+
+    # 產業鏈知識圖譜：每月 1 號依序執行 LLM 萃取（FR-18）與 CCF 全量重算（FR-19，排在萃取之後）。
+    # INDUSTRY_CHAIN_ENABLED=false 時兩個工作各自立即返回，不消耗資源（比照 NOTIFY_ENABLED=false
+    # 的既有行為，§4.6 設計約束）。
+    scheduler.add_job(
+        _scheduled_industry_chain_extract,
+        CronTrigger(day=1, hour=9, minute=0, timezone=TAIPEI_TZ),
+        id="industry_chain_extract",
+    )
+    scheduler.add_job(
+        _scheduled_industry_chain_ccf,
+        CronTrigger(day=1, hour=10, minute=0, timezone=TAIPEI_TZ),
+        id="industry_chain_ccf",
+    )
+    scheduler.add_job(
+        _scheduled_industry_chain_decouple,
+        CronTrigger(day=1, hour=11, minute=0, timezone=TAIPEI_TZ),
+        id="industry_chain_decouple",
     )
 
     _scheduler = scheduler

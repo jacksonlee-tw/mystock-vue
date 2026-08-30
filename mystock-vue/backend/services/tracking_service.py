@@ -1,31 +1,33 @@
-"""追蹤與觀察名單的唯一寫入點（見 docs/14.追蹤個股清單優化/追蹤與觀察名單整合_規劃書.md §3.1 D3、§5.1）。
+"""追蹤與觀察名單的唯一寫入點（見 docs/15.追蹤個股清單優化/追蹤與觀察名單整合_規劃書.md §3.1 D3、§5.1）。
 
 背景：系統原本有兩份獨立清單──「追蹤股票號碼」寫在 `.env` 的 `STOCK_CODES`/`US_STOCK_CODES`
 （決定爬蟲每日抓什麼），「觀察名單」寫在 Postgres 的 `portfolio_watchlist`（記錄候選股與目標買進
-價）。本模組把兩者合流成單一清單：**Postgres 為 metadata 主儲存，`.env` 降為由本模組維護的鏡像**
-（ADR-02）──理由是 `config.get_target_stocks()` 目前有 8 處同步呼叫（爬蟲／回補／掃描／腳本），
-若改成直讀 DB 會逼這些同步程式全部背上 `asyncio.run()` 橋接負擔。
+價）。本模組把兩者合流成單一清單，Postgres 為**唯一**儲存──`is_crawl_enabled = TRUE` 的項目即
+爬蟲抓取範圍。
+
+**2026-08-30 起撤回 ADR-02**：原本 `.env` 是由本模組維護的鏡像，理由是
+`config.get_target_stocks()` 有 8 處同步呼叫（爬蟲／回補／掃描／腳本），改成直讀 DB 會逼這些同步
+程式背上 `asyncio.run()` 橋接負擔、且 JSON-only 部署會失去增刪追蹤清單的能力。使用者決議接受這個
+取捨、正式停用 `.env` 鏡像：`config.get_target_stocks()` 改為直接查 Postgres（見該函式與
+`repositories/portfolio_repository.py` 的背景連線池橋接說明），追蹤清單管理自此**一律要求 Postgres
+可連線**，不再有 JSON-only 降級路徑；`scripts/migrate_tracking_list.py`／`scripts/sync_tracking_env.py`
+（`.env` ↔ DB 遷移／對帳工具）與本檔原本的 `sync_env_mirror()`／`diff_env_vs_db()` 一併移除。
 
 注意：這裡刻意**不**對 `config.get_data_source()` 做分支判斷——CLAUDE.md 規定該旗標只能在
 `services/stock_service.load_stock_data()` 一處分支（它控制的是「K 線價格資料」讀取來源，跟本模組
 管理的清單 metadata 是兩件事；`portfolio_*` 系列表本來就不受它影響，一律走 Postgres，同個人投資
-記帳模組其餘功能）。`/api/v1/stocks/tracked` 相容層的批次新增／移除是唯二會在「Postgres 連線失敗」
-時退回直接操作 `.env` 的地方，比照 `markets/tw.py` `validate_symbols()` 的既有先例（try DB、失敗記
-警告、不阻斷流程），藉此維持既有「JSON-only 部署也能增刪追蹤清單」的能力（規劃書 §2.3 相容點 #5）。
+記帳模組其餘功能）。
 
 所有清單異動（新增／編輯／移除／暫停抓取／tag）都必須經過這裡；`api/v1/endpoints/watchlist.py`
 與 `api/v1/endpoints/stocks.py` 的 `/tracked` 相容層一律呼叫本模組，不得直接操作
-`PortfolioRepository` 或 `config.save_target_stocks()`。
-
-鏡像寫入的時機是「DB commit 成功之後」，且是 best-effort（比照 `db/dual_write.py` 的第二寫入慣例）：
-寫入 `.env` 失敗只記警告、回傳 `mirror_warning` 供前端提示，不讓整次清單操作失敗。
+`PortfolioRepository`。DB 寫入失敗一律直接拋出例外（不再有 `.env` 退路），由呼叫端（API 層）轉成
+錯誤回應。
 """
 from __future__ import annotations
 
 import logging
 from typing import Optional
 
-from config import get_target_stocks, save_target_stocks
 from db.session import get_async_session
 from repositories.portfolio_repository import PortfolioRepository
 
@@ -67,45 +69,10 @@ async def has_open_position(market: str, symbol: str) -> tuple[bool, float]:
 
 # ── DB 清單讀取 ────────────────────────────────────────────────────────
 async def get_crawl_enabled_symbols(market: str) -> list[str]:
-    """取得 DB 中目前啟用抓取的代號，供 API 與畫面清單使用。"""
+    """取得 DB 中目前啟用抓取的代號，供 API、畫面清單，以及所有已在事件迴圈內的 async 呼叫端使用
+    （同步呼叫端改用 `config.get_target_stocks()`，見該函式說明）。"""
     async with get_async_session() as session:
         return await PortfolioRepository(session).list_crawl_enabled_symbols(market)
-
-
-# ── .env 鏡像 ────────────────────────────────────────────────────────────
-async def sync_env_mirror(market: str) -> None:
-    """依 DB 目前 is_crawl_enabled=TRUE 的清單重寫 .env 鏡像。"""
-    symbols = await get_crawl_enabled_symbols(market)
-    save_target_stocks(symbols, market=market)
-
-
-async def _try_sync_mirror(market: str) -> Optional[str]:
-    """包一層例外處理：鏡像寫入失敗不讓呼叫端的清單操作失敗，只回傳警告文字。"""
-    try:
-        await sync_env_mirror(market)
-        return None
-    except Exception as exc:
-        logger.warning("[追蹤清單] 重寫 .env 鏡像失敗（market=%s）：%s", market, exc)
-        return "已寫入資料庫，但同步爬蟲設定檔（.env）失敗，請確認 backend/.env 是否可寫入"
-
-
-async def diff_env_vs_db(market: str) -> dict:
-    """比較 .env 與 DB 的追蹤代碼是否一致，供啟動對帳與 scripts/sync_tracking_env.py 共用。
-    只回傳差異，不做任何修改（§4.3：不自動修改，避免啟動時偷改使用者設定）。DB 查詢失敗
-    （例如 Postgres 未部署）時略過本次對帳，回傳 checked=False，不當成「有差異」誤報。"""
-    env_symbols = set(get_target_stocks(market=market))
-    try:
-        async with get_async_session() as session:
-            db_symbols = set(await PortfolioRepository(session).list_crawl_enabled_symbols(market))
-    except Exception as exc:
-        logger.warning("[追蹤清單] 對帳查詢資料庫失敗（market=%s），略過本次對帳：%s", market, exc)
-        return {"market": market, "only_in_env": [], "only_in_db": [], "in_sync": True, "checked": False}
-    only_in_env = sorted(env_symbols - db_symbols)
-    only_in_db = sorted(db_symbols - env_symbols)
-    return {
-        "market": market, "only_in_env": only_in_env, "only_in_db": only_in_db,
-        "in_sync": not only_in_env and not only_in_db, "checked": True,
-    }
 
 
 # ── 清單查詢／增修（/api/v1/watchlist 主要業務邏輯） ─────────────────────
@@ -145,8 +112,8 @@ async def get_item(item_id: int) -> Optional[dict]:
         return await PortfolioRepository(session).get_watchlist_by_id(item_id)
 
 
-async def upsert_item(payload: dict) -> tuple[dict, bool, Optional[str]]:
-    """新增或部分更新一筆清單項目；回傳 (item, created, mirror_warning)。
+async def upsert_item(payload: dict) -> tuple[dict, bool]:
+    """新增或部分更新一筆清單項目；回傳 (item, created)。
 
     `payload` 只放實際要寫入／更新的欄位，未帶到的欄位（例如一鍵加入追蹤時不帶 target_price）
     完全不動既有值（ADR-05：避免覆寫使用者已設好的目標價／原因）。`tags`（可選，`list[str]`）
@@ -163,11 +130,38 @@ async def upsert_item(payload: dict) -> tuple[dict, bool, Optional[str]]:
             item = await repo.get_watchlist_by_id(item["id"])
         await session.commit()
 
-    mirror_warning = await _try_sync_mirror(item["market"])
-    return item, created, mirror_warning
+    return item, created
 
 
-async def update_item(item_id: int, patch: dict) -> Optional[tuple[dict, Optional[str]]]:
+async def bulk_upsert_items(market: str, items: list[dict], source: str = "manual") -> list[dict]:
+    """批次新增／更新清單項目（貼表格批次匯入用，見 `api/v1/endpoints/watchlist.py` 的
+    `POST /watchlist/batch`）。逐筆呼叫 `upsert_item`——沿用同一寫入路徑與 ADR-05 部分更新語意
+    （未帶到的欄位不覆寫既有值）、tag 整批覆寫行為——不直接操作 `PortfolioRepository`。單筆失敗
+    （例如 symbol 為空、DB 例外）只記警告並記錄在回傳結果裡，不擋其他筆繼續匯入。
+
+    回傳每筆的結果字典 `{"symbol", "ok", "created"?, "item"?, "error"?}`，供呼叫端（API 層）組
+    created/updated/failed 統計與批次補抓（`ensure_data`）用的成功代號清單。"""
+    results = []
+    for raw in items:
+        data = dict(raw)
+        symbol = (data.get("symbol") or "").strip().upper()
+        if not symbol:
+            results.append({"symbol": raw.get("symbol") or "", "ok": False, "error": "股票代碼不可為空"})
+            continue
+        data["market"] = market
+        data["symbol"] = symbol
+        data["name"] = (data.get("name") or symbol).strip() or symbol
+        data.setdefault("source", source)
+        try:
+            item, created = await upsert_item(data)
+            results.append({"symbol": symbol, "ok": True, "created": created, "item": item})
+        except Exception as exc:
+            logger.warning("[追蹤清單] 批次匯入失敗 market=%s symbol=%s：%s", market, symbol, exc)
+            results.append({"symbol": symbol, "ok": False, "error": str(exc)})
+    return results
+
+
+async def update_item(item_id: int, patch: dict) -> Optional[dict]:
     """部分更新（同 upsert_item 的 ADR-05 語意）。找不到回傳 None。"""
     data = dict(patch)
     tag_names = data.pop("tags", None)
@@ -183,18 +177,17 @@ async def update_item(item_id: int, patch: dict) -> Optional[tuple[dict, Optiona
             item = await repo.get_watchlist_by_id(item_id)
         await session.commit()
 
-    mirror_warning = await _try_sync_mirror(item["market"])
-    return item, mirror_warning
+    return item
 
 
-async def set_crawl_enabled(item_id: int, enabled: bool) -> Optional[tuple[dict, Optional[str]]]:
+async def set_crawl_enabled(item_id: int, enabled: bool) -> Optional[dict]:
     """暫停／恢復抓取（狀態模型見規劃書 §3.2）：is_crawl_enabled=false 不會刪除任何 metadata，
-    只是把該代號從 .env 鏡像中剔除。"""
+    只是把該代號從爬蟲抓取範圍（`config.get_target_stocks()` 的查詢結果）中剔除。"""
     return await update_item(item_id, {"is_crawl_enabled": enabled})
 
 
-async def delete_item(item_id: int) -> Optional[tuple[str, Optional[str]]]:
-    """移除清單項目；回傳 (market, mirror_warning)，找不到回傳 None。
+async def delete_item(item_id: int) -> Optional[str]:
+    """移除清單項目；回傳 market，找不到回傳 None。
     不動任何已抓到的歷史價格資料（daily_stock_data / data/{tw,us}/<symbol>.json 不刪）。"""
     async with get_async_session() as session:
         repo = PortfolioRepository(session)
@@ -204,8 +197,7 @@ async def delete_item(item_id: int) -> Optional[tuple[str, Optional[str]]]:
         await repo.delete_watchlist(item_id)
         await session.commit()
 
-    mirror_warning = await _try_sync_mirror(row["market"])
-    return row["market"], mirror_warning
+    return row["market"]
 
 
 # ── 自訂標籤 CRUD ───────────────────────────────────────────────────────
@@ -243,55 +235,38 @@ async def delete_tag(tag_id: int) -> bool:
 
 # ── /api/v1/stocks/tracked 相容層（見 api/v1/endpoints/stocks.py） ──────
 async def add_codes(codes: list[str], market: str, source: str = "manual") -> dict:
-    """相容層批次新增：codes 已由呼叫端 trim／去重。優先 upsert 進 DB（維持既有『純追蹤』新增
-    語意，不帶 target_price/note）；Postgres 連線失敗時退回直接寫 .env，維持既有「JSON-only
-    部署也能增刪追蹤清單」的能力。回傳 {"added": [...], "already_tracked": [...]}。"""
-    current = set(get_target_stocks(market=market))
+    """相容層批次新增：codes 已由呼叫端 trim／去重。upsert 進 DB（維持既有『純追蹤』新增語意，
+    不帶 target_price/note）。回傳 {"added": [...], "already_tracked": [...]}。
+    Postgres 連線失敗時直接拋出例外（2026-08-30 起不再有退回 .env 的相容路徑，見本檔開頭說明），
+    由呼叫端（API 層）轉成錯誤回應。"""
+    current = set(await get_crawl_enabled_symbols(market))
     already = [c for c in codes if c in current]
     new_codes = [c for c in codes if c not in current]
 
     if new_codes:
-        try:
-            async with get_async_session() as session:
-                repo = PortfolioRepository(session)
-                for code in new_codes:
-                    await repo.upsert_watchlist({
-                        "market": market, "symbol": code, "name": code,
-                        "is_crawl_enabled": True, "source": source,
-                    })
-                await session.commit()
-            await _try_sync_mirror(market)
-        except Exception as exc:
-            logger.warning("[追蹤清單] 寫入資料庫失敗，退回直接寫入 .env（market=%s）：%s", market, exc)
-            save_target_stocks(list(current) + new_codes, market=market)
+        async with get_async_session() as session:
+            repo = PortfolioRepository(session)
+            for code in new_codes:
+                await repo.upsert_watchlist({
+                    "market": market, "symbol": code, "name": code,
+                    "is_crawl_enabled": True, "source": source,
+                })
+            await session.commit()
 
     return {"added": new_codes, "already_tracked": already}
 
 
 async def remove_code(code: str, market: str) -> bool:
-    """相容層移除：優先在 DB 中尋找並刪除；DB 不可用、或該代碼只存在於 .env（尚未遷移進 DB）
-    時，改直接由 .env 移除。回傳是否有找到並移除。"""
-    removed_from_db = False
-    try:
-        async with get_async_session() as session:
-            repo = PortfolioRepository(session)
-            row = await repo.get_watchlist_by_symbol(market, code)
-            if row:
-                await repo.delete_watchlist(row["id"])
-                await session.commit()
-                removed_from_db = True
-    except Exception as exc:
-        logger.warning("[追蹤清單] 查詢/刪除資料庫失敗，退回直接操作 .env（market=%s）：%s", market, exc)
-
-    if removed_from_db:
-        await _try_sync_mirror(market)
+    """相容層移除：在 DB 中尋找並刪除。回傳是否有找到並移除。Postgres 連線失敗時直接拋出例外
+    （見 add_codes() 說明）。"""
+    async with get_async_session() as session:
+        repo = PortfolioRepository(session)
+        row = await repo.get_watchlist_by_symbol(market, code)
+        if not row:
+            return False
+        await repo.delete_watchlist(row["id"])
+        await session.commit()
         return True
-
-    current = get_target_stocks(market=market)
-    if code not in current:
-        return False
-    save_target_stocks([c for c in current if c != code], market=market)
-    return True
 
 
 # ── 加入後自動補抓（ADR-06：搬到後端，所有入口一致） ─────────────────────

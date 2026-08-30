@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import repositories.alert_repository as alert_repository
 from config import get_alert_cooldown_days, get_target_stocks
 from repositories.market_repository import MarketRepository
+from services import tracking_service
 from services.chip_provider import ChipDataProvider, MarketPreload, PositionContext
 from strategies import cooldown as cooldown_mod
 from strategies.config_loader import StrategyDef, load_strategy_config
@@ -150,7 +151,11 @@ async def scan_market(
     # 選股/籌碼策略需要的估值/營收序列只在有 universe 策略時才組裝，既有純技術面/籌碼面
     # 掃描（scope="watchlist"）維持零額外成本（見 ScanContext.get_bars() 的 with_valuation 說明）。
     needs_valuation = has_universe_strategy
-    watchlist_symbols = symbols or get_target_stocks(market=market)
+    # symbols 未帶入時才查詢：await tracking_service（主 event loop 的 db.session 連線池）僅在
+    # scan_market() 被直接 await（如 /api/v1/alerts/scan）時安全；scan_market_sync() 會先在呼叫
+    # asyncio.run() 前於背景執行緒同步解出 symbols 並帶進來，避免這裡的查詢改在 asyncio.run()
+    # 開的另一個事件迴圈上執行、跨迴圈重用連線炸掉（見 scan_market_sync() 的說明）。
+    watchlist_symbols = symbols or await tracking_service.get_crawl_enabled_symbols(market=market)
 
     # 2. 若有 universe 策略且為台股，準備全市場預載快取
     universe_preload: Optional[MarketPreload] = None
@@ -463,6 +468,16 @@ def scan_market_sync(
     symbols: Optional[List[str]] = None,
     universe_tier: Optional[str] = None,
 ) -> Dict[str, Any]:
+    """給 services/scheduler.py（APScheduler ThreadPoolExecutor，非主 event loop）用的同步橋接。
+
+    symbols 未帶入時，在呼叫 asyncio.run() 開新事件迴圈**之前**，於目前（非事件迴圈）執行緒先用
+    config.get_target_stocks() 同步解出追蹤清單：get_target_stocks() 內部每次呼叫都會建立、使用、
+    釋放一份獨立背景連線池（見 repositories/portfolio_repository.py run_async() 的說明），因此可以
+    安全地在任意執行緒重複呼叫。若改成讓 scan_market() 內部用 await tracking_service（主 loop 的
+    db.session 全域連線池）去解析，會在這裡 asyncio.run() 開的、跟主 loop 不同的事件迴圈上使用，
+    連線跨事件迴圈重用會直接炸掉（見 db/session.py dispose_engine() 的說明）。"""
+    if symbols is None:
+        symbols = get_target_stocks(market=market)
     return asyncio.run(scan_market(market, lookback_days=lookback_days, symbols=symbols, universe_tier=universe_tier))
 
 

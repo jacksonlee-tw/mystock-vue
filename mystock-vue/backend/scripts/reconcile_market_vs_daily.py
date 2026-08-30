@@ -13,9 +13,9 @@ import logging
 import os
 import sys
 
-from config import get_target_stocks
 from repositories.market_repository import MarketRepository
 from repositories.stock_repository import StockRepository
+from services import tracking_service
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("reconcile_market_vs_daily")
@@ -23,7 +23,7 @@ logger = logging.getLogger("reconcile_market_vs_daily")
 
 async def reconcile(trade_date_str: str, market: str = "tw") -> dict:
     t_date = datetime.strptime(trade_date_str, "%Y-%m-%d").date()
-    target_stocks = get_target_stocks(market)
+    target_stocks = await tracking_service.get_crawl_enabled_symbols(market)
     logger.info(f"=== 開始對帳：交易日 {trade_date_str}，標的數：{len(target_stocks)} ===")
 
     market_repo = MarketRepository()

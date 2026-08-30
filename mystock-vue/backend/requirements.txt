@@ -24,3 +24,10 @@ bcrypt>=4.1            # 擁有者密碼雜湊
 # ── AI 技術分析報告（backend/ai/，見 docs/16.AI技術分析/AI技術分析規劃.md）──
 anthropic>=0.40         # Claude API，AsyncAnthropic + messages.parse 結構化輸出（ADR-AI-04/06）
 google-genai>=1.0       # Gemini API 現行統一 SDK（非舊版 google-generativeai，見規格書 D-02）
+
+# ── 產業鏈知識圖譜與輪動模型（backend/indicators/lead_lag.py，見
+#    docs/16.AI技術分析/Phase3-產業鏈知識圖譜與輪動模型.md §2.4）──
+scipy>=1.11.0           # CCF 相關係數（scipy.stats.pearsonr）
+statsmodels>=0.14.0     # FR-10 格蘭傑因果檢定（grangercausalitytests／multipletests）。ADR-IC-05
+                        # 原先以「一次引入兩個統計套件卻只用得到其中一個」為由延後導入，該延後
+                        # 已由使用者明確解除（見規格書 v2.7 修訂紀錄、新增 ADR-IC-22）

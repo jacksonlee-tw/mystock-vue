@@ -52,7 +52,7 @@ async def list_stocks(market: Optional[str] = Query(None, description="市場代
 
 @router.get("/tracked", summary="取得目前追蹤的股票清單")
 async def get_tracked_stocks(market: str = Query("tw", description="市場代碼")):
-    codes = get_target_stocks(market=market)
+    codes = await tracking_service.get_crawl_enabled_symbols(market)
     return {"success": True, "data": await _build_tracked_details(codes, market)}
 
 @router.get("/heatmap", summary="取得全市場熱力圖資料")
@@ -157,13 +157,13 @@ async def add_tracked_stock(req: TrackedStockAddRequest, background_tasks: Backg
         raise HTTPException(status_code=400, detail="股票代號不可為空")
 
     # 寫入一律委派 services/tracking_service.py（唯一寫入點，見追蹤與觀察名單整合規劃書 §3.1 D3）：
-    # 它會把新代號 upsert 進 portfolio_watchlist（純追蹤，source="symbol_browser"），再把
-    # is_crawl_enabled 的代號鏡像寫回 .env；Postgres 連線失敗時自動退回直接寫 .env，維持既有
-    # 「JSON-only 部署也能增刪追蹤清單」的能力。
+    # 它會把新代號 upsert 進 portfolio_watchlist（純追蹤，source="symbol_browser"）。追蹤清單
+    # 一律要求 Postgres 可連線（2026-08-30 起撤回 ADR-02 的 .env 鏡像／降級路徑），Postgres
+    # 連線失敗時直接拋出例外，交由全域例外處理轉成錯誤回應。
     result = await tracking_service.add_codes(codes, market, source="symbol_browser")
     new_codes = result["added"]
     already = result["already_tracked"]
-    current = get_target_stocks(market=market)
+    current = await tracking_service.get_crawl_enabled_symbols(market)
 
     # 加入後自動補抓（ADR-06）：沒有歷史資料的才會觸發，跟 /api/v1/watchlist 共用同一套判斷
     fetch_triggered = await tracking_service.ensure_data(new_codes, market, background_tasks)
@@ -203,7 +203,7 @@ async def remove_tracked_stock(stock_id: str, market: str = Query("tw")):
     if not removed:
         raise SymbolNotFoundException("追蹤清單中找不到此股票代號")
 
-    updated = get_target_stocks(market=market)
+    updated = await tracking_service.get_crawl_enabled_symbols(market)
 
     # Return the new list with dates so frontend can update correctly
     return {

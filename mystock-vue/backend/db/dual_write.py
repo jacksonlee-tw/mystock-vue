@@ -63,6 +63,34 @@ def dual_write_no_trading_days(market_type: str, dates) -> None:
         logger.warning(f"market_no_trading_days 寫入失敗 ({market_type}): {e}")
 
 
+async def dual_write_industry_chain_edges(edges: list[dict]) -> None:
+    """`industry_chain_edges` best-effort 雙寫（docs/16.AI技術分析/
+    Phase3-產業鏈知識圖譜與輪動模型.md ADR-IC-09）。
+
+    每個 `edges` 元素是 `IndustryChainRepository.upsert_edge()` 的關鍵字參數字典。
+    比照 dual_write_symbol_industry() 的 best-effort 精神：Postgres 暫時不可用時只記警告，
+    絕不讓呼叫端（未來的 industry_chain/extractor.py）的 JSON 快照落地流程被拖垮。
+
+    與本檔其餘 dual_write_* 函式的一個刻意差異：那些都是 sync 函式，服務同步阻塞的爬蟲
+    （fetcher.py／us_fetcher.py）；本函式呼叫端（extractor.py，尚未實作）本身就是 async
+    （需要 await LLM Provider 呼叫），因此直接寫成 async、內部自建 get_async_session()，
+    不需要 repositories/market_repository.py 那套「開新事件迴圈橋接同步爬蟲」的 run_async()
+    機制。"""
+    if not edges:
+        return
+    try:
+        from db.session import get_async_session
+        from repositories.industry_chain_repository import IndustryChainRepository
+
+        async with get_async_session() as session:
+            repo = IndustryChainRepository(session)
+            for edge in edges:
+                await repo.upsert_edge(**edge)
+            await session.commit()
+    except Exception as e:
+        logger.warning(f"industry_chain_edges 雙寫失敗: {e}")
+
+
 def log_crawler_run(
     market_type: str,
     trigger_type: str,

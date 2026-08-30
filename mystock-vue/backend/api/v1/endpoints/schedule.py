@@ -1,7 +1,7 @@
 """每日抓取排程設定 API。
 
 排程時間原本寫死在 services/scheduler.py（台股 14:30、美股 06:00），改為可由 UI 設定：
-設定值存在 .env（比照 config.save_target_stocks 的既有慣例），存檔後直接套用到執行中的
+設定值存在 .env（見 config.py 的 save_schedule_config()），存檔後直接套用到執行中的
 APScheduler，不需重啟服務。
 """
 from typing import Optional

@@ -6,15 +6,24 @@ const fetchStatus = ref(null);
 let listenerCount = 0;
 let pollTimer = null;
 
+let isFetching = false;
+
 async function checkStatus() {
+    if (isFetching) return;
+    isFetching = true;
     try {
-        const res = await stockApi.getFetchStatus();
+        const res = await stockApi.getFetchStatus({ timeout: 5000 });
         if (res && res.success && res.data) {
             fetchStatus.value = res.data;
             isRunning.value = !!res.data.is_running || res.data.status === 'running';
         }
     } catch (err) {
-        console.error('Failed to query crawler status:', err);
+        // 防止輪詢時因網路延遲或逾時造成控制台洗版
+        if (import.meta.env.DEV && err?.code !== 'ECONNABORTED') {
+            console.warn('Query crawler status warning:', err?.message || err);
+        }
+    } finally {
+        isFetching = false;
     }
 }
 

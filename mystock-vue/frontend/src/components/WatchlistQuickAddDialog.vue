@@ -89,9 +89,6 @@ async function save() {
       });
     }
     toast.add({ severity: 'success', summary: res.message || '已儲存', life: 2500 });
-    if (res.mirror_warning) {
-      toast.add({ severity: 'warn', summary: '爬蟲設定檔同步失敗', detail: res.mirror_warning, life: 6000 });
-    }
     if (res.fetch_triggered?.length) {
       toast.add({ severity: 'info', summary: '背景抓取中', detail: `${res.fetch_triggered.join(', ')} 尚無歷史資料，已自動啟動背景抓取`, life: 4000 });
     }

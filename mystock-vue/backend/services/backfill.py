@@ -8,8 +8,9 @@ import logging
 from datetime import date, timedelta
 from typing import List, Tuple
 
-from config import get_backfill_max_days, get_data_source, get_enabled_markets, get_target_stocks
+from config import get_backfill_max_days, get_data_source, get_enabled_markets
 from repositories.stock_repository import StockRepository
+from services import tracking_service
 from services.fetcher import run_fetch_process
 from services.us_fetcher import run_us_fetch_process
 
@@ -27,7 +28,7 @@ async def _compute_missing_symbols(repo: StockRepository, market: str, max_days:
 
     missing_symbols = []
     max_gap_days = 0
-    for symbol in get_target_stocks(market=market):
+    for symbol in await tracking_service.get_crawl_enabled_symbols(market):
         rows = await repo.get_daily_data(symbol)
         existing_dates = {row["trade_date"] for row in rows}
         missing = expected_weekdays - existing_dates
