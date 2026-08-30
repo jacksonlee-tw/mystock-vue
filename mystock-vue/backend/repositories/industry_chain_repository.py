@@ -78,6 +78,62 @@ class IndustryChainRepository:
         )
         return result.scalar()
 
+    async def deactivate_edge(self, chain_id: str, upstream_symbol: str, downstream_symbol: str) -> int:
+        """軟刪除單一邊（ADR-IC-15：只增不自動刪，明確操作才會關閉）。回傳受影響列數
+        （0＝該邊本來就不存在或已經是 inactive）。給人工校正錯誤邊資料用——例如把 LLM 萃取
+        猜錯方向/對象的邊關掉，不物理刪除以保留稽核軌跡。"""
+        result = await self._s.execute(
+            text("""
+                UPDATE industry_chain_edges SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+                 WHERE chain_id = :chain_id AND upstream_symbol = :up AND downstream_symbol = :down AND is_active
+            """),
+            {"chain_id": chain_id, "up": upstream_symbol, "down": downstream_symbol}
+        )
+        return result.rowcount or 0
+
+    async def reclassify_edge(
+        self, *, chain_id: str, upstream_symbol: str, downstream_symbol: str,
+        relation_tier: int, component_type: Optional[str], source: str, is_verified: bool,
+    ) -> int:
+        """把一筆既有的邊改判來源／校驗狀態／層級（例如把 LLM 猜對的邊升級為人工核可的
+        manual 邊）。`upsert_edge()` 的 ON CONFLICT 分支刻意不覆寫 `source`／`is_verified`／
+        `relation_tier`／`is_active`（ADR-IC-15、AC-IC-22：LLM 重覆送出不能悄悄把已核可的邊
+        打回未核可，也不能讓一次 upsert 意外復活被軟刪除的邊），所以「同一組
+        (chain_id, upstream_symbol, downstream_symbol) 但要換掉這些欄位」這件事不能靠
+        upsert_edge() 做到，需要這支明確、有意識的方法。同時把 is_active 撥回 TRUE，
+        涵蓋「這筆原本被關掉，人工確認後要復活」的情境。回傳受影響列數。"""
+        result = await self._s.execute(
+            text("""
+                UPDATE industry_chain_edges
+                   SET relation_tier   = :relation_tier,
+                       component_type  = :component_type,
+                       source          = :source,
+                       is_verified     = :is_verified,
+                       is_active       = TRUE,
+                       last_confirmed_date = CURRENT_DATE,
+                       updated_at      = CURRENT_TIMESTAMP
+                 WHERE chain_id = :chain_id AND upstream_symbol = :up AND downstream_symbol = :down
+            """),
+            {
+                "chain_id": chain_id, "up": upstream_symbol, "down": downstream_symbol,
+                "relation_tier": relation_tier, "component_type": component_type,
+                "source": source, "is_verified": is_verified,
+            }
+        )
+        return result.rowcount or 0
+
+    async def deactivate_by_source(self, chain_id: str, source: str) -> int:
+        """整批軟刪除某個來源在該鏈的所有邊（例如一次關掉某條鏈全部 llm_gemini 的低信心猜測，
+        改用人工校正後的版本取代）。回傳受影響列數。"""
+        result = await self._s.execute(
+            text("""
+                UPDATE industry_chain_edges SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+                 WHERE chain_id = :chain_id AND source = :source AND is_active
+            """),
+            {"chain_id": chain_id, "source": source}
+        )
+        return result.rowcount or 0
+
     async def get_edge(self, chain_id: str, upstream_symbol: str, downstream_symbol: str) -> Optional[dict]:
         result = await self._s.execute(
             text("""

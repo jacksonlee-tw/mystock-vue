@@ -73,6 +73,15 @@ def get_research_model() -> str:
     return _env("IC_LLM_RESEARCH_MODEL", "")
 
 
+def get_extract_model() -> str:
+    """Stage B（`extract_chain()`）LLM 知識萃取在呼叫端未指定 `model` 時的預設模型，僅適用
+    provider=gemini。獨立於 `ai/config.py` 的 `GEMINI_MODEL`——後者是「AI 技術分析報告」
+    （ai_analysis）共用的全站預設，兩個功能各自的模型選型與升級步調不同步，不應共用同一個
+    全域鍵值（例如本模組想先行升級到新機型，不該連帶把 ai_analysis 的預設也換掉）。
+    留空則退回 `ai_config.get_gemini_model()`，行為與加這個設定前一致。"""
+    return _env("IC_LLM_EXTRACT_MODEL", "")
+
+
 def get_research_lookback_months() -> int:
     return _env_int("IC_LLM_RESEARCH_LOOKBACK_MONTHS", 12)
 

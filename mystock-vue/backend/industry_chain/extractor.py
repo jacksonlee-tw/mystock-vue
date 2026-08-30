@@ -150,7 +150,10 @@ async def extract_chain(chain_id: str, *, provider_code: str | None = None, mode
     provider_code = (provider_code or "gemini").lower()
     if provider_code not in ai_config.VALID_PROVIDERS:
         raise IndustryChainModelInvalidException(f"不支援的 provider：{provider_code}")
-    model = model or (ai_config.get_gemini_model() if provider_code == "gemini" else ai_config.get_claude_model())
+    model = model or (
+        (ic_config.get_extract_model() or ai_config.get_gemini_model())
+        if provider_code == "gemini" else ai_config.get_claude_model()
+    )
 
     # G4：模型白名單（ADR-AI-22，先於 G3 檢查——打錯模型不該先扣掉一次月配額才發現）
     if not ai_config.is_valid_model(provider_code, model):
