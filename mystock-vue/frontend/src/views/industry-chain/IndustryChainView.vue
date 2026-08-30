@@ -32,6 +32,42 @@
 
     <IndustryChainConfigDialog v-model:visible="configVisible" @saved="fetchAll" />
 
+    <!-- 勾選節點 → 批次加入追蹤與觀察名單 -->
+    <Dialog v-model:visible="addDialogVisible" header="加入追蹤與觀察名單" modal style="width: 32rem" :breakpoints="{ '640px': '92vw' }">
+      <div class="space-y-4">
+        <div class="p-3 rounded-lg bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-xs text-surface-500">
+          共 <b class="text-surface-700 dark:text-surface-300">{{ selectedNodes.length }}</b> 檔，加入後會納入每日爬蟲抓取範圍。
+          已在名單中的標的不會出現在這裡（不覆寫既有的標籤與追蹤原因）。
+        </div>
+
+        <div class="max-h-40 overflow-y-auto rounded-lg border border-surface-200 dark:border-surface-700 divide-y divide-surface-100 dark:divide-surface-800">
+          <div v-for="n in selectedNodes" :key="n.symbol" class="px-3 py-2 text-xs flex items-center justify-between gap-2">
+            <span><b class="num text-surface-700 dark:text-surface-200">{{ n.symbol }}</b> {{ n.name }}</span>
+            <span class="text-surface-400">{{ TIER_LABEL[n.role] || n.role }}<template v-if="n.market !== 'tw'"> · {{ n.market.toUpperCase() }}</template></span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-surface-500 mb-1">標籤（預設帶入所屬產業鏈，可自行增修）</label>
+          <AutoComplete v-model="addTags" :suggestions="tagSuggestions" multiple display="chip" dropdown @complete="onTagComplete"
+                        class="w-full" inputClass="text-sm" placeholder="輸入或選擇標籤" />
+        </div>
+
+        <label class="flex items-center gap-1.5 text-sm text-surface-600 dark:text-surface-300 cursor-pointer select-none">
+          <Checkbox v-model="addTierTag" binary /> 一併加上分層標籤（上游／中游／下游龍頭）
+        </label>
+
+        <div>
+          <label class="block text-xs font-bold text-surface-500 mb-1">追蹤原因（選填，留空則自動帶入產業鏈與供應內容）</label>
+          <Textarea v-model="addNote" rows="2" class="w-full" placeholder="例如：CPO 題材受惠，等回檔至月線" />
+        </div>
+      </div>
+      <template #footer>
+        <Button label="取消" text @click="addDialogVisible = false" />
+        <Button :label="`確認加入（${selectedNodes.length} 檔）`" icon="pi pi-check" :loading="adding" :disabled="!selectedNodes.length" @click="submitAdd" />
+      </template>
+    </Dialog>
+
     <!-- 功能未啟用 / 資料庫不可用（AC-IC-15、AC-IC-5）-->
     <div v-if="disabledMessage" class="card p-6 border border-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-2xl text-amber-700 dark:text-amber-300">
       <div class="flex items-center gap-3">
@@ -111,6 +147,8 @@
                     <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-full" style="background:#8F6413"></i>已突破</span>
                     <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-full" style="background:#B26A00"></i>低位階候選</span>
                     <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-full" style="background:#a8a29a"></i>尚未連動</span>
+                    <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-full" style="background:#059669"></i>已在追蹤名單</span>
+                    <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-full" style="background:#2563EB"></i>已勾選</span>
                     <span class="flex items-center gap-1"><i class="inline-block w-4 border-t border-surface-500"></i>已核可</span>
                     <span class="flex items-center gap-1"><i class="inline-block w-4 border-t border-dashed border-amber-600"></i>待核對（LLM）</span>
                   </div>
@@ -129,10 +167,22 @@
                     <span class="flex-1 text-center">中游</span>
                     <span class="flex-1 text-right">下游龍頭 →</span>
                   </div>
-                  <p class="px-4 pt-1 text-[11px] text-surface-400">滑鼠移到節點可聚焦其上下游關聯，其餘淡化</p>
+                  <p class="px-4 pt-1 text-[11px] text-surface-400">滑鼠移到節點可聚焦其上下游關聯；點選節點可勾選，加入追蹤與觀察名單</p>
+
+                  <!-- 勾選工具列：未登入擁有者時只顯示說明，不給操作 -->
+                  <div v-if="watchlistNotice" class="mx-4 mt-2 p-2 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[11px] flex items-center gap-2">
+                    <i class="pi pi-info-circle"></i>{{ watchlistNotice }}
+                  </div>
+                  <div v-else class="px-4 pt-2 flex items-center gap-2 flex-wrap">
+                    <span class="text-xs text-surface-500">已勾選 <b class="num text-surface-800 dark:text-surface-100">{{ selectedSymbols.length }}</b> 檔</span>
+                    <Button label="加入追蹤與觀察名單" icon="pi pi-plus" size="small" :disabled="!selectedSymbols.length" @click="openAddDialog" />
+                    <Button label="全選可加入" icon="pi pi-check-square" size="small" text @click="selectAllAddable" />
+                    <Button label="清除勾選" icon="pi pi-times" size="small" text :disabled="!selectedSymbols.length" @click="selectedSymbols = []" />
+                  </div>
+
                   <!-- ref 用來量測實際可用寬度，據以算出欄距讓座標系維持 1:1 不縮放（見 layoutMetrics）-->
                   <div ref="chartBoxRef">
-                    <v-chart ref="chartRef" class="graph-chart" :style="{ height: chartHeight + 'px' }" :option="graphOption" autoresize />
+                    <v-chart ref="chartRef" class="graph-chart" :style="{ height: chartHeight + 'px' }" :option="graphOption" autoresize @click="onChartClick" />
                   </div>
                 </template>
               </div>
@@ -179,33 +229,53 @@
                 <h3 class="font-bold text-surface-800 dark:text-surface-100 flex items-center gap-2">
                   <i class="pi pi-list text-primary"></i>節點清單
                 </h3>
-                <p class="text-xs text-surface-500 mt-0.5">依上游→中游→下游排序，圖上標籤被截到或太密看不清楚時可在這裡查完整名稱</p>
+                <p class="text-xs text-surface-500 mt-0.5">依上游→中游→下游排序，圖上標籤被截到或太密看不清楚時可在這裡查完整名稱；收盤價為各標的最近一個有成交的交易日（台股／美股不同步，日期逐檔標示）</p>
               </div>
               <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr class="bg-surface-50 dark:bg-surface-800 text-surface-400 uppercase tracking-wide">
+                      <th class="p-2 w-8"></th>
                       <th class="p-2">分層</th>
                       <th class="p-2">代碼</th>
                       <th class="p-2">名稱</th>
                       <th class="p-2">角色／供應內容</th>
+                      <th class="p-2 text-right">最近收盤價</th>
                       <th class="p-2">狀態</th>
+                      <th class="p-2">追蹤名單</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="n in nodeTableRows" :key="n.symbol" class="border-t border-surface-100 dark:border-surface-800">
+                    <tr v-for="n in nodeTableRows" :key="n.symbol" class="border-t border-surface-100 dark:border-surface-800"
+                        :class="selectedSymbols.includes(n.symbol) ? 'bg-blue-50/60 dark:bg-blue-500/5' : ''">
+                      <td class="p-2">
+                        <Checkbox :modelValue="selectedSymbols.includes(n.symbol)" binary :disabled="isInWatchlist(n) || !!watchlistNotice"
+                                  @update:modelValue="toggleNodeSelection(n)" />
+                      </td>
                       <td class="p-2"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300">{{ TIER_LABEL[n.role] || n.role }}</span></td>
                       <td class="p-2 font-bold num text-surface-700 dark:text-surface-200">{{ n.symbol }}</td>
                       <td class="p-2">{{ n.name }}</td>
                       <td class="p-2 text-surface-500">{{ n.componentType || (n.role === 'downstream' ? '下游龍頭（點火偵測錨點）' : '—') }}</td>
+                      <!-- 日期逐檔標示：台股與美股最後交易日不同步，共用一個日期會標錯 -->
+                      <td class="p-2 text-right whitespace-nowrap">
+                        <template v-if="n.close != null">
+                          <div class="num font-bold text-surface-800 dark:text-surface-100">{{ n.close.toFixed(2) }}</div>
+                          <div class="num text-[10px] text-surface-400">{{ n.quote_date }}</div>
+                        </template>
+                        <span v-else class="text-surface-300" title="尚無收盤價資料（可到「追蹤與觀察名單」觸發抓取）">待報價</span>
+                      </td>
                       <td class="p-2">
                         <span class="inline-flex items-center gap-1.5">
                           <i class="inline-block w-2 h-2 rounded-full shrink-0" :style="{ background: STATE_COLOR[n.state] || STATE_COLOR.dormant }"></i>
                           {{ STATE_LABEL[n.state] || '尚未連動' }}
                         </span>
                       </td>
+                      <td class="p-2">
+                        <span v-if="isInWatchlist(n)" class="inline-flex items-center gap-1 text-emerald-600 font-bold"><i class="pi pi-check-circle"></i>已加入</span>
+                        <span v-else class="text-surface-300">—</span>
+                      </td>
                     </tr>
-                    <tr v-if="!nodeTableRows.length"><td colspan="5" class="p-6 text-center text-surface-400">尚無節點資料</td></tr>
+                    <tr v-if="!nodeTableRows.length"><td colspan="8" class="p-6 text-center text-surface-400">尚無節點資料</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -227,6 +297,8 @@ import { GraphChart } from 'echarts/charts';
 import { TooltipComponent, LegendComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 import { industryChainApi } from '@/service/industryChainApi';
+import { portfolioApi } from '@/service/portfolioApi';
+import { useWatchlistTags } from '@/composables/useWatchlistTags';
 import IndustryChainConfigDialog from '@/components/IndustryChainConfigDialog.vue';
 
 use([CanvasRenderer, GraphChart, TooltipComponent, LegendComponent]);
@@ -256,8 +328,140 @@ const ignitedHint = computed(() => {
   return leaders.length ? `點火：${leaders.join('、')}` : '本鏈今日無下游龍頭點火事件';
 });
 
+// ── 多選節點 → 加入追蹤與觀察名單 ────────────────────────────────
+// 已在名單中的節點以綠色實心標示且不可再選（重複加入雖然後端是 upsert 不會壞，但會無聲覆蓋
+// 使用者原本設好的 tag／追蹤原因，不如直接擋在前面）
+const watchlistKeys = ref(new Set());   // `${market}:${symbol}`
+const watchlistNotice = ref(null);      // 讀取失敗（例如未登入擁有者）時的說明，不擋圖譜本身
+const selectedSymbols = ref([]);
+const addDialogVisible = ref(false);
+const addTags = ref([]);
+const addTierTag = ref(true);
+const addNote = ref('');
+const adding = ref(false);
+
+const { tags: allTags, refresh: refreshTags } = useWatchlistTags();
+const tagSuggestions = ref([]);
+
+const nodeKey = (n) => `${n.market || 'tw'}:${n.symbol}`;
+const isInWatchlist = (n) => watchlistKeys.value.has(nodeKey(n));
+const selectedNodes = computed(() =>
+  (graphData.value?.nodes || []).filter((n) => selectedSymbols.value.includes(n.symbol))
+);
+
+async function fetchWatchlistState() {
+  try {
+    const [tw, us] = await Promise.all([
+      portfolioApi.getWatchlist({ market: 'tw' }),
+      portfolioApi.getWatchlist({ market: 'us' })
+    ]);
+    const keys = new Set();
+    [...(tw?.data || []), ...(us?.data || [])].forEach((w) => keys.add(`${w.market}:${w.symbol}`));
+    watchlistKeys.value = keys;
+    watchlistNotice.value = null;
+  } catch (err) {
+    // 追蹤名單 API 需要擁有者身分；未登入時只是無法標示／加入，圖譜本身仍應正常顯示
+    watchlistKeys.value = new Set();
+    watchlistNotice.value = err?.response?.status === 401
+      ? '未登入擁有者帳號，無法標示或加入追蹤與觀察名單'
+      : `追蹤名單讀取失敗：${err?.response?.data?.error?.message || err.message}`;
+  }
+}
+
+function toggleNodeSelection(node) {
+  if (!node) return;
+  if (isInWatchlist(node)) {
+    toast.add({ severity: 'info', summary: `${node.symbol} ${node.name} 已在追蹤與觀察名單中`, life: 2500 });
+    return;
+  }
+  const idx = selectedSymbols.value.indexOf(node.symbol);
+  if (idx >= 0) selectedSymbols.value.splice(idx, 1);
+  else selectedSymbols.value.push(node.symbol);
+}
+
+function onChartClick(params) {
+  if (params?.dataType !== 'node') return;
+  toggleNodeSelection((graphData.value?.nodes || []).find((n) => n.symbol === params.data.id));
+}
+
+function selectAllAddable() {
+  selectedSymbols.value = (graphData.value?.nodes || []).filter((n) => !isInWatchlist(n)).map((n) => n.symbol);
+}
+
+function onTagComplete(event) {
+  const q = (event.query || '').toLowerCase();
+  tagSuggestions.value = allTags.value.map((t) => t.name).filter((name) => name.toLowerCase().includes(q));
+}
+
+async function openAddDialog() {
+  if (!selectedSymbols.value.length) return;
+  // 標籤清單只在真的要用（開啟對話框）時才抓，不在頁面載入就打這支 API
+  try { await refreshTags(); } catch { /* 抓不到就只是少了自動完成建議，不影響手動輸入 */ }
+  // 預設帶入「所屬產業鏈」作為標籤，這是使用者從這個頁面加入時最需要的分類依據
+  addTags.value = currentChain.value?.name ? [currentChain.value.name] : [];
+  addTierTag.value = true;
+  addNote.value = '';
+  addDialogVisible.value = true;
+}
+
+async function submitAdd() {
+  const byMarket = {};
+  selectedNodes.value.forEach((n) => {
+    const market = n.market || 'tw';
+    (byMarket[market] ||= []).push(n);
+  });
+
+  adding.value = true;
+  try {
+    let created = 0;
+    let updated = 0;
+    const failed = [];
+    // watchlist 批次端點一次只收一個市場，台股／美股節點分開送
+    for (const [market, list] of Object.entries(byMarket)) {
+      const res = await portfolioApi.addWatchlistBatch({
+        market,
+        source: 'industry_chain',
+        items: list.map((n) => ({
+          symbol: n.symbol,
+          name: n.name && n.name !== n.symbol ? n.name : undefined,
+          tags: [...addTags.value, ...(addTierTag.value ? [TIER_LABEL[n.role] || ''] : [])].filter(Boolean),
+          note: addNote.value.trim() || [currentChain.value?.name, n.component_type].filter(Boolean).join('・') || undefined
+        }))
+      });
+      created += res.data?.created || 0;
+      updated += res.data?.updated || 0;
+      failed.push(...(res.data?.failed || []));
+    }
+
+    toast.add({
+      severity: failed.length ? 'warn' : 'success',
+      summary: `已加入追蹤與觀察名單（新增 ${created}、更新 ${updated}）`,
+      detail: failed.length ? failed.map((f) => `${f.symbol}：${f.error}`).join('；') : undefined,
+      life: failed.length ? 6000 : 4000
+    });
+    selectedSymbols.value = [];
+    addDialogVisible.value = false;
+    await fetchWatchlistState();
+  } catch (err) {
+    toast.add({
+      severity: 'error',
+      summary: '加入失敗',
+      detail: err?.response?.data?.detail || err?.response?.data?.error?.message || err.message,
+      life: 6000
+    });
+  } finally {
+    adding.value = false;
+  }
+}
+
 const STATE_COLOR = { ignited: '#8F6413', candidate: '#B26A00', dormant: '#a8a29a' };
 const STATE_BG = { ignited: '#F8EEDA', candidate: '#FFF3E0', dormant: '#f0efec' };
+// 已加入追蹤名單（綠）與已勾選待加入（藍）——刻意都不用既有的狀態色系（棕／橘），
+// 免得跟「已突破／低位階候選」的語意混淆
+const IN_LIST_COLOR = '#059669';
+const IN_LIST_BG = '#D1FAE5';
+const PICKED_COLOR = '#2563EB';
+const PICKED_BG = '#DBEAFE';
 
 // 已突破（點火）節點的呼吸光暈——只在真的有點火節點時才跑計時器，平常（多半是 dormant）
 // 完全不佔資源。用 setInterval 而非 requestAnimationFrame：呼吸效果本來就慢（~1.8 秒一輪），
@@ -342,28 +546,32 @@ const graphOption = computed(() => {
   const nodes = graphData.value.nodes.map((n) => {
     const baseSize = n.role === 'downstream' ? 40 : n.role === 'tier1' ? 30 : 22;
     const ignited = n.state === 'ignited';
+    const inList = isInWatchlist(n);
+    const picked = selectedSymbols.value.includes(n.symbol);
+    // 樣式優先序：已在名單（綠、不可選）＞ 已勾選（藍框加粗）＞ 點火／一般狀態色
+    const borderColor = inList ? IN_LIST_COLOR : picked ? PICKED_COLOR : (STATE_COLOR[n.state] || STATE_COLOR.dormant);
     return {
       id: n.symbol,
-      name: `${n.symbol} ${n.name}`,
+      name: `${inList ? '✓ ' : ''}${n.symbol} ${n.name}`,
       x: posBySymbol[n.symbol].x,
       y: posBySymbol[n.symbol].y,
       // 已突破節點：大小＋外發光隨 pulse 呼吸（3px／6~20px），視覺上一眼就能跟其餘節點分開；
       // 其餘節點給一圈很淡的陰影做立體感，不然純灰底圓圈在白卡片上會顯得死板扁平
-      symbolSize: ignited ? baseSize + pulse * 6 : baseSize,
+      symbolSize: (ignited ? baseSize + pulse * 6 : baseSize) + (picked ? 4 : 0),
       itemStyle: {
-        color: STATE_BG[n.state] || STATE_BG.dormant,
-        borderColor: STATE_COLOR[n.state] || STATE_COLOR.dormant,
-        borderWidth: ignited ? 3 : 2,
-        shadowColor: ignited ? STATE_COLOR.ignited : 'rgba(15, 23, 42, 0.12)',
-        shadowBlur: ignited ? 6 + pulse * 14 : 5,
-        shadowOffsetY: ignited ? 0 : 1
+        color: inList ? IN_LIST_BG : picked ? PICKED_BG : (STATE_BG[n.state] || STATE_BG.dormant),
+        borderColor,
+        borderWidth: picked ? 4 : ignited ? 3 : 2,
+        shadowColor: picked ? PICKED_COLOR : ignited ? STATE_COLOR.ignited : 'rgba(15, 23, 42, 0.12)',
+        shadowBlur: picked ? 10 : ignited ? 6 + pulse * 14 : 5,
+        shadowOffsetY: ignited || picked ? 0 : 1
       },
       // 分層版面每欄節點是固定座標、垂直平均分佈，不會像力導向那樣互相飄移遮擋，所以三欄
       // 標籤都常駐顯示是安全的；hover 時仍會加粗＋固定鄰接節點，方便在密集鏈裡追一條線
       label: {
         show: true, fontSize: 10, position: ROLE_LABEL_POSITION[n.role] || 'bottom',
-        fontWeight: ignited ? 'bold' : 'normal',
-        color: ignited ? STATE_COLOR.ignited : undefined,
+        fontWeight: ignited || picked || inList ? 'bold' : 'normal',
+        color: inList ? IN_LIST_COLOR : picked ? PICKED_COLOR : ignited ? STATE_COLOR.ignited : undefined,
         formatter: (p) => p.data.name
       },
       emphasis: { label: { show: true, fontWeight: 'bold' } }
@@ -392,6 +600,7 @@ const graphOption = computed(() => {
         layout: 'none',
         roam: true,
         draggable: true,
+        cursor: 'pointer',   // 節點可點選加入追蹤名單，游標要提示得出來
         // 邊界留白給欄外標籤（上游往左、下游往右），數值與 layoutMetrics 反推欄距時一致，
         // 因此包圍盒與繪圖區等比、縮放 1:1。preserveAspect 是保險：萬一量到的寬度暫時過期
         // （例如 resize 當下那一幀），ECharts 會改以等比「contain」縮放，圓仍是正圓不會壓扁
@@ -455,6 +664,7 @@ async function fetchGraphAndRadar() {
   if (!chainId.value) return;
   loading.value = true;
   resetErrorState();
+  selectedSymbols.value = [];   // 換鏈就清空勾選，避免把上一條鏈選到的標的誤帶過來
   try {
     const [graphRes, radarRes] = await Promise.all([
       industryChainApi.getChainGraph(chainId.value),
@@ -462,6 +672,7 @@ async function fetchGraphAndRadar() {
     ]);
     graphData.value = graphRes.data;
     radarItems.value = radarRes.data.items;
+    await fetchWatchlistState();
   } catch (err) {
     handleFetchError(err);
   } finally {

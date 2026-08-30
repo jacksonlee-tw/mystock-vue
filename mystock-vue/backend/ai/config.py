@@ -74,6 +74,13 @@ def get_max_output_tokens() -> int:
     return _env_int("AI_MAX_OUTPUT_TOKENS", 8000)
 
 
+def get_extraction_max_output_tokens() -> int:
+    """`extract_structured()`（ADR-IC-12）專用輸出上限，預設高於一般 AI_MAX_OUTPUT_TOKENS——
+    Gemini 2.5+ 思考模型的推理與最終 JSON 共用同一份輸出配額，配額太小時會被思考耗盡，
+    連 JSON 都生不出來（finish_reason=MAX_TOKENS 且 response.parsed 為 None）。"""
+    return _env_int("AI_EXTRACTION_MAX_OUTPUT_TOKENS", 16000)
+
+
 def get_max_image_mb() -> int:
     return _env_int("AI_MAX_IMAGE_MB", 4)
 

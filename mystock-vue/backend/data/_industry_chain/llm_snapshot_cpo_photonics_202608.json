@@ -1,0 +1,316 @@
+{
+  "chain_id": "cpo_photonics",
+  "edges": [
+    {
+      "upstream_symbol": "4979",
+      "upstream_name": "華星光",
+      "downstream_symbol": "2345",
+      "downstream_name": "智邦",
+      "relation_tier": 1,
+      "component_type": "高速光收發模組",
+      "confidence": "high",
+      "evidence": "智邦作為網通設備商，其高速交換器產品會採購華星光的高速光收發模組。"
+    },
+    {
+      "upstream_symbol": "4977",
+      "upstream_name": "眾達-KY",
+      "downstream_symbol": "2345",
+      "downstream_name": "智邦",
+      "relation_tier": 1,
+      "component_type": "高速光收發模組",
+      "confidence": "high",
+      "evidence": "智邦的網通交換器需要採購高速光收發模組，眾達-KY是台灣主要供應商之一。"
+    },
+    {
+      "upstream_symbol": "3363",
+      "upstream_name": "上詮",
+      "downstream_symbol": "2345",
+      "downstream_name": "智邦",
+      "relation_tier": 1,
+      "component_type": "光纖陣列與矽光子整合元件",
+      "confidence": "high",
+      "evidence": "智邦的網通產品在CPO趨勢下，可能採購上詮的光纖陣列等精密光學元件。"
+    },
+    {
+      "upstream_symbol": "6451",
+      "upstream_name": "訊芯-KY",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "光收發模組、CPO封裝服務",
+      "confidence": "high",
+      "evidence": "廣達作為AI伺服器與資料中心供應商，其產品對高速光通訊解決方案需求殷切，訊芯-KY是潛在供應商。"
+    },
+    {
+      "upstream_symbol": "6451",
+      "upstream_name": "訊芯-KY",
+      "downstream_symbol": "2317",
+      "downstream_name": "鴻海",
+      "relation_tier": 1,
+      "component_type": "光收發模組、CPO封裝服務",
+      "confidence": "high",
+      "evidence": "訊芯-KY為鴻海集團子公司，在光通訊模組及CPO封裝領域為集團內外的AI伺服器與資料中心業務提供服務。"
+    },
+    {
+      "upstream_symbol": "6451",
+      "upstream_name": "訊芯-KY",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "光收發模組、CPO封裝服務",
+      "confidence": "high",
+      "evidence": "緯穎作為資料中心與AI伺服器供應商，需要高速光收發模組或CPO解決方案，訊芯-KY是潛在供應商。"
+    },
+    {
+      "upstream_symbol": "4979",
+      "upstream_name": "華星光",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "高速光收發模組",
+      "confidence": "high",
+      "evidence": "廣達的AI伺服器與資料中心基礎設施需搭配高速光收發模組，華星光是潛在供應商。"
+    },
+    {
+      "upstream_symbol": "4979",
+      "upstream_name": "華星光",
+      "downstream_symbol": "2317",
+      "downstream_name": "鴻海",
+      "relation_tier": 1,
+      "component_type": "高速光收發模組",
+      "confidence": "high",
+      "evidence": "鴻海的AI伺服器與資料中心業務需要高速光收發模組，華星光是潛在供應商。"
+    },
+    {
+      "upstream_symbol": "4979",
+      "upstream_name": "華星光",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "高速光收發模組",
+      "confidence": "high",
+      "evidence": "緯穎的AI伺服器與資料中心基礎設施需搭配高速光收發模組，華星光是潛在供應商。"
+    },
+    {
+      "upstream_symbol": "4977",
+      "upstream_name": "眾達-KY",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "高速光收發模組",
+      "confidence": "high",
+      "evidence": "廣達的AI伺服器與資料中心基礎設施需搭配高速光收發模組，眾達-KY是潛在供應商。"
+    },
+    {
+      "upstream_symbol": "4977",
+      "upstream_name": "眾達-KY",
+      "downstream_symbol": "2317",
+      "downstream_name": "鴻海",
+      "relation_tier": 1,
+      "component_type": "高速光收發模組",
+      "confidence": "high",
+      "evidence": "鴻海的AI伺服器與資料中心業務需要高速光收發模組，眾達-KY是潛在供應商。"
+    },
+    {
+      "upstream_symbol": "4977",
+      "upstream_name": "眾達-KY",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "高速光收發模組",
+      "confidence": "high",
+      "evidence": "緯穎的AI伺服器與資料中心基礎設施需搭配高速光收發模組，眾達-KY是潛在供應商。"
+    },
+    {
+      "upstream_symbol": "3363",
+      "upstream_name": "上詮",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "光纖陣列與矽光子整合元件",
+      "confidence": "high",
+      "evidence": "廣達的AI伺服器與資料中心解決方案可能採購上詮的光纖陣列等光學元件。"
+    },
+    {
+      "upstream_symbol": "3363",
+      "upstream_name": "上詮",
+      "downstream_symbol": "2317",
+      "downstream_name": "鴻海",
+      "relation_tier": 1,
+      "component_type": "光纖陣列與矽光子整合元件",
+      "confidence": "high",
+      "evidence": "鴻海的AI伺服器與資料中心解決方案可能採購上詮的光纖陣列等光學元件。"
+    },
+    {
+      "upstream_symbol": "3363",
+      "upstream_name": "上詮",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "光纖陣列與矽光子整合元件",
+      "confidence": "high",
+      "evidence": "緯穎的AI伺服器與資料中心解決方案可能採購上詮的光纖陣列等光學元件。"
+    },
+    {
+      "upstream_symbol": "2330",
+      "upstream_name": "台積電",
+      "downstream_symbol": "2345",
+      "downstream_name": "智邦",
+      "relation_tier": 2,
+      "component_type": "矽光子晶圓代工",
+      "confidence": "high",
+      "evidence": "台積電為光收發模組廠提供矽光子晶片代工，這些模組廠的產品最終供應智邦。"
+    },
+    {
+      "upstream_symbol": "2330",
+      "upstream_name": "台積電",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 2,
+      "component_type": "矽光子晶圓代工",
+      "confidence": "high",
+      "evidence": "台積電為光收發模組廠提供矽光子晶片代工，這些模組廠的產品最終供應廣達的AI伺服器與資料中心。"
+    },
+    {
+      "upstream_symbol": "2330",
+      "upstream_name": "台積電",
+      "downstream_symbol": "2317",
+      "downstream_name": "鴻海",
+      "relation_tier": 2,
+      "component_type": "矽光子晶圓代工",
+      "confidence": "high",
+      "evidence": "台積電為光收發模組廠提供矽光子晶片代工，這些模組廠的產品最終供應鴻海的AI伺服器與資料中心。"
+    },
+    {
+      "upstream_symbol": "2330",
+      "upstream_name": "台積電",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 2,
+      "component_type": "矽光子晶圓代工",
+      "confidence": "high",
+      "evidence": "台積電為光收發模組廠提供矽光子晶片代工，這些模組廠的產品最終供應緯穎的AI伺服器與資料中心。"
+    },
+    {
+      "upstream_symbol": "3081",
+      "upstream_name": "聯亞",
+      "downstream_symbol": "2345",
+      "downstream_name": "智邦",
+      "relation_tier": 2,
+      "component_type": "砷化鎵雷射磊晶片",
+      "confidence": "high",
+      "evidence": "聯亞提供雷射磊晶片給光收發模組廠（如華星光、眾達-KY），這些模組廠的產品最終供應智邦。"
+    },
+    {
+      "upstream_symbol": "3081",
+      "upstream_name": "聯亞",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 2,
+      "component_type": "砷化鎵雷射磊晶片",
+      "confidence": "high",
+      "evidence": "聯亞提供雷射磊晶片給光收發模組廠，這些模組廠的產品最終供應廣達的AI伺服器與資料中心。"
+    },
+    {
+      "upstream_symbol": "3081",
+      "upstream_name": "聯亞",
+      "downstream_symbol": "2317",
+      "downstream_name": "鴻海",
+      "relation_tier": 2,
+      "component_type": "砷化鎵雷射磊晶片",
+      "confidence": "high",
+      "evidence": "聯亞提供雷射磊晶片給光收發模組廠，這些模組廠的產品最終供應鴻海的AI伺服器與資料中心。"
+    },
+    {
+      "upstream_symbol": "3081",
+      "upstream_name": "聯亞",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 2,
+      "component_type": "砷化鎵雷射磊晶片",
+      "confidence": "high",
+      "evidence": "聯亞提供雷射磊晶片給光收發模組廠，這些模組廠的產品最終供應緯穎的AI伺服器與資料中心。"
+    },
+    {
+      "upstream_symbol": "3450",
+      "upstream_name": "聯鈞",
+      "downstream_symbol": "2345",
+      "downstream_name": "智邦",
+      "relation_tier": 2,
+      "component_type": "光通訊元件封裝測試",
+      "confidence": "high",
+      "evidence": "聯鈞為光收發模組廠提供元件封裝測試服務，這些模組廠的產品最終供應智邦。"
+    },
+    {
+      "upstream_symbol": "3450",
+      "upstream_name": "聯鈞",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 2,
+      "component_type": "光通訊元件封裝測試",
+      "confidence": "high",
+      "evidence": "聯鈞為光收發模組廠提供元件封裝測試服務，這些模組廠的產品最終供應廣達的AI伺服器與資料中心。"
+    },
+    {
+      "upstream_symbol": "3450",
+      "upstream_name": "聯鈞",
+      "downstream_symbol": "2317",
+      "downstream_name": "鴻海",
+      "relation_tier": 2,
+      "component_type": "光通訊元件封裝測試",
+      "confidence": "high",
+      "evidence": "聯鈞為光收發模組廠提供元件封裝測試服務，這些模組廠的產品最終供應鴻海的AI伺服器與資料中心。"
+    },
+    {
+      "upstream_symbol": "3450",
+      "upstream_name": "聯鈞",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 2,
+      "component_type": "光通訊元件封裝測試",
+      "confidence": "high",
+      "evidence": "聯鈞為光收發模組廠提供元件封裝測試服務，這些模組廠的產品最終供應緯穎的AI伺服器與資料中心。"
+    },
+    {
+      "upstream_symbol": "3131",
+      "upstream_name": "弘塑",
+      "downstream_symbol": "2345",
+      "downstream_name": "智邦",
+      "relation_tier": 2,
+      "component_type": "CoWoS/先進封裝濕製程設備",
+      "confidence": "high",
+      "evidence": "弘塑提供先進封裝濕製程設備給晶圓代工廠（如台積電），間接支援矽光子晶片生產，最終影響智邦的網通產品供應鏈。"
+    },
+    {
+      "upstream_symbol": "3131",
+      "upstream_name": "弘塑",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 2,
+      "component_type": "CoWoS/先進封裝濕製程設備",
+      "confidence": "high",
+      "evidence": "弘塑提供先進封裝濕製程設備給晶圓代工廠，間接支援矽光子晶片生產，最終影響廣達的AI伺服器供應鏈。"
+    },
+    {
+      "upstream_symbol": "3131",
+      "upstream_name": "弘塑",
+      "downstream_symbol": "2317",
+      "downstream_name": "鴻海",
+      "relation_tier": 2,
+      "component_type": "CoWoS/先進封裝濕製程設備",
+      "confidence": "high",
+      "evidence": "弘塑提供先進封裝濕製程設備給晶圓代工廠，間接支援矽光子晶片生產，最終影響鴻海的AI伺服器供應鏈。"
+    },
+    {
+      "upstream_symbol": "3131",
+      "upstream_name": "弘塑",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 2,
+      "component_type": "CoWoS/先進封裝濕製程設備",
+      "confidence": "high",
+      "evidence": "弘塑提供先進封裝濕製程設備給晶圓代工廠，間接支援矽光子晶片生產，最終影響緯穎的AI伺服器供應鏈。"
+    }
+  ],
+  "notes": "台灣上市櫃公司中，專注於「矽光子磊晶材料」與「CPO高階雷射晶片」的純上游公司選擇有限，多整合於晶片設計或模組製造商。另外，「光被動元件跳線」在CPO/矽光子產業鏈中雖重要，但目前在台股較難找到獨立且營收佔比顯著的相關公司作為明確供應商。"
+}

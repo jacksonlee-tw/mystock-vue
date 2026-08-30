@@ -15,6 +15,7 @@ industry_chain_config/industry_chains.yaml）：純檔案操作，不查 DB，�
 自己 try/except 轉 JSONResponse）。
 """
 from __future__ import annotations
+import asyncio
 import logging
 from typing import Optional
 
@@ -100,6 +101,7 @@ async def get_chain_graph(chain_id: str):
         raise IndustryChainNotFoundException(f"找不到產業鏈：{chain_id}")
 
     from industry_chain import spillover
+    from services.stock_service import get_latest_quote
 
     async with get_async_session() as session:
         repo = IndustryChainRepository(session)
@@ -107,15 +109,38 @@ async def get_chain_graph(chain_id: str):
 
         min_tier: dict[str, int] = {}
         node_symbols: set[str] = set()
+        market_by_symbol: dict[str, str] = {}
         for e in edges:
             node_symbols.add(e["upstream_symbol"])
             node_symbols.add(e["downstream_symbol"])
+            market_by_symbol[e["upstream_symbol"]] = e["upstream_market"]
+            market_by_symbol[e["downstream_symbol"]] = e["downstream_market"]
             up = e["upstream_symbol"]
             min_tier[up] = min(min_tier.get(up, e["relation_tier"]), e["relation_tier"])
         node_symbols.update(chain.downstream_leaders)
 
-        name_rows = await StockRepository().get_symbols(sorted(node_symbols), "tw") if node_symbols else []
-        names = {row["symbol"]: row["name"] for row in name_rows}
+        # 名稱查詢依節點各自所屬市場分組。早期版本一律以 "tw" 查詢，美股節點（如 LITE／COHR）
+        # 因此查無名稱，前端只好把代號顯示兩次；`market` 同時也回傳給前端，讓「加入追蹤觀察
+        # 清單」知道該用哪個市場送出（watchlist 的批次端點是一次一個市場）
+        symbols_by_market: dict[str, list[str]] = {}
+        for symbol in node_symbols:
+            symbols_by_market.setdefault(market_by_symbol.get(symbol, "tw"), []).append(symbol)
+
+        stock_repo = StockRepository()
+        names: dict[str, str] = {}
+        for market, syms in symbols_by_market.items():
+            for row in await stock_repo.get_symbols(sorted(syms), market):
+                names[row["symbol"]] = row["name"]
+
+        # 最近一筆有效收盤價（含日期）。併發取得，比照 portfolio.py 的 _fetch_quotes() 既有作法；
+        # 日期逐節點回傳而非整張表共用一個——台股與美股最後交易日本來就不同步，共用一個日期會
+        # 讓其中一邊的價格被標上錯誤的日期。get_latest_quote() 會跳過收盤價 0 的補值列，
+        # 查無資料回 None，前端顯示「待報價」
+        quote_symbols = sorted(node_symbols)
+        quote_results = await asyncio.gather(*(
+            get_latest_quote(symbol, market_by_symbol.get(symbol, "tw")) for symbol in quote_symbols
+        ))
+        quotes = {q["symbol"]: q for q in quote_results if q}
 
         radar_items = await spillover.build_radar(chain_id, session)
         states = await spillover.compute_node_states(chain, edges, radar_items)
@@ -129,8 +154,16 @@ async def get_chain_graph(chain_id: str):
             nodes.append({
                 "symbol": symbol,
                 "name": names.get(symbol, symbol),
+                "market": market_by_symbol.get(symbol, "tw"),
                 "role": role,
                 "state": states.get(symbol, "dormant"),
+                "close": quotes.get(symbol, {}).get("close"),
+                "quote_date": quotes.get(symbol, {}).get("date"),
+                # 該節點作為上游時供應的品項，供前端「加入追蹤觀察清單」帶入追蹤原因
+                "component_type": next(
+                    (e["component_type"] for e in edges if e["upstream_symbol"] == symbol and e["component_type"]),
+                    None,
+                ),
             })
 
         edge_items = [

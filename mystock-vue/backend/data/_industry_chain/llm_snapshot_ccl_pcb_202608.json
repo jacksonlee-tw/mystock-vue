@@ -1,0 +1,176 @@
+{
+  "chain_id": "ccl_pcb",
+  "edges": [
+    {
+      "upstream_symbol": "1815",
+      "upstream_name": "富喬",
+      "downstream_symbol": "2383",
+      "downstream_name": "台光電",
+      "relation_tier": 1,
+      "component_type": "玻纖布",
+      "confidence": "high",
+      "evidence": "富喬為台灣主要的玻纖布供應商，是台光電生產銅箔基板的重要原物料。"
+    },
+    {
+      "upstream_symbol": "5340",
+      "upstream_name": "建榮",
+      "downstream_symbol": "6274",
+      "downstream_name": "台燿",
+      "relation_tier": 1,
+      "component_type": "玻纖布",
+      "confidence": "high",
+      "evidence": "建榮為台灣玻纖布廠之一，供應台燿等CCL製造商所需玻纖布。"
+    },
+    {
+      "upstream_symbol": "1802",
+      "upstream_name": "台玻",
+      "downstream_symbol": "1303",
+      "downstream_name": "南亞",
+      "relation_tier": 1,
+      "component_type": "玻纖紗",
+      "confidence": "high",
+      "evidence": "台玻集團是台灣主要玻纖紗供應商，供應南亞等CCL製造商。"
+    },
+    {
+      "upstream_symbol": "8358",
+      "upstream_name": "金居",
+      "downstream_symbol": "6213",
+      "downstream_name": "聯茂",
+      "relation_tier": 1,
+      "component_type": "電解銅箔",
+      "confidence": "high",
+      "evidence": "金居為台灣主要電解銅箔供應商，提供聯茂等CCL製造商所需銅箔。"
+    },
+    {
+      "upstream_symbol": "4989",
+      "upstream_name": "榮科",
+      "downstream_symbol": "2383",
+      "downstream_name": "台光電",
+      "relation_tier": 1,
+      "component_type": "電解銅箔",
+      "confidence": "high",
+      "evidence": "榮科為台灣電解銅箔廠之一，供應台光電等CCL製造商所需銅箔。"
+    },
+    {
+      "upstream_symbol": "1303",
+      "upstream_name": "南亞",
+      "downstream_symbol": "6274",
+      "downstream_name": "台燿",
+      "relation_tier": 1,
+      "component_type": "環氧樹脂",
+      "confidence": "high",
+      "evidence": "南亞生產環氧樹脂，供應台燿等CCL製造商作為基板材料。"
+    },
+    {
+      "upstream_symbol": "1717",
+      "upstream_name": "長興",
+      "downstream_symbol": "6213",
+      "downstream_name": "聯茂",
+      "relation_tier": 1,
+      "component_type": "環氧樹脂、硬化劑",
+      "confidence": "high",
+      "evidence": "長興為台灣主要的合成樹脂供應商，提供聯茂等CCL製造商所需的環氧樹脂及硬化劑。"
+    },
+    {
+      "upstream_symbol": "2383",
+      "upstream_name": "台光電",
+      "downstream_symbol": "3037",
+      "downstream_name": "欣興",
+      "relation_tier": 1,
+      "component_type": "銅箔基板 (CCL)",
+      "confidence": "high",
+      "evidence": "台光電是主要的CCL供應商，供應欣興電子等PCB及載板大廠。"
+    },
+    {
+      "upstream_symbol": "2383",
+      "upstream_name": "台光電",
+      "downstream_symbol": "2313",
+      "downstream_name": "華通",
+      "relation_tier": 1,
+      "component_type": "銅箔基板 (CCL)",
+      "confidence": "high",
+      "evidence": "台光電是主要的CCL供應商，供應華通等PCB大廠。"
+    },
+    {
+      "upstream_symbol": "6274",
+      "upstream_name": "台燿",
+      "downstream_symbol": "8046",
+      "downstream_name": "南電",
+      "relation_tier": 1,
+      "component_type": "銅箔基板 (CCL)",
+      "confidence": "high",
+      "evidence": "台燿是主要的CCL供應商之一，供應南電等載板製造商。"
+    },
+    {
+      "upstream_symbol": "6274",
+      "upstream_name": "台燿",
+      "downstream_symbol": "2368",
+      "downstream_name": "金像電",
+      "relation_tier": 1,
+      "component_type": "銅箔基板 (CCL)",
+      "confidence": "high",
+      "evidence": "台燿是主要的CCL供應商之一，供應金像電等網通板製造商。"
+    },
+    {
+      "upstream_symbol": "6213",
+      "upstream_name": "聯茂",
+      "downstream_symbol": "3189",
+      "downstream_name": "景碩",
+      "relation_tier": 1,
+      "component_type": "銅箔基板 (CCL)",
+      "confidence": "high",
+      "evidence": "聯茂是主要的CCL供應商之一，供應景碩等載板製造商。"
+    },
+    {
+      "upstream_symbol": "6213",
+      "upstream_name": "聯茂",
+      "downstream_symbol": "3044",
+      "downstream_name": "健鼎",
+      "relation_tier": 1,
+      "component_type": "銅箔基板 (CCL)",
+      "confidence": "high",
+      "evidence": "聯茂是主要的CCL供應商之一，供應健鼎等PCB製造商。"
+    },
+    {
+      "upstream_symbol": "1303",
+      "upstream_name": "南亞",
+      "downstream_symbol": "4958",
+      "downstream_name": "臻鼎-KY",
+      "relation_tier": 1,
+      "component_type": "銅箔基板 (CCL)",
+      "confidence": "high",
+      "evidence": "南亞塑膠是台灣重要的CCL製造商，供應臻鼎-KY等PCB大廠。"
+    },
+    {
+      "upstream_symbol": "1717",
+      "upstream_name": "長興",
+      "downstream_symbol": "3715",
+      "downstream_name": "定穎投控",
+      "relation_tier": 1,
+      "component_type": "銅箔基板 (CCL)",
+      "confidence": "high",
+      "evidence": "長興材料是台灣重要的CCL製造商，供應定穎投控等PCB大廠。"
+    },
+    {
+      "upstream_symbol": "6505",
+      "upstream_name": "台塑化",
+      "downstream_symbol": "1303",
+      "downstream_name": "南亞",
+      "relation_tier": 2,
+      "component_type": "石化基本原料 (如苯酚、丙酮)",
+      "confidence": "high",
+      "evidence": "台塑化提供南亞生產環氧樹脂所需之上游石化基本原料。"
+    },
+    {
+      "upstream_symbol": "6505",
+      "upstream_name": "台塑化",
+      "downstream_symbol": "1717",
+      "downstream_name": "長興",
+      "relation_tier": 2,
+      "component_type": "石化基本原料 (如苯酚、丙酮)",
+      "confidence": "high",
+      "evidence": "台塑化提供長興材料生產環氧樹脂所需之上游石化基本原料。"
+    }
+  ],
+  "notes": "在銅箔與玻纖布／紗的上游（即 Tier 2）中，主要的原料供應商多為國際大廠或非台灣上市櫃公司，例如電解銅、矽砂等，難以在台股找到明確且業務佔比高的 Tier 2 上市櫃供應商。"
+}

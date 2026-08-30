@@ -92,8 +92,11 @@ class AIExecutionRepository(object):
         self, execution_id: int, *, error_code: str, error_message: str,
         elapsed_ms: int | None = None,
         input_tokens: int | None = None, output_tokens: int | None = None,
+        stop_reason: str | None = None, response_meta: dict | None = None,
     ) -> None:
-        """失敗同樣可能已計費（例如已開始生成才逾時），token 欄位允許填入已知部分用量。"""
+        """失敗同樣可能已計費（例如已開始生成才逾時），token 欄位允許填入已知部分用量。
+        stop_reason／response_meta 讓「LLM 有回應但解析失敗」（如 IC_LLM_NO_PARSED_OUTPUT）
+        這類失敗也留得下 finish_reason 等診斷線索，而不是整列空白、無從查起。"""
         await self._s.execute(
             text("""
                 UPDATE ai_llm_execution
@@ -103,6 +106,8 @@ class AIExecutionRepository(object):
                        elapsed_ms     = :elapsed_ms,
                        input_tokens   = COALESCE(:input_tokens, input_tokens),
                        output_tokens  = COALESCE(:output_tokens, output_tokens),
+                       stop_reason    = COALESCE(:stop_reason, stop_reason),
+                       response_meta  = COALESCE(:response_meta::jsonb, response_meta),
                        completed_at   = CURRENT_TIMESTAMP,
                        updated_at     = CURRENT_TIMESTAMP
                  WHERE id = :id
@@ -110,6 +115,8 @@ class AIExecutionRepository(object):
             {
                 "id": execution_id, "error_code": error_code, "error_message": error_message,
                 "elapsed_ms": elapsed_ms, "input_tokens": input_tokens, "output_tokens": output_tokens,
+                "stop_reason": stop_reason,
+                "response_meta": json.dumps(response_meta) if response_meta is not None else None,
             }
         )
 

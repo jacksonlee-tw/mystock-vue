@@ -143,7 +143,7 @@ class ClaudeProvider(AIProvider):
             raise AIProviderMisconfiguredException("anthropic 套件未安裝") from exc
 
         model = model or ai_config.get_claude_model()
-        max_tokens = ai_config.get_max_output_tokens()
+        max_tokens = ai_config.get_extraction_max_output_tokens()
         timeout_sec = ai_config.get_request_timeout_sec()
 
         client = anthropic.AsyncAnthropic(api_key=api_key)

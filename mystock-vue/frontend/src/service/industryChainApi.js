@@ -1,6 +1,11 @@
 import { apiClient } from '@/service/stockApi';
 
 // 產業鏈知識圖譜與輪動模型（docs/16.AI技術分析/Phase3-產業鏈知識圖譜與輪動模型.md §7）
+// 同步 Blocking 的 LLM 萃取耗時遠超共用 apiClient 的 15000ms 預設，比照 aiAnalysisApi.js 覆寫。
+// 取 280s 是為了涵蓋後端最壞情況：開啟 grounding 時 Stage A（IC_LLM_REQUEST_TIMEOUT_SEC 預設 180s）
+// ＋ Stage B（AI_REQUEST_TIMEOUT_SEC 預設 90s）會串接執行，前端不該比後端自己的預算先斷線。
+const EXTRACT_TIMEOUT_MS = 280000;
+
 export const industryChainApi = {
     // 列出所有產業鏈（YAML 骨架 + 邊數量統計）
     async listChains() {
@@ -30,11 +35,11 @@ export const industryChainApi = {
 
     // 手動觸發 LLM 產業鏈萃取（單鏈或全部）
     async triggerExtract({ chainId = null, provider = null, model = null } = {}) {
-        const response = await apiClient.post('/industry-chains/extract/trigger', {
-            chain_id: chainId,
-            provider,
-            model
-        });
+        const response = await apiClient.post(
+            '/industry-chains/extract/trigger',
+            { chain_id: chainId, provider, model },
+            { timeout: EXTRACT_TIMEOUT_MS }
+        );
         return response.data;
     },
 

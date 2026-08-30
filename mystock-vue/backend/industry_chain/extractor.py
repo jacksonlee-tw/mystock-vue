@@ -22,6 +22,7 @@ from datetime import datetime
 
 from ai import config as ai_config
 from ai.providers import get_provider
+from ai.providers.base import ExtractionResult
 from config import DATA_DIR
 from db.dual_write import dual_write_industry_chain_edges
 from db.session import get_async_session
@@ -218,7 +219,7 @@ async def _run_extraction(chain, provider_code: str, model: str) -> dict:
 
     if result.data is None:
         await _record_failure(execution_id, error_code="IC_LLM_NO_PARSED_OUTPUT",
-                               error_message="LLM 回應無法解析為結構化輸出", chain_id=chain.chain_id)
+                               error_message="LLM 回應無法解析為結構化輸出", chain_id=chain.chain_id, result=result)
         return {"status": "failed", "chain_id": chain.chain_id, "reason": "no_parsed_output"}
 
     outcome = await ic_validator.validate_extraction(
@@ -227,14 +228,14 @@ async def _run_extraction(chain, provider_code: str, model: str) -> dict:
 
     if outcome.batch_rejected:
         code = "IC_LLM_TRUNCATED" if result.truncated else "IC_LLM_TOO_MANY_EDGES"
-        await _record_failure(execution_id, error_code=code, error_message=outcome.batch_rejected, chain_id=chain.chain_id)
+        await _record_failure(execution_id, error_code=code, error_message=outcome.batch_rejected, chain_id=chain.chain_id, result=result)
         return {"status": "failed", "chain_id": chain.chain_id, "reason": outcome.batch_rejected}
 
     if not outcome.accepted:
         reasons = "; ".join(f"{r.upstream_symbol}->{r.downstream_symbol}: {r.reason}" for r in outcome.rejected)[:1000]
         await _record_failure(execution_id, error_code="IC_LLM_ALL_REJECTED",
                                error_message=f"全部 {len(outcome.rejected)} 筆皆未通過校驗: {reasons}",
-                               chain_id=chain.chain_id)
+                               chain_id=chain.chain_id, result=result)
         return {"status": "failed", "chain_id": chain.chain_id, "reason": "all_rejected", "rejected_count": len(outcome.rejected)}
 
     source = f"llm_{provider_code}"
@@ -289,13 +290,23 @@ async def _run_extraction(chain, provider_code: str, model: str) -> dict:
     }
 
 
-async def _record_failure(execution_id: int, *, error_code: str, error_message: str, chain_id: str) -> None:
+async def _record_failure(
+    execution_id: int, *, error_code: str, error_message: str, chain_id: str,
+    result: ExtractionResult | None = None,
+) -> None:
     """收尾寫入吞例外只記警告——呼叫 LLM 之後的失敗不該讓「已經花掉的呼叫沒有紀錄」
-    （§4.7 共同規範，比照 ai/recorder.py 的既有立場）。"""
+    （§4.7 共同規範，比照 ai/recorder.py 的既有立場）。result 帶入時一併記下 stop_reason／
+    response_meta／tokens——LLM 已有回應但解析或校驗失敗時，這些欄位是唯一能回頭診斷「為什麼」
+    的線索（例如 finish_reason=MAX_TOKENS），不能因為失敗就整列留空。"""
     try:
         async with get_async_session() as session:
             await AIExecutionRepository(session).mark_failed(
                 execution_id, error_code=error_code[:40], error_message=error_message,
+                elapsed_ms=result.response_meta.get("elapsed_ms") if result else None,
+                input_tokens=result.input_tokens if result else None,
+                output_tokens=result.output_tokens if result else None,
+                stop_reason=result.stop_reason if result else None,
+                response_meta=result.response_meta if result else None,
             )
             await ActivityLogRepository(session).log(
                 "IC_LLM_EXTRACT_FAILED", view_id=VIEW_ID, success=False, rel_id=execution_id,

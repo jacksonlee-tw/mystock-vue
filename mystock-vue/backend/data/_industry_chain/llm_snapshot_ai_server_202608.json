@@ -1,0 +1,476 @@
+{
+  "chain_id": "ai_server",
+  "edges": [
+    {
+      "upstream_symbol": "3017",
+      "upstream_name": "奇鋐",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "散熱模組（含水冷模組）",
+      "confidence": "high",
+      "evidence": "奇鋐為全球主要伺服器散熱模組供應商，受惠AI伺服器需求強勁，供貨予廣達等ODM廠。"
+    },
+    {
+      "upstream_symbol": "3017",
+      "upstream_name": "奇鋐",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "散熱模組（含水冷模組）",
+      "confidence": "high",
+      "evidence": "奇鋐為全球主要伺服器散熱模組供應商，受惠AI伺服器需求強勁，供貨予緯創等ODM廠。"
+    },
+    {
+      "upstream_symbol": "3017",
+      "upstream_name": "奇鋐",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "散熱模組（含水冷模組）",
+      "confidence": "high",
+      "evidence": "奇鋐為全球主要伺服器散熱模組供應商，受惠AI伺服器需求強勁，供貨予緯穎等ODM廠。"
+    },
+    {
+      "upstream_symbol": "3324",
+      "upstream_name": "雙鴻",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "散熱模組（含水冷模組）",
+      "confidence": "high",
+      "evidence": "雙鴻是AI伺服器主要散熱解決方案供應商，提供水冷板與均熱片等產品予廣達。"
+    },
+    {
+      "upstream_symbol": "3324",
+      "upstream_name": "雙鴻",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "散熱模組（含水冷模組）",
+      "confidence": "high",
+      "evidence": "雙鴻是AI伺服器主要散熱解決方案供應商，提供水冷板與均熱片等產品予緯創。"
+    },
+    {
+      "upstream_symbol": "3324",
+      "upstream_name": "雙鴻",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "散熱模組（含水冷模組）",
+      "confidence": "high",
+      "evidence": "雙鴻是AI伺服器主要散熱解決方案供應商，提供水冷板與均熱片等產品予緯穎。"
+    },
+    {
+      "upstream_symbol": "2421",
+      "upstream_name": "建準",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "伺服器散熱風扇、風扇模組",
+      "confidence": "high",
+      "evidence": "建準為伺服器風扇及散熱模組重要供應商，產品廣泛應用於廣達的AI伺服器。"
+    },
+    {
+      "upstream_symbol": "2421",
+      "upstream_name": "建準",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "伺服器散熱風扇、風扇模組",
+      "confidence": "high",
+      "evidence": "建準為伺服器風扇及散熱模組重要供應商，產品廣泛應用於緯創的AI伺服器。"
+    },
+    {
+      "upstream_symbol": "2421",
+      "upstream_name": "建準",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "伺服器散熱風扇、風扇模組",
+      "confidence": "high",
+      "evidence": "建準為伺服器風扇及散熱模組重要供應商，產品廣泛應用於緯穎的AI伺服器。"
+    },
+    {
+      "upstream_symbol": "3653",
+      "upstream_name": "健策",
+      "downstream_symbol": "3017",
+      "downstream_name": "奇鋐",
+      "relation_tier": 2,
+      "component_type": "均熱片、散熱鰭片、水冷板",
+      "confidence": "high",
+      "evidence": "健策為均熱片與水冷板主要製造商，產品供應給伺服器散熱模組廠奇鋐。"
+    },
+    {
+      "upstream_symbol": "3653",
+      "upstream_name": "健策",
+      "downstream_symbol": "3324",
+      "downstream_name": "雙鴻",
+      "relation_tier": 2,
+      "component_type": "均熱片、散熱鰭片、水冷板",
+      "confidence": "high",
+      "evidence": "健策為均熱片與水冷板主要製造商，產品供應給伺服器散熱模組廠雙鴻。"
+    },
+    {
+      "upstream_symbol": "2308",
+      "upstream_name": "台達電",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "伺服器電源供應器",
+      "confidence": "high",
+      "evidence": "台達電為全球伺服器電源供應器領導廠商，供貨給廣達等各大伺服器ODM廠。"
+    },
+    {
+      "upstream_symbol": "2308",
+      "upstream_name": "台達電",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "伺服器電源供應器",
+      "confidence": "high",
+      "evidence": "台達電為全球伺服器電源供應器領導廠商，供貨給緯創等各大伺服器ODM廠。"
+    },
+    {
+      "upstream_symbol": "2308",
+      "upstream_name": "台達電",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "伺服器電源供應器",
+      "confidence": "high",
+      "evidence": "台達電為全球伺服器電源供應器領導廠商，供貨給緯穎等各大伺服器ODM廠。"
+    },
+    {
+      "upstream_symbol": "2301",
+      "upstream_name": "光寶科",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "伺服器電源供應器",
+      "confidence": "high",
+      "evidence": "光寶科為伺服器電源供應器主要供應商之一，持續受惠AI伺服器需求，供貨予廣達。"
+    },
+    {
+      "upstream_symbol": "2301",
+      "upstream_name": "光寶科",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "伺服器電源供應器",
+      "confidence": "high",
+      "evidence": "光寶科為伺服器電源供應器主要供應商之一，持續受惠AI伺服器需求，供貨予緯創。"
+    },
+    {
+      "upstream_symbol": "2301",
+      "upstream_name": "光寶科",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "伺服器電源供應器",
+      "confidence": "high",
+      "evidence": "光寶科為伺服器電源供應器主要供應商之一，持續受惠AI伺服器需求，供貨予緯穎。"
+    },
+    {
+      "upstream_symbol": "6282",
+      "upstream_name": "康舒",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "伺服器電源供應器",
+      "confidence": "high",
+      "evidence": "康舒積極佈局高瓦數AI伺服器電源，為廣達等主要ODM廠的供應商。"
+    },
+    {
+      "upstream_symbol": "6282",
+      "upstream_name": "康舒",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "伺服器電源供應器",
+      "confidence": "high",
+      "evidence": "康舒積極佈局高瓦數AI伺服器電源，為緯創等主要ODM廠的供應商。"
+    },
+    {
+      "upstream_symbol": "6282",
+      "upstream_name": "康舒",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "伺服器電源供應器",
+      "confidence": "high",
+      "evidence": "康舒積極佈局高瓦數AI伺服器電源，為緯穎等主要ODM廠的供應商。"
+    },
+    {
+      "upstream_symbol": "8210",
+      "upstream_name": "勤誠",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "伺服器機殼",
+      "confidence": "high",
+      "evidence": "勤誠為全球伺服器機殼領導廠，主要客戶包含廣達等各大AI伺服器ODM廠。"
+    },
+    {
+      "upstream_symbol": "8210",
+      "upstream_name": "勤誠",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "伺服器機殼",
+      "confidence": "high",
+      "evidence": "勤誠為全球伺服器機殼領導廠，主要客戶包含緯創等各大AI伺服器ODM廠。"
+    },
+    {
+      "upstream_symbol": "8210",
+      "upstream_name": "勤誠",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "伺服器機殼",
+      "confidence": "high",
+      "evidence": "勤誠為全球伺服器機殼領導廠，主要客戶包含緯穎等各大AI伺服器ODM廠。"
+    },
+    {
+      "upstream_symbol": "3533",
+      "upstream_name": "嘉澤",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "CPU Socket, PCIe Gen5/Gen6連接器, 高速連接線",
+      "confidence": "high",
+      "evidence": "嘉澤為伺服器CPU Socket與高速連接器主要供應商，受惠AI伺服器平台升級，供貨廣達。"
+    },
+    {
+      "upstream_symbol": "3533",
+      "upstream_name": "嘉澤",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "CPU Socket, PCIe Gen5/Gen6連接器, 高速連接線",
+      "confidence": "high",
+      "evidence": "嘉澤為伺服器CPU Socket與高速連接器主要供應商，受惠AI伺服器平台升級，供貨緯創。"
+    },
+    {
+      "upstream_symbol": "3533",
+      "upstream_name": "嘉澤",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "CPU Socket, PCIe Gen5/Gen6連接器, 高速連接線",
+      "confidence": "high",
+      "evidence": "嘉澤為伺服器CPU Socket與高速連接器主要供應商，受惠AI伺服器平台升級，供貨緯穎。"
+    },
+    {
+      "upstream_symbol": "3526",
+      "upstream_name": "凡甲",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "伺服器高速傳輸連接器",
+      "confidence": "high",
+      "evidence": "凡甲提供伺服器記憶體及高速訊號連接器，應用於廣達的AI伺服器。"
+    },
+    {
+      "upstream_symbol": "3526",
+      "upstream_name": "凡甲",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "伺服器高速傳輸連接器",
+      "confidence": "high",
+      "evidence": "凡甲提供伺服器記憶體及高速訊號連接器，應用於緯創的AI伺服器。"
+    },
+    {
+      "upstream_symbol": "3526",
+      "upstream_name": "凡甲",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "伺服器高速傳輸連接器",
+      "confidence": "high",
+      "evidence": "凡甲提供伺服器記憶體及高速訊號連接器，應用於緯穎的AI伺服器。"
+    },
+    {
+      "upstream_symbol": "3217",
+      "upstream_name": "優群",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "DDR5 DIMM插槽, M.2連接器, 高速I/O連接器",
+      "confidence": "high",
+      "evidence": "優群為伺服器DDR5及M.2連接器主要供應商，產品用於廣達的AI伺服器。"
+    },
+    {
+      "upstream_symbol": "3217",
+      "upstream_name": "優群",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "DDR5 DIMM插槽, M.2連接器, 高速I/O連接器",
+      "confidence": "high",
+      "evidence": "優群為伺服器DDR5及M.2連接器主要供應商，產品用於緯創的AI伺服器。"
+    },
+    {
+      "upstream_symbol": "3217",
+      "upstream_name": "優群",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "DDR5 DIMM插槽, M.2連接器, 高速I/O連接器",
+      "confidence": "high",
+      "evidence": "優群為伺服器DDR5及M.2連接器主要供應商，產品用於緯穎的AI伺服器。"
+    },
+    {
+      "upstream_symbol": "3605",
+      "upstream_name": "宏致",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "伺服器高速連接器與線纜組件",
+      "confidence": "high",
+      "evidence": "宏致供應多種伺服器高速連接器及線纜產品，符合廣達AI伺服器高頻高速需求。"
+    },
+    {
+      "upstream_symbol": "3605",
+      "upstream_name": "宏致",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "伺服器高速連接器與線纜組件",
+      "confidence": "high",
+      "evidence": "宏致供應多種伺服器高速連接器及線纜產品，符合緯創AI伺服器高頻高速需求。"
+    },
+    {
+      "upstream_symbol": "3605",
+      "upstream_name": "宏致",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "伺服器高速連接器與線纜組件",
+      "confidence": "high",
+      "evidence": "宏致供應多種伺服器高速連接器及線纜產品，符合緯穎AI伺服器高頻高速需求。"
+    },
+    {
+      "upstream_symbol": "5457",
+      "upstream_name": "宣德",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "伺服器I/O連接器, 高速傳輸線",
+      "confidence": "high",
+      "evidence": "宣德為伺服器高速傳輸解決方案供應商，提供廣達AI伺服器所需連接器與線纜。"
+    },
+    {
+      "upstream_symbol": "5457",
+      "upstream_name": "宣德",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "伺服器I/O連接器, 高速傳輸線",
+      "confidence": "high",
+      "evidence": "宣德為伺服器高速傳輸解決方案供應商，提供緯創AI伺服器所需連接器與線纜。"
+    },
+    {
+      "upstream_symbol": "5457",
+      "upstream_name": "宣德",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "伺服器I/O連接器, 高速傳輸線",
+      "confidence": "high",
+      "evidence": "宣德為伺服器高速傳輸解決方案供應商，提供緯穎AI伺服器所需連接器與線纜。"
+    },
+    {
+      "upstream_symbol": "3037",
+      "upstream_name": "欣興",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "伺服器主機板、ABF載板",
+      "confidence": "high",
+      "evidence": "欣興為主要ABF載板與高階伺服器PCB供應商，服務廣達等各大ODM廠。"
+    },
+    {
+      "upstream_symbol": "3037",
+      "upstream_name": "欣興",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "伺服器主機板、ABF載板",
+      "confidence": "high",
+      "evidence": "欣興為主要ABF載板與高階伺服器PCB供應商，服務緯創等各大ODM廠。"
+    },
+    {
+      "upstream_symbol": "3037",
+      "upstream_name": "欣興",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "伺服器主機板、ABF載板",
+      "confidence": "high",
+      "evidence": "欣興為主要ABF載板與高階伺服器PCB供應商，服務緯穎等各大ODM廠。"
+    },
+    {
+      "upstream_symbol": "2313",
+      "upstream_name": "華通",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "伺服器PCB",
+      "confidence": "high",
+      "evidence": "華通為高階伺服器與網通PCB供應商，客戶涵蓋廣達等AI伺服器ODM廠。"
+    },
+    {
+      "upstream_symbol": "2313",
+      "upstream_name": "華通",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "伺服器PCB",
+      "confidence": "high",
+      "evidence": "華通為高階伺服器與網通PCB供應商，客戶涵蓋緯創等AI伺服器ODM廠。"
+    },
+    {
+      "upstream_symbol": "2313",
+      "upstream_name": "華通",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "伺服器PCB",
+      "confidence": "high",
+      "evidence": "華通為高階伺服器與網通PCB供應商，客戶涵蓋緯穎等AI伺服器ODM廠。"
+    },
+    {
+      "upstream_symbol": "2368",
+      "upstream_name": "金像電",
+      "downstream_symbol": "2382",
+      "downstream_name": "廣達",
+      "relation_tier": 1,
+      "component_type": "伺服器主機板、背板PCB",
+      "confidence": "high",
+      "evidence": "金像電專注於伺服器與網通高階PCB，為廣達等AI伺服器主要供應商之一。"
+    },
+    {
+      "upstream_symbol": "2368",
+      "upstream_name": "金像電",
+      "downstream_symbol": "3231",
+      "downstream_name": "緯創",
+      "relation_tier": 1,
+      "component_type": "伺服器主機板、背板PCB",
+      "confidence": "high",
+      "evidence": "金像電專注於伺服器與網通高階PCB，為緯創等AI伺服器主要供應商之一。"
+    },
+    {
+      "upstream_symbol": "2368",
+      "upstream_name": "金像電",
+      "downstream_symbol": "6669",
+      "downstream_name": "緯穎",
+      "relation_tier": 1,
+      "component_type": "伺服器主機板、背板PCB",
+      "confidence": "high",
+      "evidence": "金像電專注於伺服器與網通高階PCB，為緯穎等AI伺服器主要供應商之一。"
+    }
+  ],
+  "notes": ""
+}
