@@ -54,7 +54,7 @@ def get_gemini_api_key() -> str:
 
 
 def get_gemini_model() -> str:
-    return _env("GEMINI_MODEL", "gemini-2.5-flash")
+    return _env("GEMINI_MODEL", "gemini-3.6-flash")
 
 
 # ── 成本與併發控管（§4.6、ADR-AI-08）───────────────────────────
@@ -153,15 +153,18 @@ CLAUDE_SELECTABLE_MODELS: list[dict[str, str]] = [
 #     不保證這個 API 金鑰／地區實際打得通；gemini-3-flash-preview 連定價都查無資料。
 # gemini-3.6-flash：定價頁已收錄，但使用者實際看到的模型清單頁面當下尚未列出，可能是新機型
 # 正在分區／分帳號推送中；若呼叫時回 404，屬於 Google 端尚未對此帳號開通，非本專案程式問題。
+# 預設模型（2026-09-01 起）：使用者要求改為 gemini-3.6-flash（見 get_gemini_model()／
+# .env.example 的 GEMINI_MODEL）——速度與智慧平衡，優惠價至 2026-12-31（見下方定價表註記）；
+# 未實測，若此帳號尚未開通而回 404，可暫時於 .env 把 GEMINI_MODEL 改回 gemini-2.5-flash。
 GEMINI_SELECTABLE_MODELS: list[dict[str, str]] = [
     {"id": "gemini-3.1-pro-preview", "label": "Gemini 3.1 Pro", "tier": "旗艦（進階推論）"},
-    {"id": "gemini-3.6-flash", "label": "Gemini 3.6 Flash", "tier": "旗艦（速度與智慧平衡）"},
+    {"id": "gemini-3.6-flash", "label": "Gemini 3.6 Flash", "tier": "旗艦（速度與智慧平衡，預設）"},
     {"id": "gemini-3.5-flash", "label": "Gemini 3.5 Flash", "tier": "高智慧多模態"},
     {"id": "gemini-3-flash-preview", "label": "Gemini 3 Flash (Preview)", "tier": "預覽版"},
     {"id": "gemini-3.5-flash-lite", "label": "Gemini 3.5 Flash-Lite", "tier": "低成本輕量"},
     {"id": "gemini-3.1-flash-lite", "label": "Gemini 3.1 Flash-Lite", "tier": "低成本輕量（舊版）"},
     {"id": "gemini-2.5-pro", "label": "Gemini 2.5 Pro", "tier": "旗艦（推論與編程）"},
-    {"id": "gemini-2.5-flash", "label": "Gemini 2.5 Flash", "tier": "平衡成本效益（預設，已實測）"},
+    {"id": "gemini-2.5-flash", "label": "Gemini 2.5 Flash", "tier": "平衡成本效益（已實測）"},
 ]
 
 SELECTABLE_MODELS: dict[str, list[dict[str, str]]] = {
