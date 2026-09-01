@@ -46,6 +46,20 @@
          utils/industryChainExport.js 的內容產生器與 ADR-IC-20 的單一錨點標的取捨 -->
     <ExportToNoteDialog v-model:visible="exportVisible" :initial="exportPayload" />
 
+    <!-- §8 v2.6 ③放大檢視：同一份 graphData／hover／勾選狀態，只是換一個較大的畫布尺寸重繪，
+         不是另外拉一份快照——在這裡 hover／點選節點，主畫面關閉此對話框後會看到同步的結果 -->
+    <Dialog v-model:visible="zoomVisible" header="產業鏈關聯圖（放大檢視）" modal maximizable :style="{ width: '92vw' }">
+      <div ref="zoomBoxRef">
+        <v-chart
+          class="graph-chart" :style="{ height: zoomChartHeight + 'px' }" :option="zoomGraphOption" autoresize
+          @click="onChartClick" @mouseover="onChartMouseover" @mouseout="onChartMouseout"
+        />
+      </div>
+      <template #footer>
+        <Button label="關閉" text @click="zoomVisible = false" />
+      </template>
+    </Dialog>
+
     <!-- §8 人工核對介面（v2.3 從 Q-5 升級為 P1 必要）：待核對清單＋確認核可／判定錯誤兩個動作，
          只需最小可用，不做完整後台。動作成功後透過 @changed 區域性刷新本鏈圖譜／KPI，
          不整頁重新 fetch（CLAUDE.md 硬規則 1：fetchGraphAndRadar() 本身已是 keep-mounted + 覆蓋層模式）-->
@@ -167,6 +181,12 @@
                   <h3 class="font-bold text-surface-800 dark:text-surface-100 flex items-center gap-2">
                     <i class="pi pi-share-alt text-primary"></i>產業鏈關聯圖
                   </h3>
+                  <!-- §8 v2.6 ③放大檢視：節點數較多的鏈（如 CPO 矽光子鏈 63 條邊）在卡片內的
+                       小畫布會很擠，開一個大尺寸 Dialog 重繪同一份資料 -->
+                  <Button
+                    v-if="graphData.edges.length" label="放大檢視" icon="pi pi-window-maximize" size="small" text
+                    @click="zoomVisible = true"
+                  />
                   <div class="flex items-center gap-3 text-[11px] text-surface-500 flex-wrap">
                     <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-full" style="background:#8F6413"></i>已突破</span>
                     <span class="flex items-center gap-1"><i class="inline-block w-2 h-2 rounded-full" style="background:#B26A00"></i>低位階候選</span>
@@ -206,7 +226,10 @@
 
                   <!-- ref 用來量測實際可用寬度，據以算出欄距讓座標系維持 1:1 不縮放（見 layoutMetrics）-->
                   <div ref="chartBoxRef">
-                    <v-chart ref="chartRef" class="graph-chart" :style="{ height: chartHeight + 'px' }" :option="graphOption" autoresize @click="onChartClick" />
+                    <v-chart
+                      ref="chartRef" class="graph-chart" :style="{ height: chartHeight + 'px' }" :option="graphOption" autoresize
+                      @click="onChartClick" @mouseover="onChartMouseover" @mouseout="onChartMouseout"
+                    />
                   </div>
                 </template>
               </div>
@@ -330,8 +353,10 @@ import { useWatchlistTags } from '@/composables/useWatchlistTags';
 import IndustryChainConfigDialog from '@/components/IndustryChainConfigDialog.vue';
 import IndustryChainVerifyDialog from '@/components/IndustryChainVerifyDialog.vue';
 import ExportToNoteDialog from '@/components/industry-chain/ExportToNoteDialog.vue';
-import { TIER_LABEL, STATE_LABEL, STATE_COLOR, STATE_BG } from '@/utils/industryChainVisuals';
+import { TIER_LABEL, STATE_LABEL, STATE_COLOR } from '@/utils/industryChainVisuals';
 import { buildChainSnapshotNote, buildSingleEdgeNote, buildNodePathNote } from '@/utils/industryChainExport';
+import { buildNodeSubgraph } from '@/utils/industryChainGraph';
+import { buildGraphOption, ROLE_COLUMN, PAD_X } from '@/utils/industryChainGraphOption';
 
 use([CanvasRenderer, GraphChart, TooltipComponent, LegendComponent]);
 
@@ -502,18 +527,13 @@ async function submitAdd() {
   }
 }
 
-// STATE_COLOR／STATE_BG：見 utils/industryChainVisuals.js
-// 已加入追蹤名單（綠）與已勾選待加入（藍）——刻意都不用既有的狀態色系（棕／橘），
-// 免得跟「已突破／低位階候選」的語意混淆
-const IN_LIST_COLOR = '#059669';
-const IN_LIST_BG = '#D1FAE5';
-const PICKED_COLOR = '#2563EB';
-const PICKED_BG = '#DBEAFE';
+// IN_LIST_COLOR／PICKED_COLOR／PULSE_CYCLE_SEC／ROLE_COLUMN／PAD_X 等版面與配色常數已隨
+// buildGraphOption() 移至 utils/industryChainGraphOption.js（§8 v2.6 ③放大檢視需要同一份
+// 版面邏輯給第二個畫布用，抽成純函式避免主視圖與放大檢視各寫一份、以後改一邊漏改另一邊）。
 
 // 已突破（點火）節點的呼吸光暈——只在真的有點火節點時才跑計時器，平常（多半是 dormant）
 // 完全不佔資源。用 setInterval 而非 requestAnimationFrame：呼吸效果本來就慢（~1.8 秒一輪），
 // 10Hz 取樣已經滑順，不需要 60fps 白白重算整個 graphOption／重丟 setOption。
-const PULSE_CYCLE_SEC = 1.8;
 const pulsePhase = ref(0);
 let pulseTimer = null;
 
@@ -532,24 +552,37 @@ onBeforeUnmount(() => {
   if (pulseTimer) clearInterval(pulseTimer);
 });
 
-// 分層版面（上游｜中游｜下游），取代原本的純力導向排版——邊一多（例如 CPO 矽光子鏈 63
-// 條）force 布局會糊成一坨看不出方向，改成固定欄位＋欄內平均分佈，天生不會互相遮擋
-// （見對話紀錄的優化評估）。欄序：tier2（上游）在左，downstream（下游龍頭）在右。
-const ROLE_COLUMN = { tier2: 0, tier1: 1, downstream: 2 };
-const ROLE_LABEL_POSITION = { tier2: 'left', tier1: 'bottom', downstream: 'right' };
-// TIER_LABEL／STATE_LABEL：見 utils/industryChainVisuals.js（FR-21 匯出為投資筆記的 Mermaid
-// 圖也要用同一份，抽成共用模組避免兩處日後改了一邊沒跟著改）
-const PAD_X = 100;   // 左右留白：給欄外標籤（上游靠左、下游靠右）用，太小會被裁掉
-const PAD_Y = 28;
-const ROW_GAP = 64;
+// ── §8 v2.6 ①多跳路徑高亮：hover 節點時沿邊雙向 BFS 出完整可達子圖並整段標記，不是只有
+//    ECharts 內建 emphasis.focus:'adjacency' 那種單跳鄰接高亮（後者已從 buildGraphOption()
+//    移除，理由見該檔頭註解：兩套高亮邏輯同時開會互相打架）。
+const hoveredSymbol = ref(null);
+const highlightedSubgraph = computed(() => {
+  if (!hoveredSymbol.value || !graphData.value) return null;
+  const { symbols, edges } = buildNodeSubgraph(hoveredSymbol.value, graphData.value.edges);
+  return { symbols, edgeKeys: new Set(edges.map((e) => `${e.upstream_symbol}->${e.downstream_symbol}`)) };
+});
+
+function onChartMouseover(params) {
+  if (params?.dataType === 'node') hoveredSymbol.value = params.data.id;
+}
+function onChartMouseout() {
+  hoveredSymbol.value = null;
+}
 
 // 量測圖表實際可用寬度。ECharts 的 view 座標系會把節點座標的包圍盒「縮放」到繪圖區，
 // 而且 x/y 是各自獨立縮放的——一旦包圍盒與繪圖區長寬比不同，圓就會被壓成橢圓（前一版
 // 指定了 left/right/top/bottom 把寬高都寫死，正是壓扁的原因）。量到寬度後即可反推欄距，
 // 讓包圍盒與繪圖區完全等比（縮放 1:1），圓才會保持正圓、列距也精準等於 ROW_GAP。
+// §8 v2.6 ③放大檢視另開一個 Dialog、另一個畫布，兩個畫布各自量測自己的容器寬度
+// （chartBoxRef／zoomBoxRef 各自獨立的 ResizeObserver），呼叫同一個 buildGraphOption()。
 const chartBoxRef = ref(null);
 const chartBoxWidth = ref(0);
 let resizeObs = null;
+
+const zoomVisible = ref(false);
+const zoomBoxRef = ref(null);
+const zoomBoxWidth = ref(0);
+let zoomResizeObs = null;
 
 // 圖表在 v-if 分支內，掛載時機不固定；watch 樣板 ref 才能在分支切換時重新觀察
 watch(chartBoxRef, (el) => {
@@ -559,115 +592,42 @@ watch(chartBoxRef, (el) => {
   resizeObs = new ResizeObserver(([entry]) => { chartBoxWidth.value = entry.contentRect.width; });
   resizeObs.observe(el);
 });
-
-onBeforeUnmount(() => resizeObs?.disconnect());
-
-// 節點座標：欄內依代號排序、置中對齊到最長欄（短欄不會全擠在頂端）；欄距由實際寬度反推
-const layoutMetrics = computed(() => {
-  const byCol = [[], [], []];
-  (graphData.value?.nodes || []).forEach((n) => byCol[ROLE_COLUMN[n.role] ?? 1].push(n));
-  byCol.forEach((col) => col.sort((a, b) => a.symbol.localeCompare(b.symbol)));
-
-  const maxRows = Math.max(1, ...byCol.map((col) => col.length));
-  const contentHeight = (maxRows - 1) * ROW_GAP;
-  // 尚未量到寬度時（首次算 option 早於 ResizeObserver 首次回呼）先用一個合理預設值
-  const viewWidth = Math.max(240, (chartBoxWidth.value || 660) - PAD_X * 2);
-  const colGap = viewWidth / 2;
-
-  const posBySymbol = {};
-  byCol.forEach((col, colIdx) => {
-    const offsetY = ((maxRows - col.length) * ROW_GAP) / 2;
-    col.forEach((n, rowIdx) => { posBySymbol[n.symbol] = { x: colIdx * colGap, y: offsetY + rowIdx * ROW_GAP }; });
-  });
-  return { posBySymbol, contentHeight };
+watch(zoomBoxRef, (el) => {
+  zoomResizeObs?.disconnect();
+  zoomResizeObs = null;
+  if (!el || typeof ResizeObserver === 'undefined') return;
+  zoomResizeObs = new ResizeObserver(([entry]) => { zoomBoxWidth.value = entry.contentRect.width; });
+  zoomResizeObs.observe(el);
 });
 
-// 高度 = 內容高 + 上下留白，讓繪圖區剛好等於包圍盒（不多留無謂空白，也不壓縮）
-const chartHeight = computed(() => Math.max(260, layoutMetrics.value.contentHeight + PAD_Y * 2));
-
-const graphOption = computed(() => {
-  if (!graphData.value) return {};
-  const { posBySymbol } = layoutMetrics.value;
-  // 0~1 的呼吸強度（sin 正規化），非點火節點固定 0，省得每個節點都各自算一次 sin
-  const pulse = (Math.sin((pulsePhase.value * 2 * Math.PI) / PULSE_CYCLE_SEC) + 1) / 2;
-  const nodes = graphData.value.nodes.map((n) => {
-    const baseSize = n.role === 'downstream' ? 40 : n.role === 'tier1' ? 30 : 22;
-    const ignited = n.state === 'ignited';
-    const inList = isInWatchlist(n);
-    const picked = selectedSymbols.value.includes(n.symbol);
-    // 樣式優先序：已在名單（綠、不可選）＞ 已勾選（藍框加粗）＞ 點火／一般狀態色
-    const borderColor = inList ? IN_LIST_COLOR : picked ? PICKED_COLOR : (STATE_COLOR[n.state] || STATE_COLOR.dormant);
-    return {
-      id: n.symbol,
-      name: `${inList ? '✓ ' : ''}${n.symbol} ${n.name}`,
-      x: posBySymbol[n.symbol].x,
-      y: posBySymbol[n.symbol].y,
-      // 已突破節點：大小＋外發光隨 pulse 呼吸（3px／6~20px），視覺上一眼就能跟其餘節點分開；
-      // 其餘節點給一圈很淡的陰影做立體感，不然純灰底圓圈在白卡片上會顯得死板扁平
-      symbolSize: (ignited ? baseSize + pulse * 6 : baseSize) + (picked ? 4 : 0),
-      itemStyle: {
-        color: inList ? IN_LIST_BG : picked ? PICKED_BG : (STATE_BG[n.state] || STATE_BG.dormant),
-        borderColor,
-        borderWidth: picked ? 4 : ignited ? 3 : 2,
-        shadowColor: picked ? PICKED_COLOR : ignited ? STATE_COLOR.ignited : 'rgba(15, 23, 42, 0.12)',
-        shadowBlur: picked ? 10 : ignited ? 6 + pulse * 14 : 5,
-        shadowOffsetY: ignited || picked ? 0 : 1
-      },
-      // 分層版面每欄節點是固定座標、垂直平均分佈，不會像力導向那樣互相飄移遮擋，所以三欄
-      // 標籤都常駐顯示是安全的；hover 時仍會加粗＋固定鄰接節點，方便在密集鏈裡追一條線
-      label: {
-        show: true, fontSize: 10, position: ROLE_LABEL_POSITION[n.role] || 'bottom',
-        fontWeight: ignited || picked || inList ? 'bold' : 'normal',
-        color: inList ? IN_LIST_COLOR : picked ? PICKED_COLOR : ignited ? STATE_COLOR.ignited : undefined,
-        formatter: (p) => p.data.name
-      },
-      emphasis: { label: { show: true, fontWeight: 'bold' } }
-    };
-  });
-  // 靜止狀態刻意調淡（opacity 0.45／0.6）——邊一多（CPO 鏈 63 條）全部滿彩實線會很「吵」，
-  // 平常淡一點、hover 時 emphasis 才拉回 opacity:1，對比出來反而更看得出「聚焦」的效果
-  const links = graphData.value.edges.map((e) => ({
-    source: e.upstream_symbol,
-    target: e.downstream_symbol,
-    lineStyle: {
-      color: e.is_verified ? '#79746c' : '#B26A00',
-      type: e.is_verified ? 'solid' : 'dashed',
-      width: 1.4,
-      opacity: e.is_verified ? 0.45 : 0.6,
-      curveness: 0.15,
-      cap: 'round'
-    },
-    tooltip: { formatter: () => `${e.upstream_symbol} → ${e.downstream_symbol}<br/>${e.component_type || ''}` }
-  }));
-  return {
-    tooltip: {},
-    series: [
-      {
-        type: 'graph',
-        layout: 'none',
-        roam: true,
-        draggable: true,
-        cursor: 'pointer',   // 節點可點選加入追蹤名單，游標要提示得出來
-        // 邊界留白給欄外標籤（上游往左、下游往右），數值與 layoutMetrics 反推欄距時一致，
-        // 因此包圍盒與繪圖區等比、縮放 1:1。preserveAspect 是保險：萬一量到的寬度暫時過期
-        // （例如 resize 當下那一幀），ECharts 會改以等比「contain」縮放，圓仍是正圓不會壓扁
-        left: PAD_X,
-        right: PAD_X,
-        top: PAD_Y,
-        bottom: PAD_Y,
-        preserveAspect: true,
-        data: nodes,
-        links,
-        edgeSymbol: ['none', 'arrow'],
-        edgeSymbolSize: 6,
-        // hover 節點時只保留跟它相連的節點/邊，其餘淡化——密集鏈（多對多）平常看起來還是
-        // 一坨線，靠這個才聚焦得出「這顆點到底接誰」
-        emphasis: { focus: 'adjacency', lineStyle: { width: 3, opacity: 1 } },
-        blur: { itemStyle: { opacity: 0.15 }, lineStyle: { opacity: 0.06 }, label: { opacity: 0.15 } }
-      }
-    ]
-  };
+onBeforeUnmount(() => {
+  resizeObs?.disconnect();
+  zoomResizeObs?.disconnect();
 });
+
+function buildCurrentGraphOption(boxWidth) {
+  if (!graphData.value) return { option: {}, height: 260 };
+  return buildGraphOption({
+    nodes: graphData.value.nodes,
+    edges: graphData.value.edges,
+    boxWidth,
+    pulsePhase: pulsePhase.value,
+    isInWatchlist,
+    selectedSymbols: selectedSymbols.value,
+    highlighted: highlightedSubgraph.value,
+    hoveredSymbol: hoveredSymbol.value
+  });
+}
+
+const mainGraph = computed(() => buildCurrentGraphOption(chartBoxWidth.value));
+const graphOption = computed(() => mainGraph.value.option);
+const chartHeight = computed(() => mainGraph.value.height);
+
+// 放大檢視用同一份 graphData／hover／勾選狀態，只是另一個畫布尺寸——資料完全同步，不是另外
+// 拉一份快照，因此在放大檢視裡 hover／勾選節點，主畫面也會同步反應（反之亦然）
+const zoomGraph = computed(() => buildCurrentGraphOption(zoomBoxWidth.value));
+const zoomGraphOption = computed(() => zoomGraph.value.option);
+const zoomChartHeight = computed(() => Math.max(480, zoomGraph.value.height));
 
 // 圖上文字太密、或欄外標籤被截到看不清楚時的備援：完整節點清單，依「上游→中游→下游」
 // 閱讀順序分組，component_type 取該公司在邊資料裡作為 upstream_symbol 時的第一筆描述

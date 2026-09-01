@@ -5,6 +5,7 @@
 // ExportToNoteDialog.vue，由它呼叫既有 investmentNoteApi.createNote()（ADR-IC-20：不新增
 // 後端端點、不擴充 investment_note 的 schema）。
 import { STATE_COLOR, STATE_BG, STATE_LABEL, TIER_LABEL } from '@/utils/industryChainVisuals';
+import { buildNodeSubgraph } from '@/utils/industryChainGraph';
 
 const CONFIDENCE_LABEL = { high: '高', medium: '中', low: '低' };
 
@@ -25,48 +26,8 @@ function escapeMermaidLabel(text) {
   return String(text ?? '').replace(/"/g, "'").replace(/\|/g, '/').replace(/[\r\n]+/g, ' ').trim();
 }
 
-// ── 多跳路徑追蹤（節點路徑匯出範圍用）：從一個節點出發，沿邊分別往上游／下游方向做 BFS，
-//    收集完整可達子圖（不限跳數——FR-21 要的是「完整上下游子圖」，不是 BFS 收斂候選那種
-//    需要 IC_MAX_BFS_TIER 限制層級的場景，兩者是不同用途，見規格書 §1.4 術語衝突警告）。
-export function buildNodeSubgraph(startSymbol, edges) {
-  const outgoing = new Map(); // symbol -> 以該symbol為上游的邊（往下游走）
-  const incoming = new Map(); // symbol -> 以該symbol為下游的邊（往上游走）
-  edges.forEach((e) => {
-    if (!outgoing.has(e.upstream_symbol)) outgoing.set(e.upstream_symbol, []);
-    outgoing.get(e.upstream_symbol).push(e);
-    if (!incoming.has(e.downstream_symbol)) incoming.set(e.downstream_symbol, []);
-    incoming.get(e.downstream_symbol).push(e);
-  });
-
-  const visitedSymbols = new Set([startSymbol]);
-  const visitedEdgeKeys = new Set();
-  const collectedEdges = [];
-
-  function walk(direction) {
-    const map = direction === 'down' ? outgoing : incoming;
-    const queue = [startSymbol];
-    while (queue.length) {
-      const sym = queue.shift();
-      const next = map.get(sym) || [];
-      for (const e of next) {
-        const key = `${e.upstream_symbol}->${e.downstream_symbol}`;
-        if (!visitedEdgeKeys.has(key)) {
-          visitedEdgeKeys.add(key);
-          collectedEdges.push(e);
-        }
-        const otherSymbol = direction === 'down' ? e.downstream_symbol : e.upstream_symbol;
-        if (!visitedSymbols.has(otherSymbol)) {
-          visitedSymbols.add(otherSymbol);
-          queue.push(otherSymbol);
-        }
-      }
-    }
-  }
-  walk('down');
-  walk('up');
-
-  return { symbols: visitedSymbols, edges: collectedEdges };
-}
+// buildNodeSubgraph()（雙向 BFS 多跳收集）已移至 utils/industryChainGraph.js，同時供本檔的
+// 「節點路徑」匯出範圍與 IndustryChainView.vue 的 §8 v2.6 多跳路徑高亮共用（見該檔頭註解）。
 
 // ── Mermaid 圖：節點三態配色沿用本頁既有色票（ADR-IC-21），邊的實線／虛線沿用力導向圖
 //    「已核可＝實線、待核對＝虛線」的既有語意（ADR-IC-14），不是另外發明一套圖例。
