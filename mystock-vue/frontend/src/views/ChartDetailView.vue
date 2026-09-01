@@ -209,7 +209,16 @@ const stockId = ref(route.params.id || route.params.code || '2330');
 const market = ref(route.params.market || 'tw');
 const chartType = ref(route.params.chartType || (kind.value === 'index' ? 'kline' : 'institutional'));
 const period = ref(route.query.period || 'daily');
-const months = ref(Number(route.query.months) || 3);
+
+// Q-3（Phase2-籌碼面與基本面量化擴充規格書 §9）：本益比／估值河流圖的判讀價值高度依賴區間
+// 長度，3 個月看不出目前是相對高檔還是低檔，估值分頁改預設抓 1 年；其餘分頁維持原本 3 個月。
+// monthsManuallySet 記錄使用者是否已經自己選過區間（含用帶 months 的網址直接進站）——一旦
+// 選過就一律尊重使用者的選擇，換頁籤也不再覆寫，只有「從未選過」時換到估值分頁才套用新預設。
+function defaultMonthsForType(type) {
+  return type === 'valuation' ? 12 : 3;
+}
+const monthsManuallySet = ref(!!route.query.months);
+const months = ref(Number(route.query.months) || defaultMonthsForType(chartType.value));
 
 const loading = ref(true);
 const error = ref(null);
@@ -380,10 +389,13 @@ async function loadStockData() {
 }
 
 function switchChartType(type) {
+  // 使用者還沒手動選過區間時，換頁籤套用目的分頁的預設區間（Q-3）；選過就一律照舊帶現值過去，
+  // 不覆寫使用者的選擇。
+  const nextMonths = monthsManuallySet.value ? months.value : defaultMonthsForType(type);
   // 使用 replace 避免堆疊瞬戒歷史
   router.replace({
     path: `${basePath.value}/${market.value}/${stockId.value}/chart/${type}`,
-    query: { period: period.value, months: months.value }
+    query: { period: period.value, months: nextMonths }
   });
 }
 
@@ -393,6 +405,7 @@ function setPeriod(p) {
 }
 
 function setMonths(m) {
+  monthsManuallySet.value = true;
   if (months.value === m) return;
   router.replace({ query: { ...route.query, months: m } });
 }

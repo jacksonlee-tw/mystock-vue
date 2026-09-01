@@ -390,6 +390,10 @@ const availableStocks = ref([]);
 const selectedStock = ref(route.params.id || '2330');
 const selectedPeriod = ref(route.query.period || 'daily');
 const selectedMonths = ref(Number(route.query.months) || 3);
+// Q-3（Phase2-籌碼面與基本面量化擴充規格書 §9）：本益比／估值河流圖的判讀價值高度依賴區間長度，
+// 3 個月看不出目前是相對高檔還是低檔。使用者若還沒自己選過區間，點估值類 KPI 卡時比照
+// ChartDetailView.vue 同一份邏輯，改預設抓 1 年；一旦手動選過區間就不再覆寫（見 setMonths()）。
+const monthsManuallySet = ref(!!route.query.months);
 
 const loading = ref(true);
 const error = ref(null);
@@ -491,6 +495,13 @@ function setActiveChart(metricKey) {
   // market_cap／mcap_rank 目前沒有專屬趨勢線，導去估值分頁至少維持在同一主題頁籤。
   else if (['pe_ratio', 'pb_ratio', 'dividend_yield', 'market_cap', 'mcap_rank'].includes(metricKey)) widgetId = 'valuation';
   else if (['revenue_yoy', 'revenue_mom'].includes(metricKey)) widgetId = 'revenue';
+  // Q-3：第一次點估值卡、且使用者還沒手動選過區間時，把區間拉到 1 年再顯示估值走勢圖，
+  // 3 個月的估值河流圖看不出目前是相對高檔還是低檔。改走 router.replace 而非直接寫
+  // selectedMonths，因為「URL query 是週期／範圍狀態的唯一來源」（見下方 watch 註解）——
+  // 直接改 ref 會在重新整理時被 route.query 同步回舊值，讓畫面跟網址對不起來。
+  if (widgetId === 'valuation' && !monthsManuallySet.value && selectedMonths.value < 12) {
+    router.replace({ query: { ...route.query, months: 12 } });
+  }
   activeChartId.value = widgetId;
 }
 
@@ -603,6 +614,7 @@ function setPeriod(p) {
 }
 
 function setMonths(m) {
+  monthsManuallySet.value = true;
   if (selectedMonths.value === m) return;
   router.replace({ query: { ...route.query, months: m } });
 }
