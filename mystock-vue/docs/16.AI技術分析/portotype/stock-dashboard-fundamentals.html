@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>個股基本面／估值指標貫通 - 雛形畫面</title>
+<style>
+  /* ══════════════════════════════════════════════════════════════
+     Design tokens — 比照本專案 PrimeVue Aura + brass 品牌色系
+     （frontend/src/assets/layout/variables/_common-brass.scss），
+     與既有雛形 industry-chain-view.html／ai-execution-history.html 共用同一組色票。
+     --up／--down 另外比照 frontend/src/assets/project-style.css 的真實色碼
+     （紅漲綠跌，台美股一致，不因市場切換——見 up-down-color-convention 備忘）。
+     ══════════════════════════════════════════════════════════════ */
+  :root {
+    --surface-0: #ffffff;
+    --surface-50: #fafaf9;
+    --surface-100: #f4f4f3;
+    --surface-200: #e7e5e2;
+    --surface-300: #d6d3ce;
+    --surface-400: #a8a29a;
+    --surface-500: #79746c;
+    --surface-600: #57534a;
+    --surface-700: #423e37;
+    --surface-800: #2c2925;
+    --surface-900: #1c1a17;
+    --page-bg: #f6f5f2;
+
+    --primary: #8F6413;
+    --primary-600: #734F0F;
+    --primary-700: #5C400C;
+    --primary-50: #F8EEDA;
+    --primary-contrast: #ffffff;
+
+    --success: #388E3C;
+    --success-bg: #E8F5E9;
+    --success-border: #A8D5AA;
+    --danger: #903434;
+    --danger-bg: #fdefef;
+    --danger-border: #f0c2c2;
+    --warning: #B26A00;
+    --warning-bg: #FFF3E0;
+    --warning-border: #FFD699;
+
+    /* 漲跌色（frontend/src/assets/project-style.css 原值，紅漲綠跌，台美股一致） */
+    --up: #dc2626;
+    --down: #16a34a;
+
+    /* 圖表線條色（PE／PB／殖利率／YoY／MoM）：刻意不用 --up/--down，
+       比照 Phase2-實作計畫.md §9 的既有決策——趨勢線本身不逐點套用紅漲綠跌，
+       只有 KPI 卡數值才套用，避免同一條可正可負來回擺動的線紅綠交錯不易讀 */
+    --line-pe: #8F6413;
+    --line-pb: #2c5c94;
+    --line-yield: #7a4fa8;
+    --line-yoy: #2c5c94;
+    --line-mom: #7a4fa8;
+    --line-zero: #a8a29a;
+
+    --radius-lg: 14px;
+    --radius-md: 10px;
+    --radius-sm: 7px;
+    --shadow-sm: 0 1px 2px rgba(28,26,23,.06), 0 1px 1px rgba(28,26,23,.04);
+    --shadow-md: 0 8px 24px rgba(28,26,23,.14);
+    --font: "Segoe UI", "PingFang TC", "Microsoft JhengHei", system-ui, -apple-system, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--page-bg);
+    color: var(--surface-800);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  h1, h2, h3, p { margin: 0; }
+  button { font-family: inherit; cursor: pointer; }
+
+  .page {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 28px 24px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  /* ── Header（比照既有兩個雛形）───────────────────────────────── */
+  .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .page-header h1 { font-size: 26px; font-weight: 800; display: flex; align-items: center; gap: 10px; color: var(--surface-900); }
+  .page-header h1 .icon { font-size: 24px; }
+  .page-header .subtitle { margin-top: 4px; color: var(--surface-500); font-size: 13px; max-width: 760px; }
+  .page-header .subtitle code { background: var(--surface-100); padding: 1px 5px; border-radius: 4px; }
+  .proto-badge {
+    display: inline-block; margin-left: 10px; padding: 2px 9px; border-radius: 999px;
+    background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--warning);
+    font-size: 11px; font-weight: 700; vertical-align: middle;
+  }
+
+  /* ── Card shell（比照既有兩個雛形）──────────────────────────── */
+  .card { background: var(--surface-0); border: 1px solid var(--surface-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
+  .card-body { padding: 14px 18px; }
+  .card-head {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 14px 18px; border-bottom: 1px solid var(--surface-100);
+  }
+  .card-head h3 { font-size: 14.5px; font-weight: 800; color: var(--surface-900); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .card-head .head-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+
+  .btn {
+    border-radius: var(--radius-sm); border: 1px solid transparent; padding: 7px 13px;
+    font-size: 12.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .btn-ghost { background: transparent; color: var(--surface-500); border-color: var(--surface-300); }
+  .btn-ghost:hover { background: var(--surface-100); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  /* ── 鐵則說明徽章（本頁自訂：把 CLAUDE.md 硬規則的落實方式標在畫面上）─ */
+  .rule-note {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700;
+    color: var(--primary-700); background: var(--primary-50); border: 1px solid #e9d9ad;
+    border-radius: 999px; padding: 4px 11px; line-height: 1.4;
+  }
+
+  /* ── 個股識別列 ─────────────────────────────────────────────── */
+  .stock-id-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .stock-id-row .sym { font-size: 17px; font-weight: 800; color: var(--surface-900); }
+  .stock-id-row .name { font-size: 13px; color: var(--surface-500); }
+  .stock-id-row .market-tag { font-size: 10.5px; font-weight: 800; color: var(--primary-700); background: var(--primary-50); border-radius: 6px; padding: 2px 7px; }
+
+  /* ══════════════════════════════════════════════════════════════
+     KPI 卡片列 — CLAUDE.md 鐵則 2：同列卡片高度必須一致。
+     做法與既有雛形完全相同：CSS Grid 天生等高列 + kpi-card 內部
+     flex-column + justify-content:space-between，並且卡片一律 margin:0，
+     不依賴 assets/layout/_utils.scss 那條 `.card{margin-bottom:2rem;
+     &:last-child{margin-bottom:0}}` 的舊規則（該規則正是 CLAUDE.md 記錄的
+     真實踩雷案例）。市值卡（第 4 張）文字故意做成兩行副標，用來驗證版面
+     仍會把同列其他卡片撐到一樣高，而不是市值卡自己變高、其他卡露出空白。
+     ══════════════════════════════════════════════════════════════ */
+  .kpi-section .kpi-caption { font-size: 12px; color: var(--surface-500); margin-bottom: 10px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  @media (max-width: 1080px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px) { .kpi-grid { grid-template-columns: 1fr; } }
+
+  .kpi-card {
+    margin: 0; /* 鐵則 2：中和 _utils.scss 舊版 margin-bottom 規則，交由 grid gap 處理間距 */
+    background: var(--surface-0);
+    border: 1px solid var(--surface-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 15px 15px 13px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 92px;
+  }
+  .kpi-card .kpi-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--surface-400); display: flex; align-items: center; gap: 5px; }
+  .kpi-card .kpi-value { font-size: 22px; font-weight: 800; color: var(--surface-900); margin-top: 7px; }
+  .kpi-card .kpi-value.na { color: var(--surface-300); }
+  .kpi-card .kpi-sub { font-size: 10.5px; color: var(--surface-400); margin-top: 3px; line-height: 1.5; }
+  .kpi-card.up .kpi-value { color: var(--up); }
+  .kpi-card.down .kpi-value { color: var(--down); }
+  .kpi-card.long-text { outline: 1px dashed var(--warning-border); outline-offset: -1px; }
+  .kpi-card.long-text .kpi-label .flag { color: var(--warning); font-size: 10px; font-weight: 800; }
+
+  /* ── Tabs（比照 industry-chain-view.html）───────────────────── */
+  .tabs { display: flex; gap: 4px; background: var(--surface-100); border-radius: 999px; padding: 4px; width: fit-content; }
+  .tab-btn { border: none; background: transparent; padding: 7px 16px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--surface-500); white-space: nowrap; }
+  .tab-btn.active { background: var(--surface-0); color: var(--primary-700); box-shadow: var(--shadow-sm); }
+
+  /* ── Chart shell ────────────────────────────────────────────── */
+  .chart-shell { position: relative; padding: 14px 18px 4px; }
+  .chart-svg { display: block; width: 100%; height: auto; }
+  .chart-caption-row { display: flex; justify-content: space-between; align-items: baseline; padding: 0 18px 4px; flex-wrap: wrap; gap: 6px; }
+  .chart-caption-row .hint { font-size: 11.5px; color: var(--surface-400); }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 16px; padding: 2px 18px 14px; font-size: 11.5px; color: var(--surface-600); }
+  .chart-legend .lg-item { display: inline-flex; align-items: center; gap: 6px; }
+  .chart-legend .line-swatch { width: 18px; height: 0; border-top: 2.5px solid; display: inline-block; }
+  .chart-legend .line-swatch.dashed { border-top-style: dashed; }
+  .axis-label-text { font-size: 9.5px; fill: var(--surface-400); }
+  .axis-unit-text { font-size: 10px; fill: var(--surface-500); font-weight: 700; }
+  .gridline { stroke: var(--surface-100); stroke-width: 1; }
+  .zero-line { stroke: var(--line-zero); stroke-width: 1.6; stroke-dasharray: 5 4; }
+  .gap-guide { stroke: var(--warning-border); stroke-width: 1.2; stroke-dasharray: 2 3; }
+  .gap-note-text { font-size: 9.5px; fill: var(--warning); font-weight: 700; }
+  .month-tick-text { font-size: 9.5px; fill: var(--surface-500); }
+  .year-tick-text { font-size: 9px; fill: var(--surface-300); font-weight: 700; }
+  .data-dot { stroke: #fff; stroke-width: 1; }
+  .series-path { fill: none; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+
+  /* ── 重新整理覆蓋層（示範 CLAUDE.md 鐵則 1 的「dim/overlay + spinner」修復手法）
+     ─ 重點：這個 overlay 只是疊在既有圖表「上面」的一層，圖表本身（下面的 svg）
+     全程留在 DOM 裡沒有被拆掉或換成 spinner，因此不會有任何高度塌陷、也就不會
+     觸發瀏覽器把捲動位置吸回頁首。──────────────────────────────────────── */
+  .chart-refresh-overlay {
+    position: absolute; inset: 0; z-index: 5; border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    background: rgba(255,255,255,.72); display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 12.5px; font-weight: 700; color: var(--surface-600); opacity: 0; pointer-events: none;
+    transition: opacity .15s ease;
+  }
+  .chart-refresh-overlay.show { opacity: 1; }
+  .spinner { width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid var(--surface-300); border-top-color: var(--primary); animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .footnote { font-size: 11.5px; color: var(--surface-400); text-align: center; margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══════════════════════ 頁首 ══════════════════════ -->
+  <header class="page-header">
+    <div>
+      <h1><span class="icon">📊</span>個股基本面／估值指標貫通<span class="proto-badge">雛形畫面・假資料</span></h1>
+      <p class="subtitle">個股頁估值／月營收 KPI 卡與趨勢圖分頁（對應 <code>GET /{stock_id}/chart-data</code> 的
+        <code>latest_summary</code>／<code>valuation</code>／<code>revenue</code> 三個區塊）。見
+        docs/16.AI技術分析/Phase2-籌碼面與基本面量化擴充.md §3 FR-1／FR-2／FR-3，
+        以及 §0.2（2026-09-01 完工核對）記錄的已知資料缺口。</p>
+    </div>
+  </header>
+
+  <!-- ══════════════════════ 個股識別列 ══════════════════════ -->
+  <section class="card">
+    <div class="card-body stock-id-row">
+      <span class="sym">2330</span>
+      <span class="name">台積電</span>
+      <span class="market-tag">TW</span>
+      <span style="flex:1"></span>
+      <span class="rule-note">💡 本頁全部指標卡與圖表數值皆為前端寫死的假資料，僅供版面與資料現況示意</span>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       KPI 卡片列（FR-1／FR-5：估值／市值；FR-2：月營收 YoY／MoM）
+       ══════════════════════════════════════════════════════════════ -->
+  <section class="kpi-section">
+    <p class="kpi-caption">
+      估值與月營收指標卡（<code>markets/tw.py</code> 的 <code>panel="valuation"</code>／<code>panel="fundamental"</code>
+      兩組 Metric）。<b>本列示範 CLAUDE.md 硬規則 2</b>：「市值」卡（右上、有虛線外框標記）副標故意寫成兩行，
+      比其餘卡片多一行文字，用來驗證同一列卡片仍會被撐到等高——不會出現市值卡自己變高、其餘卡片留白對不齊的情形。
+    </p>
+    <div class="kpi-grid" id="kpiGrid"></div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       趨勢圖卡片：估值走勢／月營收 YoY-MoM 兩個分頁（FR-3）
+       ══════════════════════════════════════════════════════════════ -->
+  <section class="card">
+    <div class="card-head">
+      <h3>📈 估值與月營收趨勢圖</h3>
+      <div class="tabs" id="chartTabs">
+        <button type="button" class="tab-btn active" data-charttab="valuation">估值走勢</button>
+        <button type="button" class="tab-btn" data-charttab="revenue">月營收 YoY／MoM</button>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-ghost btn-sm" id="btnSimRefresh">🔄 模擬重新整理（示範鐵則 1 覆蓋層）</button>
+      </div>
+    </div>
+
+    <div class="chart-caption-row">
+      <span class="rule-note" id="rule1Note">
+        🔒 分頁切換／重新整理：兩個分頁的 SVG 在頁面載入時就已經畫好、常駐在 DOM 裡，切換分頁只是用 CSS
+        <code>display</code> 顯示或隱藏其中一塊，從不重新渲染、不整頁 reflow，捲動位置自然不會被重置
+        （CLAUDE.md 硬規則 1；重新整理時同理，只疊一層半透明遮罩＋spinner，底下圖表原樣留著，見下方按鈕示範）。
+      </span>
+      <span class="hint" id="rangeHint"></span>
+    </div>
+
+    <!-- ── 分頁一：估值走勢（PE／PB／殖利率，雙 Y 軸）───────────── -->
+    <div id="tabValuationChart">
+      <div class="chart-shell" id="valuationChartShell">
+        <svg id="valuationSvg" class="chart-svg" viewBox="0 0 880 320"></svg>
+        <div class="chart-refresh-overlay" id="valuationOverlay"><span class="spinner"></span>重新整理中…</div>
+      </div>
+      <div class="chart-legend">
+        <span class="lg-item"><span class="line-swatch" style="border-color:var(--line-pe)"></span>本益比 PE（左軸・倍）</span>
+        <span class="lg-item"><span class="line-swatch" style="border-color:var(--line-pb)"></span>股價淨值比 PB（左軸・倍）</span>
+        <span class="lg-item"><span class="line-swatch" style="border-color:var(--line-yield)"></span>殖利率（右軸・%）</span>
+      </div>
+    </div>
+
+    <!-- ── 分頁二：月營收 YoY／MoM（零軸標示＋缺值斷線）─────────── -->
+    <div id="tabRevenueChart" style="display:none">
+      <div class="chart-shell" id="revenueChartShell">
+        <svg id="revenueSvg" class="chart-svg" viewBox="0 0 880 300"></svg>
+        <div class="chart-refresh-overlay" id="revenueOverlay"><span class="spinner"></span>重新整理中…</div>
+      </div>
+      <div class="chart-legend">
+        <span class="lg-item"><span class="line-swatch" style="border-color:var(--line-yoy)"></span>營收年增率 YoY（%）</span>
+        <span class="lg-item"><span class="line-swatch" style="border-color:var(--line-mom)"></span>營收月增率 MoM（%）</span>
+        <span class="lg-item"><span class="line-swatch dashed" style="border-color:var(--line-zero)"></span>零軸（成長／衰退分界）</span>
+        <span class="lg-item" style="color:var(--warning)">┄ 5月 MoM 缺值：斷線留白，不補 0、不水平延伸</span>
+      </div>
+    </div>
+  </section>
+
+  <p class="footnote">
+    本頁資料為前端寫死的假資料；PE／PB／殖利率／YoY／MoM 三張圖的「最新一點」刻意對齊上方 KPI 卡數值
+    （比照驗收條件 AC-7「圖上序列最新值與 KPI 卡數字一致」）。市值／市值排名卡顯示「—」如實反映
+    2026-09-01 複查程式碼的結果：<code>services/valuation_fetcher.py</code> 仍將這兩欄寫死回傳
+    <code>None</code>，資料源頭仍是 0% 覆蓋，並非本頁畫錯。
+  </p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ══════════════════════════════════════════════════════════════
+     假資料 —— 對齊 backend/markets/tw.py 的 Metric 定義與
+     backend/services/stock_service.py 的 latest_summary／valuation／revenue 欄位
+     ══════════════════════════════════════════════════════════════ */
+  const MONTH_LABELS = ["09","10","11","12","01","02","03","04","05","06","07","08"];
+  const YEAR_MARKERS = [{ index: 0, label: "2025" }, { index: 4, label: "2026" }];
+
+  // 估值走勢：左軸 PE／PB（倍），右軸 殖利率（%）。最後一點與 KPI 卡數字一致（AC-7）。
+  const VAL_PE    = [16.2, 15.8, 17.1, 19.4, 21.8, 23.5, 20.9, 19.2, 17.6, 16.4, 17.8, 18.6];
+  const VAL_PB    = [5.9, 5.7, 6.1, 6.6, 7.2, 7.6, 7.0, 6.7, 6.2, 5.9, 6.4, 6.8];
+  const VAL_YIELD = [2.65, 2.70, 2.55, 2.35, 2.10, 1.95, 2.15, 2.30, 2.45, 2.60, 2.35, 2.15];
+
+  // 月營收 YoY／MoM（%）。索引 8（2026-05）的 MoM 故意留 null，示範「缺值斷線留白」（ADR-SP-08）。
+  const REV_YOY = [-2.10, 3.40, 8.90, 15.20, 22.70, 18.30, 9.60, 6.40, -4.80, -8.20, 5.10, 12.35];
+  const REV_MOM = [2.30, -1.50, 4.20, 6.80, -2.90, 3.10, -5.60, 1.80, null, -6.40, 8.90, -3.82];
+  const REV_GAP_INDEX = 8;
+
+  const KPI_CARDS = [
+    { key: "pe_ratio", label: "本益比", value: "18.6", unit: "倍", sub: "近一年區間 14.2～23.8 倍", cls: "" },
+    { key: "pb_ratio", label: "股價淨值比", value: "6.8", unit: "倍", sub: "近一年區間 5.6～7.9 倍", cls: "" },
+    { key: "dividend_yield", label: "殖利率", value: "2.15", unit: "%", sub: "近一年區間 1.8～2.9%", cls: "" },
+    {
+      key: "market_cap", label: "市值", value: "—", unit: "億元", cls: "long-text",
+      sub: "資料源頭尚未支援（<code>daily_valuation.market_cap</code> 現仍 0% 覆蓋，見 Phase2-實作計畫.md 事後複查 2026-09-01）",
+      flag: "缺值示範"
+    },
+    { key: "mcap_rank", label: "市值排名", value: "—", unit: "名", sub: "同左，需市值先算出才能排名", cls: "" },
+    { key: "revenue_yoy", label: "營收年增率", value: "+12.35", unit: "%", sub: "資料月份 2026-07", cls: "up" },
+    { key: "revenue_mom", label: "營收月增率", value: "-3.82", unit: "%", sub: "較上月", cls: "down" }
+  ];
+
+  /* ══════════════════════════════════════════════════════════════
+     KPI 卡片渲染 —— 比照既有雛形 renderOverviewKpis() 的寫法，
+     一次性 innerHTML 組字串，卡片本身用 CSS Grid + margin:0 撐等高
+     ══════════════════════════════════════════════════════════════ */
+  function renderKpiCards() {
+    document.getElementById("kpiGrid").innerHTML = KPI_CARDS.map((c) => `
+      <div class="kpi-card ${c.cls}">
+        <div class="kpi-label">${c.label}${c.flag ? `<span class="flag">・${c.flag}</span>` : ""}</div>
+        <div class="kpi-value${c.value === "—" ? " na" : ""}">${c.value}${c.value !== "—" ? `<span style="font-size:12px;font-weight:700;color:var(--surface-400);margin-left:3px;">${c.unit}</span>` : ""}</div>
+        <div class="kpi-sub">${c.sub}</div>
+      </div>
+    `).join("");
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     手刻折線圖引擎（無外部圖表庫，比照 industry-chain-view.html 的
+     svgEl() / computeLayout() 寫法：用 JS 算座標、組 SVG 節點，
+     不是逐點手打座標字串）
+     ══════════════════════════════════════════════════════════════ */
+  const NS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs, text) {
+    const el = document.createElementNS(NS, tag);
+    Object.keys(attrs || {}).forEach((k) => el.setAttribute(k, attrs[k]));
+    if (text != null) el.textContent = text;
+    return el;
+  }
+
+  function scaleX(i, n, left, right) {
+    return left + (i / (n - 1)) * (right - left);
+  }
+  function scaleY(v, min, max, top, bottom) {
+    const t = (v - min) / (max - min);
+    return bottom - t * (bottom - top);
+  }
+
+  // 缺值斷線留白：null 會截斷目前線段，回傳「多段」path，中間自然空白，
+  // 不連線、不補 0、不水平延伸（比照 chip_provider.py／ECharts connectNulls:false 的既有約定）。
+  function buildSegments(values, xFn, yFn) {
+    const segments = [];
+    let current = [];
+    values.forEach((v, i) => {
+      if (v == null) {
+        if (current.length) { segments.push(current); current = []; }
+        return;
+      }
+      current.push([xFn(i), yFn(v)]);
+    });
+    if (current.length) segments.push(current);
+    return segments;
+  }
+
+  function pathD(points) {
+    return points.map((p, i) => (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+  }
+
+  /* ── 估值走勢圖：雙 Y 軸（PE／PB 左軸「倍」，殖利率右軸「%」）──── */
+  function renderValuationChart() {
+    const svg = document.getElementById("valuationSvg");
+    svg.innerHTML = "";
+    const W = 880, H = 320, L = 50, R = 830, T = 18, B = 268;
+    const leftAxis = { min: 0, max: 30, ticks: [0, 10, 20, 30] };
+    const rightAxis = { min: 0, max: 4, ticks: [0, 1, 2, 3, 4] };
+    const n = MONTH_LABELS.length;
+    const xFn = (i) => scaleX(i, n, L, R);
+
+    // 格線（依左軸刻度；右軸刻度數字仍照右軸自己的比例換算位置，兩軸刻度線不必對齊在同一條格線上，
+    // 這正是雙 Y 軸「兩軸各自獨立比例尺」的視覺語意，不是畫錯）
+    leftAxis.ticks.forEach((t) => {
+      const y = scaleY(t, leftAxis.min, leftAxis.max, T, B);
+      svg.appendChild(svgEl("line", { class: "gridline", x1: L, x2: R, y1: y.toFixed(1), y2: y.toFixed(1) }));
+      svg.appendChild(svgEl("text", { class: "axis-label-text", x: L - 8, y: y + 3, "text-anchor": "end" }, String(t)));
+    });
+    svg.appendChild(svgEl("text", { class: "axis-unit-text", x: 8, y: T + 6 }, "倍"));
+    rightAxis.ticks.forEach((t) => {
+      const y = scaleY(t, rightAxis.min, rightAxis.max, T, B);
+      svg.appendChild(svgEl("text", { class: "axis-label-text", x: R + 8, y: y + 3, "text-anchor": "start" }, String(t)));
+    });
+    svg.appendChild(svgEl("text", { class: "axis-unit-text", x: W - 20, y: T + 6, "text-anchor": "end" }, "%"));
+
+    // X 軸月份刻度
+    MONTH_LABELS.forEach((m, i) => {
+      const x = xFn(i);
+      svg.appendChild(svgEl("text", { class: "month-tick-text", x: x.toFixed(1), y: B + 16, "text-anchor": "middle" }, m));
+    });
+    YEAR_MARKERS.forEach((y0) => {
+      svg.appendChild(svgEl("text", { class: "year-tick-text", x: xFn(y0.index).toFixed(1), y: B + 28, "text-anchor": "middle" }, y0.label));
+    });
+
+    // 三條序列：PE／PB 用左軸比例尺，殖利率用右軸比例尺
+    const seriesDefs = [
+      { values: VAL_PE, color: "var(--line-pe)", yFn: (v) => scaleY(v, leftAxis.min, leftAxis.max, T, B) },
+      { values: VAL_PB, color: "var(--line-pb)", yFn: (v) => scaleY(v, leftAxis.min, leftAxis.max, T, B) },
+      { values: VAL_YIELD, color: "var(--line-yield)", yFn: (v) => scaleY(v, rightAxis.min, rightAxis.max, T, B) }
+    ];
+    seriesDefs.forEach((s) => {
+      const segs = buildSegments(s.values, xFn, s.yFn);
+      segs.forEach((pts) => {
+        svg.appendChild(svgEl("path", { class: "series-path", d: pathD(pts), stroke: s.color }));
+        pts.forEach(([x, y]) => {
+          svg.appendChild(svgEl("circle", { class: "data-dot", cx: x.toFixed(1), cy: y.toFixed(1), r: 3, fill: s.color }));
+        });
+      });
+    });
+  }
+
+  /* ── 月營收圖：單一 Y 軸（%），零軸明顯標示，MoM 於 2026-05 缺值斷線 ── */
+  function renderRevenueChart() {
+    const svg = document.getElementById("revenueSvg");
+    svg.innerHTML = "";
+    const W = 880, H = 300, L = 54, R = 858, T = 18, B = 246;
+    const axis = { min: -15, max: 25, ticks: [-10, 0, 10, 20] };
+    const n = MONTH_LABELS.length;
+    const xFn = (i) => scaleX(i, n, L, R);
+    const yFn = (v) => scaleY(v, axis.min, axis.max, T, B);
+
+    axis.ticks.forEach((t) => {
+      const y = yFn(t);
+      svg.appendChild(svgEl("line", { class: "gridline", x1: L, x2: R, y1: y.toFixed(1), y2: y.toFixed(1) }));
+      svg.appendChild(svgEl("text", { class: "axis-label-text", x: L - 8, y: y + 3, "text-anchor": "end" }, t + "%"));
+    });
+
+    // 零軸：比一般格線更粗、虛線、顏色不同——這是「成長／衰退分界」，必須讓人一眼認出來
+    const zeroY = yFn(0);
+    svg.appendChild(svgEl("line", { class: "zero-line", x1: L, x2: R, y1: zeroY.toFixed(1), y2: zeroY.toFixed(1) }));
+    svg.appendChild(svgEl("text", { class: "axis-label-text", x: R + 6, y: zeroY + 3, "text-anchor": "start", style: "font-weight:800;fill:var(--surface-500)" }, "0%"));
+
+    MONTH_LABELS.forEach((m, i) => {
+      const x = xFn(i);
+      svg.appendChild(svgEl("text", { class: "month-tick-text", x: x.toFixed(1), y: B + 16, "text-anchor": "middle" }, m));
+    });
+    YEAR_MARKERS.forEach((y0) => {
+      svg.appendChild(svgEl("text", { class: "year-tick-text", x: xFn(y0.index).toFixed(1), y: B + 28, "text-anchor": "middle" }, y0.label));
+    });
+
+    const seriesDefs = [
+      { values: REV_YOY, color: "var(--line-yoy)" },
+      { values: REV_MOM, color: "var(--line-mom)" }
+    ];
+    seriesDefs.forEach((s) => {
+      const segs = buildSegments(s.values, xFn, yFn);
+      segs.forEach((pts) => {
+        svg.appendChild(svgEl("path", { class: "series-path", d: pathD(pts), stroke: s.color }));
+        pts.forEach(([x, y]) => {
+          svg.appendChild(svgEl("circle", { class: "data-dot", cx: x.toFixed(1), cy: y.toFixed(1), r: 3, fill: s.color }));
+        });
+      });
+    });
+
+    // 缺值斷線的視覺註記：在 2026-05 的位置畫一條淺色引導虛線＋文字，
+    // 明確標出「這裡不是漏畫，是資料本身缺漏」，避免被誤讀成畫圖 bug
+    const gapX = xFn(REV_GAP_INDEX);
+    svg.appendChild(svgEl("line", { class: "gap-guide", x1: gapX.toFixed(1), x2: gapX.toFixed(1), y1: T, y2: B }));
+    svg.appendChild(svgEl("text", { class: "gap-note-text", x: gapX.toFixed(1), y: T + 10, "text-anchor": "middle" }, "5月 MoM 缺值"));
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     分頁切換 —— CLAUDE.md 硬規則 1 的落實方式：
+     兩個分頁的內容（含 SVG）在 init() 就已經畫好、常駐在 DOM 中，
+     切換只是加/拿掉 style.display，元素從未被移除或重新掛載，
+     所以瀏覽器不會因為版面高度瞬間坍塌而把捲動位置吸回頁首。
+     ══════════════════════════════════════════════════════════════ */
+  const state = { chartTab: "valuation" };
+
+  function applyChartTabVisibility() {
+    document.getElementById("tabValuationChart").style.display = state.chartTab === "valuation" ? "block" : "none";
+    document.getElementById("tabRevenueChart").style.display = state.chartTab === "revenue" ? "block" : "none";
+  }
+
+  document.querySelectorAll("#chartTabs .tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#chartTabs .tab-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.chartTab = btn.dataset.charttab;
+      applyChartTabVisibility();
+      // 刻意示範用：切換分頁後讀出目前捲動位置，證明沒有被重置（純供走查時觀察，非正式功能）
+      console.log("[雛形示範] 切換到「" + btn.textContent.trim() + "」分頁後 scrollY =", window.scrollY);
+    });
+  });
+
+  /* ── 模擬「重新整理資料」：dim overlay + spinner，不拆掉底下圖表 ── */
+  document.getElementById("btnSimRefresh").addEventListener("click", function () {
+    const overlayId = state.chartTab === "valuation" ? "valuationOverlay" : "revenueOverlay";
+    const overlay = document.getElementById(overlayId);
+    overlay.classList.add("show");
+    this.disabled = true;
+    setTimeout(() => {
+      overlay.classList.remove("show");
+      this.disabled = false;
+      // 底下的 SVG 從頭到尾都沒被清空重建，覆蓋層消失後畫面立刻是完整資料，不會有「先變空白再長回來」的閃爍
+    }, 900);
+  });
+
+  /* ══════════════════════════════════════════════════════════════
+     初始化
+     ══════════════════════════════════════════════════════════════ */
+  document.getElementById("rangeHint").textContent =
+    "目前展開 12 個月視圖以利判讀高低位階；系統實際預設區間仍為 3 個月（與 K 線等其他分頁共用同一個預設值，" +
+    "規格文件 Q-3 建議之「預設 1 年」2026-09-01 複查後確認未被採納，見 Phase2 文件 §0.2）。";
+
+  renderKpiCards();
+  renderValuationChart();
+  renderRevenueChart();
+  applyChartTabVisibility();
+})();
+</script>
+</body>
+</html>

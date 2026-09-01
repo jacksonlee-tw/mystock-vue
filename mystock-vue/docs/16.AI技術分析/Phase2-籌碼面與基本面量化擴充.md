@@ -1,9 +1,9 @@
 # Phase 2：籌碼面與基本面量化擴充 — 功能需求文件
 
 **模組**：個股基本面／估值指標貫通（個股頁 → 圖表 → AI 診股報告）
-**版本**：v2.0（v1.0 為構想草案，與現況嚴重脫節，本版整份重寫，落差逐條記於 §0）
-**日期**：2026-08-28
-**狀態**：**需求確認中，尚未開發**
+**版本**：v2.1（v2.0 為需求規格版；本版依 2026-08-30 commit `8d56dd8`「完成 Phase 2：籌碼面與基本面量化擴充」逐條核對現行程式碼，校正為完工狀態，核對紀錄見新增的 §0.2）
+**日期**：2026-09-01
+**狀態**：**已完成**（FR-1～FR-5 均已核對程式碼確認落地；唯一已知資料缺口未變——`market_cap`／`mcap_rank` 源頭仍 0% 覆蓋，見 §0.2、§9 Q-1）
 **上游文件**：[AI技術分析規劃.md](AI技術分析規劃.md)（v3.4，已完成）、[Phase1-基礎量化與技術面.md](Phase1-基礎量化與技術面.md)
 **關聯規格**：[《選股功能及爬蟲》](../13.選股功能/選股功能及爬蟲.md) §10、[《籌碼選股》](../5.籌碼選股策略/籌碼選股.md) §3.4／Phase 2
 
@@ -65,6 +65,49 @@ v1.0 草案設想「從零打造一條籌碼與基本面資料管線」，逐項
 Phase 2 因此重新定義為：**把已經落地的基本面／估值資料，端到端貫通到個股頁與 AI 診股報告**。
 籌碼面（三大法人／融資融券）在這條路徑上早已貫通，正好是本次要照抄的既有樣板（§3 各需求皆註明
 對應的籌碼面前例）。
+
+### 0.2 完工核對（v2.1，2026-09-01）
+
+Phase 2 已於 2026-08-30（commit `8d56dd8`「完成 Phase 2：籌碼面與基本面量化擴充」）實際開發並上線。本節逐條
+核對 §3 FR-1～FR-5 與現行程式碼是否一致——核對方法是直接讀程式碼，不是讀規格猜測：
+
+| 需求 | 核對結果 | 依據（檔案，2026-09-01 讀取） |
+|---|---|---|
+| FR-1 估值 KPI 卡 | ✅ 與規格一致。`latest_summary` 已含 `pe_ratio`／`pb_ratio`／`dividend_yield`／`market_cap`；`market_cap` 已在後端換算為「億元」（÷1e8） | `services/stock_service.py`（`latest_summary` 組裝、`market_cap` 換算行）；`markets/tw.py`（`market_cap` Metric 的 `unit="億元"`） |
+| FR-2 月營收 KPI 卡 | ✅ 與規格一致。`latest_summary` 已含 `revenue_yoy`／`revenue_mom`／`revenue_visible_month`；`markets/tw.py` 已新增 `revenue_yoy`／`revenue_mom` 兩個 `Metric`（`panel="fundamental"`），`meta.panels` 已含 `"fundamental"`；`isSignedMetric()` 已納入這兩個 key；卡片副標已顯示「資料月份 {revenue_visible_month}」 | `services/stock_service.py`；`markets/tw.py`；`frontend/src/views/StockDashboard.vue`（`isSignedMetric()`、`revenue_visible_month` 副標區塊） |
+| FR-3 趨勢圖分頁 | ✅ 功能與規格一致，但**機制敘述已就地修正**（見下方「FR-3 機制修正」），並同步反映在本文件 FR-3 段落 | `frontend/src/components/StockCharts.vue`（`widgetDefinitions`／`valuationOption`／`revenueOption`）；`frontend/src/views/ChartDetailView.vue`（`stockChartTabs`／`currentChartOption`）；`frontend/src/utils/chartExplanations.js`（`valuation`／`revenue` 兩個區塊） |
+| FR-4 AI 摘要擴充 | ✅ 與規格一致。`build_quant_summary()` 已新增 `valuation`／`revenue`／`market_position`／`recent_alerts` 四個區塊；`ai/prompt.py` 已補上對應中文標籤與 `recent_alerts` 格式化；`get_prompt_version()` 目前預設值確認為 `"v5"`（與文件「由 v4 升級為 v5」的敘述一致） | `backend/ai/summary.py`；`backend/ai/prompt.py`（`_LABELS`）；`backend/ai/config.py`（`get_prompt_version()`） |
+| FR-5 市值排名貫通 | ✅ 與規格一致。`ScanContext.valuation` 的 `val_series` 已補回 `market_cap`／`mcap_rank` 兩個 key，換算單位與 `stock_service.py` 一致 | `backend/services/chip_provider.py`（`val_series` 字典組裝處） |
+
+**FR-3 機制修正**：原 FR-3「功能描述」③一句「`GET /{stock_id}/chart-data` 支援 `chartType=valuation｜revenue`」對
+機制的描述不精確——實測程式碼後確認，這個端點**沒有 `chartType` 查詢參數**，`get_chart_data()` 一次回傳含
+`valuation`／`revenue` 兩個頂層區塊在內的**完整 payload**，由前端依 `chartType`（Vue Router 路徑參數，不是 API
+查詢參數）決定畫面上要渲染哪一段——這與既有 `institutional`／`margin` 面板本來就是同一套機制，並非 Phase 2
+新增的例外。使用者可見的功能結果（點估值卡看得到走勢圖，AC-7）與規格相符，此處純屬敘述精確度修正，已同步
+更新本文件 FR-3 段落原句。
+
+**最重要的資料現況（對應 §9 Q-1）**：`services/valuation_fetcher.py` 的 `fetch_twse_valuation()`／
+`fetch_twse_valuation_snapshot()` 兩個方法，2026-09-01 重新核對後確認**仍然**把 `market_cap`／`mcap_rank` 寫死
+為 `None`，與《Phase2-實作計畫.md》記錄的開工前現況**逐字相同、未見任何改動**。獨立交叉比對
+[AI技術分析規劃.md](AI技術分析規劃.md) v3.6 版本紀錄（2026-08-29）也記著同一件事——三份文件在這一點上互相
+一致。據此區分兩件不同的事，不含糊代稱：
+
+| 驗證範疇 | 結論 |
+|---|---|
+| 程式碼邏輯是否已改 | **已確認未改**——兩個方法仍直接寫死 `None`，沒有任何市值計算或外部來源接上 |
+| 實際資料庫覆蓋率數字（0% 是否仍成立） | **未能驗證**——本次核對環境沒有可連線的 Postgres，無法重新執行《實作計畫》當初的抽樣查詢；只確認了「造成 0% 覆蓋率的程式碼路徑沒有被動過」，不代表「已重新量測過當下的百分比數字」 |
+
+因此 FR-1 市值卡與 FR-5 市值排名卡在目前的資料源頭下，**理論上仍會顯示「—」**（缺值即缺席，ADR-P2-02）；
+§7 AC-3／AC-15 的驗收狀態維持《實作計畫》原記錄，本次未新增任何「已解決」的證據。
+
+**§9 待確認事項落地狀態核對**（Q-3～Q-6；各列亦標註「2026-09-01 複查」註記）：
+
+| 編號 | 落地狀態 |
+|---|---|
+| Q-3 | **與建議不符**：程式碼確認估值／營收分頁**沒有**套用「建議預設 1 年」——`ChartDetailView.vue` 的 `months` 一律預設 3（`ref(Number(route.query.months) \|\| 3)`），與 K 線圖等其他分頁共用同一個預設值，未特別為估值走勢圖覆寫為 12。忠實記錄此落差，是否補這個小調整留待日後決定 |
+| Q-4 | 與文件敘述一致：`stock_service.py`／`markets/tw.py` 均未見任何 `eps` 相關欄位或 Metric，確認季報 EPS 本版未納入個股頁 |
+| Q-5 | 與文件敘述一致：`ai/config.py` 的 `get_recent_alerts_lookback_days()`／`get_recent_alerts_limit()` 預設值分別為 10、5，上線後沿用預設值，未見調整 |
+| Q-6 | 與文件敘述一致：`recent_alerts` 只原樣列出 `query_alerts()` 回傳欄位，未見任何「訊號是否仍成立」的交叉比對邏輯 |
 
 ---
 
@@ -132,7 +175,10 @@ P2 ＝ 錦上添花，可延後但不應遺忘。
 
 ### 2.2 缺口鏈：資料進得來，出不去
 
-四個環節中，**只有最上游是通的**：
+> **完工後註記（2026-09-01）**：以下是 Phase 2 **開工前**的現況盤點，原樣保留作為歷史紀錄。截至
+> 2026-08-30 commit `8d56dd8`，③④兩個環節已補齊並經本次核對確認，詳見 §0.2。
+
+四個環節中，**開工前只有最上游是通的**：
 
 | 環節 | 狀態 | 具體情形 |
 |---|---|---|
@@ -143,7 +189,10 @@ P2 ＝ 錦上添花，可延後但不應遺忘。
 
 ### 2.3 目前畫面上就看得到的三個破綻
 
-這三項是 P0 需求（FR-1）的直接理由——**不是「缺功能」，是「已經壞在畫面上」**：
+> **完工後註記（2026-09-01）**：G-1／G-2／G-3 是 Phase 2 **開工前**畫面上的破綻，原樣保留作為歷史紀錄；
+> 三項均已於 2026-08-30 隨 Phase 2 上線修復，核對結果見 §0.2。
+
+這三項是 P0 需求（FR-1）的直接理由——**不是「缺功能」，是「已經壞在畫面上」**（開工前狀態）：
 
 | # | 現象 | 成因 |
 |---|---|---|
@@ -231,7 +280,7 @@ P2 ＝ 錦上添花，可延後但不應遺忘。
 | 項目 | 內容 |
 |---|---|
 | **使用者情境** | 使用者點擊估值或營收 KPI 卡片時，應看到該指標的歷史走勢（例如「本益比目前 18 倍，是近一年的相對高檔還是低檔？」），而不是被丟回 K 線圖（現況 G-2） |
-| **功能描述** | ① `StockCharts.vue` `widgetDefinitions` 新增 `{ id: 'valuation', title: '估值走勢（PE／PB／殖利率）', panel: 'valuation' }` 與 `{ id: 'revenue', title: '月營收 YoY／MoM', panel: 'fundamental' }`；② `StockDashboard.vue` `setActiveChart()` 對照表補上六個 key 的對應；③ `GET /{stock_id}/chart-data` 支援 `chartType=valuation｜revenue` 回傳歷史序列；④ [utils/chartExplanations.js](../../frontend/src/utils/chartExplanations.js) 補兩則白話說明（既有慣例：每個 chartType 都要有） |
+| **功能描述** | ① `StockCharts.vue` `widgetDefinitions` 新增 `{ id: 'valuation', title: '估值走勢（PE／PB／殖利率）', panel: 'valuation' }` 與 `{ id: 'revenue', title: '月營收 YoY／MoM', panel: 'fundamental' }`；② `StockDashboard.vue` `setActiveChart()` 對照表補上六個 key 的對應；③ `GET /{stock_id}/chart-data` 的 `payload` 固定回傳含 `valuation`／`revenue` 兩個頂層歷史序列區塊在內的完整內容（比照 `institutional`／`margin` 既有機制，不是另開查詢參數篩選——`chartType` 純粹是前端 Vue Router 路徑參數，決定畫面渲染哪一段，見 §0.2「FR-3 機制修正」）；④ [utils/chartExplanations.js](../../frontend/src/utils/chartExplanations.js) 補兩則白話說明（既有慣例：每個 chartType 都要有） |
 | **資料來源** | 估值序列與營收序列的組裝邏輯 `ChipDataProvider.get_bars(with_valuation=True)` **已存在**（`ScanContext.valuation`／`revenue_yoy`／`revenue_mom`），複用即可，不重寫 |
 | **圖表形式** | 估值：三條線（PE／PB／殖利率）共圖，因量級差異需**雙 Y 軸**（PE／PB 一軸，殖利率 % 一軸）；營收：YoY／MoM 雙線，零軸需明顯標示（成長與衰退的分界） |
 | **缺值規則** | 序列中的缺值**留空不連線、不補 0、不沿用前一日**（沿用 `chip_provider.py` 既有的 ADR-SP-08 約定） |
@@ -435,7 +484,7 @@ AI 摘要擴充（FR-4）。實作時應視為同一批工作，**避免同一�
 |---|---|---|
 | AC-1 | FR-1 | 任選 3 檔有估值資料的台股，個股頁「本益比／股價淨值比／殖利率」三張卡顯示數值，且與 `daily_valuation` 當日該檔的值一致 |
 | AC-2 | FR-1 | 任選 1 檔虧損股（`pe_ratio` 為 `NULL`），該卡顯示「—」，**不是 0**；其餘卡片正常 |
-| AC-3 | FR-1 | 市值卡以「億元」顯示且數量級正確（抽驗台積電，應為兆元量級 ÷ 10⁸ 後的合理數字） |
+| AC-3 | FR-1 | 市值卡以「億元」顯示且數量級正確（抽驗台積電，應為兆元量級 ÷ 10⁸ 後的合理數字）。**2026-09-01 複查**：`valuation_fetcher.py` 仍將 `market_cap` 寫死 `None`，本條目前僅能驗證程式路徑（缺值顯示「—」而非假數字），無法用真實數字驗證數量級，詳見 §0.2 |
 | AC-4 | FR-2 | 任選 3 檔台股，`revenue_yoy`／`revenue_mom` 與 `monthly_revenue` 對應月份的值一致，**正負號一致** |
 | AC-5 | FR-2 | 於每月 1～9 日（上月營收尚未公布的空窗期）檢視，副標顯示的月份為**前一個已公布月份**，而非當月 |
 | AC-6 | FR-2 | 營收 YoY 為負值時顯示負號且套用綠色（跌），為正值時顯示 `+` 且套用紅色（漲） |
@@ -447,7 +496,7 @@ AI 摘要擴充（FR-4）。實作時應視為同一批工作，**避免同一�
 | AC-12 | FR-3 | 切換估值／營收圖表分頁時畫面**不跳回頁首**；KPI 卡新增後同列卡片**等高**（CLAUDE.md 兩條硬規則） |
 | AC-13 | FR-4 | 該檔近 10 日有策略警示時，`quant_summary.recent_alerts` ≤ 5 筆、按日期新到舊排序，且不含 `details` 欄位 |
 | AC-14 | FR-4 | **既有回歸**：在同一份歷史資料上，改動前後產生的 AI 報告七個對外欄位（`verdict`／`headline`／支撐／壓力／停損／`report_markdown`／`confidence`）結構完全一致，前端渲染無異常；`ai_analysis_report` 未新增欄位 |
-| AC-15 | FR-5 | 任選 3 檔台股，`mcap_rank` 卡顯示的排名與 `daily_valuation.mcap_rank` 當日值一致 |
+| AC-15 | FR-5 | 任選 3 檔台股，`mcap_rank` 卡顯示的排名與 `daily_valuation.mcap_rank` 當日值一致。**2026-09-01 複查**：同 AC-3，資料源頭仍 0% 覆蓋（程式碼邏輯未變），本條目前無法用真實數字驗證，詳見 §0.2 |
 | AC-16 | 全部 | **既有回歸**：`fundamental_revenue_decline`、三個籌碼型態警示、六個均線策略、KD 相關策略在同一份歷史資料上的觸發結果與改動前**逐筆相同** |
 
 ---
@@ -477,9 +526,9 @@ AI 摘要擴充（FR-4）。實作時應視為同一批工作，**避免同一�
 
 | # | 問題 | 影響 | 建議 |
 |---|---|---|---|
-| **Q-1** | `daily_valuation.market_cap` 與 `mcap_rank` 目前實際的**資料涵蓋率**為何？上市／上櫃是否皆有值？ | 若涵蓋率低，FR-1 的市值卡與 FR-5 會大量顯示「—」，價值降低 | 開工前先跑一次抽樣查詢確認；涵蓋率過低則 FR-5 降級為「暫不實作」，並在《選股功能及爬蟲》回報資料缺口 |
+| **Q-1** | `daily_valuation.market_cap` 與 `mcap_rank` 目前實際的**資料涵蓋率**為何？上市／上櫃是否皆有值？ | 若涵蓋率低，FR-1 的市值卡與 FR-5 會大量顯示「—」，價值降低 | 開工前先跑一次抽樣查詢確認；涵蓋率過低則 FR-5 降級為「暫不實作」，並在《選股功能及爬蟲》回報資料缺口。**2026-09-01 複查**：`valuation_fetcher.py` 兩個抓取方法仍寫死回傳 `None`，程式碼邏輯未變；實際覆蓋率數字本身因本次環境無 Postgres 連線、無法重新驗證，詳見 §0.2 |
 | **Q-2** | 上櫃股票的估值資料是否已納入？（《選股功能及爬蟲》Q-7 已拍板「P0 只做上市，上櫃自上線日往後累積不回補」） | 上櫃個股的估值卡可能顯示「—」而使用者不知原因 | 若確認上櫃缺資料，需在 UI 上以 tooltip 或說明文字揭露涵蓋範圍，不能只留一個「—」讓人以為是壞掉 |
-| **Q-3** | 估值趨勢圖（FR-3）的預設區間應為多久？ | PE 河流圖的判讀價值高度依賴區間長度（近 3 個月看不出位階） | 建議預設 1 年，並沿用個股頁既有的區間切換控制項，不另做一套 |
-| **Q-4** | 季報 EPS（`mops_eps_fetcher.py`）是否要一併納入個股頁？ | 擴大 Phase 2 範圍 | **本版不納入**：該爬蟲的 MOPS 端點在開發環境受 WAF 阻擋、欄位對應未經實測（見其檔案註解），資料可信度確認前不應上前端。待實測通過後另案評估 |
-| **Q-5** | AI 摘要的 `recent_alerts` 回看天數（預設 10 天）與筆數上限（預設 5 筆）是否合適？ | Prompt 長度與參考價值的取捨 | 先用預設值上線，依實際報告品質微調（走 `.env`，免重新部署） |
-| **Q-6** | 是否需要讓 AI 交叉比對「近期訊號是否仍然成立」（例如訊號觸發後隔日已跌破均線）？ | 若要做，`ai/summary.py` 需多一層判斷邏輯，複雜度上升 | **本版不做**：交由 LLM 自行比對圖片與數值判斷，符合「AI 報告是獨立觀察視角、不與規則引擎耦合」的既有定位（[ADR-AI-11](AI技術分析規劃.md#2-技術選型與決策紀錄adr)） |
+| **Q-3** | 估值趨勢圖（FR-3）的預設區間應為多久？ | PE 河流圖的判讀價值高度依賴區間長度（近 3 個月看不出位階） | 建議預設 1 年，並沿用個股頁既有的區間切換控制項，不另做一套。**2026-09-01 複查**：實作後**未採納此建議**——`ChartDetailView.vue` 的 `months` 仍與其他分頁共用同一個預設值 3，並未為估值走勢圖另外覆寫為 12，詳見 §0.2 |
+| **Q-4** | 季報 EPS（`mops_eps_fetcher.py`）是否要一併納入個股頁？ | 擴大 Phase 2 範圍 | **本版不納入**：該爬蟲的 MOPS 端點在開發環境受 WAF 阻擋、欄位對應未經實測（見其檔案註解），資料可信度確認前不應上前端。待實測通過後另案評估。**2026-09-01 複查**：`stock_service.py`／`markets/tw.py` 均未見任何 EPS 相關欄位或 Metric，決議未變 |
+| **Q-5** | AI 摘要的 `recent_alerts` 回看天數（預設 10 天）與筆數上限（預設 5 筆）是否合適？ | Prompt 長度與參考價值的取捨 | 先用預設值上線，依實際報告品質微調（走 `.env`，免重新部署）。**2026-09-01 複查**：`ai/config.py` 的 `get_recent_alerts_lookback_days()`／`get_recent_alerts_limit()` 預設值確認仍為 10／5，上線後沿用預設值，未見調整 |
+| **Q-6** | 是否需要讓 AI 交叉比對「近期訊號是否仍然成立」（例如訊號觸發後隔日已跌破均線）？ | 若要做，`ai/summary.py` 需多一層判斷邏輯，複雜度上升 | **本版不做**：交由 LLM 自行比對圖片與數值判斷，符合「AI 報告是獨立觀察視角、不與規則引擎耦合」的既有定位（[ADR-AI-11](AI技術分析規劃.md#2-技術選型與決策紀錄adr)）。**2026-09-01 複查**：`recent_alerts` 僅原樣列出 `query_alerts()` 回傳欄位，未見任何訊號有效性交叉比對邏輯，決議未變 |

@@ -1,8 +1,8 @@
 # Phase 2：籌碼面與基本面量化擴充 — 實作計畫
 
-**上游文件**：[Phase2-籌碼面與基本面量化擴充.md](Phase2-籌碼面與基本面量化擴充.md)（v2.0，需求規格）
-**性質**：本文件是需求文件 v2.0 的實作落地計畫，記錄開工前的資料現況確認結果與具體改動點，
-供之後回顧「當初為什麼這樣做」。
+**上游文件**：[Phase2-籌碼面與基本面量化擴充.md](Phase2-籌碼面與基本面量化擴充.md)（v2.1，需求規格，已依 2026-08-30 上線的程式碼核對為完工狀態）
+**性質**：本文件是需求文件 v2.0（上游文件現已更新為 v2.1，內容為完工核對，需求本身未變）的實作落地計畫，
+記錄開工前的資料現況確認結果與具體改動點，供之後回顧「當初為什麼這樣做」。
 
 ## Context
 
@@ -187,3 +187,25 @@ KPI 卡、新增的估值／營收趨勢圖分頁、以及 AI 診股報告的量
 - 手動檢查 CLAUDE.md 兩條硬規則：切換到估值／營收分頁不跳回頁首；新增 KPI 卡與同列卡片等高。
 - 額外檢查 DATA_SOURCE=json 模式（目前 `.env` 的預設值）：確認估值卡優雅降級為「—」，K 線／均線／KD／
   三大法人／融資融券完全正常，不因新增邏輯報錯（ADR-P2-02，這是本地預設環境會天天碰到的路徑，必測）。
+
+## 事後複查（2026-09-01）
+
+Phase 2 已於 2026-08-30 完成並上線（commit `8d56dd8`）。本次獨立重新核對本文件記錄的各項改動與現行程式碼
+是否仍一致，結果如下：
+
+- **FR-1／FR-2／FR-3／FR-4／FR-5 的後端與前端改動**：逐項核對 `stock_service.py`／`markets/tw.py`／
+  `chip_provider.py`／`ai/summary.py`／`ai/prompt.py`／`ai/config.py`／`StockDashboard.vue`／
+  `StockCharts.vue`／`ChartDetailView.vue`／`chartExplanations.js`，內容與本文件記錄的改動點**一致**，
+  未發現落差（完整比對表見上游文件新增的 §0.2）。
+- **`market_cap`／`mcap_rank` 0% 覆蓋率**（本文件 Context 一節記錄的開工前現況）：重新讀取
+  `services/valuation_fetcher.py` 確認 `fetch_twse_valuation()`／`fetch_twse_valuation_snapshot()`
+  **仍然**把這兩欄寫死為 `None`，程式碼邏輯與本文件記錄的開工前狀態相同、未見任何後續補接市值來源的改動；
+  獨立交叉比對 [AI技術分析規劃.md](AI技術分析規劃.md) v3.6 版本紀錄（2026-08-29）也記著同一件事，三份文件
+  在這一點上互相一致。**本次無法連線真實 Postgres，因此無法重新驗證「目前實際覆蓋率是否仍為 0%」這個數字
+  本身**——只確認了「造成 0% 的程式碼路徑沒有被改過」，兩者不可混為一談。AC-3／AC-15 的驗收狀態維持本文件
+  原記錄不變。
+- **FR-3 的 `StockCharts.vue`／`ChartDetailView.vue` 改動說明**（本文件「前端變更」第 9 節）：核對後確認本
+  文件此處描述（`widgetDefinitions`／`getOption()`／`stockChartTabs`／`currentChartOption` 的 switch-case
+  機制）**準確**；倒是上游規格文件 FR-3 原句「`chart-data` 支援 `chartType=valuation｜revenue`」對後端機制
+  的描述不夠精確（該端點實際沒有 `chartType` 查詢參數，是固定回傳完整 payload 由前端選擇渲染），已在上游
+  文件 §0.2 一併修正，本文件的描述不受影響、無需修改。
