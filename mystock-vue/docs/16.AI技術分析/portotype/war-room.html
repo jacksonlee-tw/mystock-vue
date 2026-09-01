@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI 戰情室 - 雛形畫面</title>
+<style>
+  /* ══════════════════════════════════════════════════════════════
+     Design tokens — 比照本專案既有雛形（portotype/ai-execution-history.html）
+     與 PrimeVue Aura + brass 品牌色系（frontend/src/assets/layout/variables/
+     _common-brass.scss），維持本目錄下雛形畫面的視覺語彙一致
+     ══════════════════════════════════════════════════════════════ */
+  :root {
+    --surface-0: #ffffff;
+    --surface-50: #fafaf9;
+    --surface-100: #f4f4f3;
+    --surface-200: #e7e5e2;
+    --surface-300: #d6d3ce;
+    --surface-400: #a8a29a;
+    --surface-500: #79746c;
+    --surface-600: #57534a;
+    --surface-700: #423e37;
+    --surface-800: #2c2925;
+    --surface-900: #1c1a17;
+    --page-bg: #f6f5f2;
+
+    --primary: #8F6413;
+    --primary-600: #734F0F;
+    --primary-50: #F8EEDA;
+
+    --bullish: #388E3C;
+    --bullish-bg: #E8F5E9;
+    --bullish-border: #A8D5AA;
+    --bearish: #903434;
+    --bearish-bg: #fdefef;
+    --bearish-border: #f0c2c2;
+    --neutral: #57534a;
+    --neutral-bg: #f4f4f3;
+    --neutral-border: #d6d3ce;
+    --warning: #B26A00;
+    --warning-bg: #FFF3E0;
+    --warning-border: #FFD699;
+    --info: #1a5c9e;
+    --info-bg: #dceaf7;
+    --info-border: #b9d7ef;
+
+    --radius-lg: 14px;
+    --radius-md: 10px;
+    --radius-sm: 7px;
+    --shadow-sm: 0 1px 2px rgba(28,26,23,.06), 0 1px 1px rgba(28,26,23,.04);
+    --shadow-md: 0 8px 24px rgba(28,26,23,.14);
+    --font: "Segoe UI", "PingFang TC", "Microsoft JhengHei", system-ui, -apple-system, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--page-bg);
+    color: var(--surface-800);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  h1, h2, h3, p { margin: 0; }
+  button { font-family: inherit; cursor: pointer; }
+  input, select { font-family: inherit; }
+  .num { font-variant-numeric: tabular-nums; font-family: "Consolas", "SF Mono", monospace; }
+
+  .page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 28px 24px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────── */
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .page-header h1 {
+    font-size: 26px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--surface-900);
+  }
+  .page-header .subtitle {
+    margin-top: 4px;
+    color: var(--surface-500);
+    font-size: 13px;
+  }
+  .proto-badge {
+    display: inline-block;
+    margin-left: 10px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--warning-bg);
+    border: 1px solid var(--warning-border);
+    color: var(--warning);
+    font-size: 11px;
+    font-weight: 700;
+    vertical-align: middle;
+  }
+  .scenario-switch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface-0);
+    border: 1px solid var(--surface-200);
+    border-radius: 999px;
+    padding: 4px;
+    box-shadow: var(--shadow-sm);
+  }
+  .scenario-switch span.label { padding: 0 8px; color: var(--surface-500); font-size: 12px; font-weight: 700; }
+  .scenario-switch button {
+    border: none; background: transparent; padding: 6px 12px; border-radius: 999px;
+    font-size: 12px; font-weight: 700; color: var(--surface-600);
+  }
+  .scenario-switch button.active { background: var(--primary); color: #fff; }
+
+  /* ── KPI 卡片矩陣（同列等高 + !m-0，CLAUDE.md 硬規則 2）─────────── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 14px;
+  }
+  @media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 620px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .kpi-card {
+    margin: 0; /* 對應 !m-0：不讓 _utils.scss 的舊版 margin-bottom 規則破壞同列等高 */
+    background: var(--surface-0);
+    border: 1px solid var(--surface-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 92px;
+  }
+  .kpi-card .label { font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--surface-400); }
+  .kpi-card .value { font-size: 26px; font-weight: 900; margin-top: 8px; color: var(--surface-900); }
+  .kpi-card .hint { font-size: 11px; color: var(--surface-500); margin-top: 2px; }
+  .kpi-card.bullish .value { color: var(--bullish); }
+  .kpi-card.bearish .value { color: var(--bearish); }
+  .kpi-card.warning .value { color: var(--warning); }
+
+  /* ── 主卡片（篩選列 + 表格）───────────────────────────────────── */
+  .card {
+    background: var(--surface-0);
+    border: 1px solid var(--surface-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--surface-100);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .card-header h3 { font-size: 15px; font-weight: 800; color: var(--surface-800); }
+  .card-header .meta { font-size: 12px; color: var(--surface-500); }
+
+  .filter-bar {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--surface-100);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: var(--surface-50);
+  }
+  .filter-bar label { font-size: 12px; font-weight: 700; color: var(--surface-600); display: flex; align-items: center; gap: 5px; }
+  .filter-bar select, .filter-bar input[type="text"] {
+    border: 1px solid var(--surface-300); border-radius: var(--radius-sm);
+    padding: 6px 10px; font-size: 12px; background: #fff; color: var(--surface-800);
+  }
+  .filter-bar .chk { display: flex; align-items: center; gap: 5px; font-weight: 600; color: var(--surface-700); cursor: pointer; }
+  .filter-bar .spacer { flex: 1; }
+  .filter-bar .result-count { font-size: 12px; color: var(--surface-500); }
+  .btn-reset {
+    border: 1px solid var(--surface-300); background: #fff; border-radius: var(--radius-sm);
+    padding: 6px 12px; font-size: 12px; font-weight: 700; color: var(--surface-600);
+  }
+  .btn-reset:hover { background: var(--surface-100); }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    position: sticky; top: 0; background: var(--surface-50);
+    text-align: left; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em;
+    color: var(--surface-500); padding: 10px 12px; border-bottom: 1px solid var(--surface-200);
+    white-space: nowrap; cursor: pointer; user-select: none;
+  }
+  thead th:hover { color: var(--surface-800); }
+  thead th .sort-arrow { opacity: .35; font-size: 10px; margin-left: 3px; }
+  thead th.active .sort-arrow { opacity: 1; color: var(--primary); }
+  tbody tr {
+    border-bottom: 1px solid var(--surface-100);
+    height: 56px; /* 同列等高：表格列高固定，不因內容多寡而不齊（CLAUDE.md 硬規則 2 的表格版） */
+  }
+  tbody tr:hover { background: var(--surface-50); }
+  tbody td { padding: 8px 12px; font-size: 13px; vertical-align: middle; }
+  .table-scroll { max-height: 640px; overflow-y: auto; overflow-x: auto; }
+
+  .sym { font-weight: 800; color: var(--surface-900); }
+  .sym-name { color: var(--surface-500); font-size: 12px; margin-left: 4px; }
+  .market-tag {
+    display: inline-block; padding: 1px 7px; border-radius: 5px; font-size: 10px; font-weight: 800;
+    background: var(--surface-100); color: var(--surface-600);
+  }
+
+  .verdict-badge {
+    display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 800; border: 1px solid transparent;
+  }
+  .verdict-bullish { background: var(--bullish-bg); color: var(--bullish); border-color: var(--bullish-border); }
+  .verdict-bearish { background: var(--bearish-bg); color: var(--bearish); border-color: var(--bearish-border); }
+  .verdict-neutral { background: var(--neutral-bg); color: var(--neutral); border-color: var(--neutral-border); }
+
+  .cmp-badge {
+    display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+  }
+  .cmp-match { background: var(--bullish-bg); color: var(--bullish); }
+  .cmp-diverge { background: var(--warning-bg); color: var(--warning); }
+  .cmp-none { background: var(--surface-100); color: var(--surface-400); }
+
+  .price-hit { color: var(--bearish); font-weight: 800; }
+  .conf-bar-wrap { display: flex; align-items: center; gap: 6px; }
+  .conf-bar { width: 46px; height: 6px; border-radius: 999px; background: var(--surface-200); overflow: hidden; }
+  .conf-bar > span { display: block; height: 100%; background: var(--primary); }
+
+  .status-skip {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; background: var(--surface-100); color: var(--surface-500);
+  }
+  .status-skip.etf { background: var(--info-bg); color: var(--info); }
+  .status-skip.fail { background: var(--bearish-bg); color: var(--bearish); }
+
+  .empty-state { padding: 60px 20px; text-align: center; color: var(--surface-400); }
+  .empty-state .icon { font-size: 32px; margin-bottom: 8px; }
+
+  footer.doc-note {
+    font-size: 12px; color: var(--surface-500); background: var(--surface-0);
+    border: 1px dashed var(--surface-300); border-radius: var(--radius-md); padding: 14px 16px;
+  }
+  footer.doc-note b { color: var(--surface-700); }
+  footer.doc-note ul { margin: 6px 0 0; padding-left: 18px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <div>
+      <h1>📡 AI 戰情室<span class="proto-badge">雛形畫面・假資料</span></h1>
+      <p class="subtitle">
+        橫向彙總監控清單所有標的的最新 AI 評等（Phase5-三層式 AI 決策引擎與戰情室.md §6 FR-5.5）。
+        個股頁彈窗回答「這一檔現在該怎麼辦」；本頁回答「我今天該優先看哪幾檔」。
+      </p>
+    </div>
+    <div class="scenario-switch">
+      <span class="label">情境</span>
+      <button class="active" data-scenario="normal">今日正常批次</button>
+      <button data-scenario="rough">多筆分歧＋部分未產生</button>
+      <button data-scenario="empty">尚無報告（首次上線）</button>
+    </div>
+  </div>
+
+  <!-- KPI 卡片矩陣 -->
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- 主表格卡片 -->
+  <div class="card">
+    <div class="card-header">
+      <h3>📋 監控清單評等總覽</h3>
+      <span class="meta" id="lastBatchMeta">最近一輪批次：2026-09-01 14:35（台股）／2026-09-01 06:20（美股）</span>
+    </div>
+
+    <div class="filter-bar">
+      <label>市場
+        <select id="fMarket">
+          <option value="">全部</option>
+          <option value="tw">台股</option>
+          <option value="us">美股</option>
+        </select>
+      </label>
+      <label>評等
+        <select id="fVerdict">
+          <option value="">全部</option>
+          <option value="bullish">看多 Bullish</option>
+          <option value="bearish">看空 Bearish</option>
+          <option value="neutral">中性 Neutral</option>
+        </select>
+      </label>
+      <label class="chk"><input type="checkbox" id="fTriggered" /> 只看已觸價</label>
+      <label class="chk"><input type="checkbox" id="fDiverge" /> 只看與規則引擎分歧</label>
+      <label>搜尋
+        <input type="text" id="fSearch" placeholder="代號或名稱" style="width:120px" />
+      </label>
+      <button class="btn-reset" id="btnReset">清除篩選</button>
+      <div class="spacer"></div>
+      <span class="result-count" id="resultCount"></span>
+    </div>
+
+    <div class="table-scroll" id="tableScroll">
+      <table>
+        <thead>
+          <tr>
+            <th data-key="market">市場</th>
+            <th data-key="symbol">代號 / 名稱</th>
+            <th data-key="verdict">最新評等</th>
+            <th data-key="target_price">目標價 / 停損價</th>
+            <th data-key="confidence">信心度</th>
+            <th data-key="cmp">與規則引擎</th>
+            <th data-key="generated_at">報告產生時間</th>
+            <th data-key="status">狀態</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState" hidden>
+        <div class="icon">🔍</div>
+        <p>目前篩選條件下沒有符合的標的</p>
+      </div>
+    </div>
+  </div>
+
+  <footer class="doc-note">
+    <b>雛形說明（不代表最終視覺定案）</b>
+    <ul>
+      <li>切換上方情境按鈕、或調整下方篩選條件只重繪表格本體，<b>不重整整頁、不重置捲動位置</b>（CLAUDE.md 硬規則 1，對應 FR-5.5 / AC-P5-15）。</li>
+      <li>KPI 卡片與表格列高度皆為固定值，同列／同表不會有的大有的小（CLAUDE.md 硬規則 2，對應 AC-P5-16）。</li>
+      <li>本頁一次載入全部監控標的（見 AC-P5-17：不得對後端發 N 次請求），實際頁面應對應
+        <code>GET /api/v1/ai/reports/latest</code> 的批次版本一次取回。</li>
+      <li>ETF／ETN（如 0050、0056）預設不進入批次（Q2 建議排除），表格以「已排除批次（ETF）」狀態呈現，
+        但保留個股頁手動點擊產生報告的能力，此處僅示意其在戰情室的呈現方式。</li>
+      <li>「與規則引擎」一欄只標示一致／分歧，不由系統仲裁（FR-5.6）；無規則訊號時顯示「無訊號可比對」。</li>
+    </ul>
+  </footer>
+
+</div>
+
+<script>
+  // ══════════════════════════════════════════════════════════════
+  // 假資料：symbol/name 取自本專案目前真實監控清單（2026-09-01 查詢
+  // portfolio_watchlist 的實際內容），評等／目標價／信心度／比對結果
+  // 皆為雛形示意，非真實 AI 輸出。真實監控清單為 53 檔台股（含 10 檔
+  // ETF）＋ 12 檔美股，此處取代表性子集示範各種狀態組合。
+  // ══════════════════════════════════════════════════════════════
+  const ETF_SET = new Set(['0050','0056','006208','00631L','00637L','00706L','00757','00878','00940','00981A']);
+
+  const BASE_ROWS = [
+    { market: 'tw', symbol: '2330', name: '台積電', verdict: 'bullish', target_price: 1350, stop_loss: 1180, close: 1240, confidence: 82, generated_at: '2026-09-01 14:36', cmp: 'match', rule_signal: '外資連續買超' },
+    { market: 'tw', symbol: '2317', name: '鴻海', verdict: 'bullish', target_price: 215, stop_loss: 178, close: 205, confidence: 71, generated_at: '2026-09-01 14:35', cmp: 'match', rule_signal: '多因子共振' },
+    { market: 'tw', symbol: '2382', name: '廣達', verdict: 'bullish', target_price: 320, stop_loss: 268, close: 298, confidence: 68, generated_at: '2026-09-01 14:35', cmp: 'diverge', rule_signal: '量縮整理（規則：中性）' },
+    { market: 'tw', symbol: '2308', name: '台達電', verdict: 'neutral', target_price: null, stop_loss: 410, close: 425, confidence: 55, generated_at: '2026-09-01 14:35', cmp: 'none', rule_signal: null },
+    { market: 'tw', symbol: '3231', name: '緯創', verdict: 'bullish', target_price: 145, stop_loss: 118, close: 140, confidence: 74, generated_at: '2026-09-01 14:34', cmp: 'match', rule_signal: '帶量突破' },
+    { market: 'tw', symbol: '6669', name: '緯穎', verdict: 'bullish', target_price: 3200, stop_loss: 2650, close: 3080, confidence: 79, generated_at: '2026-09-01 14:34', cmp: 'match', rule_signal: '外資連續買超' },
+    { market: 'tw', symbol: '3017', name: '奇鋐', verdict: 'bearish', target_price: null, stop_loss: 195, close: 210, confidence: 61, generated_at: '2026-09-01 14:34', cmp: 'diverge', rule_signal: '尚無規則訊號（規則：中性）' },
+    { market: 'tw', symbol: '2345', name: '智邦', verdict: 'bullish', target_price: 850, stop_loss: 690, close: 810, confidence: 65, generated_at: '2026-09-01 14:33', cmp: 'none', rule_signal: null },
+    { market: 'tw', symbol: '3711', name: '日月光投控', verdict: 'neutral', target_price: null, stop_loss: 148, close: 152, confidence: 58, generated_at: '2026-09-01 14:33', cmp: 'match', rule_signal: '持股觀望' },
+    { market: 'tw', symbol: '2454', name: '聯發科', verdict: 'bullish', target_price: 1680, stop_loss: 1420, close: 1590, confidence: 77, generated_at: '2026-09-01 14:33', cmp: 'match', rule_signal: '投信連續買超' },
+    { market: 'tw', symbol: '3008', name: '大立光', verdict: 'bearish', target_price: null, stop_loss: 2100, close: 2260, confidence: 63, generated_at: '2026-09-01 14:32', cmp: 'match', rule_signal: '跌破月線' },
+    { market: 'tw', symbol: '2884', name: '玉山金', verdict: 'neutral', target_price: null, stop_loss: 26.5, close: 27.3, confidence: 52, generated_at: '2026-09-01 14:32', cmp: 'none', rule_signal: null },
+    { market: 'tw', symbol: '6451', name: '訊芯-KY', verdict: 'bullish', target_price: 480, stop_loss: 390, close: 455, confidence: 70, generated_at: '2026-09-01 14:32', cmp: 'match', rule_signal: '產業鏈補漲候選（Phase3 FR-15）' },
+    { market: 'tw', symbol: '3081', name: '聯亞', verdict: null, target_price: null, stop_loss: null, close: null, confidence: null, generated_at: null, cmp: null, rule_signal: null, skip_reason: 'LLM 逾時（provider=gemini）' },
+    { market: 'tw', symbol: '1909', name: '榮成', verdict: null, target_price: null, stop_loss: null, close: null, confidence: null, generated_at: null, cmp: null, rule_signal: null, skip_reason: '批次配額不足（本輪已達上限）' },
+    { market: 'us', symbol: 'NVDA', name: 'NVIDIA CORP', verdict: 'bullish', target_price: 195, stop_loss: 158, close: 182, confidence: 84, generated_at: '2026-09-01 06:22', cmp: 'match', rule_signal: '外資買超（美股無三大法人概念，此為示意）' },
+    { market: 'us', symbol: 'TSM', name: 'TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD', verdict: 'bullish', target_price: 245, stop_loss: 205, close: 228, confidence: 80, generated_at: '2026-09-01 06:22', cmp: 'match', rule_signal: '多因子共振' },
+    { market: 'us', symbol: 'AAPL', name: 'Apple Inc.', verdict: 'neutral', target_price: null, stop_loss: 205, close: 212, confidence: 54, generated_at: '2026-09-01 06:21', cmp: 'none', rule_signal: null },
+    { market: 'us', symbol: 'MSFT', name: 'MICROSOFT CORP', verdict: 'bullish', target_price: 560, stop_loss: 478, close: 525, confidence: 69, generated_at: '2026-09-01 06:21', cmp: 'diverge', rule_signal: '尚無規則訊號（規則：中性）' },
+    { market: 'us', symbol: 'TSLA', name: 'Tesla, Inc.', verdict: 'bearish', target_price: null, stop_loss: 220, close: 245, confidence: 66, generated_at: '2026-09-01 06:20', cmp: 'match', rule_signal: '跌破月線' },
+    { market: 'us', symbol: 'MU', name: 'MICRON TECHNOLOGY INC', verdict: 'bullish', target_price: 145, stop_loss: 112, close: 132, confidence: 73, generated_at: '2026-09-01 06:20', cmp: 'match', rule_signal: '帶量突破' },
+    { market: 'us', symbol: 'LITE', name: 'Lumentum Holdings Inc.', verdict: 'bullish', target_price: 118, stop_loss: 92, close: 105, confidence: 67, generated_at: '2026-09-01 06:20', cmp: 'none', rule_signal: null },
+    { market: 'us', symbol: 'COHR', name: 'COHERENT CORP.', verdict: null, target_price: null, stop_loss: null, close: null, confidence: null, generated_at: null, cmp: null, rule_signal: null, skip_reason: '資料缺失（當日行情尚未回補）' },
+    { market: 'us', symbol: 'NET', name: 'Cloudflare, Inc.', verdict: 'neutral', target_price: null, stop_loss: 78, close: 82, confidence: 51, generated_at: '2026-09-01 06:19', cmp: 'match', rule_signal: '持股觀望' },
+    { market: 'tw', symbol: '0050', name: '元大台灣50', etf: true },
+    { market: 'tw', symbol: '0056', name: '元大高股息', etf: true },
+    { market: 'tw', symbol: '006208', name: '富邦台50', etf: true },
+    { market: 'tw', symbol: '00878', name: '國泰永續高股息', etf: true },
+    { market: 'tw', symbol: '00940', name: '元大台灣價值高息', etf: true },
+  ];
+
+  const SCENARIOS = {
+    normal: BASE_ROWS,
+    rough: BASE_ROWS.map((r) => {
+      if (r.etf || r.skip_reason) return r;
+      // 「多筆分歧＋部分未產生」情境：把一半的比對結果改成分歧，額外標記兩檔逾時未產生
+      const cloned = { ...r };
+      if (['2330', '3231', 'NVDA', 'MU', '2454'].includes(r.symbol)) cloned.cmp = 'diverge';
+      return cloned;
+    }).map((r) => (['6451', 'NET'].includes(r.symbol) && !r.etf)
+      ? { ...r, verdict: null, target_price: null, stop_loss: null, close: null, confidence: null, generated_at: null, cmp: null, skip_reason: 'LLM 服務逾時，本輪重試後仍失敗' }
+      : r),
+    empty: BASE_ROWS.map((r) => (r.etf ? r : { ...r, verdict: null, target_price: null, stop_loss: null, close: null, confidence: null, generated_at: null, cmp: null, skip_reason: '尚未執行首次批次' })),
+  };
+
+  const state = { scenario: 'normal', market: '', verdict: '', triggered: false, diverge: false, search: '', sortKey: 'symbol', sortDir: 1 };
+
+  function rowStatus(r) {
+    if (r.etf) return { type: 'etf', label: '已排除批次（ETF，見 Q2）' };
+    if (r.skip_reason) return { type: 'fail', label: `本輪未產生：${r.skip_reason}` };
+    return { type: 'ok', label: '已產生' };
+  }
+
+  function isTriggered(r) {
+    if (!r.close) return false;
+    if (r.target_price && r.close >= r.target_price) return true;
+    if (r.stop_loss && r.verdict === 'bearish' && r.close <= r.stop_loss) return true;
+    return false;
+  }
+
+  function verdictLabel(v) {
+    return { bullish: '看多 Bullish', bearish: '看空 Bearish', neutral: '中性 Neutral' }[v] || '—';
+  }
+
+  function cmpBadge(cmp) {
+    if (cmp === 'match') return '<span class="cmp-badge cmp-match">✓ 一致</span>';
+    if (cmp === 'diverge') return '<span class="cmp-badge cmp-diverge">⚠ 分歧</span>';
+    return '<span class="cmp-badge cmp-none">無訊號可比對</span>';
+  }
+
+  function getRows() {
+    return SCENARIOS[state.scenario];
+  }
+
+  function applyFilters(rows) {
+    return rows.filter((r) => {
+      if (state.market && r.market !== state.market) return false;
+      if (state.verdict && r.verdict !== state.verdict) return false;
+      if (state.triggered && !isTriggered(r)) return false;
+      if (state.diverge && r.cmp !== 'diverge') return false;
+      if (state.search) {
+        const q = state.search.toLowerCase();
+        if (!r.symbol.toLowerCase().includes(q) && !r.name.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  function sortRows(rows) {
+    const key = state.sortKey;
+    return [...rows].sort((a, b) => {
+      const av = a[key], bv = b[key];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === 'number') return (av - bv) * state.sortDir;
+      return String(av).localeCompare(String(bv)) * state.sortDir;
+    });
+  }
+
+  function renderKpis() {
+    const rows = getRows();
+    const active = rows.filter((r) => !r.etf);
+    const bullish = active.filter((r) => r.verdict === 'bullish').length;
+    const bearish = active.filter((r) => r.verdict === 'bearish').length;
+    const diverge = active.filter((r) => r.cmp === 'diverge').length;
+    const failed = active.filter((r) => r.skip_reason).length;
+    const total = rows.length;
+
+    const cards = [
+      { label: '監控總數', value: total, hint: `台股 ${rows.filter(r=>r.market==='tw').length} ・美股 ${rows.filter(r=>r.market==='us').length}` },
+      { label: '看多 Bullish', value: bullish, hint: '本輪評等', cls: 'bullish' },
+      { label: '看空 Bearish', value: bearish, hint: '本輪評等', cls: 'bearish' },
+      { label: '與規則分歧', value: diverge, hint: 'FR-5.6 標示，不仲裁', cls: 'warning' },
+      { label: '本輪未產生', value: failed, hint: '逾時／配額／資料缺失', cls: 'warning' },
+      { label: '已排除批次', value: rows.filter(r=>r.etf).length, hint: 'ETF／ETN（Q2）' },
+    ];
+    document.getElementById('kpiGrid').innerHTML = cards.map((c) => `
+      <div class="kpi-card ${c.cls || ''}">
+        <span class="label">${c.label}</span>
+        <span class="value num">${c.value}</span>
+        <span class="hint">${c.hint}</span>
+      </div>
+    `).join('');
+  }
+
+  function renderTable() {
+    const filtered = sortRows(applyFilters(getRows()));
+    document.getElementById('resultCount').textContent = `共 ${filtered.length} / ${getRows().length} 檔`;
+
+    const tbody = document.getElementById('tbody');
+    const emptyState = document.getElementById('emptyState');
+    if (!filtered.length) {
+      tbody.innerHTML = '';
+      emptyState.hidden = false;
+      return;
+    }
+    emptyState.hidden = true;
+
+    tbody.innerHTML = filtered.map((r) => {
+      const status = rowStatus(r);
+      const triggered = isTriggered(r);
+      if (status.type !== 'ok') {
+        return `
+          <tr>
+            <td><span class="market-tag">${r.market.toUpperCase()}</span></td>
+            <td><span class="sym">${r.symbol}</span><span class="sym-name">${r.name}</span></td>
+            <td colspan="5"><span class="status-skip ${status.type}">${status.type === 'etf' ? '⛔' : '⏱'} ${status.label}</span></td>
+          </tr>
+        `;
+      }
+      return `
+        <tr>
+          <td><span class="market-tag">${r.market.toUpperCase()}</span></td>
+          <td><span class="sym">${r.symbol}</span><span class="sym-name">${r.name}</span></td>
+          <td><span class="verdict-badge verdict-${r.verdict}">${verdictLabel(r.verdict)}</span></td>
+          <td class="num">
+            ${r.target_price ? `目標 <b class="${triggered ? 'price-hit' : ''}">${r.target_price}</b>` : '目標 —'}
+            ／ 停損 ${r.stop_loss ?? '—'}
+          </td>
+          <td>
+            <div class="conf-bar-wrap">
+              <span class="num">${r.confidence}%</span>
+              <span class="conf-bar"><span style="width:${r.confidence}%"></span></span>
+            </div>
+          </td>
+          <td>${cmpBadge(r.cmp)}${r.rule_signal ? `<div class="hint" style="font-size:11px;color:var(--surface-400);margin-top:2px">${r.rule_signal}</div>` : ''}</td>
+          <td class="num" style="color:var(--surface-500)">${r.generated_at}</td>
+          <td><span class="status-skip" style="background:var(--bullish-bg);color:var(--bullish)">✓ 已產生${triggered ? '・已觸價' : ''}</span></td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function renderSortHeaders() {
+    document.querySelectorAll('thead th').forEach((th) => {
+      const key = th.dataset.key;
+      th.classList.toggle('active', key === state.sortKey);
+      const arrow = th.querySelector('.sort-arrow');
+      if (arrow) arrow.remove();
+      const span = document.createElement('span');
+      span.className = 'sort-arrow';
+      span.textContent = key === state.sortKey ? (state.sortDir === 1 ? '▲' : '▼') : '↕';
+      th.appendChild(span);
+    });
+  }
+
+  function rerenderAll() {
+    // 篩選／排序／切換情境只重繪 KPI 卡片與表格本體，不觸發整頁 reload、不影響瀏覽器捲動位置
+    // （CLAUDE.md 硬規則 1，對應 AC-P5-15）——雛形以「只換這兩個容器的 innerHTML」示意這個約束。
+    renderKpis();
+    renderTable();
+    renderSortHeaders();
+  }
+
+  document.getElementById('fMarket').addEventListener('change', (e) => { state.market = e.target.value; rerenderAll(); });
+  document.getElementById('fVerdict').addEventListener('change', (e) => { state.verdict = e.target.value; rerenderAll(); });
+  document.getElementById('fTriggered').addEventListener('change', (e) => { state.triggered = e.target.checked; rerenderAll(); });
+  document.getElementById('fDiverge').addEventListener('change', (e) => { state.diverge = e.target.checked; rerenderAll(); });
+  document.getElementById('fSearch').addEventListener('keyup', (e) => { state.search = e.target.value; rerenderAll(); });
+  document.getElementById('btnReset').addEventListener('click', () => {
+    state.market = ''; state.verdict = ''; state.triggered = false; state.diverge = false; state.search = '';
+    document.getElementById('fMarket').value = '';
+    document.getElementById('fVerdict').value = '';
+    document.getElementById('fTriggered').checked = false;
+    document.getElementById('fDiverge').checked = false;
+    document.getElementById('fSearch').value = '';
+    rerenderAll();
+  });
+  document.querySelectorAll('thead th[data-key]').forEach((th) => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.key;
+      if (state.sortKey === key) state.sortDir *= -1;
+      else { state.sortKey = key; state.sortDir = 1; }
+      rerenderAll();
+    });
+  });
+  document.querySelectorAll('.scenario-switch button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.scenario-switch button').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.scenario = btn.dataset.scenario;
+      rerenderAll();
+    });
+  });
+
+  rerenderAll();
+</script>
+</body>
+</html>
