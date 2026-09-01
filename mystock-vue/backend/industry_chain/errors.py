@@ -22,6 +22,14 @@ class IndustryChainNotFoundException(Exception):
     pass
 
 
+class IndustryChainEdgeNotFoundException(Exception):
+    """查無指定的邊（`chain_id` + `upstream_symbol` + `downstream_symbol` 三者組合，404
+    IC_EDGE_NOT_FOUND）。與 IndustryChainNotFoundException 分開是因為兩者對應不同層級的資源
+    ——鏈本身存在，只是這條特定的邊不存在（或已被軟刪除），沿用「查無此鏈」的錯誤碼／訊息
+    會誤導人工核對介面的使用者（§8 人工核對介面）。"""
+    pass
+
+
 class IndustryChainCrawlInProgressException(Exception):
     """同一時間已有萃取工作在跑（409 IC_CRAWL_IN_PROGRESS）。"""
     pass

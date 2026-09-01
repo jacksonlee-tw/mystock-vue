@@ -49,6 +49,7 @@ from industry_chain.errors import (
     IndustryChainConfigInvalidException,
     IndustryChainCrawlInProgressException,
     IndustryChainDisabledException,
+    IndustryChainEdgeNotFoundException,
     IndustryChainModelInvalidException,
     IndustryChainNoKeyException,
     IndustryChainNotFoundException,
@@ -330,6 +331,12 @@ async def ic_storage_unavailable_handler(request, exc):
 async def ic_not_found_handler(request, exc):
     return JSONResponse(status_code=404, content={
         "success": False, "error": {"code": "IC_CHAIN_NOT_FOUND", "message": str(exc) or "找不到產業鏈"}
+    })
+
+@app.exception_handler(IndustryChainEdgeNotFoundException)
+async def ic_edge_not_found_handler(request, exc):
+    return JSONResponse(status_code=404, content={
+        "success": False, "error": {"code": "IC_EDGE_NOT_FOUND", "message": str(exc) or "找不到指定的邊"}
     })
 
 @app.exception_handler(IndustryChainCrawlInProgressException)

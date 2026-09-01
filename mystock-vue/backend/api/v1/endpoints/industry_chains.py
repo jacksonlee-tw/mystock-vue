@@ -2,9 +2,10 @@
 api/v1/endpoints/industry_chains.py
 產業鏈知識圖譜 API（見 docs/16.AI技術分析/Phase3-產業鏈知識圖譜與輪動模型.md §7）。
 
-規格書 §7 的 5 個端點本檔全部到齊：`spillover-radar` 這一批補上（industry_chain/spillover.py
+規格書 §7 的 6 個端點本檔全部到齊：`spillover-radar` 這一批補上（industry_chain/spillover.py
 已提供 BFS／濾網／點火偵測），`{chain_id}/graph` 也一併改用 `spillover.compute_node_states()`
-填入真正的節點狀態，取代上一批的 `state: null` 佔位。
+填入真正的節點狀態，取代上一批的 `state: null` 佔位。`{chain_id}/edges`（含 verify／deactivate
+兩個動作端點）是本批次補上的最後一塊 P1 缺口——§8「人工核對介面」的資料來源與動作端點。
 
 `GET/PUT /config` 是規格書之外新增的「管理產業鏈」維護對話框端點（前端不用再手動編輯
 industry_chain_config/industry_chains.yaml）：純檔案操作，不查 DB，也不受 _check_enabled()
@@ -23,7 +24,12 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from industry_chain import config as ic_config
-from industry_chain.errors import IndustryChainDisabledException, IndustryChainNotFoundException
+from industry_chain.errors import (
+    IndustryChainDisabledException,
+    IndustryChainEdgeNotFoundException,
+    IndustryChainNotFoundException,
+)
+from repositories.activity_log_repository import ActivityLogRepository
 from repositories.industry_chain_repository import IndustryChainRepository
 from repositories.stock_repository import StockRepository
 
@@ -36,6 +42,13 @@ class ExtractTriggerRequest(BaseModel):
     chain_id: Optional[str] = None
     provider: Optional[str] = None
     model: Optional[str] = None
+
+
+class EdgeIdentifier(BaseModel):
+    """人工核對動作端點（verify／deactivate）共用的請求體：一條邊由「鏈 + 上下游代號」三者
+    唯一決定（見 industry_chain_edges 的唯一索引），chain_id 已在路徑上，這裡只需另外兩個。"""
+    upstream_symbol: str
+    downstream_symbol: str
 
 
 class ChainConfigItem(BaseModel):
@@ -240,3 +253,126 @@ async def trigger_extract(req: ExtractTriggerRequest):
         except Exception as e:
             results.append({"status": "error", "chain_id": chain.chain_id, "error": str(e)})
     return {"success": True, "data": {"items": results}}
+
+
+# ── §8 人工核對介面（v2.3 從 Q-5 升級為 P1 必要）──────────────────────
+# Repository 層（list_edges／get_edge／reclassify_edge／deactivate_edge）已在前一批交付完成，
+# 這裡只補資料來源端點與兩個動作端點。ADR-IC-15：只增不自動刪，deactivate 是唯一允許的下架
+# 方式，本檔案／本模組不得新增任何硬刪除 SQL。
+
+@router.get("/{chain_id}/edges", summary="該鏈的邊清單，可用 verified 篩選待核對／已核可（§8 人工核對介面資料源）")
+async def list_chain_edges(chain_id: str, verified: Optional[bool] = None):
+    _check_enabled()
+    from db.session import get_async_session
+
+    chain = ic_config.get_chain(chain_id)
+    if chain is None:
+        raise IndustryChainNotFoundException(f"找不到產業鏈：{chain_id}")
+
+    async with get_async_session() as session:
+        repo = IndustryChainRepository(session)
+        # is_active 沿用 list_edges() 預設值 True：已被人工判定為錯誤而下架的邊不該再出現在
+        # 待核對／已核可清單裡（那筆已經有結論了），比照 get_chain_graph() 的既有用法
+        edges = await repo.list_edges(chain_id=chain_id, is_verified=verified)
+
+        # 名稱解析比照 get_chain_graph() 端點的既有手法：依邊自帶的 upstream_market／
+        # downstream_market 分組查詢，不另開一條查詢路徑
+        symbols_by_market: dict[str, set[str]] = {}
+        for e in edges:
+            symbols_by_market.setdefault(e["upstream_market"], set()).add(e["upstream_symbol"])
+            symbols_by_market.setdefault(e["downstream_market"], set()).add(e["downstream_symbol"])
+
+        stock_repo = StockRepository()
+        names: dict[str, str] = {}
+        for market, syms in symbols_by_market.items():
+            for row in await stock_repo.get_symbols(sorted(syms), market):
+                names[row["symbol"]] = row["name"]
+
+        items = [
+            {
+                "id": e["id"],
+                "upstream_symbol": e["upstream_symbol"],
+                "upstream_name": names.get(e["upstream_symbol"], e["upstream_symbol"]),
+                "downstream_symbol": e["downstream_symbol"],
+                "downstream_name": names.get(e["downstream_symbol"], e["downstream_symbol"]),
+                "relation_tier": e["relation_tier"],
+                "component_type": e["component_type"],
+                "source": e["source"],
+                "is_verified": e["is_verified"],
+                "is_active": e["is_active"],
+                "first_seen_date": e["first_seen_date"].isoformat() if e["first_seen_date"] else None,
+                "last_confirmed_date": e["last_confirmed_date"].isoformat() if e["last_confirmed_date"] else None,
+                # llm_evidence／llm_confidence／concept_tag_match 皆藏在這裡，原樣回傳給前端渲染
+                # （見 validator.py／§4.7.4），本端點不解讀內容
+                "extra_data": e.get("extra_data"),
+            }
+            for e in edges
+        ]
+
+    return {"success": True, "data": {"chain_id": chain_id, "items": items}}
+
+
+async def _get_edge_or_raise(repo: IndustryChainRepository, chain_id: str, req: EdgeIdentifier) -> dict:
+    edge = await repo.get_edge(chain_id, req.upstream_symbol, req.downstream_symbol)
+    if edge is None:
+        raise IndustryChainEdgeNotFoundException(
+            f"找不到邊：{chain_id} {req.upstream_symbol}->{req.downstream_symbol}"
+        )
+    return edge
+
+
+@router.post("/{chain_id}/edges/verify", summary="人工核對：確認核可一筆待核對的邊（§8 最小可用核對介面）")
+async def verify_chain_edge(chain_id: str, req: EdgeIdentifier):
+    _check_enabled()
+    from db.session import get_async_session
+
+    async with get_async_session() as session:
+        repo = IndustryChainRepository(session)
+        edge = await _get_edge_or_raise(repo, chain_id, req)
+
+        # 只翻 is_verified：這是「認同既有內容、補上人核狀態」，relation_tier／component_type／
+        # source 原值傳回，不趁機悄悄改判——改判邏輯屬於 reclassify_edge() 這支方法本身承擔的
+        # 另一種用途（例如把 LLM 猜對的邊升級為人工核可的 manual 邊），不是這個端點的職責
+        await repo.reclassify_edge(
+            chain_id=chain_id, upstream_symbol=req.upstream_symbol, downstream_symbol=req.downstream_symbol,
+            relation_tier=edge["relation_tier"], component_type=edge["component_type"],
+            source=edge["source"], is_verified=True,
+        )
+        await ActivityLogRepository(session).log(
+            "IC_EDGE_VERIFIED", success=True, rel_id=edge["id"],
+            detail=f"{chain_id}: {req.upstream_symbol}->{req.downstream_symbol}",
+        )
+        await session.commit()
+
+    return {
+        "success": True,
+        "data": {
+            "chain_id": chain_id, "upstream_symbol": req.upstream_symbol,
+            "downstream_symbol": req.downstream_symbol, "is_verified": True, "is_active": True,
+        },
+    }
+
+
+@router.post("/{chain_id}/edges/deactivate", summary="人工核對：判定為錯誤邊並軟刪除下架（ADR-IC-15，僅允許軟刪除）")
+async def deactivate_chain_edge(chain_id: str, req: EdgeIdentifier):
+    _check_enabled()
+    from db.session import get_async_session
+
+    async with get_async_session() as session:
+        repo = IndustryChainRepository(session)
+        edge = await _get_edge_or_raise(repo, chain_id, req)
+
+        await repo.deactivate_edge(chain_id, req.upstream_symbol, req.downstream_symbol)
+        await ActivityLogRepository(session).log(
+            "IC_EDGE_DEACTIVATED", success=True, rel_id=edge["id"],
+            detail=f"{chain_id}: {req.upstream_symbol}->{req.downstream_symbol}",
+        )
+        await session.commit()
+
+    return {
+        "success": True,
+        "data": {
+            "chain_id": chain_id, "upstream_symbol": req.upstream_symbol,
+            "downstream_symbol": req.downstream_symbol, "is_active": False,
+        },
+    }
