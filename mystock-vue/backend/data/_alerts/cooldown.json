@@ -91,7 +91,7 @@
   "MU|price_cross_ma|cross_under_MA20": "2026-08-27",
   "MU|ma_golden_death_cross|death_cross_5_20": "2026-07-07",
   "00981A|price_cross_ma|cross_above_MA60": "2026-08-13",
-  "MU|price_cross_ma|cross_above_MA60": "2026-08-13",
+  "MU|price_cross_ma|cross_above_MA60": "2026-08-31",
   "2330|chip_bottom_turnover|bottom_turnover": "2026-08-28",
   "2317|chip_bottom_turnover|bottom_turnover": "2026-08-06",
   "1101|chip_bottom_turnover|bottom_turnover": "2026-07-31",
@@ -262,7 +262,7 @@
   "2472|exit_trailing_stop|exit_trailing_stop": "2026-08-21",
   "MU|price_cross_ma|cross_under_MA60": "2026-08-24",
   "NVDA|price_cross_ma|cross_under_MA20": "2026-08-24",
-  "TSM|price_cross_ma|cross_under_MA20": "2026-08-24",
+  "TSM|price_cross_ma|cross_under_MA20": "2026-08-31",
   "MU|exit_trailing_stop|exit_trailing_stop": "2026-08-24",
   "NET|exit_trailing_stop|exit_trailing_stop": "2026-08-24",
   "NET|ma_golden_death_cross|death_cross_5_20": "2026-08-24",
@@ -363,5 +363,12 @@
   "3711|price_cross_ma|cross_above_MA60": "2026-08-28",
   "2345|exit_trailing_stop|exit_trailing_stop": "2026-08-28",
   "2439|ma_golden_death_cross|death_cross_5_20": "2026-08-28",
-  "3450|extreme_bias|overbought": "2026-08-28"
+  "3450|extreme_bias|overbought": "2026-08-28",
+  "AAPL|ma_squeeze_breakout|squeeze_breakout": "2026-08-31",
+  "COHR|extreme_bias|oversold": "2026-08-31",
+  "COHR|exit_trailing_stop|exit_trailing_stop": "2026-08-31",
+  "GOOGL|exit_trailing_stop|exit_trailing_stop": "2026-08-31",
+  "GOOGL|ma_alignment|bearish_alignment": "2026-08-31",
+  "MSFT|rsi_overbought_reversal|rsi_overbought_reversal": "2026-08-31",
+  "TSLA|price_cross_ma|cross_above_MA60": "2026-08-31"
 }

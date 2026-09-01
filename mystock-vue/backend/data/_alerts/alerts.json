@@ -12759,5 +12759,232 @@
     "rank_value": 1,
     "id": "alert-20260828-3450-004",
     "timestamp": "2026-09-01T01:24:27+08:00"
+  },
+  {
+    "stock_id": "AAPL",
+    "stock_name": "Apple Inc.",
+    "market": "us",
+    "strategy_id": "ma_squeeze_breakout",
+    "strategy_name": "均線糾結突破",
+    "category": "technical",
+    "direction": "squeeze_breakout",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-31",
+    "details": {
+      "close": 316.8500061035156,
+      "upper_ma": 314.896,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "squeeze_min_days": 5
+    },
+    "filters_passed": [],
+    "suggested_action": "均線糾結後帶量突破，留意起漲點",
+    "rank_value": 1,
+    "id": "alert-20260831-AAPL-001",
+    "timestamp": "2026-09-01T06:00:17+08:00"
+  },
+  {
+    "stock_id": "COHR",
+    "stock_name": "Coherent Corp.",
+    "market": "us",
+    "strategy_id": "extreme_bias",
+    "strategy_name": "乖離率過大警示",
+    "category": "technical",
+    "direction": "oversold",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-31",
+    "details": {
+      "close": 277.8299865722656,
+      "ma_period": 60,
+      "ma_value": 330.3575,
+      "bias_percent": -15.9002
+    },
+    "filters_passed": [],
+    "suggested_action": "負乖離過大，超跌可能醞釀反彈，留意止跌訊號",
+    "rank_value": 1,
+    "id": "alert-20260831-COHR-001",
+    "timestamp": "2026-09-01T06:00:17+08:00"
+  },
+  {
+    "stock_id": "COHR",
+    "stock_name": "Coherent Corp.",
+    "market": "us",
+    "strategy_id": "exit_trailing_stop",
+    "strategy_name": "移動停利出場風控",
+    "category": "risk",
+    "direction": "exit_trailing_stop",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-31",
+    "details": {
+      "peak_close": 379.1300048828125,
+      "current_close": 277.8299865722656,
+      "drawdown_pct": -26.72,
+      "threshold_pct": -10.0
+    },
+    "filters_passed": [],
+    "suggested_action": "自持股最高點回檔超過停利門檻，建議執行移動停利、分批出場鎖定獲利",
+    "rank_value": 1,
+    "id": "alert-20260831-COHR-002",
+    "timestamp": "2026-09-01T06:00:17+08:00"
+  },
+  {
+    "stock_id": "GOOGL",
+    "stock_name": "Alphabet Inc.",
+    "market": "us",
+    "strategy_id": "exit_trailing_stop",
+    "strategy_name": "移動停利出場風控",
+    "category": "risk",
+    "direction": "exit_trailing_stop",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-31",
+    "details": {
+      "peak_close": 377.6499938964844,
+      "current_close": 339.3500061035156,
+      "drawdown_pct": -10.14,
+      "threshold_pct": -10.0
+    },
+    "filters_passed": [],
+    "suggested_action": "自持股最高點回檔超過停利門檻，建議執行移動停利、分批出場鎖定獲利",
+    "rank_value": 2,
+    "id": "alert-20260831-GOOGL-001",
+    "timestamp": "2026-09-01T06:00:17+08:00"
+  },
+  {
+    "stock_id": "GOOGL",
+    "stock_name": "Alphabet Inc.",
+    "market": "us",
+    "strategy_id": "ma_alignment",
+    "strategy_name": "均線多頭/空頭排列",
+    "category": "technical",
+    "direction": "bearish_alignment",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-31",
+    "details": {
+      "close": 339.3500061035156,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "values": {
+        "MA5": 343.11,
+        "MA10": 343.802,
+        "MA20": 348.5635,
+        "MA60": 351.7388
+      }
+    },
+    "filters_passed": [],
+    "suggested_action": "均線空頭排列成形，趨勢偏弱，不宜逢低攤平",
+    "rank_value": 1,
+    "id": "alert-20260831-GOOGL-002",
+    "timestamp": "2026-09-01T06:00:17+08:00"
+  },
+  {
+    "stock_id": "MSFT",
+    "stock_name": "Microsoft Corporation",
+    "market": "us",
+    "strategy_id": "rsi_overbought_reversal",
+    "strategy_name": "RSI 超買區轉弱",
+    "category": "technical",
+    "direction": "rsi_overbought_reversal",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-31",
+    "details": {
+      "close": 507.2900085449219,
+      "rsi": 68.6746,
+      "rsi_prev": 73.5348,
+      "rsi_period": 14,
+      "threshold": 70
+    },
+    "filters_passed": [],
+    "suggested_action": "RSI 由超買區（70 以上）回落，短線動能轉弱，留意獲利了結賣壓",
+    "rank_value": 1,
+    "id": "alert-20260831-MSFT-001",
+    "timestamp": "2026-09-01T06:00:17+08:00"
+  },
+  {
+    "stock_id": "MU",
+    "stock_name": "Micron Technology, Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-08-31",
+    "details": {
+      "close": 958.72998046875,
+      "ma_period": 60,
+      "ma_value": 957.9391,
+      "bias_percent": 0.0826
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（929.2）",
+    "rank_value": 1,
+    "id": "alert-20260831-MU-001",
+    "timestamp": "2026-09-01T06:00:17+08:00"
+  },
+  {
+    "stock_id": "TSLA",
+    "stock_name": "Tesla, Inc.",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "strong",
+    "trade_date": "2026-08-31",
+    "details": {
+      "close": 367.95001220703125,
+      "ma_period": 60,
+      "ma_value": 366.4605,
+      "bias_percent": 0.4065
+    },
+    "filters_passed": [
+      "volume_confirm",
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（355.47）",
+    "rank_value": 2,
+    "id": "alert-20260831-TSLA-001",
+    "timestamp": "2026-09-01T06:00:17+08:00"
+  },
+  {
+    "stock_id": "TSM",
+    "stock_name": "Taiwan Semiconductor Manufactur",
+    "market": "us",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-08-31",
+    "details": {
+      "close": 415.32000732421875,
+      "ma_period": 20,
+      "ma_value": 419.796,
+      "bias_percent": -1.0662
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "rank_value": 3,
+    "id": "alert-20260831-TSM-001",
+    "timestamp": "2026-09-01T06:00:17+08:00"
   }
 ]
