@@ -25,6 +25,14 @@ SYSTEM_PROMPT = """你是一位任職於頂級對沖基金的資深技術分析�
    任一數值缺席時（如美股無此類欄位、該股尚無月營收資料）略過該面向，不得臆測。
 8. 市場資金定位：市值與市值排名所反映的籌碼流動性與法人／指數化資金偏好程度，作為評估操作策略
    （如波段持有 vs 短線價差）的參考背景之一。缺席時略過，不得臆測。
+9. 產業鏈輪動背景（如提供）：本標的若是某產業鏈的下游龍頭且今日已點火，可在實戰建議中提及
+   「留意其上游供應鏈是否跟漲」；若本標的本身被標示為某已發動下游龍頭的補漲候選，可據此提出
+   「優先佈局補漲」的觀點，但**必須**同時揭露該關聯是否已人工核可、CCF 樣本與歷史跟漲勝率的
+   次數——樣本次數少（個位數）時明確提醒「樣本不足，僅供參考」，關聯尚未核可時明確提醒
+   「此上下游關聯為 AI 推測、尚未人工核實」，不得把它們當成與其餘技術指標同等確定的事實；
+   若本標的的下游龍頭尚未發動、或未通過估值／營收／量能濾網，則不得無中生有推論「即將補漲」，
+   應如實說明目前尚不構成補漲條件（避免「價值陷阱」——基本面已轉弱卻因為同產業鏈題材被錯誤
+   看多）。缺席時略過，不得臆測本標的是否處於任何產業鏈。
 
 輸出規範：
 - 所有價位必須是具體數字，不得寫「附近」「左右」而無數值。
@@ -66,6 +74,40 @@ def _format_block(title: str, values: dict[str, Any]) -> str:
     for key, val in values.items():
         label = _LABELS.get(key, key)
         lines.append(f"- {label}：{val}")
+    return "\n".join(lines)
+
+
+def _format_industry_chain_block(context: dict[str, Any]) -> str:
+    """`summary["industry_chain_context"]`（見 industry_chain/summary.py 的
+    `extract_industry_chain_summary()`）不是扁平 key-value，不能沿用 `_format_block()`；
+    每個鏈項目依角色（下游龍頭／上游供應商）組成一行敘述，供 FR-16 的第 9 條研判框架引用。"""
+    lines = ["【產業鏈輪動背景（僅供佐證，非結論；見系統指示第 9 點）】"]
+    for c in context.get("chains", []):
+        name = c["chain_name"]
+        if c["role"] == "downstream_leader":
+            status = "今日已有點火訊號" if c.get("ignited_today") else "今日尚無點火訊號"
+            lines.append(f"- {name}：本標的為下游龍頭，{status}")
+            continue
+
+        supply_desc = f"供應 {c.get('supplies_to')}"
+        if c.get("component_type"):
+            supply_desc += f"（{c['component_type']}）"
+        verified_note = "已人工核可" if c.get("is_verified") else "AI 推測、尚未人工核可"
+        line = f"- {name}：本標的為 Tier {c.get('relation_tier')} 上游供應商，{supply_desc}，關聯狀態：{verified_note}"
+
+        if c.get("rotation_candidate"):
+            detail = [f"下游龍頭 {c.get('ignited_downstream_leader')} 已發動"]
+            if c.get("peak_lag_days") is not None:
+                detail.append(f"CCF 領先 {c['peak_lag_days']} 天")
+            if c.get("correlation_coefficient") is not None:
+                detail.append(f"相關係數 {c['correlation_coefficient']}")
+            win_rate = c.get("historical_win_rate")
+            if win_rate:
+                detail.append(f"歷史跟漲勝率 {round(win_rate['rate'] * 100)}%（{win_rate['total']} 次）")
+            line += f"，**目前為補漲候選**（{'；'.join(detail)}）"
+        else:
+            line += "，目前非補漲候選（下游龍頭尚未發動，或未通過估值／營收／量能濾網）"
+        lines.append(line)
     return "\n".join(lines)
 
 
@@ -129,6 +171,9 @@ def build_user_prompt(symbol: str, stock_name: str, market: str, summary: dict[s
         parts.append("")
     if summary.get("market_position"):
         parts.append(_format_block("市場資金定位", summary["market_position"]))
+        parts.append("")
+    if summary.get("industry_chain_context"):
+        parts.append(_format_industry_chain_block(summary["industry_chain_context"]))
         parts.append("")
     if summary.get("recent_alerts"):
         lines = ["【近期策略訊號（僅供佐證，非結論）】"]

@@ -265,6 +265,23 @@ async def build_quant_summary(symbol: str, market: str, period: str, months: int
         if position_block:
             summary["market_position"] = position_block
 
+        # 產業鏈輪動 Context（選用，僅 TW，Phase3-產業鏈知識圖譜與輪動模型.md §4.4 FR-15）：
+        # 讀取面需要 Postgres 且旗標可能關閉（AC-IC-15：未啟用時完全不得碰資料庫），因此先查
+        # is_enabled() 再決定要不要開連線；任何失敗（含 Postgres 不可用，ADR-IC-01）一律視為
+        # 查無資料，不得讓整份診股報告因此中止——這是選用欄位，不是報告能否產生的必要條件。
+        try:
+            from industry_chain import config as ic_config
+            if ic_config.is_enabled():
+                from db.session import get_async_session
+                from industry_chain.summary import extract_industry_chain_summary
+
+                async with get_async_session() as ic_session:
+                    industry_chain_context = await extract_industry_chain_summary(symbol, ic_session)
+                if industry_chain_context:
+                    summary["industry_chain_context"] = industry_chain_context
+        except Exception as e:
+            logger.warning(f"[AI量化摘要] 讀取產業鏈輪動 Context 失敗，視為無資料: {e}")
+
     # 近期策略訊號（選用，TW／US 皆可）：僅供佐證，不得送 details（內含策略門檻值，違反「Prompt 不得
     # 出現硬編碼策略門檻」的既有原則）。讀取失敗只記警告、視為無訊號，不得讓整份報告中止（§4.7）。
     try:
