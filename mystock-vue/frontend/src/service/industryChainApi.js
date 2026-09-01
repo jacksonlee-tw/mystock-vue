@@ -53,5 +53,32 @@ export const industryChainApi = {
     async saveChainsConfig(items) {
         const response = await apiClient.put('/industry-chains/config', { items });
         return response.data;
+    },
+
+    // 該鏈的邊清單（§8 人工核對介面資料源）。verified 省略／null 代表不篩選，
+    // 傳 false 只取待核對清單、傳 true 只取已核可清單
+    async listChainEdges(chainId, verified = null) {
+        const params = {};
+        if (verified !== null) params.verified = verified;
+        const response = await apiClient.get(`/industry-chains/${chainId}/edges`, { params });
+        return response.data;
+    },
+
+    // 人工核對：確認核可一筆邊
+    async verifyChainEdge(chainId, { upstreamSymbol, downstreamSymbol }) {
+        const response = await apiClient.post(`/industry-chains/${chainId}/edges/verify`, {
+            upstream_symbol: upstreamSymbol,
+            downstream_symbol: downstreamSymbol
+        });
+        return response.data;
+    },
+
+    // 人工核對：判定為錯誤邊並軟刪除下架（ADR-IC-15，僅軟刪除）
+    async deactivateChainEdge(chainId, { upstreamSymbol, downstreamSymbol }) {
+        const response = await apiClient.post(`/industry-chains/${chainId}/edges/deactivate`, {
+            upstream_symbol: upstreamSymbol,
+            downstream_symbol: downstreamSymbol
+        });
+        return response.data;
     }
 };

@@ -26,11 +26,26 @@
         />
         <Button label="重新整理" icon="pi pi-refresh" :loading="loading" text @click="fetchAll" />
         <Button label="管理產業鏈" icon="pi pi-cog" outlined @click="configVisible = true" />
+        <Button
+          :label="pendingVerifyCount ? `待核對清單（${pendingVerifyCount}）` : '待核對清單'"
+          icon="pi pi-verified" outlined :disabled="!chainId"
+          @click="verifyVisible = true"
+        />
         <Button label="觸發本鏈萃取" icon="pi pi-bolt" severity="warn" :loading="triggering" @click="confirmTrigger" />
       </div>
     </div>
 
     <IndustryChainConfigDialog v-model:visible="configVisible" @saved="fetchAll" />
+
+    <!-- §8 人工核對介面（v2.3 從 Q-5 升級為 P1 必要）：待核對清單＋確認核可／判定錯誤兩個動作，
+         只需最小可用，不做完整後台。動作成功後透過 @changed 區域性刷新本鏈圖譜／KPI，
+         不整頁重新 fetch（CLAUDE.md 硬規則 1：fetchGraphAndRadar() 本身已是 keep-mounted + 覆蓋層模式）-->
+    <IndustryChainVerifyDialog
+      v-model:visible="verifyVisible"
+      :chain-id="chainId"
+      :chain-name="currentChain?.name"
+      @changed="fetchGraphAndRadar"
+    />
 
     <!-- 勾選節點 → 批次加入追蹤與觀察名單 -->
     <Dialog v-model:visible="addDialogVisible" header="加入追蹤與觀察名單" modal style="width: 32rem" :breakpoints="{ '640px': '92vw' }">
@@ -300,6 +315,7 @@ import { industryChainApi } from '@/service/industryChainApi';
 import { portfolioApi } from '@/service/portfolioApi';
 import { useWatchlistTags } from '@/composables/useWatchlistTags';
 import IndustryChainConfigDialog from '@/components/IndustryChainConfigDialog.vue';
+import IndustryChainVerifyDialog from '@/components/IndustryChainVerifyDialog.vue';
 
 use([CanvasRenderer, GraphChart, TooltipComponent, LegendComponent]);
 
@@ -307,6 +323,7 @@ const toast = useToast();
 const confirm = useConfirm();
 
 const configVisible = ref(false);
+const verifyVisible = ref(false);
 const chains = ref([]);
 const chainId = ref(null);
 const graphData = ref(null);
@@ -317,6 +334,12 @@ const error = ref(null);
 const disabledMessage = ref(null);
 
 const currentChain = computed(() => chains.value.find((c) => c.chain_id === chainId.value) || null);
+// 「待核對清單」按鈕上的數字提示：沿用 listChains() 已經回傳的 edge_count／verified_edge_count，
+// 不為了一個按鈕徽章另外多打一次 API（§8 人工核對介面按需求只需最小可用）
+const pendingVerifyCount = computed(() => {
+  const c = currentChain.value;
+  return c ? Math.max(0, (c.edge_count || 0) - (c.verified_edge_count || 0)) : 0;
+});
 const verifiedCount = computed(() => (graphData.value ? graphData.value.edges.filter((e) => e.is_verified).length : 0));
 const verifiedRatioLabel = computed(() => {
   if (!graphData.value || !graphData.value.edges.length) return '—';

@@ -315,13 +315,19 @@ import { aiAnalysisApi } from '@/service/aiAnalysisApi';
 const toast = useToast();
 
 // ── 選項 ────────────────────────────────────────────────────────
-// 「功能」目前只有一個真實來源（個股頁手動觸發）；Phase5-三層式 AI 決策引擎與戰情室.md
-// 已確認戰情室批次掃描會沿用同一套 API，上線時在這裡加一行即可（見 §2.1）。
+// 「功能」目前有三個真實來源：個股頁手動觸發診股，以及 Phase3 產業鏈知識圖譜的兩段式萃取
+// ——industry_chain/extractor.py（Stage B 結構化萃取，view_id="industry_chain_extract"）與
+// industry_chain/research.py（Stage A grounded 檢索，view_id="industry_chain_research"）各自
+// 是獨立、真實計費的 LLM 呼叫，各自寫一列 ai_llm_execution（見 research.py 檔頭說明：兩者
+// 分開計 view_id 是為了不讓開啟 grounding 後的有效月配額被砍半）。Phase5-三層式 AI 決策引擎
+// 與戰情室.md 已確認戰情室批次掃描會沿用同一套 API，上線時在這裡加一行即可（見 §2.1）。
 // 不放「全部」這個假選項——PrimeVue Select 把 value:null 視為「未選擇」，即使選項清單裡
 // 有一筆 value:null 也不會顯示它的 label（實測證實）。改用 placeholder + showClear，
 // 比照既有慣例（見 AlertDashboard.vue 的「全部策略」／「全部強度」）。
 const FEATURE_OPTIONS = [
-  { label: '個股 AI 診股報告', value: 'stock_dashboard' }
+  { label: '個股 AI 診股報告', value: 'stock_dashboard' },
+  { label: '產業鏈圖譜萃取', value: 'industry_chain_extract' },
+  { label: '產業鏈輔助研究', value: 'industry_chain_research' }
 ];
 const PROVIDER_OPTIONS = [
   { label: 'Claude', value: 'claude' },
@@ -337,7 +343,11 @@ const MARKET_OPTIONS = [
   { label: '美股', value: 'us' }
 ];
 
-const FEATURE_LABEL = { stock_dashboard: '個股 AI 診股報告' };
+const FEATURE_LABEL = {
+  stock_dashboard: '個股 AI 診股報告',
+  industry_chain_extract: '產業鏈圖譜萃取',
+  industry_chain_research: '產業鏈輔助研究'
+};
 function featureLabel(viewId) {
   if (!viewId) return '（未記錄）';
   return FEATURE_LABEL[viewId] || viewId;
