@@ -567,12 +567,47 @@ async function loadStockData() {
     }
   } catch (err) {
     error.value = err.response?.data?.error?.message || err.response?.data?.detail || err.message || '連線後端 API 失敗';
+    // 查無資料（chart-data 404 / SYMBOL_NOT_FOUND）：只在「首次載入」時主動詢問要不要抓取，
+    // 背景刷新（切換週期/範圍）中途 404 只走上面的 toast，不要在使用者操作中途彈確認視窗。
+    const isSymbolNotFound = err.response?.status === 404 && err.response?.data?.error?.code === 'SYMBOL_NOT_FOUND';
+    if (isSymbolNotFound && !isBackgroundRefresh) {
+      promptFetchIfSymbolExists();
+    }
   } finally {
     loading.value = false;
     if (error.value && isBackgroundRefresh) {
       // 有舊資料時，錯誤畫面不會蓋掉整頁（見 template 的 error && !chartData），改用 toast 提醒。
       toast.add({ severity: 'error', summary: '刷新資料失敗', detail: error.value, life: 4000 });
     }
+  }
+}
+
+// 查無資料時，先用 markets/search（adapter.validate_symbols()，精確查代碼主檔）確認代號是不是
+// 真的存在，區分「代號打錯／根本沒這檔股票」跟「代號存在但還沒抓過資料」——只有後者才值得
+// 主動跳出來問要不要抓取，前者維持原本的整頁錯誤訊息就好，免得對打錯的代號也提議抓取。
+// 驗證本身失敗時（例如 Postgres 未啟動）一律靜默退回原錯誤畫面，不阻斷既有的錯誤處理流程。
+async function promptFetchIfSymbolExists() {
+  const id = selectedStock.value;
+  const targetMarket = currentMarket.value;
+  try {
+    const res = await stockApi.searchSymbols(id, targetMarket);
+    const resolved = res.success && res.data && res.data[id];
+    if (!resolved) return;
+
+    confirm.require({
+      message: `目前資料庫中查無 ${id}${resolved.name ? `（${resolved.name}）` : ''} 的股票資料，是否要立即抓取？`,
+      header: '查無股票資料',
+      icon: 'pi pi-cloud-download',
+      acceptLabel: '立即抓取',
+      rejectLabel: '取消',
+      accept: () => {
+        // 直接沿用既有的單股重抓流程：背景啟動抓取 → isRunning 落下後自動 reload 圖表
+        // （見下方 doRefetch() / watch(isRunning, ...)），不需要另外走一次月份選擇彈窗。
+        if (selectedStock.value === id) doRefetch({ stockId: id, months: selectedMonths.value });
+      }
+    });
+  } catch (e) {
+    // 代號驗證本身失敗：不打擾使用者，維持既有的整頁錯誤訊息即可。
   }
 }
 

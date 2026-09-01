@@ -13,7 +13,7 @@ export const ROLE_LABEL_POSITION = { tier2: 'left', tier1: 'bottom', downstream:
 export const PAD_X = 100;   // 左右留白：給欄外標籤（上游靠左、下游靠右）用，太小會被裁掉
 export const PAD_Y = 28;
 export const ROW_GAP = 64;
-export const PULSE_CYCLE_SEC = 1.8;
+export const PULSE_CYCLE_SEC = 1.4; // 呼吸動畫週期：原 1.8 秒太慢、0.6 秒太快、1.2 秒仍偏快、1.6 秒使用者反饋又偏慢，落在中間
 
 // 已加入追蹤名單（綠）與已勾選待加入（藍）——刻意都不用既有的狀態色系（棕／橘），
 // 免得跟「已突破／低位階候選」的語意混淆。多跳路徑高亮再另用一個藍色系的「追蹤中」色，

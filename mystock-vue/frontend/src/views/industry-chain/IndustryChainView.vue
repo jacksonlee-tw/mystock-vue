@@ -532,8 +532,9 @@ async function submitAdd() {
 // 版面邏輯給第二個畫布用，抽成純函式避免主視圖與放大檢視各寫一份、以後改一邊漏改另一邊）。
 
 // 已突破（點火）節點的呼吸光暈——只在真的有點火節點時才跑計時器，平常（多半是 dormant）
-// 完全不佔資源。用 setInterval 而非 requestAnimationFrame：呼吸效果本來就慢（~1.8 秒一輪），
-// 10Hz 取樣已經滑順，不需要 60fps 白白重算整個 graphOption／重丟 setOption。
+// 完全不佔資源。用 setInterval 而非 requestAnimationFrame：呼吸效果不快（~1.4 秒一輪——原
+// 1.8 秒太慢、0.6 秒太快、1.2 秒仍偏快、1.6 秒又偏慢，落在中間），約 13Hz 取樣維持跟原本
+// 10Hz／1.8 秒等密度的滑順度，不需要 60fps 白白重算整個 graphOption／重丟 setOption。
 const pulsePhase = ref(0);
 let pulseTimer = null;
 
@@ -541,7 +542,7 @@ const hasIgnitedNode = computed(() => (graphData.value?.nodes || []).some((n) =>
 
 watch(hasIgnitedNode, (has) => {
   if (has && !pulseTimer) {
-    pulseTimer = setInterval(() => { pulsePhase.value = performance.now() / 1000; }, 100);
+    pulseTimer = setInterval(() => { pulsePhase.value = performance.now() / 1000; }, 78);
   } else if (!has && pulseTimer) {
     clearInterval(pulseTimer);
     pulseTimer = null;
