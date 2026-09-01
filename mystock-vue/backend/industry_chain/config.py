@@ -61,6 +61,16 @@ def require_verified_edge() -> bool:
     return _env_bool("IC_REQUIRE_VERIFIED_EDGE", True)
 
 
+# ── FR-3c 跨 Provider 共識驗證（ADR-IC-23，取代原規劃的 MoneyDJ 交叉驗證）──────────
+def cross_provider_verify_enabled() -> bool:
+    """FR-18 月排程萃取每條鏈成功後，是否緊接著用第二個 LLM Provider 對同一條鏈再跑一次。
+    兩個獨立 Provider 各自產出的邊會在 `IndustryChainRepository.upsert_edge()` 自動合併為
+    `llm_verified`（見該方法 docstring）。預設開啟：多花一次月呼叫（§4.7.5 估算的月費用因此
+    頂多乘以二，仍是分文等級），換來原本要靠人工核對或 MoneyDJ 爬蟲才能做到的自動信心提升，
+    且不再受制於 Q-1 的 ToS 疑慮（MoneyDJ 已不再是本模組的相依項）。"""
+    return _env_bool("IC_CROSS_PROVIDER_VERIFY_ENABLED", True)
+
+
 # ── 兩段式 grounded 萃取（§4.7.7，ADR-IC-17）─────────────────────
 def grounding_enabled() -> bool:
     return _env_bool("IC_LLM_GROUNDING_ENABLED", False)

@@ -48,7 +48,21 @@ class IndustryChainRepository:
         `last_confirmed_date`／`extra_data`），不動 `is_active`——軟刪除只能由呼叫端另外
         明確操作，不隨每次 upsert 被動改動（ADR-IC-15：只增不自動刪）。`is_verified` 同樣
         不因重複 upsert 而被覆寫回 FALSE：已核可的邊即使之後又被同一來源重新提交，仍維持
-        已核可狀態（見 AC-IC-22 的 upsert 語意）。"""
+        已核可狀態（見 AC-IC-22 的 upsert 語意）。
+
+        **ADR-IC-23（取代原規劃靠 MoneyDJ 交叉驗證的 FR-3c）**：兩個「不同」LLM Provider
+        （`source` 皆以 `llm_` 開頭且彼此不同，例如 `llm_gemini` 與 `llm_claude`）對同一條邊
+        各自獨立產出時，視為交叉驗證通過，自動翻為 `is_verified=TRUE`、`source='llm_verified'`
+        （比照 ADR-IC-16 原文「兩個相互獨立的來源指向同一條邊」的判準，只是把 MoneyDJ 換成
+        第二個 LLM Provider）。`source`／`is_verified` 一旦變成已核可（不論是人工核可、還是
+        本次新增的跨 Provider 自動核可）即凍結，之後任何來源的重複提交都不會被改動或降級。
+        `extra_data` 則採合併而非整段覆寫：已核可邊採 JSONB `||` 合併（保留 `cross_verified_*`
+        稽核欄位，同時吸收最新一次提交的欄位如 `llm_evidence`）；尚未核可邊維持原本的整段
+        覆寫語意（AC-IC-22：「重複的邊走 upsert，只更新 last_confirmed_date 與 extra_data」，
+        觸發跨驗證的那一次額外疊上 `cross_verified_with`／`cross_verified_prior_evidence`
+        兩個欄位，供人工核對時追溯「這條邊是哪兩個來源互相印證的」。已用真實本地 Postgres
+        端到端驗證 5 種情境（同 Provider 重覆確認不誤判、跨 Provider 才觸發、觸發後凍結、
+        凍結後仍持續合併 extra_data、既有人工核可邊不受影響），驗證資料驗證後已清除。"""
         result = await self._s.execute(
             text("""
                 INSERT INTO industry_chain_edges
@@ -63,7 +77,33 @@ class IndustryChainRepository:
                 ON CONFLICT (chain_id, upstream_symbol, downstream_symbol) DO UPDATE
                    SET component_type      = EXCLUDED.component_type,
                        last_confirmed_date = COALESCE(EXCLUDED.last_confirmed_date, industry_chain_edges.last_confirmed_date),
-                       extra_data          = EXCLUDED.extra_data,
+                       extra_data          = CASE
+                                                WHEN industry_chain_edges.is_verified
+                                                THEN COALESCE(industry_chain_edges.extra_data, '{}'::jsonb) || COALESCE(EXCLUDED.extra_data, '{}'::jsonb)
+                                                WHEN industry_chain_edges.source LIKE 'llm\\_%' ESCAPE '\\'
+                                                 AND EXCLUDED.source LIKE 'llm\\_%' ESCAPE '\\'
+                                                 AND industry_chain_edges.source <> EXCLUDED.source
+                                                THEN COALESCE(EXCLUDED.extra_data, '{}'::jsonb) || jsonb_build_object(
+                                                       'cross_verified_with', industry_chain_edges.source,
+                                                       'cross_verified_prior_evidence', COALESCE(industry_chain_edges.extra_data, '{}'::jsonb)
+                                                     )
+                                                ELSE EXCLUDED.extra_data
+                                              END,
+                       source = CASE
+                                  WHEN industry_chain_edges.is_verified
+                                    THEN industry_chain_edges.source
+                                  WHEN industry_chain_edges.source LIKE 'llm\\_%' ESCAPE '\\'
+                                   AND EXCLUDED.source LIKE 'llm\\_%' ESCAPE '\\'
+                                   AND industry_chain_edges.source <> EXCLUDED.source
+                                    THEN 'llm_verified'
+                                  ELSE industry_chain_edges.source
+                                END,
+                       is_verified = industry_chain_edges.is_verified
+                                     OR (
+                                       industry_chain_edges.source LIKE 'llm\\_%' ESCAPE '\\'
+                                       AND EXCLUDED.source LIKE 'llm\\_%' ESCAPE '\\'
+                                       AND industry_chain_edges.source <> EXCLUDED.source
+                                     ),
                        updated_at          = CURRENT_TIMESTAMP
                 RETURNING id
             """),

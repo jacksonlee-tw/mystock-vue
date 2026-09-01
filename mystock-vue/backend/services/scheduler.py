@@ -170,18 +170,36 @@ def _scheduled_us() -> None:
 async def _scheduled_industry_chain_extract() -> None:
     """FR-18：每月 1 號 09:00，對每條鏈依序（不併發，避免撞 Provider 限流）觸發 LLM 萃取。
     單鏈失敗只記警告，不影響其餘鏈（AC-IC-2）；旗標關閉時立即返回，不建連線不發請求
-    （AC-IC-15）。"""
+    （AC-IC-15）。
+
+    FR-3c 跨 Provider 共識驗證（ADR-IC-23，取代原規劃的 MoneyDJ 交叉驗證）：主要那次
+    （gemini，預設 Provider）成功後，緊接著用 Claude 對同一條鏈再跑一次——兩個獨立 Provider
+    各自產出的邊會在 upsert_edge() 自動合併為 llm_verified（見該方法 docstring）。依序
+    （非併發）執行的理由與主要萃取相同：避免同時撞兩家 Provider 的限流，且 extractor.py 的
+    單一飛行中防重入（G2）本來就要求同一時間只能有一個萃取在跑，並發呼叫反而會讓第二個
+    立刻收到 IC_CRAWL_IN_PROGRESS 而白白浪費一次月配額。未設定 Claude 金鑰、或旗標關閉時，
+    直接跳過第二次呼叫（不算失敗，只是没有第二個來源可交叉驗證，邊維持原本 llm_gemini
+    未核可狀態，等人工核對介面處理，行為與導入本功能前一致）。"""
     try:
         from industry_chain import config as ic_config
         if not ic_config.is_enabled():
             return
         from industry_chain.extractor import extract_chain
+        from ai import config as ai_config
+        cross_verify = ic_config.cross_provider_verify_enabled() and bool(ai_config.get_claude_api_key())
         for chain in ic_config.load_chains():
             try:
                 result = await extract_chain(chain.chain_id)
                 logger.info(f"[排程] 產業鏈萃取 {chain.chain_id}: {result}")
             except Exception as e:
                 logger.warning(f"[排程] 產業鏈萃取 {chain.chain_id} 失敗: {e}")
+                continue
+            if cross_verify:
+                try:
+                    verify_result = await extract_chain(chain.chain_id, provider_code="claude")
+                    logger.info(f"[排程] 產業鏈跨 Provider 驗證 {chain.chain_id}: {verify_result}")
+                except Exception as e:
+                    logger.warning(f"[排程] 產業鏈跨 Provider 驗證 {chain.chain_id} 失敗（不影響主要萃取結果）: {e}")
     except Exception as e:
         logger.warning(f"[排程] 產業鏈萃取工作異常: {e}")
 

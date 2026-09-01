@@ -7,8 +7,8 @@
 [services/mops_fetcher.py](../../backend/services/mops_fetcher.py)（MOPS 抓取前例與已知限制，見 §2.2）、
 [backend/ai/](../../backend/ai/)（LLM Provider 抽象層／成本閘門／`ai_llm_execution` 成本帳——**本版起升為 P0 主資料來源**，見 §2.5、§4.7）、
 [services/concept_tag_service.py](../../backend/services/concept_tag_service.py)（概念股標籤，第四種產業粒度，見 §2.1）
-**版本**：v2.7
-**日期**：2026-08-30
+**版本**：v2.8
+**日期**：2026-09-01
 **狀態**：**需求規格 — 待審核。本文件只定義需求、資料模型與驗收條件，不含程式開發**
 
 **參考文件**
@@ -55,6 +55,7 @@
 | v1.0 | 初版構想清單：`industry_chain_edges` 上下游關聯表、CCF 領先落後檢定、動能外溢監控三段式描述。方向正確，但未核對本專案現行的資料層（`DATA_SOURCE` 雙軌、`ScanContext`／`MarketPreload`）、既有產業標籤（`symbol_industry`）、既有爬蟲限制（MOPS WAF）與策略引擎的條件函式簽章，直接照抄會出現架構不相容之處（見 §2） |
 | v2.0 | 本次優化：新增 §2 現況盤點（釐清與 `symbol_industry`／`SectorRotationView.vue`／策略引擎的分界）、§9 決議事項（ADR）、資料庫設計改為 Flyway／Postgres-only 慣例並移除與現行 `config.py` 撞名的設定檔路徑、將「動能外溢偵測」拆分為「可沿用既有引擎」與「需要新批次模組」兩部分、標出年報客戶名單解析與跟漲勝率矩陣的資料/工程缺口、補上分階段交付與驗收準則 |
 | v2.1 | 併入一份外部審閱意見（自稱 v3.0）中查證屬實的部分，並修正 v2.0 自身一處誤植：(1) **修正** ADR-IC-01 誤把 `symbol_industry` 引用為「Postgres-only」前例——查證 `services/industry_fetcher.py`／`db/dual_write.py` 後，`symbol_industry` 實際是 **JSON 為主、Postgres best-effort 雙寫**（`dual_write_symbol_industry()`），與 `daily_stock_data` 同一套既有慣例；`industry_chain_edges` 的寫入面因此改採同一套慣例（新增 ADR-IC-09），讀取面（圖查詢／BFS）維持需要 Postgres 的結論不變；(2) **新增** `extra_data JSONB` 欄位（比照 `daily_stock_data.market_specific_data` 既有慣例，ADR-IC-10）；(3) **精煉** ADR-IC-06：明確納入「力導向圖截圖 + 多模態 LLM」的構想（呼應既有 ADR-AI-02「AI 看到的圖＝使用者看到的圖」哲學），但**否決**該外部意見提出的具體實作路徑（新開 `/industry-chains/analyze-ai` 端點、寫死過期模型 ID `Gemini 1.5 Pro`／`Claude 3.5 Sonnet`）；(4) **否決**該外部意見的 `system_activity`（非既有表名，應為 `activity_log`）與 `config/industry_chains.yaml`（重現 v2.0 已修正的撞名問題）兩處，理由與逐項評估見對話紀錄 |
+| **v2.8** | **FR-3c 改用跨 Provider 共識驗證，取代原規劃的 MoneyDJ 交叉驗證**（使用者明確要求「可以用 LLM 簡化的，就改用」）。**新增 ADR-IC-23**：兩個「不同」LLM Provider（`llm_gemini`／`llm_claude`）對同一條邊各自獨立產出時，於 `IndustryChainRepository.upsert_edge()` 自動合併為 `is_verified=TRUE`、`source='llm_verified'`（比照 ADR-IC-16 原判準，只是把 MoneyDJ 換成第二個 LLM Provider），`extra_data` 採 JSONB 合併保留 `cross_verified_with`／`cross_verified_prior_evidence` 稽核欄位；`source`／`is_verified` 一旦核可即凍結，之後任何來源重複提交不再改動（含既有人工核可邊不受影響）。FR-18 月排程（`services/scheduler.py`）新增：主要萃取（gemini）成功後，若 `IC_CROSS_PROVIDER_VERIFY_ENABLED`（新增設定，預設 `true`）且已設定 Claude 金鑰，緊接著用 Claude 對同一條鏈再跑一次；未設定金鑰或旗標關閉則跳過，行為與導入前一致。**§12 Q-1 結案**：MoneyDJ 的 ToS 疑慮不再是本模組的相依項，FR-3c／`services/industry_chain_fetcher.py` 的 MoneyDJ 交叉驗證構想正式**不採用**（多花一次月呼叫，成本仍是分文等級，且完全在本專案已有的 Provider 抽象層與成本閘門內運作，不需要面對任何第三方網站的 ToS 問題）。**同時評估並否決 FR-4 獨立實作**：MOPS 年報客戶名單原本的價值在於「官方揭露 ≥10% 營收客戶」比一般 LLM 知識更可信，但既然改用 LLM 簡化的前提是不再糾結取得官方原文（本來就卡在 WAF），「客戶集中度」在語意上就是同一條供應鏈關係的另一個角度（A 的最大客戶是 B，等同 B 的上游供應商是 A），與 FR-3 既有 Prompt 已在問的「Tier 1／Tier 2 上游供應商」高度重疊；獨立開一支客戶視角的 Prompt 能新增的邊在未實測前無法判斷是否值得多開一次月呼叫與一組新 schema，比照 Q-9「先跑一輪看實際退件率再決定」的既有原則，**不預先實作**，留待 P1 核對介面實際運作一段時間、統計 FR-3 是否已經涵蓋大多數客戶集中度關係後再評估。**同步修正**：(1) §2.2「兩個舊來源的新定位」表格移除 MoneyDJ 交叉驗證這一列的自動信心提升承諾，改註記已被 ADR-IC-23 取代；(2) §10 分階段交付 P2 移除「FR-3c、MoneyDJ 交叉驗證」，新增「FR-3c 已於 P0/P1 排程內實作完成（ADR-IC-23），不再是 P2 項目」；(3) §14 影響範圍的 `services/industry_chain_fetcher.py` 一列移除 MoneyDJ 交叉驗證用途（C4），只保留 MOPS 客戶名單原文取得（P2，且已於本版標註為未定案是否值得做）。**ADR-IC-16 本身保留原文不刪**，只標註「MoneyDJ 交叉驗證的具體實作已被 ADR-IC-23 的跨 Provider 共識驗證取代，判準精神不變」。實作細節：`industry_chain/config.py`（`cross_provider_verify_enabled()`）、`repositories/industry_chain_repository.py`（`upsert_edge()` 的 `source`／`is_verified`／`extra_data` 三個 CASE 表達式）、`services/scheduler.py`（`_scheduled_industry_chain_extract()`）——已對真實本地 Postgres 端到端驗證 5 種情境（同 Provider 重複確認不誤判、跨 Provider 才觸發、觸發後凍結、凍結後仍持續合併 extra_data、既有人工核可邊不受影響），驗證資料驗證後已清除 |
 | **v2.7** | **FR-10 格蘭傑因果檢定解除延後並實作完成**（使用者明確要求導入，解除 ADR-IC-05 原「待 CCF 證明有實用價值後再評估」的延後條件，§12 Q-4 結案）。**新增 ADR-IC-22**：記錄解除理由、Benjamini-Hochberg 多重比較校正的批次範圍決策（同一次執行涵蓋的全部配對一起校正，globally 而非分鏈各自校正——分鏈校正會讓每次校正的檢定數 `m` 變小、稀釋校正力度，與 §13 風險 2「多重比較問題」的原始目的相違）、資料儲存位置（沿用既有 `industry_chain_lead_lag_cache`，新增 4 個 nullable 欄位而非新表，V20 遷移）、排程方式（併入既有 FR-19 CCF 月排程之後執行，不新增排程時段／FR 編號）。**同步修正**：(1) §2.4 相依套件評估表移除「Granger 延後」的舊結論，改記錄 `statsmodels` 已實際導入；(2) FR-10（§4.2）移除「P2／延後」標記，改記錄實作狀態與 ADR-IC-22 交叉引用；(3) §10 分階段交付的 P2 移除 FR-10 這一項；(4) §12 Q-4 標記已結案。**ADR-IC-05 本身保留原文不刪**，只標註「已被 ADR-IC-22 取代」，比照本文件既有慣例（ADR 決策一旦寫下即為歷史紀錄，後續修正一律以新增／標註取代方式處理，不回頭改寫既有 ADR 正文）。實作細節：`indicators/lead_lag.py`（`granger_causality()`／`benjamini_hochberg_correction()`）、`industry_chain/lead_lag_job.py`（`compute_granger_for_all_edges()`）、`repositories/industry_chain_repository.py`（`update_granger_result()`）、`services/scheduler.py`（併入既有 FR-19 排程函式）——已對真實本地 Postgres 端到端驗證（含一組刻意製造的 BH 校正案例：原始 p=0.0355 校正後為 0.0966，由「顯著」變為「不顯著」），驗證資料驗證後已清除 |
 | **v2.6** | **雛形畫面走查後的兩項優化**：(1) **視覺化可行性評估**——雛形以擴充至 20+ 節點的 `ai_server` 鏈（貼近 §13 估算的「每鏈 20～50 檔標的」規模）實測分層 SVG 布局，結論是**在此規模下不需要真正的力導向物理模擬即可保持可讀**（節點多跳路徑追蹤高亮＋自訂懸浮提示已能清楚呈現關聯，見 ADR-IC-20），但明確標出上限：邊數與節點數若再成長一個數量級（§12 Q-3 的分層粒度風險），分層布局會開始擁擠，屆時才需要評估真正的 ECharts 力導向模擬。(2) **新增「轉為投資筆記」整合**（FR-21）：力導向圖、單一關聯、節點路徑三種範圍皆可一鍵轉出為 Markdown 並帶 Mermaid 圖，直接呼叫既有 `POST /api/v1/investment-notes`（**零後端改動**）；查證 [V16](../../backend/db/migration/V16__Create_investment_notes.sql)／[V17](../../backend/db/migration/V17__Relax_investment_note_symbol_pair_check.sql) 遷移後發現 `investment_note.symbol` 是**單一欄位**，只能綁定一個錨點標的——這是本次整合唯一需要使用者決策的取捨點（ADR-IC-20）。Mermaid 圖表的「淡色系」要求，沿用本頁既有的節點三態色票而非 §3.0 的架構圖色票，理由是語意對應更正確、且查證前端 `MarkdownPreview.vue` 的 `.mermaid-diagram` 容器背景固定白色、不隨深色模式切換，淡色節點在此背景上更可讀（ADR-IC-21） |
 | **v2.5** | **MCP／agentic tool loop 評估與否決**：回應「是否可引入 MCP 或 tools 讓 LLM 驅動上網查詢」。結論是**分三種形態、只採用其中一種**——(A) Provider 原生檢索工具（v2.4 §4.7.7 已採用）、(B) 我們自建 agentic tool loop、(C) MCP，後兩者 P0～P1 **不採用**（新增 §4.7.8、ADR-IC-19）。**最具決定性的理由與本專案既有設計直接相關**：現行「一次邏輯萃取＝一次實體呼叫＝`ai_llm_execution` 一列」是 `IC_LLM_MONTHLY_CALL_CAP`（ADR-IC-13，本模組唯一的花費天花板）能夠成立的前提；多輪 tool loop 會讓一次萃取變成不確定次數的呼叫、且每輪重送整段對話使 token 隨輪次二次成長，該閘門的語意會從「最多花這麼多」退化成「最多啟動這麼多次不知道會花多少的迴圈」——要修得連帶改動 `ai_llm_execution` 的粒度與成本帳結構，代價遠超過它解決的問題。**同時記錄一個被否決但值得日後重審的替代方案**：以「收斂範圍後的代碼清單直接放進 Stage B 輸入」取代 `lookup_symbol` 工具，不需要任何 agent 迴圈即可降低校驗二的退件率——列為 P1 依實測退件率再決定（§4.7.8、Q-9），並說明它與 §4.7.3「刻意不把全市場 1,800 檔塞進 Prompt」為何不衝突。**新增 Q-10**（MCP 在本專案真正適合的位置，在 Phase 3 之外） |
@@ -142,8 +143,8 @@ v2.2 把 MoneyDJ 爬蟲列為 P0 主來源，同時把「來源是否合法可�
 
 | 來源 | v2.2 定位 | v2.3 定位 |
 |---|---|---|
-| MoneyDJ 產業價值鏈 | P0 主來源（阻塞於 Q-1） | **選用的交叉驗證來源**（P2）。若日後使用者確認 ToS 可行，其價值不在「取代 LLM」而在**自動提升信心**：同一條邊若 LLM 與 MoneyDJ 各自獨立產出，可自動翻 `is_verified=TRUE`，省下人工核對（見 ADR-IC-16）。爬取失敗須容錯降級（比照 `mops_fetcher.py` 對單一請求被擋不可中斷整體排程的既有慣例），**不得**中斷既有的每日爬蟲／掃描排程 |
-| MOPS 財報附註「主要進銷貨客戶」（佔營收 10% 以上） | P2 獨立子專案（需自建 PDF／XBRL 解析器） | 仍是 P2，但**工程量大幅下降**：取得財報文字後交由同一條 LLM 萃取管線處理（換一份 User Prompt 與 `source` 值即可），不需要自建解析器。**取得**財報原文這一段仍需面對 `mops_fetcher.py` 檔頭註解記載的官方 WAF，這部分沒有因為導入 LLM 而變簡單，仍是 P2 的主要成本 |
+| MoneyDJ 產業價值鏈 | P0 主來源（阻塞於 Q-1） | ~~選用的交叉驗證來源（P2）~~ **v2.8：不採用，已被 ADR-IC-23 取代**——「自動提升信心」這個價值改用第二個 LLM Provider（Claude）達成，不再需要面對 MoneyDJ 的 ToS 疑慮（§12 Q-1 結案），也不需要開發任何 MoneyDJ 爬蟲 |
+| MOPS 財報附註「主要進銷貨客戶」（佔營收 10% 以上） | P2 獨立子專案（需自建 PDF／XBRL 解析器） | 仍是 P2，但**工程量大幅下降**：取得財報文字後交由同一條 LLM 萃取管線處理（換一份 User Prompt 與 `source` 值即可），不需要自建解析器。**取得**財報原文這一段仍需面對 `mops_fetcher.py` 檔頭註解記載的官方 WAF，這部分沒有因為導入 LLM 而變簡單，仍是 P2 的主要成本。**v2.8 補充**：若連取得官方原文都要放棄改用純 LLM 知識回答，其內容與 FR-3 既有 Prompt 已在問的「上游供應商」高度重疊（客戶視角與供應商視角是同一條邊的兩面），獨立開一支客戶視角 Prompt 的邊際價值未經實測前無法判斷，比照 Q-9 精神暫不預先實作 |
 
 > **這是「換掉來源」，不是「換掉架構」**：`industry_chain_edges` 的資料模型（§5.2）、CCF 引擎（§4.2）、外溢篩選（§4.3）、API／前端（§7、§8）全部不因本次變更而改動。變的只有 `industry_chain/extractor.py` 內部「這批邊從哪裡來」，以及隨之而來的校驗與稽核要求。
 
@@ -260,7 +261,6 @@ flowchart TB
 
     subgraph CRAWL ["services/industry_chain_fetcher.py（P2／選用，見 §2.2）"]
         C2["MOPS 年報客戶名單原文取得"]
-        C4["MoneyDJ 快照（交叉驗證）"]
     end
 
     JSONSNAP[("backend/data/_industry_chain/<br/>JSON 快照（主儲存 + 稽核軌跡）")]
@@ -273,8 +273,7 @@ flowchart TB
     end
 
     subgraph EXT ["外部來源"]
-        LLMAPI["Gemini／Claude API<br/>（模型 ID 走 ai/config.py 白名單）"]
-        MDJ["MoneyDJ 產業價值鏈（P2／選用）"]
+        LLMAPI["Gemini／Claude API<br/>（模型 ID 走 ai/config.py 白名單；FR-3c 跨 Provider 驗證亦同一來源，見 ADR-IC-23）"]
         MOPS["MOPS 財報附註（P2）"]
     end
 
@@ -302,9 +301,7 @@ flowchart TB
     VALID -.退件與理由.-> ACT
     VALID -->|"③ 通過者才雙寫"| DW
     C2 --> MOPS
-    C4 --> MDJ
     C2 -.P2 長文交同一條萃取管線.-> EXTRACT
-    C4 -.選用交叉驗證.-> VALID
     DW -.best-effort<br/>失敗只記警告.-> TBL1
     J1 --> CCF
     J2 --> TBL2
@@ -313,7 +310,6 @@ flowchart TB
     SPILL -.事件紀錄.-> ACT
 
     style LLMAPI fill:#FFF6DC,stroke:#E8D48B
-    style MDJ fill:#FFF6DC,stroke:#E8D48B
     style MOPS fill:#FFF6DC,stroke:#E8D48B
     style CHIP fill:#EAF7EE,stroke:#B7E0C4
     style ALERT fill:#EAF7EE,stroke:#B7E0C4
@@ -374,9 +370,9 @@ api/v1/endpoints/industry_chains.py
 | **FR-3** | **LLM 產業鏈知識萃取（P0 主來源，v2.3 取代原 MoneyDJ 爬蟲）** | `industry_chain/extractor.py`：依 §6.1 YAML 的每條鏈組一份 Prompt，經 `ai/providers/` 呼叫 LLM 取得結構化的上下游邊集合。完整規格（System／User Prompt、輸出 schema、失敗處理）見 **§4.7**。**不再有 P0 阻塞前置條件**（原 §12 Q-1 隨 MoneyDJ 降級為選用而解除） |
 | **FR-3a** | **萃取結果的機器校驗** | `industry_chain/validator.py`：LLM 回傳的每一筆邊都必須通過 §4.7.4 的**五道校驗**（代碼存在性、代碼↔名稱一致性、自環／反向重複、`relation_tier` 範圍、單次筆數上限）才可進入寫入流程；未通過者一律丟棄並把理由寫入 `activity_log`，**不得**靜默修正或猜測正確代碼（ADR-IC-14） |
 | **FR-3b** | **原始回應快照落地（ELT 第一段）** | 呼叫回傳的**原始 JSON 未經任何加工**先寫入 `backend/data/_industry_chain/llm_snapshot_<chain_id>_YYYYMM.json`，再進行 FR-3a 校驗與寫庫。理由見 §4.7.3：校驗規則日後修改時可直接重跑歷史快照，不需重新計費呼叫 |
-| FR-3c | （選用）MoneyDJ 快照交叉驗證 | `services/industry_chain_fetcher.py`；**降為 P2／選用**。用途不是取代 FR-3，而是讓「兩個獨立來源都指出同一條邊」時自動翻 `is_verified=TRUE`（ADR-IC-16）。仍受 §12 Q-1 的 ToS 前提限制，但**不再阻塞 P0** |
-| FR-4 | MOPS 年報主要客戶名單 | **P2**。取得財報原文後交由 FR-3 的同一條萃取管線處理（換 User Prompt 與 `source` 值，不需自建 PDF／XBRL 解析器）；取得原文本身仍需面對 MOPS WAF，那才是 P2 的主要成本。見 §2.2、§10 |
-| FR-5 | 邊的信心標記 | 每筆邊需有 `source`（`llm_gemini` / `llm_claude` / `moneydj` / `mops_footnote` / `manual`）與 `is_verified` 欄位；**LLM 來源一律強制寫入 `is_verified = FALSE`，不接受任何「模型說它有信心所以直接標記已驗證」的捷徑**（ADR-IC-14）；本專案為單人使用工具、無管理者登入介面（比照《AI 報告規格》ADR-AI-07 移除 `require_owner` 的既有決定），**驗證動作為使用者事後人工核對後直接更新資料庫**，不另建審核 UI |
+| **FR-3c** | **跨 Provider 共識驗證（v2.8 已實作，取代原規劃的 MoneyDJ 交叉驗證）** | `services/scheduler.py`／`repositories/industry_chain_repository.py`：FR-18 月排程主要萃取（gemini）成功後，若 `IC_CROSS_PROVIDER_VERIFY_ENABLED`（預設 `true`）且已設定 Claude 金鑰，再對同一條鏈跑一次 Claude 萃取；兩個獨立 Provider 各自產出同一條邊時，`upsert_edge()` 自動翻為 `is_verified=TRUE`、`source='llm_verified'`（ADR-IC-23，判準沿用 ADR-IC-16）。不再需要 MoneyDJ，§12 Q-1 已結案 |
+| ~~FR-4~~ | ~~MOPS 年報主要客戶名單~~ | **v2.8：暫不實作**。原構想是取得財報原文後交由 FR-3 的同一條萃取管線處理，但既然改用 LLM 簡化的前提是不再糾結取得官方原文，「客戶集中度」與 FR-3 已在問的「上游供應商」是同一條邊的兩面，獨立開一支客戶視角 Prompt 的邊際價值未經實測前無法判斷，暫不預先實作（見 §2.2、§10、ADR-IC-23） |
+| FR-5 | 邊的信心標記 | 每筆邊需有 `source`（`llm_gemini` / `llm_claude` / `llm_verified` / `manual`）與 `is_verified` 欄位；**LLM 來源一律強制寫入 `is_verified = FALSE`，不接受任何「模型說它有信心所以直接標記已驗證」的捷徑**（ADR-IC-14）；`llm_verified` 是 FR-3c 跨 Provider 共識驗證自動寫入的結果，不是呼叫端可直接指定的值。本專案為單人使用工具、無管理者登入介面（比照《AI 報告規格》ADR-AI-07 移除 `require_owner` 的既有決定），**人工核對動作透過 §8 核對介面（`verify`／`deactivate` 端點）完成**，不另建審核 UI |
 
 ### 4.2 領先—落後量化檢定引擎
 
@@ -839,10 +835,10 @@ IC_LLM_RESEARCH_LOOKBACK_MONTHS=12  # 要求 Stage A 聚焦的時間範圍
 IC_LLM_REQUEST_TIMEOUT_SEC=180      # 刻意與 AI_REQUEST_TIMEOUT_SEC（90）分開：帶檢索的
                                     # 呼叫明顯較慢，且本模組是無人等待的背景批次
 
-# --- MoneyDJ 交叉驗證（P2／選用，FR-3c）---
-# ⚠️ 啟用前必須先確認 §12 Q-1（來源使用條款與結構穩定性）。關閉不影響 P0。
-IC_MONEYDJ_ENABLED=false
-IC_CRAWL_DELAY_SEC=3           # 單次請求間隔，比照既有 TWSE 爬蟲的防封鎖節流慣例
+# --- FR-3c 跨 Provider 共識驗證（v2.8 已實作，ADR-IC-23，取代原規劃的 MoneyDJ 交叉驗證）---
+# 兩個獨立 LLM Provider 都提出同一條邊時自動翻為已核可（llm_verified）。未設定 Claude 金鑰時
+# 自動略過第二次呼叫，不影響主要萃取。
+IC_CROSS_PROVIDER_VERIFY_ENABLED=true
 
 # --- 統計有效性門檻（見 FR-7a）---
 IC_MIN_SAMPLE_SIZE=120         # 重疊交易日低於此值不寫入 CCF 快取
@@ -926,13 +922,14 @@ IC_LEAD_LAG_RETENTION_DAYS=1095    # lead_lag_cache 保留天數（跨年比較�
 | **ADR-IC-13** | **本模組自備成本閘門（`IC_LLM_MONTHLY_CALL_CAP`），不複用 `AI_DAILY_QUOTA`；但呼叫紀錄一律寫入既有 `ai_llm_execution`（`report_id=NULL`、`view_id="industry_chain_extract"`）** | 查證 `count_succeeded_today()` 只數 `ai_analysis_report`，本模組不產生報告列 → `AI_DAILY_QUOTA` 對本模組**完全無效**（外部構想在此點上是錯的）。這其實合理：每月一次的背景批次不該吃掉使用者手動診股的每日額度。代價是必須自備天花板，否則本模組的呼叫毫無上限。而「成本單一事實來源」（ADR-AI-17）**不受影響**——真正的事實來源是 `ai_llm_execution`，不是那個閘門，而該表的 `report_id`／`symbol`／`trade_date` 皆可為 NULL，本模組可原樣寫入 |
 | **ADR-IC-14** | **LLM 產出的邊一律 `is_verified = FALSE`，且必須通過 §4.7.4 的五道機器校驗才可寫入；模型自評的 `confidence` 不得作為自動驗證依據** | 幻覺的典型型態不是「掰出不存在的公司」，而是「公司對、代號錯」——這種錯誤在 UI 上完全看不出來，卻會讓整條傳導路徑指向另一檔股票。校驗二（代碼↔名稱一致性）是針對這個型態設計的低成本防線。至於模型自評信心：它衡量的是「模型對自己記憶的把握」，不是「這件事是不是真的」，兩者在幻覺情境下恰好高度不相關 |
 | **ADR-IC-15** | **圖譜是「只增不自動刪」：某條邊在本月萃取結果中未出現時，`is_active` 維持不變，不得自動軟刪除** | LLM 是非決定性的，同一個 Prompt 兩次呼叫的邊集合本來就會有出入。若「這次沒提到」就自動下架，圖譜會每月無意義地抖動，連帶讓 `industry_chain_lead_lag_cache` 的歷史序列失去可比性。真正的下架只有兩種來源：使用者人工判定，或 §4.9／FR-9 的脫鉤監控提供的**量化證據**。**注意這是 §4.6「全量重算而非增量」的例外**——那條原則講的是 FR-19 的 CCF 數值重算（純函式、有唯一正確答案），不是 FR-18 的圖譜結構 |
-| **ADR-IC-16** | **`is_verified` 的自動翻轉只在「兩個相互獨立的來源指向同一條邊」時發生**（例：`llm_gemini` ＋ `moneydj`，或 `llm_*` ＋ `mops_footnote`）；概念股標籤命中**不算**獨立來源 | 這是保留 MoneyDJ（FR-3c）的真正價值所在——它的用途不是取代 LLM，而是把人工核對的工作量從「每一條都要看」降到「只看單一來源的那些」。概念標籤被排除的理由：它本身也是人工維護的主觀分類（§2.1），兩個主觀來源一致不構成客觀驗證，只能當 §4.7.4 的排序加分 |
+| **ADR-IC-16** | **`is_verified` 的自動翻轉只在「兩個相互獨立的來源指向同一條邊」時發生**（例：`llm_gemini` ＋ `moneydj`，或 `llm_*` ＋ `mops_footnote`）；概念股標籤命中**不算**獨立來源 | 這是保留 MoneyDJ（FR-3c）的真正價值所在——它的用途不是取代 LLM，而是把人工核對的工作量從「每一條都要看」降到「只看單一來源的那些」。概念標籤被排除的理由：它本身也是人工維護的主觀分類（§2.1），兩個主觀來源一致不構成客觀驗證，只能當 §4.7.4 的排序加分。**v2.8 標註**：「兩個相互獨立的來源」這個判準本身不變，但具體實作已被 **ADR-IC-23** 取代——把 MoneyDJ 換成第二個 LLM Provider（Claude），理由與細節見該 ADR |
 | **ADR-IC-17** | **v2.4：檢索增強採「兩段式」（Stage A 研究 → Stage B 萃取）兩次獨立呼叫，不採單次呼叫同時開檢索工具與 `response_schema`** | ① 兩者在多個 Gemini 版本上互斥或不穩定，而本專案對 Gemini SDK 細節的既有立場是不憑記憶下結論（`gemini_provider.py` 檔頭註記）；② 即使日後實測證實可單次完成，兩段式仍有三個獨立好處——研究結果落地後 Stage B 可**免費重跑**、grounding metadata 的**真實 URL** 能寫進 `extra_data.evidence_url` 讓人工核對從「憑知識判斷」變成「點連結看一眼」、以及萃取出錯時能分辨是沒查到還是沒讀懂。詳見 §4.7.7 |
 | **ADR-IC-18** | **導入 grounding 後，`estimated_cost_usd` 不得沿用「只算 token」的既有估算而假裝它完整**：帶檢索的呼叫需在 `request_meta` 記下 `grounded=true` 與檢索查詢次數，並在成本統計上標示為**部分估算** | 查證 [ai_analysis.py](../../backend/api/v1/endpoints/ai_analysis.py) 的 `_estimate_cost(model, input_tokens, output_tokens)` 與 `ai/config.py` 的 `MODEL_PRICING_USD_PER_MTOK`（只有 input／output 兩個單價）：檢索工具的按次計價完全不在其中。若不處理，一張宣稱是「成本唯一事實來源」（ADR-AI-17）的表會**系統性低估**且無人察覺。**明確標示為不完整，優於填一個看起來精確的錯誤數字**——這與《相對低點》ADR-RL-04「寧可先上線偏誤已知的絕對門檻，也不要上線看似正確的假分位數」是同一條原則 |
 | **ADR-IC-19** | **v2.5：檢索一律採 Provider 原生工具（形態 A）；P0～P1 不引入自建 agentic tool loop（形態 B）或 MCP（形態 C）** | ① 「讓模型能上網」這件事形態 A 已完成，且執行在 Provider 伺服器端、我們零維運；MCP 的價值是接上**有介面的既有系統**，不是上網——為了上網引入 MCP，是在既有能力上多疊一層自己要維運的東西。② **決定性理由**：現行「一次邏輯萃取＝一次實體呼叫＝`ai_llm_execution` 一列」是 `IC_LLM_MONTHLY_CALL_CAP`（ADR-IC-13）成立的前提；多輪迴圈使單次萃取的呼叫次數事前不可預估、且每輪重送整段對話讓 token 隨輪次二次成長，該閘門將退化為無意義。修好它需連帶改動 `ai_llm_execution` 的粒度，而該表同時是既有診股模組與執行歷史頁面的資料來源——代價遠超過所解決的問題。③ 本模組想靠工具解的「代碼正確性」問題，§4.7.4 的確定性校驗已是更好的答案；用「模型宣稱查過了」取代可稽核的機器校驗，方向是反的。**保留的退路**：真正的缺口（校驗二退件率）有一個不需迴圈的替代解法，見 §4.7.8 與 Q-9。**適用範圍**：本 ADR 只否決「本模組用 MCP／agentic loop 生產結構化事實」，不否決 MCP 在本專案其他用途的價值（Q-10） |
 | **ADR-IC-20** | **v2.6：匯出投資筆記時，`market`／`symbol` 只能綁定一個錨點標的；其餘涉及的標的一律以 Markdown 內文（表格＋Mermaid 圖）呈現，不建構多對多的結構化關聯** | 查證 [V16](../../backend/db/migration/V16__Create_investment_notes.sql)／[V17](../../backend/db/migration/V17__Relax_investment_note_symbol_pair_check.sql)：`investment_note` 的 `market`／`symbol` 是**單一欄位**，且既有 `ck_investment_note_symbol_pair` 約束只允許「無」或「一組」，沒有多值設計；`api/v1/endpoints/investment_notes.py` 的 `NoteCreate`／`NoteUpdate` 也都是單一 `Optional[str]`。三個匯出範圍（整鏈／單一關聯／節點路徑）因此一律先決定一個「代表標的」（單一關聯預設下游、節點路徑預設使用者選取的節點、整鏈預設當日已點火的下游龍頭），其餘標的只出現在內文。**明確不做**：不因為本次需求去擴充 `investment_note` 的 schema 成多值——那是既有筆記模組的資料模型改動，會牽動既有清單／篩選（`GET /investment-notes` 的 `symbol` 單值查詢參數）的既有語意，代價與本次需求不成比例；且既有模組本就以「一篇筆記聚焦一個主要標的、其餘用文字說明」為既定慣例（比照 `market` 可單獨存在、代表大盤層級筆記的既有彈性） |
 | **ADR-IC-21** | **Mermaid 圖表的節點配色沿用本頁既有「節點三態」色票（`--state-ignited-bg` 等），不重用《AI 報告規格》／本文件 §3.0 的架構圖色票** | 兩者色票語意不同：§3.0 的六色分類（外部系統／核心處理／既有元件／資料儲存／介面／使用者）是給**系統架構圖**用的，本頁節點色票的語意是「已突破／低位階候選／尚未連動」的**訊號狀態**，套用架構圖色票在語意上是錯的（一個下游龍頭節點不是「外部系統」）。查證前端既有 [MarkdownPreview.vue](../../frontend/src/components/portfolio/MarkdownPreview.vue)：`.mermaid-diagram` 容器背景寫死 `#fff`、不隨深色模式切換（`app-dark` 覆寫規則沒有觸及這個容器），因此淡色系節點在任何主題下都渲染在白底之上，可讀性不受深色模式影響，不需要額外的深色模式色票 |
 | **ADR-IC-22** | **v2.7：解除 ADR-IC-05 的延後，實作 FR-10 格蘭傑因果檢定；Benjamini-Hochberg 多重比較校正的批次範圍＝「單次執行實際涵蓋的全部配對」（預設跨鏈全域一起校正，不分鏈各自校正）；結果存於既有 `industry_chain_lead_lag_cache` 新增欄位（V20 遷移），不新建資料表；排程併入既有 FR-19 CCF 月排程之後執行，不新增排程時段** | **解除延後的理由**：使用者已明確要求導入，ADR-IC-05 原本的前提「先讓 CCF 證明有實用價值」是待辦順序判斷，非技術阻塞，使用者可自行決定跳過該等待；ADR-IC-05 另一個前提「需先解決多重比較校正問題」在本次已一併解決（見下）。**批次範圍的設計判斷（globally per run，而非 per chain per run）**：§13 風險 2 的假陽性估算（10 上游 × 5 下游 = 50 配對，預期 2～3 組假陽性）描述的是「同時執行的檢定總數」造成的假陽性膨脹，與配對來自同一條鏈或不同鏈無關；若改成分鏈各自校正，會讓每次校正的檢定數 `m` 變小，Benjamini-Hochberg 的顯著性門檻反而變寬鬆（`p_(i) <= (i/m) * alpha` 中 `m` 變小使右式變大），**削弱**校正的保護力度，與「必須做多重比較校正」的原始目的背道而馳——因此選擇「一次執行 = 一次校正批次」，範圍隨呼叫端傳入的 `chain_id` 自然縮放（不傳則為全域，傳則為該鏈），而不是把批次範圍與圖結構的鏈劃分綁在一起。**儲存位置**：沿用「一列 = 一條邊、一個計算窗口的領先—落後分析結果」的既有語意（§5.3），CCF 與 Granger 是同一份分析的兩種統計量，不是兩張表；新增欄位全部 nullable，區分「尚未跑過 Granger」（NULL）與「跑過但不顯著」（`FALSE`）。**排程**：Granger 只處理「CCF 已確認樣本數足夠」的邊，語意上是 FR-19 的下一步而非獨立作業，因此接在同一個月排程工作內、CCF 成功之後執行，不佔用 §4.6 表格外的新時段、不需新的 FR 編號。**實作細節**：詳見 `backend/indicators/lead_lag.py`（`granger_causality()`／`benjamini_hochberg_correction()`）、`backend/industry_chain/lead_lag_job.py`（`compute_granger_for_all_edges()`）、`backend/repositories/industry_chain_repository.py`（`update_granger_result()`）程式內註解 |
+| **ADR-IC-23** | **v2.8：FR-3c 改用跨 Provider 共識驗證，取代原規劃的 MoneyDJ 交叉驗證**——`upsert_edge()` 於 `source` 皆以 `llm_` 開頭且彼此不同（如 `llm_gemini`／`llm_claude`）的兩筆提交發生衝突時，自動合併為 `is_verified=TRUE`、`source='llm_verified'`；一旦核可即凍結（含既有人工核可邊），之後任何來源重複提交不再改動 `source`／`is_verified`，但 `extra_data` 持續以 JSONB 合併運算子吸收最新提交的欄位，同時保留 `cross_verified_with`／`cross_verified_prior_evidence` 兩個稽核欄位。排程面：FR-18 月排程主要萃取（gemini）成功後，若 `IC_CROSS_PROVIDER_VERIFY_ENABLED`（新增，預設 `true`）且已設定 Claude 金鑰，緊接著對同一條鏈再跑一次 Claude 萃取 | **使用者明確要求**「可以用 LLM 簡化的，就改用」，本質是 ADR-IC-16 判準（兩個獨立來源互相印證）的自然延伸——本模組經 `ai/providers/` 抽象層已同時支援 Gemini 與 Claude 的 `extract_structured()`（ADR-IC-12），把「第二個獨立來源」從一個要另外爬蟲、面對 ToS 疑慮、且從未真正落地過的外部網站，換成一個已經是既有基礎設施一部分、只差「多呼叫一次」的既有能力，是純粹的複雜度下降：不需要新增爬蟲模組、不需要面對 Q-1、不需要新的資料表或欄位（`source VARCHAR(20)` 沿用，`llm_verified` 12 字元完全夠用）。**為何選擇「凍結＋合併」而非「整段覆寫」**：若比照原本 `upsert_edge()` 對未核可邊的整段覆寫語意，已核可邊會在下一次任一 Provider 重跑時被新提交的 `extra_data` 整段取代，稽核用的 `cross_verified_with`／`cross_verified_prior_evidence` 會無聲消失——這違反「使用者有權知道眼前這條關係的可信度來自哪裡」的既有原則（§8「邊的來源與信心標示」）。已用真實本地 Postgres 端到端驗證 5 種情境（詳見 upsert_edge() docstring），驗證資料驗證後已清除。**為何不採「同 Provider 重複確認也算獨立來源」**：同一個 Provider 兩次呼叫的邊集合本來就會因非決定性（§13.7）而有出入，這是模型輸出的隨機抖動，不是兩份獨立判斷，計入會讓「已核可」的信心水準名不副實 |
 
 ---
 
@@ -942,7 +939,7 @@ IC_LEAD_LAG_RETENTION_DAYS=1095    # lead_lag_cache 保留天數（跨年比較�
 |---|---|---|
 | **P0** | `industry_chain_edges` 表（V19 遷移）＋ YAML 骨架 ＋ `.env` 設定（§6.2）＋ **`AIProvider.extract_structured()`（ADR-IC-12）＋ LLM 萃取管線 FR-3／FR-3a／FR-3b（§4.7）** ＋ CCF／`peak_lag_day` 含樣本門檻（FR-6～FR-7b）＋ 快取表（FR-8）＋ 萃取與 CCF 兩個月排程（FR-18、FR-19）＋ 下游點火偵測（FR-11，複用既有）＋ 基礎 API／前端力導向圖（含來源與未核對標示） | **v2.3：原本的 P0 阻塞項（§12 Q-1 MoneyDJ 來源可用性）已解除。** 新的前置檢查有兩項，都在本專案掌握範圍內：① **`symbols` 表必須已填入台股母體**（跑過 `scripts/init_symbol_master.py`），否則 §4.7.4 校驗一會把所有萃取結果全部退件；② 既有 AI 診股模組的金鑰（`GEMINI_API_KEY` 或 `CLAUDE_API_KEY`）至少設定一把 |
 | **P1** | 脫鉤監控與其排程（FR-9、FR-20）＋ BFS 低位階候選篩選中**可行的兩項濾網**（FR-13 營收、FR-14 量縮）＋ 跟漲勝率簡化統計（§4.3.3）＋ **最小可用的人工核對介面（§8，v2.3 從 Q-5 升級）** ＋ **兩段式 grounded 萃取（§4.7.7、ADR-IC-17，v2.4 從 Q-6 定案）** | P0 穩定運行，且已累積足夠的點火事件樣本。核對介面之所以升到 P1：LLM 萃取讓待核對的邊從個位數變成數十至數百條，用 SQL 逐條核對不再合理。**grounding 與核對介面刻意排在同一階段**：前者產出的 `evidence_url` 正是後者最需要的欄位，分開做等於讓核對介面先上線一個空欄位。**兩者都不進 P0**——P0 要先回答的是「這個圖譜結構本身有沒有用」，那個問題與資料新不新無關；先花力氣把資料弄新、最後發現整套外溢邏輯沒有價值，順序是錯的 |
-| **P2** | MOPS 年報客戶名單（FR-4，交同一條萃取管線）＋ **MoneyDJ 交叉驗證與自動 `is_verified`（FR-3c、ADR-IC-16）** ＋ 估值分位數濾網（FR-12，待《相對低點》P1 資料前置完成）＋ LLM Context 注入（FR-15、FR-16）＋ **選用的**圖譜截圖多模態研判（FR-17） | 個別前置條件見各自章節；FR-3c 仍受 §12 Q-1 的 ToS 前提限制（但不再阻塞 P0）；FR-17 另需 `backend/ai/` 端點先能接受非 K 線來源的圖片。**v2.7**：Granger 因果檢定（FR-10）已提前實作完成並移出本列，見 §4.2、新增 ADR-IC-22 |
+| **P2** | ~~MOPS 年報客戶名單（FR-4，交同一條萃取管線）~~ **v2.8：暫不實作**（見 §2.2 補充與 ADR-IC-23） ＋ 估值分位數濾網（FR-12，待《相對低點》P1 資料前置完成）＋ LLM Context 注入（FR-15、FR-16）＋ **選用的**圖譜截圖多模態研判（FR-17） | 個別前置條件見各自章節；FR-17 另需 `backend/ai/` 端點先能接受非 K 線來源的圖片。**v2.7**：Granger 因果檢定（FR-10）已提前實作完成並移出本列，見 §4.2、新增 ADR-IC-22。**v2.8**：FR-3c（MoneyDJ 交叉驗證）已改用跨 Provider 共識驗證並隨 FR-18 排程實作完成，移出本列，見新增 ADR-IC-23；§12 Q-1 隨之結案，不再是任何項目的前提限制 |
 
 ---
 
@@ -951,7 +948,7 @@ IC_LEAD_LAG_RETENTION_DAYS=1095    # lead_lag_cache 保留天數（跨年比較�
 | # | 準則 |
 |---|---|
 | AC-IC-1 | `industry_chain_edges` 唯一索引 `(chain_id, upstream_symbol, downstream_symbol)` 生效，重複匯入同一關係不產生重複列 |
-| AC-IC-2 | LLM 萃取（或選用的 MoneyDJ 爬蟲）單次失敗**不得**中斷既有 TW／US 排程，也不得中斷同一輪其餘產業鏈的萃取（比照 `mops_fetcher` 既有容錯慣例） |
+| AC-IC-2 | LLM 萃取（含 FR-3c 的跨 Provider 驗證那一次呼叫）單次失敗**不得**中斷既有 TW／US 排程，也不得中斷同一輪其餘產業鏈的萃取（比照 `mops_fetcher` 既有容錯慣例） |
 | AC-IC-3 | CCF 計算輸入為**報酬率**序列而非原始價格（以趨勢股的反例驗證：兩檔長期上漲但無實質關聯的標的，不應因共同趨勢被誤判為高相關） |
 | AC-IC-4 | 下游點火判定的資料源可追溯到 `alert_repository` 的具體一筆紀錄，不存在「查無來源」的點火事件 |
 | AC-IC-5 | **判準是 Postgres 可用性，與 `DATA_SOURCE` 設定值無關**（`DATA_SOURCE=json` 但 Postgres 可用時，本功能須正常運作）。Postgres 不可用時：圖查詢／雷達 API 回報 `IC_STORAGE_UNAVAILABLE`，爬蟲的 JSON 快照寫入**仍須成功**（AC-IC-11），且**不影響**既有選股／警示功能 |
@@ -984,7 +981,7 @@ IC_LEAD_LAG_RETENTION_DAYS=1095    # lead_lag_cache 保留天數（跨年比較�
 
 | # | 問題 | 影響 | 待決 |
 |---|---|---|---|
-| Q-1 | ~~MoneyDJ 產業價值鏈頁面的爬取是否符合其使用條款？~~ **v2.3：已降級，不再阻塞 P0**。改問：日後是否值得為了「自動提升 `is_verified`」（ADR-IC-16）而導入這個來源？ | 不影響 P0。只影響 P2 能否減少人工核對工作量 | 使用者，建議等 P1 的核對介面上線、實際體驗過核對負擔後再決定 |
+| ~~Q-1~~ | ~~MoneyDJ 產業價值鏈頁面的爬取是否符合其使用條款？~~ **v2.8：已結案**——「自動提升 `is_verified`」這個目的已改用跨 Provider 共識驗證達成（ADR-IC-23），不再需要 MoneyDJ，這個問題本身失去存在的必要 | 無 | ~~使用者~~ 已決 |
 | Q-2 | 跨市場產業鏈（如美系上游、台系下游）是否要納入？ | 目前 schema 保留 `upstream_market`／`downstream_market` 欄位但邏輯未支援；若要納入，§4.3.2 的濾網（估值／營收）在美股節點上全部無資料可用，需另立降級規則 | 使用者，建議先以台股內部鏈驗證有效性後再評估 |
 | Q-3 | `relation_tier` 的分層粒度（幾層算合理）？ | 分層過細會讓 BFS 候選爆量、訊號稀釋；過粗則失去「越接近下游優先」的排序意義 | 上線後依實際圖譜規模校準 |
 | ~~Q-4~~ | ~~是否真的需要 Granger 因果檢定，或 CCF 的 `peak_lag_day` 已足夠實用？~~ **v2.7：已結案**——使用者明確要求導入，不再等待 P0/P1 觀察期，見新增 ADR-IC-22 | 影響 P2 是否啟動；Granger 需額外處理平穩性假設與多重比較校正，工程成本不小 | ~~建議 P0/P1 上線觀察 1～2 個月後再評估（同 ADR-IC-05）~~ |
@@ -1001,7 +998,7 @@ IC_LEAD_LAG_RETENTION_DAYS=1095    # lead_lag_cache 保留天數（跨年比較�
 
 1. **統計顯著性 ≠ 可交易的邊**：即使 CCF／Granger 在統計上顯著，不代表該傳導路徑在未來持續有效，也不代表報酬扣除交易成本後仍為正——本文件的輸出是「觀察與提示」，不是可直接執行的訊號（比照《AI 報告規格》§8.3 對 LLM 輸出「不構成投資建議」的既有立場，本模組的統計輸出應比照相同免責層級）。
 2. **多重比較問題**：一個產業鏈若有 10 檔上游 × 5 檔下游，即產生 50 組配對；同時對 50 組配對做 p<0.05 檢定，即使全部關聯皆為雜訊，預期仍會有約 2～3 組因隨機性而「顯著」。P0 的 CCF 若日後接上顯著性檢定（含 Granger），**必須**做多重比較校正，否則產出的「高信心」配對本質上是統計假象。
-3. **資料來源穩定性**：v2.3 的 P0 主來源改為官方 LLM API 後，「頁面改版就壞掉」這類風險已消除；剩下的是**模型汰換**風險——白名單中的機型會下架（`ai/config.py` 已記錄 `gemini-2.5-flash-lite` 對新用戶回 404 的實例），需比照既有 AI 診股模組的作法定期複核白名單。選用的 MoneyDJ（FR-3c）與 MOPS 財報附註（FR-4）仍是非官方頁面／非結構化文字，長期可維護性低於現行已驗證多年的 TWSE／MOPS 月營收爬蟲——但兩者都已降為 P2，不影響 P0 的可用性。
+3. **資料來源穩定性**：v2.3 的 P0 主來源改為官方 LLM API 後，「頁面改版就壞掉」這類風險已消除；剩下的是**模型汰換**風險——白名單中的機型會下架（`ai/config.py` 已記錄 `gemini-2.5-flash-lite` 對新用戶回 404 的實例），需比照既有 AI 診股模組的作法定期複核白名單。FR-3c 已於 v2.8 改用跨 Provider 共識驗證（ADR-IC-23），與 FR-3 同屬官方 LLM API，不再有這類風險；MOPS 財報附註（FR-4）已評估暫不預先實作（見 §2.2），暫無此風險。
 4. **冷啟動**：勝率統計、脫鉤監控皆需要時間累積歷史事件，上線初期的統計量沒有意義，需在 UI 上誠實標示樣本不足（AC-IC-9）。
 5. **規模估算（供 §4.6 全量重算的可行性判斷）**：以 §6.1 範例的 3 條鏈、每鏈 20～50 檔標的估算，邊的總量約在**數百條**量級，遠低於全市場逐檔掃描（約 1,800 檔）的既有負載。每條邊的 CCF 是對兩條數百點的序列做 30 次相關係數計算，屬毫秒級運算，因此 FR-19 的「全量重算」在此規模下完全可行，不需要增量邏輯。**但這個結論綁定在「鏈的數量是人工核定的個位數」這個前提上**——若日後把圖譜擴張到全市場自動建邊（邊數成長到數萬條），全量重算與 `IC_MAX_BFS_TIER` 的候選爆量問題都需要重新評估（相關的分層粒度風險見 §12 Q-3）。
 
@@ -1032,7 +1029,7 @@ IC_LEAD_LAG_RETENTION_DAYS=1095    # lead_lag_cache 保留天數（跨年比較�
 | [ai/errors.py](../../backend/ai/errors.py) | 可能新增一個 `AICapabilityUnsupportedException`（供 `extract_structured()` 預設實作使用）；其餘例外型別直接沿用 |
 | `backend/indicators/lead_lag.py` | 新增純函式：CCF、`find_peak_lag`（FR-6、FR-7） |
 | `backend/indicators/chip.py` 或新檔 | 新增：量縮偵測純函式（FR-14） |
-| `backend/services/industry_chain_fetcher.py` | **降為 P2／選用（v2.3）**：MoneyDJ 交叉驗證快照（FR-3c）＋ MOPS 年報原文取得（FR-4）。原「P0 主爬蟲」的角色已由 `industry_chain/extractor.py` 取代 |
+| `backend/services/industry_chain_fetcher.py` | **v2.8：不再需要建立此檔**。原規劃的 MoneyDJ 交叉驗證（FR-3c）已改用跨 Provider 共識驗證（ADR-IC-23），MOPS 年報原文取得（FR-4）已評估暫不實作（見 §2.2）。原「P0 主爬蟲」的角色已由 `industry_chain/extractor.py` 取代 |
 | `backend/db/dual_write.py` | 新增 `dual_write_industry_chain_edges()`，比照既有 `dual_write_symbol_industry()`（ADR-IC-09） |
 | `backend/repositories/industry_chain_repository.py` | 新增：唯一 SQL 入口 |
 | `backend/api/v1/endpoints/industry_chains.py` | 新增：§7 五個端點 |
