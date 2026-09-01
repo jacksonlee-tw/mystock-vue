@@ -32,10 +32,19 @@
           @click="verifyVisible = true"
         />
         <Button label="觸發本鏈萃取" icon="pi pi-bolt" severity="warn" :loading="triggering" @click="confirmTrigger" />
+        <Button
+          label="轉為投資筆記" icon="pi pi-book" outlined :disabled="!graphData?.nodes?.length"
+          @click="exportChainSnapshot"
+        />
       </div>
     </div>
 
     <IndustryChainConfigDialog v-model:visible="configVisible" @saved="fetchAll" />
+
+    <!-- FR-21 匯出為投資筆記（v2.6 新增，§4.5、§8）：整鏈快照／單一關聯（點一條邊）／
+         節點路徑（節點清單「匯出路徑」按鈕）三種範圍共用同一個轉換 Modal，見
+         utils/industryChainExport.js 的內容產生器與 ADR-IC-20 的單一錨點標的取捨 -->
+    <ExportToNoteDialog v-model:visible="exportVisible" :initial="exportPayload" />
 
     <!-- §8 人工核對介面（v2.3 從 Q-5 升級為 P1 必要）：待核對清單＋確認核可／判定錯誤兩個動作，
          只需最小可用，不做完整後台。動作成功後透過 @changed 區域性刷新本鏈圖譜／KPI，
@@ -182,7 +191,7 @@
                     <span class="flex-1 text-center">中游</span>
                     <span class="flex-1 text-right">下游龍頭 →</span>
                   </div>
-                  <p class="px-4 pt-1 text-[11px] text-surface-400">滑鼠移到節點可聚焦其上下游關聯；點選節點可勾選，加入追蹤與觀察名單</p>
+                  <p class="px-4 pt-1 text-[11px] text-surface-400">滑鼠移到節點可聚焦其上下游關聯；點選節點可勾選，加入追蹤與觀察名單；點選一條邊可匯出該關聯為投資筆記</p>
 
                   <!-- 勾選工具列：未登入擁有者時只顯示說明，不給操作 -->
                   <div v-if="watchlistNotice" class="mx-4 mt-2 p-2 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[11px] flex items-center gap-2">
@@ -258,6 +267,7 @@
                       <th class="p-2 text-right">最近收盤價</th>
                       <th class="p-2">狀態</th>
                       <th class="p-2">追蹤名單</th>
+                      <th class="p-2">匯出</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -289,8 +299,11 @@
                         <span v-if="isInWatchlist(n)" class="inline-flex items-center gap-1 text-emerald-600 font-bold"><i class="pi pi-check-circle"></i>已加入</span>
                         <span v-else class="text-surface-300">—</span>
                       </td>
+                      <td class="p-2">
+                        <Button label="匯出路徑" icon="pi pi-book" size="small" text @click="exportNodePath(n)" />
+                      </td>
                     </tr>
-                    <tr v-if="!nodeTableRows.length"><td colspan="8" class="p-6 text-center text-surface-400">尚無節點資料</td></tr>
+                    <tr v-if="!nodeTableRows.length"><td colspan="9" class="p-6 text-center text-surface-400">尚無節點資料</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -316,6 +329,9 @@ import { portfolioApi } from '@/service/portfolioApi';
 import { useWatchlistTags } from '@/composables/useWatchlistTags';
 import IndustryChainConfigDialog from '@/components/IndustryChainConfigDialog.vue';
 import IndustryChainVerifyDialog from '@/components/IndustryChainVerifyDialog.vue';
+import ExportToNoteDialog from '@/components/industry-chain/ExportToNoteDialog.vue';
+import { TIER_LABEL, STATE_LABEL, STATE_COLOR, STATE_BG } from '@/utils/industryChainVisuals';
+import { buildChainSnapshotNote, buildSingleEdgeNote, buildNodePathNote } from '@/utils/industryChainExport';
 
 use([CanvasRenderer, GraphChart, TooltipComponent, LegendComponent]);
 
@@ -324,6 +340,8 @@ const confirm = useConfirm();
 
 const configVisible = ref(false);
 const verifyVisible = ref(false);
+const exportVisible = ref(false);
+const exportPayload = ref(null);
 const chains = ref([]);
 const chainId = ref(null);
 const graphData = ref(null);
@@ -403,6 +421,13 @@ function toggleNodeSelection(node) {
 }
 
 function onChartClick(params) {
+  if (params?.dataType === 'edge') {
+    const edge = (graphData.value?.edges || []).find(
+      (e) => e.upstream_symbol === params.data.source && e.downstream_symbol === params.data.target
+    );
+    if (edge) exportEdge(edge);
+    return;
+  }
   if (params?.dataType !== 'node') return;
   toggleNodeSelection((graphData.value?.nodes || []).find((n) => n.symbol === params.data.id));
 }
@@ -477,8 +502,7 @@ async function submitAdd() {
   }
 }
 
-const STATE_COLOR = { ignited: '#8F6413', candidate: '#B26A00', dormant: '#a8a29a' };
-const STATE_BG = { ignited: '#F8EEDA', candidate: '#FFF3E0', dormant: '#f0efec' };
+// STATE_COLOR／STATE_BG：見 utils/industryChainVisuals.js
 // 已加入追蹤名單（綠）與已勾選待加入（藍）——刻意都不用既有的狀態色系（棕／橘），
 // 免得跟「已突破／低位階候選」的語意混淆
 const IN_LIST_COLOR = '#059669';
@@ -513,8 +537,8 @@ onBeforeUnmount(() => {
 // （見對話紀錄的優化評估）。欄序：tier2（上游）在左，downstream（下游龍頭）在右。
 const ROLE_COLUMN = { tier2: 0, tier1: 1, downstream: 2 };
 const ROLE_LABEL_POSITION = { tier2: 'left', tier1: 'bottom', downstream: 'right' };
-const TIER_LABEL = { tier2: '上游', tier1: '中游', downstream: '下游龍頭' };
-const STATE_LABEL = { ignited: '已突破', candidate: '低位階候選', dormant: '尚未連動' };
+// TIER_LABEL／STATE_LABEL：見 utils/industryChainVisuals.js（FR-21 匯出為投資筆記的 Mermaid
+// 圖也要用同一份，抽成共用模組避免兩處日後改了一邊沒跟著改）
 const PAD_X = 100;   // 左右留白：給欄外標籤（上游靠左、下游靠右）用，太小會被裁掉
 const PAD_Y = 28;
 const ROW_GAP = 64;
@@ -657,6 +681,37 @@ const nodeTableRows = computed(() => {
       componentType: graphData.value.edges.find((e) => e.upstream_symbol === n.symbol)?.component_type || ''
     }));
 });
+
+// ── FR-21 匯出為投資筆記（§4.5、§8，v2.6 新增）：三個範圍都只是「組資料 → 交給
+//    ExportToNoteDialog 開窗」，內容產生邏輯全部在 utils/industryChainExport.js，這裡只負責
+//    從目前已經在畫面上的 graphData／radarItems／currentChain 取出對應範圍需要的資料切片。
+function exportChainSnapshot() {
+  if (!graphData.value?.nodes?.length) return;
+  exportPayload.value = buildChainSnapshotNote({
+    chain: currentChain.value,
+    nodes: graphData.value.nodes,
+    edges: graphData.value.edges,
+    radarItems: radarItems.value
+  });
+  exportVisible.value = true;
+}
+
+function exportEdge(edge) {
+  const nodesBySymbol = new Map((graphData.value?.nodes || []).map((n) => [n.symbol, n]));
+  exportPayload.value = buildSingleEdgeNote({ chain: currentChain.value, edge, nodesBySymbol });
+  exportVisible.value = true;
+}
+
+function exportNodePath(node) {
+  if (!graphData.value) return;
+  exportPayload.value = buildNodePathNote({
+    chain: currentChain.value,
+    node,
+    nodes: graphData.value.nodes,
+    edges: graphData.value.edges
+  });
+  exportVisible.value = true;
+}
 
 function resetErrorState() {
   error.value = null;
