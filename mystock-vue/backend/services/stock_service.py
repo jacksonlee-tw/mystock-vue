@@ -223,7 +223,13 @@ async def get_heatmap_data(period: str = "daily", market: Optional[str] = None) 
                     continue
                 
                 latest_record = aggregated[-1]
-                stock_name = latest_record.get("name", stock_id)
+                # 同 discover_available_stocks()：最新一天常只回補到行情，三大法人資料（含 name 欄位）
+                # 尚未到齊時，當天記錄不會有 name；往前找最近一筆有 name 的原始記錄，避免熱力圖卡片
+                # 顯示代號取代公司名稱。
+                stock_name = latest_record.get("name") or next(
+                    (data[d]["name"] for d in sorted(data.keys(), reverse=True) if data[d].get("name")),
+                    stock_id,
+                )
                 close_price = latest_record.get("close", 0.0)
                 latest_date = latest_record.get("date", "")
                 

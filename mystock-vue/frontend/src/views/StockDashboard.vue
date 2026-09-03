@@ -56,6 +56,27 @@
           <i class="pi pi-calendar mr-1"></i>{{ dateRangeText }}
         </span>
 
+        <!-- AI 診股提醒徽章：若此股票執行過 AI 診股報告，顯示最近一次的交易日＋研判方向，
+             點擊直接開啟該份報告（略過選模型步驟，見 useAiAnalysis.js 的 viewReport()）。
+             未執行過則整個徽章不顯示，不佔位也不誤導使用者。 -->
+        <button
+          v-if="aiLatestReport"
+          type="button"
+          @click="aiViewReport(aiLatestReport.id)"
+          class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors shrink-0 hover:opacity-80"
+          :class="aiLatestReport.verdict === 'bullish'
+            ? 'bg-up-soft text-up border-up'
+            : aiLatestReport.verdict === 'bearish'
+              ? 'bg-down-soft text-down border-down'
+              : 'bg-surface-100 dark:bg-surface-800 text-surface-500 border-surface-200 dark:border-surface-700'"
+          :title="`最近一次 AI 診股報告：${aiLatestReport.trade_date}（${AI_VERDICT_LABELS[aiLatestReport.verdict] || '—'}），點擊開啟`"
+        >
+          <i class="pi pi-android"></i>
+          <span class="num">{{ aiLatestReport.trade_date }}</span>
+          <i :class="['pi', AI_VERDICT_ICONS[aiLatestReport.verdict] || 'pi-minus']"></i>
+          {{ AI_VERDICT_LABELS[aiLatestReport.verdict] || '—' }}
+        </button>
+
         <!-- 右側控制群 -->
         <div class="flex flex-wrap items-center gap-2 ml-auto">
           <!-- 追蹤狀態 -->
@@ -345,14 +366,18 @@
       :error="aiDialogError"
       :report="aiReport"
       :market="market"
+      :symbol="selectedStock"
       :available-models="aiAvailableModels"
       :models-loading="aiModelsLoading"
       :selected-provider="aiSelectedProvider"
       :latest-for-selection="aiLatestForSelection"
       :checking-latest="aiCheckingLatest"
+      :history-reports="aiHistoryReports"
+      :history-loading="aiHistoryLoading"
       @select-provider="aiSelectProvider"
       @confirm="aiConfirm"
       @back="aiBackToSelect"
+      @view-report="aiViewReport"
     />
   </div><!-- /stock-dashboard-root -->
 </template>
@@ -468,11 +493,21 @@ const {
   selectedModel: aiSelectedModel,
   latestForSelection: aiLatestForSelection,
   checkingLatest: aiCheckingLatest,
+  latestReport: aiLatestReport,
+  historyReports: aiHistoryReports,
+  historyLoading: aiHistoryLoading,
   openSelector: openAiSelector,
   selectProvider: aiSelectProvider,
   confirm: aiConfirm,
-  backToSelect: aiBackToSelect
+  backToSelect: aiBackToSelect,
+  viewReport: aiViewReport
 } = useAiAnalysis({ market, symbol: selectedStock, period: selectedPeriod, months: selectedMonths, chartsRef });
+
+// 頁首「AI 診股提醒」徽章的研判標籤／圖示：與 AiAnalysisDialog.vue 的 VERDICT_LABELS／
+// VERDICT_ICONS 對應同一組後端 verdict 值（bullish/bearish/neutral），各自獨立一份小常數
+// 即可，不必為此抽共用檔案。
+const AI_VERDICT_LABELS = { bullish: '偏多', bearish: '偏空', neutral: '中性' };
+const AI_VERDICT_ICONS = { bullish: 'pi-arrow-up-right', bearish: 'pi-arrow-down-right', neutral: 'pi-minus' };
 
 const recordsReversed = computed(() => {
   if (!chartData.value?.records) return [];

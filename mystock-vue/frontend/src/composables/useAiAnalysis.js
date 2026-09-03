@@ -38,6 +38,17 @@ export function useAiAnalysis({ market, symbol, period, months, chartsRef }) {
     const latestForSelection = ref(null);
     const checkingLatest = ref(false);
 
+    // 該標的「任何 provider/model」最近一筆成功報告：供 StockDashboard.vue 頁首徽章顯示
+    // 「最近一次執行過的 AI 診股報告日期＋研判方向」提醒（不論對話框是否開啟都要能查）。
+    const latestReport = ref(null);
+    const latestReportLoading = ref(false);
+
+    // 該標的的歷史報告清單（不分 provider/model）：供對話框「選模型」畫面顯示歷史紀錄表格，
+    // 點列可直接開啟該份報告，不必重新選模型／重新產生。
+    const historyReports = ref([]);
+    const historyLoading = ref(false);
+    const historyTotal = ref(0);
+
     async function loadModels() {
         if (Object.keys(availableModels.value).length > 0) return; // 只需載一次，跨開關對話框沿用
         modelsLoading.value = true;
@@ -73,6 +84,46 @@ export function useAiAnalysis({ market, symbol, period, months, chartsRef }) {
     // 切換選擇的模型／標的時，重新判斷「這個組合今天是否已有報告」
     watch([selectedProvider, selectedModel, market, symbol], refreshLatestForSelection);
 
+    async function refreshLatestReport() {
+        if (!symbol.value || !market.value) {
+            latestReport.value = null;
+            return;
+        }
+        latestReportLoading.value = true;
+        try {
+            const res = await aiAnalysisApi.getLatestReport(market.value, symbol.value);
+            latestReport.value = res.data || null;
+        } catch {
+            // 查詢失敗時保守不顯示徽章，不影響主要頁面內容
+            latestReport.value = null;
+        } finally {
+            latestReportLoading.value = false;
+        }
+    }
+
+    // 切換標的／市場時，重新查「這檔股票有沒有執行過 AI 診股報告」，供頁首徽章使用；
+    // immediate 讓元件掛載當下（尚未點開對話框）就查一次。
+    watch([market, symbol], refreshLatestReport, { immediate: true });
+
+    async function loadHistory() {
+        if (!symbol.value || !market.value) {
+            historyReports.value = [];
+            historyTotal.value = 0;
+            return;
+        }
+        historyLoading.value = true;
+        try {
+            const res = await aiAnalysisApi.listReports({ market: market.value, symbol: symbol.value, limit: 15 });
+            historyReports.value = res.data?.items || [];
+            historyTotal.value = res.data?.total || 0;
+        } catch {
+            historyReports.value = [];
+            historyTotal.value = 0;
+        } finally {
+            historyLoading.value = false;
+        }
+    }
+
     function selectProvider(code) {
         if (code === selectedProvider.value) return;
         selectedProvider.value = code;
@@ -86,6 +137,7 @@ export function useAiAnalysis({ market, symbol, period, months, chartsRef }) {
         dialogError.value = null;
         report.value = null;
         loadModels().then(refreshLatestForSelection);
+        loadHistory();
     }
 
     function closeDialog() {
@@ -96,6 +148,27 @@ export function useAiAnalysis({ market, symbol, period, months, chartsRef }) {
         stage.value = 'select';
         dialogError.value = null;
         report.value = null;
+    }
+
+    // 直接開啟並顯示指定的既有報告，跳過「選模型」步驟：供頁首徽章（最近一次報告提醒）與
+    // 對話框內的「歷史報告紀錄」表格點列使用。仍背景載入模型清單／歷史清單，讓使用者按下
+    // 「換個模型再看看」返回選擇畫面時資料已就緒。
+    async function viewReport(reportId) {
+        dialogVisible.value = true;
+        stage.value = 'result';
+        dialogError.value = null;
+        report.value = null;
+        loading.value = true;
+        loadModels().then(refreshLatestForSelection);
+        loadHistory();
+        try {
+            const res = await aiAnalysisApi.getReport(reportId);
+            report.value = res.data;
+        } catch (err) {
+            dialogError.value = extractErrorMessage(err);
+        } finally {
+            loading.value = false;
+        }
     }
 
     async function confirm() {
@@ -133,6 +206,8 @@ export function useAiAnalysis({ market, symbol, period, months, chartsRef }) {
             });
             report.value = res.data;
             await refreshLatestForSelection(); // 產生成功後按鈕文案要立刻變成「檢視今日 AI 報告」
+            refreshLatestReport(); // 新報告產生後，頁首徽章與歷史清單也要跟著更新，不必等下次掛載
+            loadHistory();
         } catch (err) {
             dialogError.value = extractErrorMessage(err);
         } finally {
@@ -152,10 +227,16 @@ export function useAiAnalysis({ market, symbol, period, months, chartsRef }) {
         selectedModel,
         latestForSelection,
         checkingLatest,
+        latestReport,
+        latestReportLoading,
+        historyReports,
+        historyLoading,
+        historyTotal,
         openSelector,
         closeDialog,
         backToSelect,
         selectProvider,
-        confirm
+        confirm,
+        viewReport
     };
 }

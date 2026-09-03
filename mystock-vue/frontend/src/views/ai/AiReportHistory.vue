@@ -109,12 +109,14 @@
 
 <script setup>
 import { reactive, ref, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import AiAnalysisDialog from '@/components/AiAnalysisDialog.vue';
 import { aiAnalysisApi } from '@/service/aiAnalysisApi';
 import { getUpDownColor } from '@/utils/marketColors';
 
+const route = useRoute();
 const toast = useToast();
 const confirm = useConfirm();
 
@@ -132,7 +134,9 @@ const VERDICT_OPTIONS = [
 const VERDICT_LABEL = { bullish: '偏多', bearish: '偏空', neutral: '中性' };
 const CONFIDENCE_LABEL = { high: '高', medium: '中', low: '低' };
 
-const filters = reactive({ market: null, verdict: null, symbol: '', dateFrom: null, dateTo: null });
+// 從個股頁「AI 診股報告」對話框的「查看完整紀錄」連結帶 ?symbol= 進來時，預先帶入篩選條件
+// （見 components/AiAnalysisDialog.vue 的歷史報告紀錄區塊）。
+const filters = reactive({ market: null, verdict: null, symbol: route.query.symbol || '', dateFrom: null, dateTo: null });
 
 const reports = ref([]);
 const loading = ref(true);

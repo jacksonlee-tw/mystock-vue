@@ -111,6 +111,53 @@
           <i :class="['pi', latestForSelection ? 'pi-eye' : 'pi-android']"></i>
           {{ latestForSelection ? '檢視今日報告' : '產生報告' }}
         </button>
+
+        <!-- 歷史報告紀錄：讓使用者一眼看到這檔股票過去執行過的 AI 診股報告（日期／模型／研判），
+             點列可直接開啟該份報告，不必重新選模型或重新產生。 -->
+        <div class="border-t border-surface-100 dark:border-surface-800 pt-4">
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-xs font-bold text-surface-500">歷史報告紀錄</label>
+            <router-link
+              v-if="symbol"
+              :to="{ name: 'ai-report-history', query: { symbol } }"
+              class="text-[11px] font-bold text-primary hover:underline"
+            >
+              查看完整紀錄
+            </router-link>
+          </div>
+
+          <div v-if="historyLoading" class="flex items-center gap-1.5 text-xs text-surface-400 py-2">
+            <i class="pi pi-spin pi-spinner"></i>載入歷史報告中…
+          </div>
+          <div v-else-if="!historyReports.length" class="text-xs text-surface-400 py-2">
+            這檔股票尚未執行過 AI 診股報告
+          </div>
+          <div
+            v-else
+            class="max-h-48 overflow-y-auto rounded-xl border border-surface-100 dark:border-surface-800 divide-y divide-surface-100 dark:divide-surface-800"
+          >
+            <button
+              v-for="row in historyReports"
+              :key="row.id"
+              type="button"
+              class="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-surface-50 dark:hover:bg-surface-800/60 transition-colors"
+              @click="$emit('view-report', row.id)"
+            >
+              <span class="num text-xs font-bold text-surface-600 dark:text-surface-300 shrink-0">{{ row.trade_date }}</span>
+              <span
+                class="px-1.5 py-0.5 text-[10px] font-black rounded shrink-0"
+                :style="{ backgroundColor: rowVerdictColor(row) + '1a', color: rowVerdictColor(row) }"
+              >
+                {{ VERDICT_LABELS[row.verdict] || '—' }}
+              </span>
+              <span class="text-[11px] font-semibold text-surface-400 shrink-0">
+                {{ PROVIDER_LABELS[row.provider] || row.provider }}<template v-if="row.model"> ・ {{ row.model }}</template>
+              </span>
+              <span class="text-xs text-surface-500 truncate flex-1">{{ row.headline || '—' }}</span>
+              <i class="pi pi-chevron-right text-[10px] text-surface-300 shrink-0"></i>
+            </button>
+          </div>
+        </div>
       </template>
     </div>
 
@@ -266,10 +313,16 @@ const props = defineProps({
   fullscreen: { type: Boolean, default: false },
   // 歷史頁面（AiReportHistory.vue）用 stage="result" 直接顯示已抓好的報告，沒有「選模型」
   // 這一步可退回，「返回重新選擇」／「換個模型再看看」這兩個按鈕在那個情境下沒有意義
-  allowReselect: { type: Boolean, default: true }
+  allowReselect: { type: Boolean, default: true },
+  // 目前標的代號：只用來組「查看完整紀錄」連結的 query（見歷史報告紀錄區塊），
+  // 對話框主要仍透過 report 物件顯示標的名稱
+  symbol: { type: String, default: '' },
+  // 該標的的歷史報告清單（不分 provider/model，見 useAiAnalysis.js 的 historyReports）
+  historyReports: { type: Array, default: () => [] },
+  historyLoading: { type: Boolean, default: false }
 });
 
-defineEmits(['update:visible', 'update:selectedModel', 'select-provider', 'confirm', 'back']);
+defineEmits(['update:visible', 'update:selectedModel', 'select-provider', 'confirm', 'back', 'view-report']);
 
 const router = useRouter();
 const toast = useToast();
@@ -382,6 +435,15 @@ const verdictColor = computed(() => {
   if (props.report?.verdict === 'bearish') return down;
   return '#64748b';
 });
+
+// 歷史報告紀錄列表用：每一列可能來自不同市場（雖然目前同一標的只會有同一市場），
+// 優先採該列自己的 market_type，缺省才退回目前對話框的 market prop。
+function rowVerdictColor(row) {
+  const { up, down } = getUpDownColor(row.market_type || props.market);
+  if (row.verdict === 'bullish') return up;
+  if (row.verdict === 'bearish') return down;
+  return '#64748b';
+}
 
 const CONFIDENCE_LABELS = { high: '高', medium: '中', low: '低' };
 const confidenceLabel = computed(() => CONFIDENCE_LABELS[props.report?.confidence] || props.report?.confidence);
