@@ -1,7 +1,8 @@
 import pytest
 from datetime import date
+from indicators.fundamental import eps_visible_from, latest_visible_quarter
 from services.chip_provider import ScanContext, KDSeries, PositionContext
-from strategies.conditions_pick import valuation_filter, revenue_growth, chip_resonance, stock_pick_resonance, relative_low_zone
+from strategies.conditions_pick import eps_filter, valuation_filter, revenue_growth, chip_resonance, stock_pick_resonance, relative_low_zone
 from strategies.conditions_risk import trailing_stop, fixed_stop_loss, time_stop
 
 
@@ -61,6 +62,29 @@ def test_revenue_growth():
 
     res_fail = revenue_growth(ctx, 2, {"yoy_min": 30.0})
     assert len(res_fail) == 0
+
+
+def test_eps_filter_uses_visible_quarter_and_fails_closed_for_missing_data():
+    ctx = make_sample_context()
+    ctx.eps_visible_quarter = [None, "2026-Q1", "2026-Q1"]
+    ctx.eps = [None, 0.8, 1.2]
+
+    assert eps_filter(ctx, 0, {"eps_min": 1.0, "eps_positive": True}) == []
+    res = eps_filter(ctx, 2, {"eps_min": 1.0, "eps_positive": True})
+    assert res[0]["direction"] == "pick_eps_profitability"
+    assert res[0]["details"] == {"eps": 1.2, "visible_quarter": "2026-Q1"}
+
+    assert eps_filter(ctx, 1, {"eps_min": 1.0, "eps_positive": True}) == []
+
+
+def test_eps_visibility_uses_statutory_deadlines_not_snapshot_date():
+    quarterly = {"2025-Q4": {"eps": 3.0}, "2026-Q1": {"eps": 1.2}, "2026-Q2": {"eps": 2.1}}
+
+    assert eps_visible_from("2025-Q4") == date(2026, 3, 31)
+    assert latest_visible_quarter(quarterly, date(2026, 5, 14)) == "2025-Q4"
+    assert latest_visible_quarter(quarterly, date(2026, 5, 15)) == "2026-Q1"
+    assert latest_visible_quarter(quarterly, date(2026, 8, 13)) == "2026-Q1"
+    assert latest_visible_quarter(quarterly, date(2026, 8, 14)) == "2026-Q2"
 
 
 def test_chip_resonance():

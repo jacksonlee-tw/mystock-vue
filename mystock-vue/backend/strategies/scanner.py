@@ -59,6 +59,7 @@ _SUGGESTED_ACTION_TEMPLATES = {
     ("pick_revenue_growth_momentum", "bullish"): "營收連續高成長，營運動能充沛，可搭配技術面均線支撐逢低買進",
     ("pick_chip_institutional_resonance", "bullish"): "外資與投信法人同步連續買超，籌碼集中度高，留意波段起漲機會",
     ("pick_multi_factor_resonance", "bullish"): "估值、營收與籌碼多因子共振精選標的，多頭排列成形，優先關注",
+    ("pick_eps_profitability", "bullish"): "最新已公開季報 EPS 符合獲利門檻，可搭配估值與技術面進一步篩選",
     # ── 相對低點承接（股價相對低點 需求規格書 §10.1）────────────────────
     ("pick_relative_low_zone", "bullish"): "已帶量站回 {ma_period}MA，可分批建立第一筆部位（建議 1/3），跌破 {stop_loss} 停損。",
     # ── 出場風控策略範本（選股功能與爬蟲 規格書 §6、§13）────────────────────
@@ -116,6 +117,8 @@ def _extract_sort_metric(alert: dict, sort_by: Optional[str]) -> float:
         return -float(details.get("dividend_yield") or 0.0)  # 殖利率越大越好
     if "yoy" in sort_by:
         return -float(details.get("yoy_percent") or details.get("revenue_yoy") or -999.0)  # YoY 越大越好
+    if "eps" in sort_by:
+        return -float(details.get("eps") or -999.0)  # EPS 越大越好
     if "chip" in sort_by or "ratio" in sort_by:
         return -float(details.get("foreign_net_ratio") or details.get("trust_net_ratio") or details.get("institutional_sum") or 0.0)
     return 0.0
@@ -182,6 +185,7 @@ async def scan_market(
                 quotes=raw_preloaded.get("quotes", {}),
                 valuation=raw_preloaded.get("valuation", {}),
                 revenue=raw_preloaded.get("revenue", {}),
+                quarterly=raw_preloaded.get("quarterly", {}),
             )
             logger.info(f"[選股掃描] 全市場批次預載完成（{len(universe_preload.quotes)} 檔有行情記錄）")
 

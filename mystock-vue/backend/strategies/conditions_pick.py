@@ -101,6 +101,34 @@ def revenue_growth(ctx: ScanContext, idx: int, params: dict) -> List[dict]:
     return [{"direction": "pick_revenue_growth", "details": details}]
 
 
+def _eval_eps_filter(ctx: ScanContext, idx: int, params: dict) -> Optional[dict]:
+    """季報 EPS 篩選，僅採用該交易日依法定截止日已公開的最新一期資料。"""
+    if idx >= len(ctx.eps) or idx >= len(ctx.eps_visible_quarter):
+        return None
+
+    eps = ctx.eps[idx]
+    visible_quarter = ctx.eps_visible_quarter[idx]
+    if eps is None or visible_quarter is None:
+        return None
+
+    eps_min = params.get("eps_min")
+    if eps_min is not None and eps < eps_min:
+        return None
+    if params.get("eps_positive", False) and eps <= 0:
+        return None
+
+    return {"eps": eps, "visible_quarter": visible_quarter}
+
+
+@condition(type="eps_filter", min_bars=1, requires=("eps",))
+def eps_filter(ctx: ScanContext, idx: int, params: dict) -> List[dict]:
+    """已公開季報 EPS 篩選條件；資料不足時一律不產生訊號。"""
+    details = _eval_eps_filter(ctx, idx, params)
+    if details is None:
+        return []
+    return [{"direction": "pick_eps_profitability", "details": details}]
+
+
 def _eval_chip_resonance(ctx: ScanContext, idx: int, params: dict) -> Optional[dict]:
     """法人籌碼共振判斷（外資、投信連續買超或買超佔比）。成立回傳 details，否則回傳 None。"""
     foreign_consec = params.get("foreign_consec_days", 0)

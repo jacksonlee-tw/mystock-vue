@@ -8,7 +8,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
 from config import MAX_HISTORY_MONTHS
-from indicators.fundamental import latest_visible_month
+from indicators.fundamental import latest_visible_month, latest_visible_quarter
 from indicators.macd import macd as compute_macd
 from indicators.moving_average import bias_series, sma
 from indicators.rsi import rsi as compute_rsi
@@ -52,6 +52,7 @@ class MarketPreload:
     quotes: Dict[str, List[dict]] = field(default_factory=dict)
     valuation: Dict[str, Dict[str, dict]] = field(default_factory=dict)
     revenue: Dict[str, Dict[str, dict]] = field(default_factory=dict)
+    quarterly: Dict[str, Dict[str, dict]] = field(default_factory=dict)
 
 
 @dataclass
@@ -78,6 +79,9 @@ class ScanContext:
     revenue_visible_month: List[Optional[str]] = field(default_factory=list)
     revenue_yoy: List[Optional[float]] = field(default_factory=list)
     revenue_mom: List[Optional[float]] = field(default_factory=list)
+    quarterly: Dict[str, dict] = field(default_factory=dict)
+    eps_visible_quarter: List[Optional[str]] = field(default_factory=list)
+    eps: List[Optional[float]] = field(default_factory=list)
     # 出場風控專用；僅 scan_positions() 入口會填，選股掃描為 None
     position: Optional[PositionContext] = None
 
@@ -157,6 +161,7 @@ class ChipDataProvider:
             revenue_dict = load_stock_revenue(symbol)
         else:
             revenue_dict = {}
+        quarterly_dict = (preloaded.quarterly.get(symbol) if preloaded else None) or {}
 
         # 估值與營收平行序列建構 (Point-in-time)
         # market_cap／mcap_rank（Phase2-籌碼面與基本面量化擴充 設計文件 FR-5，ADR-P2-04）：
@@ -172,6 +177,8 @@ class ChipDataProvider:
         rev_visible_months: List[Optional[str]] = []
         rev_yoy_series: List[Optional[float]] = []
         rev_mom_series: List[Optional[float]] = []
+        eps_visible_quarters: List[Optional[str]] = []
+        eps_series: List[Optional[float]] = []
 
         if with_valuation and market == "tw":
             val_lookup = (preloaded.valuation.get(symbol) if preloaded else None) or {}
@@ -201,6 +208,16 @@ class ChipDataProvider:
                     rev_yoy_series.append(None)
                     rev_mom_series.append(None)
 
+                # 季報 EPS 一律依法定申報截止日判定可見性，不採擷取快照的 announced_date，
+                # 以避免回測時把後來補抓的資料提前帶入歷史交易日。
+                try:
+                    vis_quarter = latest_visible_quarter(quarterly_dict, t_date)
+                    eps_visible_quarters.append(vis_quarter)
+                    eps_series.append(quarterly_dict[vis_quarter].get("eps") if vis_quarter else None)
+                except Exception:
+                    eps_visible_quarters.append(None)
+                    eps_series.append(None)
+
         return ScanContext(
             symbol=symbol,
             market=market,
@@ -223,5 +240,8 @@ class ChipDataProvider:
             revenue_visible_month=rev_visible_months,
             revenue_yoy=rev_yoy_series,
             revenue_mom=rev_mom_series,
+            quarterly=quarterly_dict,
+            eps_visible_quarter=eps_visible_quarters,
+            eps=eps_series,
             position=position,
         )

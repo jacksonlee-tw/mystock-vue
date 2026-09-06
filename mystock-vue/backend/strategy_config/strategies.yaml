@@ -297,6 +297,21 @@ strategies:
         yoy_min: 20.0
         consecutive_months: 2
 
+  - id: "pick_eps_profitability"
+    name: "季報 EPS 獲利精選"
+    category: "stock_picking"
+    scope: "universe"
+    universe_tier: "top500"
+    max_picks_per_day: 10
+    sort_by: "eps"
+    enabled: true
+    markets: ["tw"]
+    cooldown_days: 10
+    conditions:
+      - type: "eps_filter"
+        eps_min: 1.0
+        eps_positive: true
+
   - id: "pick_chip_institutional_resonance"
     name: "法人籌碼共振精選"
     category: "stock_picking"

@@ -12,6 +12,7 @@ def test_strategy_config_loader():
     strat_ids = [s.id for s in cfg.strategies]
     assert "pick_valuation_low_pe" in strat_ids
     assert "pick_revenue_growth_momentum" in strat_ids
+    assert "pick_eps_profitability" in strat_ids
     assert "pick_chip_institutional_resonance" in strat_ids
     assert "pick_multi_factor_resonance" in strat_ids
     assert "pick_relative_low_zone" in strat_ids

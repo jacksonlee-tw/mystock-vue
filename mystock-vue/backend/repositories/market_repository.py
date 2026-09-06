@@ -660,6 +660,7 @@ class MarketRepository:
         quotes_by_sym: Dict[str, List[dict]] = {}
         valuation_by_sym: Dict[str, Dict[str, dict]] = {}  # {symbol: {date_str: {pe, pb, yield}}}
         revenue_by_sym: Dict[str, Dict[str, dict]] = {}    # {symbol: {year_month: {revenue, mom, yoy}}}
+        quarterly_by_sym: Dict[str, Dict[str, dict]] = {}  # {symbol: {year_quarter: {eps, ...}}}
 
         async with self._session_factory() as session:
             # 1. 批次查詢行情與籌碼
@@ -795,10 +796,39 @@ class MarketRepository:
                         "announced_date": r.announced_date.strftime("%Y-%m-%d") if r.announced_date else None,
                     }
 
+            # 4. 批次查詢季報摘要；不以行情日期範圍過濾，讓 Point-in-time 規則自行挑選當時可見季別。
+            for i in range(0, len(symbols), batch_size):
+                chunk = symbols[i : i + batch_size]
+                qf_stmt = (
+                    select(
+                        QuarterlyFinancial.symbol,
+                        QuarterlyFinancial.year_quarter,
+                        QuarterlyFinancial.eps,
+                        QuarterlyFinancial.revenue,
+                        QuarterlyFinancial.operating_income,
+                        QuarterlyFinancial.net_income,
+                    )
+                    .where(
+                        and_(
+                            QuarterlyFinancial.symbol.in_(chunk),
+                            QuarterlyFinancial.market_type == market,
+                        )
+                    )
+                )
+                res = await session.execute(qf_stmt)
+                for r in res.all():
+                    quarterly_by_sym.setdefault(r.symbol, {})[r.year_quarter] = {
+                        "eps": float(r.eps) if r.eps is not None else None,
+                        "revenue": r.revenue,
+                        "operating_income": r.operating_income,
+                        "net_income": r.net_income,
+                    }
+
         return {
             "quotes": quotes_by_sym,
             "valuation": valuation_by_sym,
             "revenue": revenue_by_sym,
+            "quarterly": quarterly_by_sym,
         }
 
     # ── 10. 取得有資料的交易日清單 ──────────────────────────────────
