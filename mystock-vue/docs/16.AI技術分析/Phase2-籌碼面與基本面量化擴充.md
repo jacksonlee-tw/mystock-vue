@@ -1,8 +1,8 @@
 # Phase 2：籌碼面與基本面量化擴充 — 功能需求文件
 
 **模組**：個股基本面／估值指標貫通（個股頁 → 圖表 → AI 診股報告）
-**版本**：v2.1（v2.0 為需求規格版；本版依 2026-08-30 commit `8d56dd8`「完成 Phase 2：籌碼面與基本面量化擴充」逐條核對現行程式碼，校正為完工狀態，核對紀錄見新增的 §0.2）
-**日期**：2026-09-01
+**版本**：v2.2（v2.0 為需求規格版；v2.1 依 2026-08-30 commit `8d56dd8`「完成 Phase 2：籌碼面與基本面量化擴充」逐條核對現行程式碼，校正為完工狀態，核對紀錄見 §0.2；本版新增 §10「資料抓取評估：媒體彙整表能否以 API 重建」）
+**日期**：2026-09-06
 **狀態**：**已完成**（FR-1～FR-5 均已核對程式碼確認落地；唯一已知資料缺口未變——`market_cap`／`mcap_rank` 源頭仍 0% 覆蓋，見 §0.2、§9 Q-1）
 **上游文件**：[AI技術分析規劃.md](AI技術分析規劃.md)（v3.4，已完成）、[Phase1-基礎量化與技術面.md](Phase1-基礎量化與技術面.md)
 **關聯規格**：[《選股功能及爬蟲》](../13.選股功能/選股功能及爬蟲.md) §10、[《籌碼選股》](../5.籌碼選股策略/籌碼選股.md) §3.4／Phase 2
@@ -28,6 +28,7 @@
 | 7 | 驗收條件總表 |
 | 8 | 工作分解與排程建議 |
 | 9 | 待確認事項 |
+| 10 | 資料抓取評估：媒體彙整表（15 檔業績成長股）能否以 API 重建 |
 
 ---
 
@@ -532,3 +533,107 @@ AI 摘要擴充（FR-4）。實作時應視為同一批工作，**避免同一�
 | **Q-4** | 季報 EPS（`mops_eps_fetcher.py`）是否要一併納入個股頁？ | 擴大 Phase 2 範圍 | **本版不納入**：該爬蟲的 MOPS 端點在開發環境受 WAF 阻擋、欄位對應未經實測（見其檔案註解），資料可信度確認前不應上前端。待實測通過後另案評估。**2026-09-01 複查**：`stock_service.py`／`markets/tw.py` 均未見任何 EPS 相關欄位或 Metric，決議未變 |
 | **Q-5** | AI 摘要的 `recent_alerts` 回看天數（預設 10 天）與筆數上限（預設 5 筆）是否合適？ | Prompt 長度與參考價值的取捨 | 先用預設值上線，依實際報告品質微調（走 `.env`，免重新部署）。**2026-09-01 複查**：`ai/config.py` 的 `get_recent_alerts_lookback_days()`／`get_recent_alerts_limit()` 預設值確認仍為 10／5，上線後沿用預設值，未見調整 |
 | **Q-6** | 是否需要讓 AI 交叉比對「近期訊號是否仍然成立」（例如訊號觸發後隔日已跌破均線）？ | 若要做，`ai/summary.py` 需多一層判斷邏輯，複雜度上升 | **本版不做**：交由 LLM 自行比對圖片與數值判斷，符合「AI 報告是獨立觀察視角、不與規則引擎耦合」的既有定位（[ADR-AI-11](AI技術分析規劃.md#2-技術選型與決策紀錄adr)）。**2026-09-01 複查**：`recent_alerts` 僅原樣列出 `query_alerts()` 回傳欄位，未見任何訊號有效性交叉比對邏輯，決議未變 |
+
+---
+
+## 10. 資料抓取評估：媒體彙整表（15檔業績成長股）能否以 API 重建
+
+**評估緣由**：工商時報「15檔8月業績成長股」一類的表格（欄位為：股號／公司／近五日三大法人買賣超(張)／
+第2季 EPS(元)／收盤 ∕ 漲跌），常被拿來當作「戰情室」畫面的參考樣板。本節評估這張表在本系統是否可以
+純靠 API／既有管線自動重建，作為 Phase 2 後續（或 Phase 3）的資料抓取決策依據。
+
+### 10.1 結論先行
+
+| 問題 | 結論 |
+|---|---|
+| 表中「緯創 3231」「鴻海 2317」等個股的營收／EPS 數據，能否用 API 抓到？ | **可以**，每一欄都有對應的公開資料源 |
+| 有沒有單一官方 API 可以「一次抓到整張表所有欄位」？ | **沒有**。這張表是媒體（工商時報／CMoney）**跨來源彙整**後的產物，官方端不存在等價端點 |
+| 本系統要重建這張表需要做什麼？ | **串接三類不同性質的資料源**（基本面月頻、基本面季頻、籌碼／技術面日頻），再於資料庫端 JOIN 合成 |
+| 以目前 Phase 2 完工狀態，缺什麼？ | **資料層已全數到位**。原本唯一的缺口「季報 EPS」已於 2026-09-06 補上（見 §10.4 E-1）；剩下的是查詢層與前端呈現 |
+
+> 關鍵認知：**「一張表 = 一次 API 呼叫」是錯誤預設。**媒體表格是彙整結果，不是資料源。本系統重建它的
+> 正確作法，是照既有架構把各來源分別落庫，最後在**查詢層**（SQL JOIN）或前端合成，而不是去找一個
+> 不存在的「萬用端點」。
+
+### 10.2 逐欄位資料源對照（含本系統現況）
+
+| 附圖欄位 | 資料屬性 | 公開 API／資料來源 | 本系統現況 | 缺口 |
+|---|---|---|---|---|
+| 股號、公司 | 基本主檔 | TWSE OpenAPI（免 key）、FinMind | ✅ `symbols` 表已有全台股代碼／名稱（[scripts/init_symbol_master.py](../../backend/scripts/init_symbol_master.py)） | 無 |
+| 8月業績（月營收） | 基本面（月頻） | MOPS、FinMind `TaiwanStockMonthRevenue` | ✅ `monthly_revenue`（含 `yoy_percent`／`mom_percent`／`announced_date`），[revenue_market_fetcher.py](../../backend/services/revenue_market_fetcher.py) 全市場＋[mops_fetcher.py](../../backend/services/mops_fetcher.py) 逐檔補洞 | 無（Phase 2 已貫通到 KPI 卡，見 FR-2） |
+| 第2季 EPS（元） | 基本面（季頻） | TWSE OpenAPI `t187ap14_L`／`t187ap06_L_*`、MOPS、FinMind、yfinance | ✅ **已補上**：`quarterly_financials` 表（[V22 遷移](../../backend/db/migration/V22__Create_quarterly_financials.sql)）＋[eps_market_fetcher.py](../../backend/services/eps_market_fetcher.py)（全市場）＋[mops_eps_fetcher.py](../../backend/services/mops_eps_fetcher.py)（逐檔補洞，已改為雙寫） | 無（見 §10.4 E-1） |
+| 近五日三大法人買賣超（張） | 籌碼面（日頻） | TWSE OpenAPI（T86 報表）、FinMind | ✅ `daily_market_chip`（[market_fetcher.py](../../backend/services/market_fetcher.py) 每日排程） | 無資料缺口；「近 5 日累計」屬**查詢層彙總**，非新爬蟲 |
+| 收盤 ∕ 漲跌 | 技術面（日頻） | TWSE OpenAPI（每日收盤行情）、yfinance、FinMind | ✅ `daily_stock_data`／`data/tw/*.json`（[fetcher.py](../../backend/services/fetcher.py)） | 無 |
+
+### 10.3 實作方式：沿用既有 Data Provider 架構，不另起爐灶
+
+本系統的爬蟲鐵則（見 CLAUDE.md／§6）在此評估中**完全適用**，任何新來源的接入都必須遵守：
+
+1. **爬蟲一律先寫 JSON 為真相來源，再 best-effort dual-write 到 Postgres**（`db/dual_write.py`）；
+   Postgres 失敗只記 warning，不得讓爬蟲失敗。
+2. **所有 SQL 只走 `repositories/`**（`StockRepository`／`MarketRepository`），不在 service 層寫裸 SQL。
+3. **同步爬蟲呼叫 async SQLAlchemy 時，每次 `asyncio.run()` 後必須 `dispose_engine()`**（asyncpg 連線綁定
+   建立它的 event loop）。
+4. 新增外部來源前先確認**授權與頻率限制**：FinMind 免費層有每小時請求上限、yfinance 為非官方
+   scraping 介面（隨時可能變動），兩者**只能作為 MOPS／TWSE 的補洞來源，不得升格為主要來源**。
+
+**參考實作骨架**（若日後決定接 FinMind／yfinance 補 EPS，放在 `services/` 下，介面比照現有 fetcher）：
+
+```python
+# services/finmind_client.py（示意：月營收，FinMind）
+def fetch_monthly_revenue(symbol: str, start_date: str) -> list[dict]:
+    resp = requests.get(
+        "https://api.finmindtrade.com/api/v4/data",
+        params={
+            "dataset": "TaiwanStockMonthRevenue",
+            "data_id": symbol,
+            "start_date": start_date,  # 例：'2026-08-01'
+        },
+        timeout=10,
+    )
+    payload = resp.json()
+    if payload.get("msg") != "success":
+        return []
+    return payload.get("data") or []
+```
+
+```python
+# services/eps_fallback_fetcher.py（示意：季報 EPS，yfinance 後備）
+def fetch_quarterly_eps(symbol: str) -> float | None:
+    stmt = yf.Ticker(f"{symbol}.TW").quarterly_income_stmt
+    for row in ("Basic EPS", "Diluted EPS"):
+        if row in stmt.index:
+            value = stmt.loc[row].iloc[0]
+            return None if pd.isna(value) else float(value)
+    return None  # 缺值回 None，不回 0.0（ADR-P2-02：缺值即缺席）
+```
+
+> **注意**：上述骨架刻意**不使用 `0.0` 當缺值**。原始評估範例的 `return 0.0` 會與本系統既有鐵則衝突——
+> `stock_service` 全面把 `0` 視為缺值處理正是為了修一個歷史 bug（見
+> [scripts/restore_price_from_legacy.py](../../backend/scripts/restore_price_from_legacy.py)），
+> 新來源不得重蹈覆轍。
+
+### 10.4 若要重建這張表，尚需的工作
+
+| # | 工作項 | 狀態 | 說明 |
+|---|---|---|---|
+| E-1 | **季報 EPS 落庫** | ✅ **已完成（2026-09-06）** | 新增 `quarterly_financials` 表（`symbol`／`year_quarter`／`eps`／`revenue`／`operating_income`／`net_income`／`announced_date`／`source`，[V22 遷移](../../backend/db/migration/V22__Create_quarterly_financials.sql)）；主來源改為 **TWSE OpenAPI**（`t187ap14_L` 各產業 EPS 統計 ＋ 6 支 `t187ap06_L_*` 綜合損益表補金控／保險／證券期貨等業別），繞開 MOPS 的 WAF 問題；`mops_eps_fetcher.py` 保留為逐檔補洞來源，並改為 best-effort 雙寫（`source='MOPS'`） |
+| E-2 | **「近 N 日三大法人累計」查詢** | 待辦 | 在 `MarketRepository` 加一個彙總查詢（`SUM(net_buy)` over 最近 N 個交易日），**不新增爬蟲、不落新表**；依賴 `daily_market_chip`，資料已具備 |
+| E-3 | **每日盤後排程串接** | ✅ **已完成（2026-09-06）** | `scheduler.py` 新增 `quarterly_eps_tw`（每月 16 號 09:30），比照既有 `monthly_revenue_tw` 的做法走 `market_fetcher.fetch_eps_now()`（背景專用連線池）；另補手動觸發端點 `POST /api/v1/market/fetch/eps` |
+| E-4 | **戰情室清單頁** | 待辦 | 前端新增一個可排序表格：股號／名稱／近 5 日法人累計／最新季 EPS／收盤 ∕ 漲跌；選股池沿用既有 `mcap_rank` 或《籌碼選股》Phase 2 的 `universe_snapshots`。依賴 E-2；`market_cap`／`mcap_rank` 目前 0% 覆蓋（§9 Q-1）會影響「依市值決定 Universe」 |
+
+**E-1 的實測結果（2026-09-06）**：實跑 `EpsMarketFetcher.fetch_twse_quarterly_eps()` 取得 **1,083 檔 2026-Q2**
+資料，抽驗台積電（2330）EPS 49.33、鴻海（2317）7.84、緯創（3231）7.78，與公開財報一致。營收／營益／
+稅後淨利沿用來源原始單位（仟元），不在抓取層換算——與 `monthly_revenue.revenue` 的既有處理一致。
+
+**與 §9 Q-4 的關係**：Q-4 的決議（Phase 2 **不把 EPS 放進個股頁**）**維持不變**——E-1 只做到資料層落庫與
+API 查詢（`GET /api/v1/fundamentals/eps/{stock_id}` 於 JSON 缺值時改讀 `quarterly_financials`），
+**沒有**新增任何 KPI 卡、圖表分頁或 AI 摘要區塊。要不要上個股頁，等 E-4 決定做戰情室清單頁時另案評估。
+
+### 10.5 本節不改變的事
+
+| 項目 | 狀態 |
+|---|---|
+| Phase 2 的 FR-1～FR-5 範圍與驗收條件 | **不變**，本節純為後續階段的資料抓取評估 |
+| §9 Q-4（季報 EPS 不進個股頁） | **決議不變**，僅補上「缺它會擋住什麼」的說明 |
+| 主要資料源優先序 | **不變**：TWSE／MOPS 為主，FinMind／yfinance 僅作補洞與交叉驗證 |

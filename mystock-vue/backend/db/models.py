@@ -174,6 +174,23 @@ class MonthlyRevenue(Base):
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now())
 
 
+class QuarterlyFinancial(Base):
+    """全市場季報損益摘要（EPS／營收／營益／稅後淨利）。"""
+    __tablename__ = "quarterly_financials"
+
+    symbol: Mapped[str] = mapped_column(String(20), ForeignKey("symbols.symbol"), primary_key=True)
+    year_quarter: Mapped[str] = mapped_column(String(7), primary_key=True)
+    market_type: Mapped[str] = mapped_column(String(10), nullable=False, default="tw")
+    eps: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
+    revenue: Mapped[Optional[int]] = mapped_column(BigInteger)
+    operating_income: Mapped[Optional[int]] = mapped_column(BigInteger)
+    net_income: Mapped[Optional[int]] = mapped_column(BigInteger)
+    announced_date: Mapped[Optional[date]] = mapped_column(Date)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="TWSE_OPENAPI")
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=func.now())
+
+
 class MarketFetchJob(Base):
     """全市場抓取與回補作業紀錄。"""
     __tablename__ = "market_fetch_job"

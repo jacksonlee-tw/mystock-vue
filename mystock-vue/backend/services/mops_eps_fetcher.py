@@ -23,6 +23,7 @@ import pandas as pd
 import requests
 
 from config import DATA_DIR, get_quarters_range, get_target_stocks
+from db.dual_write import dual_write_quarterly_financials
 from services.fetcher import FetchStatusManager
 
 logger = logging.getLogger("mystock-backend")
@@ -168,6 +169,24 @@ def _save_eps_json(stock_id: str, data: dict) -> None:
         json.dump(dict(sorted(data.items())), f, ensure_ascii=False, indent=2)
 
 
+def _eps_rows_for_postgres(stock_id: str, data: dict) -> List[Dict[str, Any]]:
+    """把 JSON 的 {'2026-Q2': {...}} 轉成 quarterly_financials 的列格式（見 db/mapping.py 的同形做法）。"""
+    rows = []
+    for year_quarter, record in data.items():
+        if not isinstance(record, dict) or record.get("eps") is None:
+            continue
+        rows.append({
+            "symbol": stock_id,
+            "year_quarter": year_quarter,
+            "market_type": "tw",
+            "eps": record.get("eps"),
+            "revenue": record.get("revenue"),
+            "net_income": record.get("net_income"),
+            "source": "MOPS",
+        })
+    return rows
+
+
 def _current_quarter(dt: datetime) -> Tuple[int, int]:
     return dt.year, (dt.month - 1) // 3 + 1
 
@@ -229,6 +248,7 @@ def run_fetch_quarterly_eps(
                 q_year, q_season = _prev_quarter(q_year, q_season)
 
             _save_eps_json(stock_id, existing)
+            dual_write_quarterly_financials(stock_id, "tw", _eps_rows_for_postgres(stock_id, existing))
 
         summary = {
             "success": success_count,

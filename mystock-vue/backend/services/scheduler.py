@@ -158,6 +158,20 @@ def _scheduled_monthly_revenue() -> None:
         logger.warning(f"[排程] 每月營收抓取失敗: {e}")
 
 
+def _scheduled_quarterly_eps() -> None:
+    """每月 16 號 09:30 抓一次全市場季報 EPS（Phase2 §10.4 E-1）。
+
+    財報公告期限分散在 3/31（年報）、5/15、8/14、11/14，排每月 16 號只要一個 cron 就能
+    包到四個期限（各自在下一個 16 號前已公告完畢），不需要四條季度 cron；資料本身是幂等
+        UPSERT，多跑的月份只是重寫同一期。呼叫緒維與連線池的限制同 _scheduled_monthly_revenue()。"""
+    try:
+        from services.market_fetcher import market_fetcher
+        result = market_fetcher.fetch_eps_now(trigger_type="scheduled")
+        logger.info(f"[排程] 季報 EPS 抓取完成: {result}")
+    except Exception as e:
+        logger.warning(f"[排程] 季報 EPS 抓取失敗: {e}")
+
+
 def _scheduled_us() -> None:
     _fetch_indices("us")
     _run_if_idle("us", run_us_fetch_process)
@@ -388,6 +402,13 @@ def create_scheduler() -> AsyncIOScheduler:
         _scheduled_monthly_revenue,
         CronTrigger(day=11, hour=9, minute=0, timezone=TAIPEI_TZ),
         id="monthly_revenue_tw",
+    )
+
+    # 每月 16 號 09:30 執行全市場季報 EPS 抓取（見 _scheduled_quarterly_eps() 的排程理由）
+    scheduler.add_job(
+        _scheduled_quarterly_eps,
+        CronTrigger(day=16, hour=9, minute=30, timezone=TAIPEI_TZ),
+        id="quarterly_eps_tw",
     )
 
     # 產業鏈知識圖譜：每月 1 號依序執行 LLM 萃取（FR-18）與 CCF 全量重算（FR-19，排在萃取之後）。

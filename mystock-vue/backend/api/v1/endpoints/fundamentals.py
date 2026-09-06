@@ -105,13 +105,30 @@ def get_eps_fetch_status():
 
 
 @router.get("/eps/{stock_id}", summary="查詢單一股票的季報 EPS 資料")
-def get_stock_eps(stock_id: str):
+async def get_stock_eps(stock_id: str, quarters: Optional[int] = None):
+    """優先回傳 MOPS 逐檔補洞的 JSON；JSON 沒有時改讀 `quarterly_financials`（全市場 TWSE 來源）。
+
+    兩個來源的落地路徑不同（JSON 需手動觸發、Postgres 走每月排程），任一有值即可回答，
+    因此不依 DATA_SOURCE 分流，而是 JSON 先、Postgres 後備。"""
     data = load_stock_eps(stock_id)
-    if not data:
+    if data:
+        return {"success": True, "data": data, "source": "json"}
+
+    from repositories.market_repository import MarketRepository
+
+    try:
+        rows = await MarketRepository().get_quarterly_financials(
+            stock_id, limit=quarters or get_quarters_range()
+        )
+    except Exception:
+        rows = []
+
+    if not rows:
         raise SymbolNotFoundException(f"找不到股票 {stock_id} 的季報 EPS 資料")
     return {
         "success": True,
-        "data": data
+        "data": {row["year_quarter"]: row for row in rows},
+        "source": "postgres",
     }
 
 

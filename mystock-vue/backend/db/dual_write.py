@@ -63,6 +63,31 @@ def dual_write_no_trading_days(market_type: str, dates) -> None:
         logger.warning(f"market_no_trading_days 寫入失敗 ({market_type}): {e}")
 
 
+def dual_write_quarterly_financials(symbol: str, market_type: str, rows: list[dict]) -> None:
+    """MOPS 逐檔季報 EPS 補洞的 best-effort 雙寫（quarterly_financials）。
+
+    ensure_symbols_exist() 與 UPSERT 包在同一個 run_async() 內：run_async() 每次呼叫結束都會
+    dispose 背景連線池，拆成兩次會多建一次 engine（見 market_repository.run_async() 的說明）。"""
+    if not rows:
+        return
+    try:
+        from repositories.market_repository import (
+            MarketRepository,
+            _BackgroundSessionFactory,
+            run_async,
+        )
+
+        repository = MarketRepository(session_factory=_BackgroundSessionFactory())
+
+        async def _write():
+            await repository.ensure_symbols_exist([{"symbol": symbol}], market_type=market_type)
+            return await repository.upsert_quarterly_financials(rows)
+
+        run_async(_write())
+    except Exception as e:
+        logger.warning(f"quarterly_financials 雙寫失敗 ({market_type}/{symbol}): {e}")
+
+
 async def dual_write_industry_chain_edges(edges: list[dict]) -> None:
     """`industry_chain_edges` best-effort 雙寫（docs/16.AI技術分析/
     Phase3-產業鏈知識圖譜與輪動模型.md ADR-IC-09）。

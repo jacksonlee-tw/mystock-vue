@@ -20,6 +20,7 @@ from db.models import (
     MarketFetchJob,
     MarketNoTradingDay,
     MonthlyRevenue,
+    QuarterlyFinancial,
     Symbol,
     SymbolIndustry,
 )
@@ -244,6 +245,64 @@ class MarketRepository:
                 )
                 res = await session.execute(stmt)
                 return res.rowcount
+
+    # ── 4b. UPSERT 季報 EPS／損益摘要 ─────────────────────────────────
+    async def upsert_quarterly_financials(self, records: List[Dict[str, Any]]) -> int:
+        """整批 UPSERT 全市場季報 EPS／營收／營益／稅後淨利。
+
+        來源欄位為空時保留舊值（§3.7）：TWSE 快照與 MOPS 逐檔補洞的欄位覆蓋範圍不同，
+        後到的來源不得把先前已抓到的數值洗成 NULL。
+        """
+        if not records:
+            return 0
+        async with self._session_factory() as session:
+            async with session.begin():
+                stmt = pg_insert(QuarterlyFinancial).values(records)
+                update_dict = {
+                    "eps": func.coalesce(stmt.excluded.eps, QuarterlyFinancial.eps),
+                    "revenue": func.coalesce(stmt.excluded.revenue, QuarterlyFinancial.revenue),
+                    "operating_income": func.coalesce(stmt.excluded.operating_income, QuarterlyFinancial.operating_income),
+                    "net_income": func.coalesce(stmt.excluded.net_income, QuarterlyFinancial.net_income),
+                    "announced_date": func.coalesce(stmt.excluded.announced_date, QuarterlyFinancial.announced_date),
+                    "source": stmt.excluded.source,
+                    "updated_at": func.now(),
+                }
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["symbol", "year_quarter"],
+                    set_=update_dict,
+                )
+                res = await session.execute(stmt)
+                return res.rowcount
+
+    async def get_quarterly_financials(
+        self, symbol: str, limit: int = 12, market: str = "tw"
+    ) -> List[Dict[str, Any]]:
+        """取得單一個股近 N 季的季報摘要，由新到舊排序。"""
+        async with self._session_factory() as session:
+            stmt = (
+                select(QuarterlyFinancial)
+                .where(
+                    and_(
+                        QuarterlyFinancial.symbol == symbol,
+                        QuarterlyFinancial.market_type == market,
+                    )
+                )
+                .order_by(desc(QuarterlyFinancial.year_quarter))
+                .limit(limit)
+            )
+            res = await session.execute(stmt)
+            return [
+                {
+                    "year_quarter": row.year_quarter,
+                    "eps": float(row.eps) if row.eps is not None else None,
+                    "revenue": row.revenue,
+                    "operating_income": row.operating_income,
+                    "net_income": row.net_income,
+                    "announced_date": row.announced_date.isoformat() if row.announced_date else None,
+                    "source": row.source,
+                }
+                for row in res.scalars().all()
+            ]
 
     # ── 5. 代碼主檔未知代號批次自動補入 ──────────────────────────────
     async def ensure_symbols_exist(self, symbols_meta: List[Dict[str, Any]], market_type: str = "tw") -> int:

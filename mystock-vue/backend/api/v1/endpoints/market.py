@@ -277,6 +277,26 @@ async def trigger_market_revenue_fetch():
     }
 
 
+@router.post("/fetch/eps")
+async def trigger_market_eps_fetch():
+    """手動觸發全市場最新季報 EPS 抓取（quarterly_financials）。
+
+    行為與每月 16 號 09:30 的排程完全相同（見 market_fetcher.fetch_eps_now()）。單次是數支
+    TWSE OpenAPI 請求＋一次批次 UPSERT，故不比照 /fetch 走背景任務，但仍用 asyncio.to_thread
+    讓阻塞的 requests 呼叫不卡住主 event loop。"""
+    result = await asyncio.to_thread(market_fetcher.fetch_eps_now, "manual")
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": {"code": "EPS_FETCH_EMPTY", "message": "TWSE 季報 EPS API 未回傳可寫入的資料，請稍後再試"},
+        }
+    return {
+        "success": True,
+        "message": f"已寫入全市場季報 EPS {result['count']} 筆",
+        "data": result,
+    }
+
+
 @router.post("/fetch/cancel")
 async def cancel_market_fetch():
     """主動取消正在進行的全市場抓取作業。

@@ -24,6 +24,7 @@ from config import (
 )
 from db.dual_write import dual_write_no_trading_days, log_crawler_run
 from repositories.market_repository import ActiveFetchJobError, MarketRepository, _BackgroundSessionFactory, run_async
+from services.eps_market_fetcher import EpsMarketFetcher
 from services.revenue_market_fetcher import RevenueMarketFetcher
 from services.symbol_master_fetcher import sync_tw_symbol_master
 from services.valuation_fetcher import ValuationFetcher
@@ -127,6 +128,7 @@ class MarketFetcher:
         self.repo = MarketRepository(session_factory=_BackgroundSessionFactory())
         self.valuation_fetcher = ValuationFetcher(throttle_seconds=self.throttle_seconds)
         self.revenue_fetcher = RevenueMarketFetcher()
+        self.eps_fetcher = EpsMarketFetcher()
         self._cancel_requested = False
         self._lock = threading.Lock()
         # 目前這個行程內真的有工作執行緒在跑的 job id。DB 裡的 status='running' 只代表「有人開過
@@ -559,6 +561,29 @@ class MarketFetcher:
             return {"success": False, "count": 0}
         count = run_async(self.repo.upsert_revenue(records))
         logger.info(f"[MarketFetcher] 月營收抓取完成，共寫入 {count} 筆")
+        return {"success": True, "count": count}
+
+    # ── 4c. 全市場季報 EPS 抓取（Phase2 §10.4 E-1）────────────────
+    def fetch_eps_now(self, trigger_type: str = "manual") -> Dict[str, Any]:
+        """抓取 TWSE 最新一期全市場季報 EPS 並落地 quarterly_financials。
+
+        與月營收同屬「最新一期快照」，不走逐日回補管線；同樣必須用 self.repo（背景專用
+        連線池）呼叫 run_async()，見 market_repository.run_async() 的說明。寫入前先濾掉主檔沒有的
+        代號，避免整批 UPSERT 撞上 FK 直接失敗（財報資料集含未上市的公發公司）。"""
+        logger.info(f"[MarketFetcher] 開始抓取全市場最新季報 EPS (trigger={trigger_type})...")
+        records = self.eps_fetcher.fetch_twse_quarterly_eps()
+        if not records:
+            logger.warning("[MarketFetcher] 季報 EPS 抓取無資料")
+            return {"success": False, "count": 0}
+
+        known = run_async(self.repo.filter_existing_symbols([r["symbol"] for r in records]))
+        records = [r for r in records if r["symbol"] in known]
+        if not records:
+            logger.warning("[MarketFetcher] 季報 EPS 的代號均不在代碼主檔，本次不寫入")
+            return {"success": False, "count": 0}
+
+        count = run_async(self.repo.upsert_quarterly_financials(records))
+        logger.info(f"[MarketFetcher] 季報 EPS 抓取完成，共寫入 {count} 筆")
         return {"success": True, "count": count}
 
     # ── 5. 批次回補與中斷續傳（Backfill & Resume，§3.8、§3.9）────────
