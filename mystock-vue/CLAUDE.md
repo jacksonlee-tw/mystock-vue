@@ -46,13 +46,14 @@ npm run lint       # eslint --fix over .vue/.js/.jsx/.cjs/.mjs
 There is no frontend test suite.
 
 ### Backend (`backend/`)
-Python 3.11+ (Docker image uses 3.11-slim; local `.venv` at repo root is 3.14), managed with a standard venv —
-`pip install -r requirements.txt`. Copy `backend/.env.example` to `backend/.env` before running anything; it's
+Python 3.11+ (Docker image uses 3.11-slim; local `.venv` at repo root is 3.14), managed with `uv` —
+`uv venv --python ">=3.11" .venv` + `uv pip install -r backend/requirements.txt` (uv must be on PATH).
+Copy `backend/.env.example` to `backend/.env` before running anything; it's
 read via `python-dotenv` and re-read on most config lookups (so `.env` edits take effect without a restart).
 
 ```bash
 cd backend
-..\start_backend.bat                              # Windows: fixed project .venv, installs missing dependencies
+..\start_backend.bat                              # Windows: uv-managed project .venv, installs missing dependencies, then `uv run main.py`
 # Linux/macOS (after activating the root .venv): python main.py
 ```
 API docs at `http://localhost:8000/docs`. There is no backend test suite — verify changes by hitting the

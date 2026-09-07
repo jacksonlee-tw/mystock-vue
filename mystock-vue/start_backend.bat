@@ -1,19 +1,27 @@
 @echo off
+REM Start the MyStock FastAPI backend with uv (see spec-review-ai/start_backend.bat).
+REM uv owns the project .venv: it creates it and installs backend\requirements.txt into it.
 setlocal
 
 cd /d "%~dp0"
-set "VENV_PYTHON=%CD%\.venv\Scripts\python.exe"
 
-if not exist "%VENV_PYTHON%" (
-    echo Creating project virtual environment...
-    py -3.11 -m venv .venv 2>nul || py -3 -m venv .venv
+where uv >nul 2>&1
+if errorlevel 1 goto :no_uv
+
+set "VENV_DIR=%CD%\.venv"
+REM Pin uv to the project .venv so `uv run --no-project` / `uv pip` never touch another env.
+set "VIRTUAL_ENV=%VENV_DIR%"
+
+if not exist "%VENV_DIR%\Scripts\python.exe" (
+    echo Creating project virtual environment with uv...
+    uv venv --python ">=3.11" "%VENV_DIR%"
     if errorlevel 1 goto :setup_failed
 )
 
-"%VENV_PYTHON%" -c "import fastapi, uvicorn, sqlalchemy, google.genai, anthropic" >nul 2>&1
+uv run --no-project python -c "import fastapi, uvicorn, sqlalchemy, google.genai, anthropic" >nul 2>&1
 if errorlevel 1 (
-    echo Installing backend dependencies into project virtual environment...
-    "%VENV_PYTHON%" -m pip install -r backend\requirements.txt
+    echo Installing backend dependencies with uv...
+    uv pip install -r backend\requirements.txt
     if errorlevel 1 goto :setup_failed
 )
 
@@ -23,8 +31,13 @@ if not exist "backend\.env" (
 )
 
 cd /d "%~dp0backend"
-"%VENV_PYTHON%" main.py
+uv run --no-project main.py
 exit /b %errorlevel%
+
+:no_uv
+echo uv was not found on PATH. Install it first, e.g. "winget install --id astral-sh.uv"
+echo or see https://docs.astral.sh/uv/getting-started/installation/
+exit /b 1
 
 :setup_failed
 echo Failed to prepare the backend Python environment.

@@ -43,9 +43,14 @@
           outlined
           :loading="scanningRisk"
           @click="runRiskScan"
+          title="此按鈕不在每日自動排程內，需手動觸發"
         />
       </div>
     </div>
+    <p class="text-xs text-surface-400 -mt-3">
+      <i class="pi pi-info-circle"></i>
+      「全市場選股掃描」每日排程會自動執行；「持倉風控掃描」不在排程內，需於此手動觸發。
+    </p>
 
     <!-- 策略選擇 Tabs / 晶片選單 -->
     <div class="flex flex-wrap items-center gap-2 p-1.5 bg-surface-100 dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700">
@@ -80,6 +85,9 @@
           <p class="text-xs text-surface-500 mt-1 leading-relaxed">
             {{ currentStrategyDef?.description || '結合價值面、成長面與籌碼面多重條件，自動從全市場標的中篩選最具優勢之投資標的。' }}
           </p>
+          <ul v-if="currentStrategyDef?.rule_summary?.length" class="text-xs text-surface-400 mt-1.5 list-disc list-inside space-y-0.5">
+            <li v-for="(line, i) in currentStrategyDef.rule_summary" :key="i">{{ line }}</li>
+          </ul>
         </div>
         <div class="flex items-center gap-4 mt-3 pt-3 border-t border-surface-100 dark:border-surface-800 text-xs text-surface-400">
           <span>每日上限: <b class="text-surface-700 dark:text-surface-300">{{ currentStrategyDef?.max_picks_per_day || 10 }} 檔</b></span>
@@ -317,15 +325,33 @@ const marketOptions = [
   { label: '美股 (US)', value: 'us' }
 ];
 
-const pickingStrategies = [
-  { id: 'pick_valuation_low_pe', name: '低本益比高殖利率精選', icon: 'pi pi-percentage', description: '篩選本益比低於 15 倍、殖利率高於 4% 之價值型投資標的，具備高度安全邊際。' },
-  { id: 'pick_revenue_growth_momentum', name: '營收高成長動能精選', icon: 'pi pi-bolt', description: '篩選月營收年增率 (YoY) 超過 20% 且連續 2 個月維持高度成長之營運動能強勢股。' },
-  { id: 'pick_chip_institutional_resonance', name: '法人籌碼共振精選', icon: 'pi pi-users', description: '外資與投信兩大主力法人連續買超且買超佔成交量達 5% 以上，籌碼面高度集中。' },
-  { id: 'pick_multi_factor_resonance', name: '多因子共振旗艦精選', icon: 'pi pi-star-fill', description: '同時兼具低估值、營收成長超過 15% 與主力買超，多因子全方位共振之旗艦精選。' },
-  // 股價相對低點 需求規格書 §4：低估值 + 營收未衰退 + 季線極端負乖離 + KD 超賣
-  // + 融資洗盤法人低接 + 帶量站回月線，六項條件全部 AND 成立才入選（不猜最低點、不接價值陷阱）。
-  { id: 'pick_relative_low_zone', name: '相對低點承接精選', icon: 'pi pi-arrow-down-right', description: '低估值、營收未衰退、季線極端負乖離、KD 超賣、融資洗盤法人低接，並已帶量站回月線完成右側確認，六項條件全部成立才入選。' }
-];
+const pickingStrategies = ref([]);
+// 圖示只是視覺輔助，找不到對應項目時退回通用圖示，新策略不會因為忘記登記而從清單消失
+const STRATEGY_ICON_MAP = {
+  pick_valuation_low_pe: 'pi pi-percentage',
+  pick_revenue_growth_momentum: 'pi pi-bolt',
+  pick_eps_profitability: 'pi pi-wallet',
+  pick_chip_institutional_resonance: 'pi pi-users',
+  pick_multi_factor_resonance: 'pi pi-star-fill',
+  pick_relative_low_zone: 'pi pi-arrow-down-right'
+};
+const DEFAULT_STRATEGY_ICON = 'pi pi-filter';
+
+async function loadPickingStrategies() {
+  try {
+    const res = await alertApi.getStrategies(currentMarket.value);
+    if (res.success) {
+      pickingStrategies.value = res.data
+        .filter((s) => s.category === 'stock_picking' && s.scope === 'universe')
+        .map((s) => ({ ...s, icon: STRATEGY_ICON_MAP[s.id] || DEFAULT_STRATEGY_ICON }));
+      if (pickingStrategies.value.length && !pickingStrategies.value.some((s) => s.id === activeStrategyId.value)) {
+        activeStrategyId.value = pickingStrategies.value[0].id;
+      }
+    }
+  } catch (err) {
+    console.warn('[StockPicking] 載入策略清單失敗:', err);
+  }
+}
 
 const activeStrategyId = ref('pick_valuation_low_pe');
 const allAlerts = ref([]);
@@ -345,7 +371,7 @@ function getStockName(data) {
 }
 
 const currentStrategyDef = computed(() => {
-  return pickingStrategies.find(s => s.id === activeStrategyId.value);
+  return pickingStrategies.value.find(s => s.id === activeStrategyId.value);
 });
 
 const countsByStrategy = computed(() => {
@@ -404,6 +430,7 @@ const avgPe = computed(() => {
 
 function setMarket(m) {
   currentMarket.value = m;
+  loadPickingStrategies();
   loadAlerts();
 }
 
@@ -508,6 +535,7 @@ function goToCompareSingle(symbol) {
 }
 
 onMounted(() => {
+  loadPickingStrategies();
   loadAlerts();
 });
 </script>

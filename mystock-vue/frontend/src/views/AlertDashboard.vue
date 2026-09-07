@@ -150,6 +150,7 @@
               </div>
             </template>
           </Select>
+          <StrategyInfoPopover v-if="filters.strategy" :strategy="strategyById[filters.strategy]" />
         </div>
         <div class="flex items-center gap-2">
           <label class="text-sm font-bold text-surface-500 flex items-center gap-1"><i class="pi pi-bolt text-xs"></i>強度</label>
@@ -204,6 +205,7 @@ import { alertApi } from '@/service/alertApi';
 import { classifyDirection } from '@/utils/alertDirection';
 import { CATEGORY_GROUPS, OTHER_CATEGORY } from '@/utils/alertCategory';
 import AlertTimeline from '@/components/AlertTimeline.vue';
+import StrategyInfoPopover from '@/components/StrategyInfoPopover.vue';
 
 const { currentMarket, setMarket } = useMarket();
 const toast = useToast();
@@ -248,6 +250,9 @@ const strategyOptions = computed(() => {
   if (others.length) groups.push({ ...OTHER_CATEGORY, items: others });
   return groups.filter((g) => g.items.length);
 });
+
+// strategy_id -> 完整策略物件，供篩選器旁的 StrategyInfoPopover 顯示規則說明用
+const strategyById = computed(() => Object.fromEntries(strategyList.value.map((s) => [s.id, s])));
 
 // 摘要磚統計：一律以 rangeAlerts（整個區間）為基準，與下方清單同一個區間
 const summaryStats = computed(() => {

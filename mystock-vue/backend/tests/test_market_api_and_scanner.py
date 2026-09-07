@@ -42,3 +42,18 @@ async def test_fundamentals_compare_api():
         assert "rows" in data["data"]
         assert len(data["data"]["rows"]) == 2
         assert data["data"]["rows"][0]["symbol"] == "2330"
+
+
+@pytest.mark.anyio
+async def test_strategies_api_exposes_rule_summary_for_every_strategy():
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        res = await client.get("/api/v1/strategies")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["success"] is True
+        by_id = {s["id"]: s for s in data["data"]}
+        assert "pick_eps_profitability" in by_id
+        for strat in data["data"]:
+            assert strat["description"], f"{strat['id']} 缺少 description"
+            assert strat["rule_summary"], f"{strat['id']} 缺少 rule_summary"
+

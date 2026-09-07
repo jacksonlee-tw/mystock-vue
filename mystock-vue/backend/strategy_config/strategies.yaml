@@ -25,6 +25,7 @@ strategies:
   # ── 突破 / 跌破策略 ──────────────────────────
   - id: "price_cross_ma"
     name: "收盤價突破/跌破關鍵均線"
+    description: "收盤價向上突破或向下跌破月/季/年線，趨勢轉折的基礎訊號。"
     category: "technical"
     enabled: true
     markets: ["tw", "us"]
@@ -41,6 +42,7 @@ strategies:
 
   - id: "ma_golden_death_cross"
     name: "均線黃金/死亡交叉"
+    description: "短天期均線與長天期均線交叉，捕捉多空趨勢的轉折點。"
     category: "technical"
     enabled: true
     markets: ["tw", "us"]
@@ -54,6 +56,7 @@ strategies:
   # ── 排列策略 ──────────────────────────────────
   - id: "ma_alignment"
     name: "均線多頭/空頭排列"
+    description: "多條均線依天期排列成一致方向，確認趨勢是否成形。"
     category: "technical"
     enabled: true
     markets: ["tw", "us"]
@@ -65,6 +68,7 @@ strategies:
   # ── 擠壓突破 ──────────────────────────────────
   - id: "ma_squeeze_breakout"
     name: "均線糾結突破"
+    description: "均線糾結收斂後帶量突破，捕捉盤整結束的起漲/起跌點。"
     category: "technical"
     enabled: true
     markets: ["tw", "us"]
@@ -80,6 +84,7 @@ strategies:
   # ── 乖離率 ──────────────────────────────────
   - id: "extreme_bias"
     name: "乖離率過大警示"
+    description: "股價與季線乖離過大，提示短線過熱或超跌。"
     category: "technical"
     enabled: true
     markets: ["tw", "us"]
@@ -92,6 +97,7 @@ strategies:
   # ── 回踩測試 ──────────────────────────────────
   - id: "ma_pullback_support"
     name: "均線回踩支撐"
+    description: "多頭趨勢中回踩均線不破，找拉回加碼的參考買點。"
     category: "technical"
     enabled: true
     markets: ["tw", "us"]
@@ -107,6 +113,7 @@ strategies:
   # universe），尚未建立，暫不啟用。僅台股適用（美股無三大法人/信用交易資料）。
   - id: "chip_bottom_turnover"
     name: "底部換手（洗盤）"
+    description: "融資去化、法人同步進場，捕捉底部換手訊號。"
     category: "chip"
     enabled: true
     markets: ["tw"]
@@ -121,6 +128,7 @@ strategies:
 
   - id: "chip_short_squeeze"
     name: "高檔軋空（暴走）"
+    description: "均線翻揚、法人買超、券資比攀高，留意軋空行情。"
     category: "chip"
     enabled: true
     markets: ["tw"]
@@ -140,6 +148,7 @@ strategies:
 
   - id: "chip_distribution_top"
     name: "高檔出貨（崩盤前）"
+    description: "法人連續賣超、融資餘額創高，提示高檔出貨風險。"
     category: "chip"
     enabled: true
     markets: ["tw"]
@@ -153,6 +162,7 @@ strategies:
   # 純 OHLC 指標，台股／美股皆適用。門檻與守衛全部在此調整，改完存檔即生效（不需重啟）。
   - id: "kd_oversold_golden_cross"
     name: "KD 超賣區黃金交叉"
+    description: "KD 於超賣區出現黃金交叉，短線動能可能轉強。"
     category: "technical"
     enabled: true
     markets: ["tw", "us"]
@@ -180,6 +190,7 @@ strategies:
 
   - id: "kd_overbought_death_cross"
     name: "KD 超買區死亡交叉"
+    description: "KD 於超買區出現死亡交叉，短線動能可能轉弱。"
     category: "technical"
     enabled: true
     markets: ["tw", "us"]
@@ -202,6 +213,7 @@ strategies:
   # cooldown 與濾網。DIF/訊號線參數沿用 defaults.macd_params，改這裡不影響圖表顯示。
   - id: "macd_golden_cross"
     name: "MACD 黃金交叉"
+    description: "MACD 出現黃金交叉，中期動能轉強的訊號。"
     category: "technical"
     enabled: true
     markets: ["tw", "us"]
@@ -216,6 +228,7 @@ strategies:
 
   - id: "macd_death_cross"
     name: "MACD 死亡交叉"
+    description: "MACD 出現死亡交叉，中期動能轉弱的訊號。"
     category: "technical"
     enabled: true
     markets: ["tw", "us"]
@@ -230,6 +243,7 @@ strategies:
   # 不對區間內每天都發警示（比照 kd_cross 的既有設計）。
   - id: "rsi_oversold_recovery"
     name: "RSI 超賣區止跌"
+    description: "RSI 由超賣區回升，短線止跌訊號浮現。"
     category: "technical"
     enabled: true
     markets: ["tw", "us"]
@@ -243,6 +257,7 @@ strategies:
 
   - id: "rsi_overbought_reversal"
     name: "RSI 超買區轉弱"
+    description: "RSI 由超買區回落，短線動能轉弱的訊號。"
     category: "technical"
     enabled: true
     markets: ["tw", "us"]
@@ -257,6 +272,7 @@ strategies:
   # ══ 基本面出場警示（賣股策略 設計文件第四節 §1「成長動能衰竭」）══════════════
   - id: "fundamental_revenue_decline"
     name: "營收連續衰退出場"
+    description: "月營收年增率連續轉負，原始成長邏輯可能失效的出場提示。"
     category: "fundamental"
     enabled: true
     markets: ["tw"]
@@ -268,6 +284,7 @@ strategies:
   # ══ 全市場選股策略（選股功能與爬蟲 規格書 §5、§13）═════════════════════════
   - id: "pick_valuation_low_pe"
     name: "低本益比高殖利率精選"
+    description: "篩選本益比低於 15 倍、殖利率高於 4% 之價值型投資標的，具備高度安全邊際。"
     category: "stock_picking"
     scope: "universe"
     universe_tier: "top500"
@@ -284,6 +301,7 @@ strategies:
 
   - id: "pick_revenue_growth_momentum"
     name: "營收高成長動能精選"
+    description: "篩選月營收年增率 (YoY) 超過 20% 且連續 2 個月維持高度成長之營運動能強勢股。"
     category: "stock_picking"
     scope: "universe"
     universe_tier: "all_tracked"
@@ -299,6 +317,7 @@ strategies:
 
   - id: "pick_eps_profitability"
     name: "季報 EPS 獲利精選"
+    description: "篩選最新已公開季報 EPS 達獲利門檻之標的，反映近期實際獲利能力。"
     category: "stock_picking"
     scope: "universe"
     universe_tier: "top500"
@@ -314,6 +333,7 @@ strategies:
 
   - id: "pick_chip_institutional_resonance"
     name: "法人籌碼共振精選"
+    description: "外資與投信兩大主力法人連續買超且買超佔成交量達 5% 以上，籌碼面高度集中。"
     category: "stock_picking"
     scope: "universe"
     universe_tier: "all_tracked"
@@ -330,6 +350,7 @@ strategies:
 
   - id: "pick_multi_factor_resonance"
     name: "多因子共振旗艦精選"
+    description: "同時兼具低估值、營收成長超過 15% 與主力買超，多因子全方位共振之旗艦精選。"
     category: "stock_picking"
     scope: "universe"
     universe_tier: "top500"
@@ -349,6 +370,7 @@ strategies:
   # 六項條件全部 AND 成立才入選（不猜最低點、不接價值陷阱）。全部門檻可調、不需重啟服務。
   - id: "pick_relative_low_zone"
     name: "相對低點承接精選"
+    description: "低估值、營收未衰退、季線極端負乖離、KD 超賣、融資洗盤法人低接，並已帶量站回月線完成右側確認，六項條件全部成立才入選。"
     category: "stock_picking"
     scope: "universe"
     universe_tier: "top500"
@@ -390,6 +412,7 @@ strategies:
   # ══ 持倉出場風控策略（選股功能與爬蟲 規格書 §6、§13）═══════════════════════
   - id: "exit_trailing_stop"
     name: "移動停利出場風控"
+    description: "股價自持股最高點大幅回檔，提醒執行移動停利。"
     category: "risk"
     scope: "watchlist"
     enabled: true
@@ -401,6 +424,7 @@ strategies:
 
   - id: "exit_fixed_stop_loss"
     name: "固定停損出場風控"
+    description: "股價跌破平均持股成本達停損門檻，提醒嚴格執行停損。"
     category: "risk"
     scope: "watchlist"
     enabled: true

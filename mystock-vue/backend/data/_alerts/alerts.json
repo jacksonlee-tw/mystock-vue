@@ -15397,5 +15397,1030 @@
     "rank_value": 1,
     "id": "alert-20260904-TSM-004",
     "timestamp": "2026-09-06T06:00:12+08:00"
+  },
+  {
+    "stock_id": "006208",
+    "stock_name": "富邦台50",
+    "market": "tw",
+    "strategy_id": "ma_squeeze_breakout",
+    "strategy_name": "均線糾結突破",
+    "category": "technical",
+    "direction": "squeeze_breakout",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 247.25,
+      "upper_ma": 245.5,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "squeeze_min_days": 5
+    },
+    "filters_passed": [],
+    "suggested_action": "均線糾結後帶量突破，留意起漲點",
+    "rank_value": 1,
+    "id": "alert-20260904-006208-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "00706L",
+    "stock_name": "期元大S&P日圓正2",
+    "market": "tw",
+    "strategy_id": "ma_squeeze_breakout",
+    "strategy_name": "均線糾結突破",
+    "category": "technical",
+    "direction": "squeeze_breakout",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 19.59,
+      "upper_ma": 19.048,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "squeeze_min_days": 5
+    },
+    "filters_passed": [
+      "volume_confirm"
+    ],
+    "suggested_action": "均線糾結後帶量突破，留意起漲點",
+    "rank_value": 2,
+    "id": "alert-20260904-00706L-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "00878",
+    "stock_name": "國泰永續高股息",
+    "market": "tw",
+    "strategy_id": "ma_squeeze_breakout",
+    "strategy_name": "均線糾結突破",
+    "category": "technical",
+    "direction": "squeeze_breakout",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 34.11,
+      "upper_ma": 33.656,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "squeeze_min_days": 5
+    },
+    "filters_passed": [],
+    "suggested_action": "均線糾結後帶量突破，留意起漲點",
+    "rank_value": 3,
+    "id": "alert-20260904-00878-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "ma_squeeze_breakout",
+    "strategy_name": "均線糾結突破",
+    "category": "technical",
+    "direction": "squeeze_breakout",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 29.77,
+      "upper_ma": 29.68,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "squeeze_min_days": 5
+    },
+    "filters_passed": [],
+    "suggested_action": "均線糾結後帶量突破，留意起漲點",
+    "rank_value": 4,
+    "id": "alert-20260904-00981A-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "ma_squeeze_breakout",
+    "strategy_name": "均線糾結突破",
+    "category": "technical",
+    "direction": "squeeze_breakout",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 2410.0,
+      "upper_ma": 2406.0,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "squeeze_min_days": 5
+    },
+    "filters_passed": [],
+    "suggested_action": "均線糾結後帶量突破，留意起漲點",
+    "rank_value": 5,
+    "id": "alert-20260904-2330-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "00631L",
+    "stock_name": "元大台灣50正2",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 36.64,
+      "ma_period": 60,
+      "ma_value": 35.5295,
+      "bias_percent": 3.1256
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（34.46）",
+    "rank_value": 1,
+    "id": "alert-20260904-00631L-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "00757",
+    "stock_name": "統一FANG+",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 141.55,
+      "ma_period": 20,
+      "ma_value": 139.07,
+      "bias_percent": 1.7833
+    },
+    "filters_passed": [
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（134.9）",
+    "rank_value": 2,
+    "id": "alert-20260904-00757-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 29.77,
+      "ma_period": 20,
+      "ma_value": 29.4245,
+      "bias_percent": 1.1742
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（28.54）",
+    "rank_value": 3,
+    "id": "alert-20260904-00981A-002",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "00981A",
+    "stock_name": "主動統一台股增長",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 29.77,
+      "ma_period": 60,
+      "ma_value": 29.2677,
+      "bias_percent": 1.7162
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（28.39）",
+    "rank_value": 4,
+    "id": "alert-20260904-00981A-003",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "1101",
+    "stock_name": "台泥",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 24.6,
+      "ma_period": 20,
+      "ma_value": 24.475,
+      "bias_percent": 0.5107
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（23.74）",
+    "rank_value": 5,
+    "id": "alert-20260904-1101-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2059",
+    "stock_name": "川湖",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 13860.0,
+      "ma_period": 20,
+      "ma_value": 13593.75,
+      "bias_percent": 1.9586
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（13185.94）",
+    "rank_value": 6,
+    "id": "alert-20260904-2059-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2308",
+    "stock_name": "台達電",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 1825.0,
+      "ma_period": 20,
+      "ma_value": 1798.0,
+      "bias_percent": 1.5017
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（1744.06）",
+    "rank_value": 7,
+    "id": "alert-20260904-2308-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2317",
+    "stock_name": "鴻海",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "strong",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 256.0,
+      "ma_period": 20,
+      "ma_value": 252.925,
+      "bias_percent": 1.2158
+    },
+    "filters_passed": [
+      "volume_confirm",
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（245.34）",
+    "rank_value": 8,
+    "id": "alert-20260904-2317-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2317",
+    "stock_name": "鴻海",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "strong",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 256.0,
+      "ma_period": 60,
+      "ma_value": 250.7833,
+      "bias_percent": 2.0802
+    },
+    "filters_passed": [
+      "volume_confirm",
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（243.26）",
+    "rank_value": 9,
+    "id": "alert-20260904-2317-002",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2330",
+    "stock_name": "台積電",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 2410.0,
+      "ma_period": 20,
+      "ma_value": 2399.25,
+      "bias_percent": 0.4481
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA20 下 3%（2327.27）",
+    "rank_value": 10,
+    "id": "alert-20260904-2330-002",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2382",
+    "stock_name": "廣達",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "strong",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 345.0,
+      "ma_period": 60,
+      "ma_value": 341.575,
+      "bias_percent": 1.0027
+    },
+    "filters_passed": [
+      "volume_confirm",
+      "candlestick_confirm"
+    ],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（331.33）",
+    "rank_value": 11,
+    "id": "alert-20260904-2382-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "3189",
+    "stock_name": "景碩",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 819.0,
+      "ma_period": 60,
+      "ma_value": 780.45,
+      "bias_percent": 4.9395
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（757.04）",
+    "rank_value": 12,
+    "id": "alert-20260904-3189-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "3583",
+    "stock_name": "辛耘",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_under_MA20",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 711.0,
+      "ma_period": 20,
+      "ma_value": 722.7,
+      "bias_percent": -1.6189
+    },
+    "filters_passed": [],
+    "suggested_action": "跌破 MA20，建議減碼或設定停損觀察",
+    "rank_value": 13,
+    "id": "alert-20260904-3583-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "8996",
+    "stock_name": "高力",
+    "market": "tw",
+    "strategy_id": "price_cross_ma",
+    "strategy_name": "收盤價突破/跌破關鍵均線",
+    "category": "technical",
+    "direction": "cross_above_MA60",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 1300.0,
+      "ma_period": 60,
+      "ma_value": 1204.7,
+      "bias_percent": 7.9107
+    },
+    "filters_passed": [],
+    "suggested_action": "可納入多頭觀察清單，停損參考 MA60 下 3%（1168.56）",
+    "rank_value": 14,
+    "id": "alert-20260904-8996-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "00706L",
+    "stock_name": "期元大S&P日圓正2",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "category": "technical",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 19.048,
+      "long_ma": 19.013
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "rank_value": 1,
+    "id": "alert-20260904-00706L-002",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "00757",
+    "stock_name": "統一FANG+",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "category": "technical",
+    "direction": "golden_cross_5_20",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "short_period": 5,
+      "long_period": 20,
+      "short_ma": 139.46,
+      "long_ma": 139.07
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "rank_value": 2,
+    "id": "alert-20260904-00757-002",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2313",
+    "stock_name": "華通",
+    "market": "tw",
+    "strategy_id": "ma_golden_death_cross",
+    "strategy_name": "均線黃金/死亡交叉",
+    "category": "technical",
+    "direction": "golden_cross_20_60",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "short_period": 20,
+      "long_period": 60,
+      "short_ma": 224.775,
+      "long_ma": 223.1333
+    },
+    "filters_passed": [],
+    "suggested_action": "均線黃金交叉，趨勢轉強訊號，可留意進場時機",
+    "rank_value": 3,
+    "id": "alert-20260904-2313-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "00706L",
+    "stock_name": "期元大S&P日圓正2",
+    "market": "tw",
+    "strategy_id": "macd_golden_cross",
+    "strategy_name": "MACD 黃金交叉",
+    "category": "technical",
+    "direction": "macd_golden_cross",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 19.59,
+      "dif": 0.0899,
+      "signal": 0.062,
+      "histogram": 0.0279,
+      "macd_params": [
+        12,
+        26,
+        9
+      ]
+    },
+    "filters_passed": [
+      "volume_confirm"
+    ],
+    "suggested_action": "MACD 出現黃金交叉（DIF 上穿訊號線），中期動能轉強，可留意進場時機",
+    "rank_value": 1,
+    "id": "alert-20260904-00706L-003",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "macd_golden_cross",
+    "strategy_name": "MACD 黃金交叉",
+    "category": "technical",
+    "direction": "macd_golden_cross",
+    "signal_type": "BUY",
+    "signal_strength": "moderate",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 539.0,
+      "dif": 5.434,
+      "signal": 5.0093,
+      "histogram": 0.4247,
+      "macd_params": [
+        12,
+        26,
+        9
+      ]
+    },
+    "filters_passed": [
+      "volume_confirm"
+    ],
+    "suggested_action": "MACD 出現黃金交叉（DIF 上穿訊號線），中期動能轉強，可留意進場時機",
+    "rank_value": 2,
+    "id": "alert-20260904-2207-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "00878",
+    "stock_name": "國泰永續高股息",
+    "market": "tw",
+    "strategy_id": "ma_alignment",
+    "strategy_name": "均線多頭/空頭排列",
+    "category": "technical",
+    "direction": "bullish_alignment",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 34.11,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "values": {
+        "MA5": 33.656,
+        "MA10": 33.188,
+        "MA20": 33.144,
+        "MA60": 32.895
+      }
+    },
+    "filters_passed": [],
+    "suggested_action": "均線多頭排列成形，動能轉強，可列入強勢股觀察",
+    "rank_value": 1,
+    "id": "alert-20260904-00878-002",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "1303",
+    "stock_name": "南亞",
+    "market": "tw",
+    "strategy_id": "ma_alignment",
+    "strategy_name": "均線多頭/空頭排列",
+    "category": "technical",
+    "direction": "bullish_alignment",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 225.5,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "values": {
+        "MA5": 232.2,
+        "MA10": 218.45,
+        "MA20": 205.55,
+        "MA60": 181.09
+      }
+    },
+    "filters_passed": [],
+    "suggested_action": "均線多頭排列成形，動能轉強，可列入強勢股觀察",
+    "rank_value": 2,
+    "id": "alert-20260904-1303-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "3017",
+    "stock_name": "奇鋐",
+    "market": "tw",
+    "strategy_id": "ma_alignment",
+    "strategy_name": "均線多頭/空頭排列",
+    "category": "technical",
+    "direction": "bullish_alignment",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 3570.0,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "values": {
+        "MA5": 3403.0,
+        "MA10": 3267.5,
+        "MA20": 3133.75,
+        "MA60": 2651.3333
+      }
+    },
+    "filters_passed": [],
+    "suggested_action": "均線多頭排列成形，動能轉強，可列入強勢股觀察",
+    "rank_value": 3,
+    "id": "alert-20260904-3017-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "4977",
+    "stock_name": "眾達-KY",
+    "market": "tw",
+    "strategy_id": "ma_alignment",
+    "strategy_name": "均線多頭/空頭排列",
+    "category": "technical",
+    "direction": "bullish_alignment",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 185.0,
+      "ma_periods": [
+        5,
+        10,
+        20,
+        60
+      ],
+      "values": {
+        "MA5": 177.5,
+        "MA10": 170.15,
+        "MA20": 160.15,
+        "MA60": 154.3833
+      }
+    },
+    "filters_passed": [],
+    "suggested_action": "均線多頭排列成形，動能轉強，可列入強勢股觀察",
+    "rank_value": 4,
+    "id": "alert-20260904-4977-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2207",
+    "stock_name": "和泰車",
+    "market": "tw",
+    "strategy_id": "chip_bottom_turnover",
+    "strategy_name": "底部換手（洗盤）",
+    "category": "chip",
+    "direction": "bottom_turnover",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 539.0,
+      "ma_period": 20,
+      "ma_value": 517.25,
+      "margin_change_pct": -21.67,
+      "institutional_cum_net_lots": 232,
+      "foreign_consec_buy_days": 3,
+      "trust_consec_buy_days": 1
+    },
+    "filters_passed": [],
+    "suggested_action": "融資去化、法人同步進場，籌碼面止穩，留意底部反轉契機",
+    "rank_value": 1,
+    "id": "alert-20260904-2207-002",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2382",
+    "stock_name": "廣達",
+    "market": "tw",
+    "strategy_id": "chip_bottom_turnover",
+    "strategy_name": "底部換手（洗盤）",
+    "category": "chip",
+    "direction": "bottom_turnover",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 345.0,
+      "ma_period": 20,
+      "ma_value": 329.825,
+      "margin_change_pct": -11.65,
+      "institutional_cum_net_lots": 25019,
+      "foreign_consec_buy_days": 2,
+      "trust_consec_buy_days": 6
+    },
+    "filters_passed": [],
+    "suggested_action": "融資去化、法人同步進場，籌碼面止穩，留意底部反轉契機",
+    "rank_value": 2,
+    "id": "alert-20260904-2382-002",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2891",
+    "stock_name": "中信金",
+    "market": "tw",
+    "strategy_id": "chip_bottom_turnover",
+    "strategy_name": "底部換手（洗盤）",
+    "category": "chip",
+    "direction": "bottom_turnover",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 68.4,
+      "ma_period": 20,
+      "ma_value": 65.61,
+      "margin_change_pct": -13.25,
+      "institutional_cum_net_lots": 34251,
+      "foreign_consec_buy_days": 6,
+      "trust_consec_buy_days": 6
+    },
+    "filters_passed": [],
+    "suggested_action": "融資去化、法人同步進場，籌碼面止穩，留意底部反轉契機",
+    "rank_value": 3,
+    "id": "alert-20260904-2891-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2382",
+    "stock_name": "廣達",
+    "market": "tw",
+    "strategy_id": "pick_chip_institutional_resonance",
+    "strategy_name": "法人籌碼共振精選",
+    "category": "stock_picking",
+    "direction": "pick_chip_resonance",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "foreign_consec_days": 2,
+      "trust_consec_days": 6,
+      "foreign_net_ratio": 27.716617297310968,
+      "trust_net_ratio": null,
+      "foreign_cum_net_lots": 20602,
+      "trust_cum_net_lots": 4679
+    },
+    "filters_passed": [],
+    "suggested_action": "外資與投信法人同步連續買超，籌碼集中度高，留意波段起漲機會",
+    "rank_value": 1,
+    "id": "alert-20260904-2382-003",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2884",
+    "stock_name": "玉山金",
+    "market": "tw",
+    "strategy_id": "pick_chip_institutional_resonance",
+    "strategy_name": "法人籌碼共振精選",
+    "category": "stock_picking",
+    "direction": "pick_chip_resonance",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "foreign_consec_days": 3,
+      "trust_consec_days": 22,
+      "foreign_net_ratio": 8.530946573462819,
+      "trust_net_ratio": null,
+      "foreign_cum_net_lots": 27416,
+      "trust_cum_net_lots": 17231
+    },
+    "filters_passed": [],
+    "suggested_action": "外資與投信法人同步連續買超，籌碼集中度高，留意波段起漲機會",
+    "rank_value": 2,
+    "id": "alert-20260904-2884-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "2891",
+    "stock_name": "中信金",
+    "market": "tw",
+    "strategy_id": "pick_chip_institutional_resonance",
+    "strategy_name": "法人籌碼共振精選",
+    "category": "stock_picking",
+    "direction": "pick_chip_resonance",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "foreign_consec_days": 6,
+      "trust_consec_days": 6,
+      "foreign_net_ratio": 7.72105732433181,
+      "trust_net_ratio": null,
+      "foreign_cum_net_lots": 14925,
+      "trust_cum_net_lots": 21699
+    },
+    "filters_passed": [],
+    "suggested_action": "外資與投信法人同步連續買超，籌碼集中度高，留意波段起漲機會",
+    "rank_value": 3,
+    "id": "alert-20260904-2891-002",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "3017",
+    "stock_name": "奇鋐",
+    "market": "tw",
+    "strategy_id": "pick_chip_institutional_resonance",
+    "strategy_name": "法人籌碼共振精選",
+    "category": "stock_picking",
+    "direction": "pick_chip_resonance",
+    "signal_type": "BUY",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "foreign_consec_days": 3,
+      "trust_consec_days": 2,
+      "foreign_net_ratio": 7.322862031317083,
+      "trust_net_ratio": null,
+      "foreign_cum_net_lots": 1437,
+      "trust_cum_net_lots": 339
+    },
+    "filters_passed": [],
+    "suggested_action": "外資與投信法人同步連續買超，籌碼集中度高，留意波段起漲機會",
+    "rank_value": 4,
+    "id": "alert-20260904-3017-002",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "3189",
+    "stock_name": "景碩",
+    "market": "tw",
+    "strategy_id": "exit_trailing_stop",
+    "strategy_name": "移動停利出場風控",
+    "category": "risk",
+    "direction": "exit_trailing_stop",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "peak_close": 914.0,
+      "current_close": 819.0,
+      "drawdown_pct": -10.39,
+      "threshold_pct": -10.0
+    },
+    "filters_passed": [],
+    "suggested_action": "自持股最高點回檔超過停利門檻，建議執行移動停利、分批出場鎖定獲利",
+    "rank_value": 1,
+    "id": "alert-20260904-3189-002",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "3450",
+    "stock_name": "聯鈞",
+    "market": "tw",
+    "strategy_id": "exit_trailing_stop",
+    "strategy_name": "移動停利出場風控",
+    "category": "risk",
+    "direction": "exit_trailing_stop",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "peak_close": 646.0,
+      "current_close": 580.0,
+      "drawdown_pct": -10.22,
+      "threshold_pct": -10.0
+    },
+    "filters_passed": [],
+    "suggested_action": "自持股最高點回檔超過停利門檻，建議執行移動停利、分批出場鎖定獲利",
+    "rank_value": 2,
+    "id": "alert-20260904-3450-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "6451",
+    "stock_name": "訊芯-KY",
+    "market": "tw",
+    "strategy_id": "exit_trailing_stop",
+    "strategy_name": "移動停利出場風控",
+    "category": "risk",
+    "direction": "exit_trailing_stop",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "peak_close": 500.0,
+      "current_close": 449.0,
+      "drawdown_pct": -10.2,
+      "threshold_pct": -10.0
+    },
+    "filters_passed": [],
+    "suggested_action": "自持股最高點回檔超過停利門檻，建議執行移動停利、分批出場鎖定獲利",
+    "rank_value": 3,
+    "id": "alert-20260904-6451-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "8046",
+    "stock_name": "南電",
+    "market": "tw",
+    "strategy_id": "exit_trailing_stop",
+    "strategy_name": "移動停利出場風控",
+    "category": "risk",
+    "direction": "exit_trailing_stop",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "peak_close": 1305.0,
+      "current_close": 1055.0,
+      "drawdown_pct": -19.16,
+      "threshold_pct": -10.0
+    },
+    "filters_passed": [],
+    "suggested_action": "自持股最高點回檔超過停利門檻，建議執行移動停利、分批出場鎖定獲利",
+    "rank_value": 4,
+    "id": "alert-20260904-8046-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
+  },
+  {
+    "stock_id": "6805",
+    "stock_name": "富世達",
+    "market": "tw",
+    "strategy_id": "extreme_bias",
+    "strategy_name": "乖離率過大警示",
+    "category": "technical",
+    "direction": "overbought",
+    "signal_type": "SELL",
+    "signal_strength": "weak",
+    "trade_date": "2026-09-04",
+    "details": {
+      "close": 2200.0,
+      "ma_period": 60,
+      "ma_value": 1692.6667,
+      "bias_percent": 29.9724
+    },
+    "filters_passed": [],
+    "suggested_action": "正乖離過大，短線過熱，留意獲利了結賣壓",
+    "rank_value": 1,
+    "id": "alert-20260904-6805-001",
+    "timestamp": "2026-09-06T14:46:24+08:00"
   }
 ]

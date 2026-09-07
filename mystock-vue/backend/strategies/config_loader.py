@@ -22,6 +22,7 @@ class StrategyDef:
     category: str
     enabled: bool
     markets: List[str]
+    description: str = ""
     conditions: List[dict] = field(default_factory=list)
     filters: List[dict] = field(default_factory=list)
     cooldown_days: Optional[int] = None
@@ -64,6 +65,7 @@ def load_strategy_config() -> StrategyConfig:
             category=s.get("category", "technical"),
             enabled=s.get("enabled", True),
             markets=s.get("markets", ["tw", "us"]),
+            description=s.get("description", ""),
             conditions=s.get("conditions", []),
             filters=s.get("filters", []),
             cooldown_days=s.get("cooldown_days"),

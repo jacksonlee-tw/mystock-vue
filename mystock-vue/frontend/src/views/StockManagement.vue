@@ -196,7 +196,8 @@
       <div v-if="schedule && !scheduleLoading" class="flex items-center justify-between gap-3 flex-wrap pt-1">
         <p class="text-xs text-surface-500">
           <i class="pi pi-info-circle"></i>
-          抓取完成後會自動接著執行策略掃描；若當下已有抓取任務進行中，該次排程會直接跳過而非排隊等待。
+          抓取完成後會自動接著執行策略掃描（涵蓋均線／籌碼／基本面／選股策略）；若當下已有抓取任務進行中，該次排程會直接跳過而非排隊等待。
+          <b>持倉出場風控（移動停利／固定停損）不在此自動排程內</b>，需至「策略選股與風控中心」頁手動點擊「持倉風控掃描」觸發。
         </p>
         <div class="flex items-center gap-2">
           <button

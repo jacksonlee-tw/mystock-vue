@@ -43,6 +43,7 @@
             <div class="text-base text-surface-600 dark:text-surface-400 mt-0.5 truncate flex items-center gap-1.5">
               <i class="pi text-xs text-surface-400" :class="categoryIcon(alert)"></i>
               {{ alert.strategy_name }} · {{ formatDirection(alert.direction) }}
+              <StrategyInfoPopover :strategy="strategyById[alert.strategy_id]" />
             </div>
           </div>
 
@@ -105,6 +106,7 @@ import { useRouter } from 'vue-router';
 import { directionVisual, formatDirectionLabel, STRENGTH_META } from '@/utils/alertDirection';
 import { categoryMeta } from '@/utils/alertCategory';
 import WatchlistStarButton from '@/components/WatchlistStarButton.vue';
+import StrategyInfoPopover from '@/components/StrategyInfoPopover.vue';
 
 const props = defineProps({
   alerts: { type: Array, default: () => [] },
@@ -140,6 +142,9 @@ function strengthMeta(strength) {
 const categoryByStrategyId = computed(() => Object.fromEntries(props.strategyList.map((s) => [s.id, s.category])));
 function categoryIcon(alert) {
   return categoryMeta(categoryByStrategyId.value[alert.strategy_id]).icon;
+
+// strategy_id -> 完整策略物件，供 StrategyInfoPopover 顯示規則說明用
+const strategyById = computed(() => Object.fromEntries(props.strategyList.map((s) => [s.id, s])));
 }
 
 // 依交易日分組並依日期新到舊排序；最新一組加註「最新」標籤
