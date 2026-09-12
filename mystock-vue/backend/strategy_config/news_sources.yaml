@@ -1,0 +1,34 @@
+# backend/strategy_config/news_sources.yaml
+# 新聞／社群來源白名單（docs/16.AI技術分析/Phase4-輕量化新聞輿情與總經監控.md §2，ADR-P4-01）
+# 每次讀取時重新解析，改設定不需重啟服務；解析失敗時沿用上一次成功載入的設定（見
+# services/news_config.py 的 fallback 機制），不讓排程整個中斷。
+
+defaults:
+  dedup_window_hours: 48      # 近似標題比對的回溯範圍
+  dedup_hamming_max: 3        # SimHash 漢明距離門檻，越小越嚴格
+  sentiment_window_days: 5    # 情緒動能計算的交易日數
+
+sources:
+  - id: "cnyes"
+    name: "鉅亨網台股新聞"
+    kind: "news"
+    enabled: true
+    weight: 1.2               # 情緒加權平均的來源權重
+    endpoint: "https://api.cnyes.com/media/api/v1/newslist/category/tw_stock_news"
+    rate_limit_seconds: [3, 5]  # 隨機延遲區間，比照 fetcher.py 節流慣例
+
+  - id: "yahoo_stock"
+    name: "Yahoo 股市重大訊息"
+    kind: "news"
+    enabled: false            # 預設關閉：與鉅亨網轉載重疊度高，需要冷門股覆蓋率時再開
+    weight: 1.0
+    endpoint: ""              # 尚未定案的端點，enabled=false 時不會被呼叫
+    rate_limit_seconds: [3, 5]
+
+  - id: "ptt_stock"
+    name: "PTT Stock 板"
+    kind: "buzz"              # 只計討論量，不進情緒評分
+    enabled: true
+    weight: 0.8
+    endpoint: "https://www.ptt.cc/bbs/Stock/index.html"
+    rate_limit_seconds: [3, 5]

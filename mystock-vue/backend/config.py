@@ -22,6 +22,14 @@ DEFAULT_MARKET_FETCH_THROTTLE_SECONDS = 3
 DEFAULT_MARKET_MANUAL_BACKFILL_MAX_DAYS = 120
 DEFAULT_MARKET_FETCH_ENABLED = True
 DEFAULT_UNIVERSE_TIER = "all_tracked"
+
+# ── Phase 4 新聞輿情與總經監控（docs/16.AI技術分析/Phase4-輕量化新聞輿情與總經監控.md §12）──
+DEFAULT_NEWS_SOURCES_CONFIG_PATH = os.path.join(BASE_DIR, "strategy_config", "news_sources.yaml")
+DEFAULT_NEWS_SENTIMENT_ENGINE = "local"
+VALID_NEWS_SENTIMENT_ENGINES = ("local", "llm", "hybrid")
+DEFAULT_NEWS_LLM_DAILY_QUOTA = 50
+DEFAULT_NEWS_LLM_PROVIDER = "gemini"
+DEFAULT_NEWS_RETENTION_MONTHS = 12
 # 抓歷史資料的上限（月）。目前系統實際累積的資料量遠低於此，等同於「抓全部歷史」；
 # 之所以不用 None／不限制，是沿用 aggregate_stock_data() 既有的 months 參數介面。
 # 集中放在這裡（而非各自散在 services/chip_provider.py、services/stock_service.py）是因為
@@ -134,6 +142,56 @@ def is_market_fetch_enabled() -> bool:
     """全市場每日抓取排程是否啟用。"""
     load_dotenv(ENV_PATH, override=True)
     return os.getenv("MARKET_FETCH_ENABLED", "true").strip().lower() != "false"
+
+
+# ── Phase 4 新聞輿情與總經監控 ──────────────────────────────────────────
+def get_news_sources_config_path() -> str:
+    load_dotenv(ENV_PATH, override=True)
+    return os.getenv("NEWS_SOURCES_CONFIG_PATH", DEFAULT_NEWS_SOURCES_CONFIG_PATH)
+
+
+def is_news_fetch_enabled() -> bool:
+    load_dotenv(ENV_PATH, override=True)
+    return os.getenv("NEWS_FETCH_ENABLED", "true").strip().lower() != "false"
+
+
+def is_macro_fetch_enabled() -> bool:
+    load_dotenv(ENV_PATH, override=True)
+    return os.getenv("MACRO_FETCH_ENABLED", "true").strip().lower() != "false"
+
+
+def get_news_sentiment_engine() -> str:
+    load_dotenv(ENV_PATH, override=True)
+    engine = os.getenv("NEWS_SENTIMENT_ENGINE", DEFAULT_NEWS_SENTIMENT_ENGINE).strip().lower()
+    return engine if engine in VALID_NEWS_SENTIMENT_ENGINES else DEFAULT_NEWS_SENTIMENT_ENGINE
+
+
+def get_news_llm_daily_quota() -> int:
+    """獨立於 AI_DAILY_QUOTA（ADR-P4-03）：新聞情緒 LLM 呼叫量級與個股診股報告完全不同，
+    共用計數器會把報告額度排擠掉，比照 industry_chain 的 IC_LLM_MONTHLY_CALL_CAP 先例。"""
+    load_dotenv(ENV_PATH, override=True)
+    try:
+        return int(os.getenv("NEWS_LLM_DAILY_QUOTA", str(DEFAULT_NEWS_LLM_DAILY_QUOTA)))
+    except ValueError:
+        return DEFAULT_NEWS_LLM_DAILY_QUOTA
+
+
+def get_news_llm_provider() -> str:
+    load_dotenv(ENV_PATH, override=True)
+    return os.getenv("NEWS_LLM_PROVIDER", DEFAULT_NEWS_LLM_PROVIDER).strip()
+
+
+def get_news_retention_months() -> int:
+    load_dotenv(ENV_PATH, override=True)
+    try:
+        return int(os.getenv("NEWS_RETENTION_MONTHS", str(DEFAULT_NEWS_RETENTION_MONTHS)))
+    except ValueError:
+        return DEFAULT_NEWS_RETENTION_MONTHS
+
+
+def get_fred_api_key() -> str:
+    load_dotenv(ENV_PATH, override=True)
+    return os.getenv("FRED_API_KEY", "").strip()
 
 def get_default_universe_tier() -> str:
     """選股池預設層級（選股功能與爬蟲 規格書 §7）。"""

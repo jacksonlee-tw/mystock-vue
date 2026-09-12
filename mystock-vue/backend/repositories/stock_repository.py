@@ -472,3 +472,17 @@ class StockRepository:
                 market_type, dates, source
             )
         )
+
+    def list_symbols_sync(self, market_type: Optional[str] = None) -> list[dict]:
+        """給 services/news_fetcher.py 用來過濾「哪些代號是本站已追蹤的台股」（Phase 4 文件
+        §1.3：新聞/情緒僅支援 TW，避免把 cnyes 回應裡的美股代號當成台股符號誤存）。"""
+        return run_async(
+            StockRepository(session_factory=_BackgroundSessionFactory()).list_symbols(market_type)
+        )
+
+    def get_no_trading_days_sync(self, market_type: str) -> set:
+        """給 services/news_fetcher.py 組出 `effective_trade_date()` 需要的 is_trading_day
+        callable（見 indicators/news_time.py `is_weekday_trading_day()`）。"""
+        return run_async(
+            StockRepository(session_factory=_BackgroundSessionFactory()).get_no_trading_days(market_type)
+        )

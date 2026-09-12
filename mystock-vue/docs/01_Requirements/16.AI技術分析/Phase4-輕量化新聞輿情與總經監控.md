@@ -9,18 +9,22 @@ Phase 4: 輕量化新聞輿情與總經監控 (Semantic Assist & Macro Monitorin
 | --- | --- |
 | 模組 | 輕量化新聞輿情與總經監控 |
 | 對應既有模組 | `strategies/`（新增條件類型）、`services/`（新增新聞與總經管線）、`notify/`（沿用推播）、`db/migration/`（新增資料表） |
-| 版本 | v2.0（新增來源白名單、降噪去重、Point-in-time 對齊、成本分層） |
-| 狀態 | 需求規格 — 待審核，尚未開發 |
+| 版本 | v2.1（新增 §15 現況評估與分階段實作計畫） |
+| 狀態 | 需求規格 — 待審核，**尚未開發**（2026-09-13 已逐項核對現行程式碼確認：本文件所有規劃項目在 backend／frontend 皆零實作，見 §15.1） |
 
 ---
 
 ## 0. 修訂紀錄與決策（ADR）
 
-### 0.1 v2.0 優化重點
+### 0.1 v2.1 變更摘要
+
+新增 §15「現況評估與分階段實作計畫」：逐項核對現行程式碼確認本文件規劃的全部項目（三張新表、`news_fetcher.py`／`macro_fetcher.py`、`news_sources.yaml`、`conditions_sentiment.py`／`conditions_macro.py`、`ScanContext` 新欄位、`api/v1/endpoints/news.py`／`macro.py`、scheduler 排程、notify 樣板、前端元件）**目前零實作**，並將本文件已定案的技術決策轉譯為可執行的分階段交付計畫（WBS），標出文件本身三處已過期／寫錯的檔案路徑（§15.1）、需要人為先做實驗或拍板的風險點（§15.3），以及文件未講清楚、留給實作者自行決定的落差點（§15.4）。**本次僅新增 §15，不變更 §1～§14 任何 FR／ADR／驗收條件的需求本身。**
+
+### 0.2 v2.0 優化重點
 
 v1.0 僅列出「要做哪些功能」，實作時會撞到三個問題：新聞來源開越多雜訊越大、同一則消息被多家轉載重複計分、LLM 逐則評分的成本無上限。v2.0 針對這三點補上機制，並補齊 v1.0 完全沒有處理的 **Point-in-time 對齊**（新聞與總經數據的「可見時點」與交易日不是同一條時間軸）。
 
-### 0.2 決策紀錄
+### 0.3 決策紀錄
 
 | 編號 | 決策 | 理由 |
 | --- | --- | --- |
@@ -393,3 +397,57 @@ MACRO_FETCH_ENABLED=true
 | AC-P4-07 | LLM 情緒評分呼叫數達 `NEWS_LLM_DAILY_QUOTA` 後停止呼叫並記錄，且 `AI_DAILY_QUOTA`（技術分析報告）額度不受影響 |
 | AC-P4-08 | 新聞卡片的情緒 Tag 配色與同頁面漲跌幅配色方向一致，不出現「紅色代表利空、同頁紅色代表上漲」的矛盾 |
 | AC-P4-09 | 個股頁切換圖表期間時捲動位置不跳回頂端；新增的總經卡片與同列既有卡片高度一致 |
+
+---
+
+## 15. 現況評估與分階段實作計畫（v2.1 新增，2026-09-13）
+
+本節不改變 §1～§14 的任何需求，只回答兩件事：**現在做到哪裡了**、**接下來怎麼分階段做**。方法是逐項核對現行程式碼，不是讀規格猜測。
+
+### 15.0 現況評估結論
+
+全文對照 `backend/`／`frontend/` 後確認：本文件規劃的每一項產出——三張新表（`stock_news`／`stock_discussion_buzz`／`macro_indicators`）、`services/news_fetcher.py`、`services/macro_fetcher.py`、`strategy_config/news_sources.yaml`、`strategies/conditions_sentiment.py`／`conditions_macro.py`、`ScanContext` 的 `sentiment_5d`／`news_count`／`buzz_percentile`／`macro_flags` 欄位、`api/v1/endpoints/news.py`／`macro.py`、`services/scheduler.py` 的新聞/總經排程、`notify/` 的新聞相關樣板、任何前端新聞或總經 UI——**全部零實作**。目前最新 Flyway 遷移是 `V22__Create_quarterly_financials.sql`，本文件新增的遷移須從 **V23** 起算（§7 原文寫「例如 V17」已過期）。這與文件頂部自報的「尚未開發」狀態一致，不像 Phase 2／3／5 文件曾出現「狀態欄位過期、程式碼早已超前」的落差。
+
+### 15.1 轉譯前必須先修正的文件錯誤（避免施工者照抄文件字面出錯）
+
+| # | 文件原文 | 問題 | 修正 |
+| --- | --- | --- | --- |
+| 1 | §11：「於 `HomeDashboard.vue` 新增總經儀表板區塊」 | `HomeDashboard.vue` 是**遺留死碼**——已核對 `frontend/src/router/index.js`，完全沒有任何路由掛載它；內容是假資料 `newsList`/`todoList`，還留著除錯用 `console.log` | 總經儀表板區塊應加在 **`frontend/src/views/HeatmapDashboard.vue`**——這才是真正掛在 `/` 路由（`name: 'heatmap-dashboard'`）的首頁 |
+| 2 | §6.4：暗示 `ALERT_COOLDOWN_DAYS` 在 `strategies/cooldown.py` | 已核對 `backend/config.py`：常數是 `DEFAULT_ALERT_COOLDOWN_DAYS`、讀取函式是 `get_alert_cooldown_days()`，都在 `config.py`；`strategies/cooldown.py` 只有兩個純函式 `cooldown_key()`／`is_active()`，沒有任何天數常數 | 去重邏輯是「`cooldown.py` 的鍵與判斷函式」＋「`config.py` 的天數設定」兩個檔案協作，文件與後續程式註解需並列兩個檔名，不能只提一個 |
+| 3 | §7：「例如 `V17__Create_news_and_macro_tables.sql`」 | `V17` 已被 `V17__Relax_investment_note_symbol_pair_check.sql` 占用；目前最新是 `V22__Create_quarterly_financials.sql` | 實際命名為 **`V23__Create_news_and_macro_tables.sql`**，且動工前需重新 `ls db/migration/` 確認當下最新序號（期間可能有其他分支併入新遷移） |
+
+**額外可具體化之處**：§4.1「呼叫紀錄比照既有 `ai_llm_execution` 表的粒度記錄成本」——已找到比文件描述更具體的現成範本：`backend/industry_chain/extractor.py`（約 117～201 行）就是同一模式的實作先例（配額檢查直接 `SELECT COUNT(*) FROM ai_llm_execution WHERE ...`、寫入時 `report_id=None`／`symbol=None`／獨立 `prompt_version`；`ai_llm_execution.report_id` 已核對 `V14__Create_ai_analysis_tables.sql` 為可 NULL 外鍵）。`NEWS_LLM_DAILY_QUOTA` 的配額檢查與寫入建議直接照抄這段程式碼的結構，不需重新設計。
+
+### 15.2 分階段交付計畫（WBS）
+
+| 階段 | 範圍 | 前置依賴 | 獨立驗證方式 | 工作量感覺 |
+| --- | --- | --- | --- | --- |
+| **Spike-0**（可與 P0 並行，建議最早啟動） | 中文情緒模型選型驗證（§4.2）：人工標註 200～300 則台股新聞標題，比較候選模型與 LLM 的一致率，決定 `NEWS_SENTIMENT_ENGINE` 預設值與 L1 部署形態（常駐 vs 排程批次） | 無（可先用臨時腳本抓樣本，不需等 P1 完工） | 與人工標註基準集的一致率（門檻數字待訂，見 §15.3-1） | **需要先做實驗才能繼續，非單純寫程式**；結果回頭決定 P2 範圍 |
+| **P0** 骨架與設定 | `db/migration/V23__Create_news_and_macro_tables.sql`（三表+索引，§7 照抄）、`strategy_config/news_sources.yaml`（§2 照抄）、`.env`/`.env.example` 新增 §12 六個變數、`config.py` 新增對應 getter（比照 `get_alert_cooldown_days()` 模式）、YAML loader（重新解析不需重啟、解析失敗沿用舊設定——需先讀 `strategies/config_loader.py` 確認能否共用同一套快取/重載機制） | 無 | `flyway migrate` 後查表結構；改 `enabled` 值驗證熱重載；刻意寫壞 YAML 驗證 fallback | 小 |
+| **P1** 新聞資料管線 | `services/news_fetcher.py`（cnyes/yahoo_stock/ptt_stock，比照 `fetcher.py` 的 `fetch_status` 單例＋節流）、兩段式落地（`data/_news/raw/{source_id}/{YYYYMMDD}.json` → `stock_news`）、三層去重（L1/L2 為 SQL 唯一索引；L3 SimHash 需新增獨立工具函式，建議 `services/news_dedup.py`）、`effective_trade_date` 計算（比照 `indicators/fundamental.py` 的 `latest_visible_month()` 寫法，建議新增 `indicators/news_time.py`）、`api/v1/endpoints/news.py` 四個端點 | P0 | 情緒評分完全不做也能驗證 AC-P4-01/02/03（`sentiment_score` 允許 NULL） | **主要工程量**（三來源穩定度＋三層去重＋point-in-time 對齊） |
+| **P2** 情緒評分引擎 | 依 Spike-0 結論實作 L1／L2；L2 沿用 `ai/providers/__init__.py` 的 `PROVIDER_REGISTRY`；配額與成本記錄直接照抄 `industry_chain/extractor.py`（見 §15.1 附註）；`sentiment_5d`／Buzz Surge／背離標記彙總 job；PTT 過熱分位數直接複用 `indicators/chip.py` 既有的 `rolling_percentile()`（換 `value_fn`、`window=250`，不重寫演算法） | Spike-0 結論、P1 | 對照 Spike-0 基準集算一致率回歸；配額用完驗證 AC-P4-07 | **主要工程量，且高度依賴 Spike-0 是否順利** |
+| **P3** 總經／大盤環境管線（可與 P1/P2 並行） | `services/macro_fetcher.py`（FRED + DXY，`indicator_date`/`release_date` 分欄）、`api/v1/endpoints/macro.py`、20MA/60MA 位階讀既有 `index_service.py`（不重建指數管線） | P0 | 查表確認兩欄位分離；用歷史 CPI/非農公布日構造案例驗證 AC-P4-04 | 中（FRED API 本身簡單，複雜度在 release_date 對齊與 DXY 來源選定） |
+| **P4** ScanContext 擴充＋兩個新 condition（整合階段） | `chip_provider.py` 的 `ScanContext`（`@dataclass`）新增四欄位，逐日 append 邏輯仿 `revenue_yoy` 寫法；**`macro_flags` 需在 `strategies/scanner.py` 的 `for symbol in all_scan_symbols:` 迴圈之前算一次、注入每次 `get_bars()` 呼叫**（不能塞進逐日迴圈，這是滿足 AC-P4-06「全市場一次」的關鍵，文件沒點名具體檔案/行號，已在此補上）；`conditions_sentiment.py`／`conditions_macro.py`＋`strategies/__init__.py` 補 import；「只掛閘門型 condition 需警示」的檢核（建議併入 `strategies/config_loader.py` 既有 YAML schema 驗證） | P1、P2、P3 全部 | AC-P4-05（對照既有 filter 行為差異）；AC-P4-06（斷言計算次數==掃描次數） | 中，程式量不大但正確性要求高（look-ahead bias、單次計算共用） |
+| **P5** 通知整合 | `notify/events.py` 的 `ALERT_SIGNAL` payload 加 `top_news`/`sentiment_5d`（確認不影響 `_key_alert_signal()` 冪等鍵）；三通道樣板加選擇性區塊 | P4 | 手動觸發一次帶新聞資料的訊號，核對三通道渲染與去重鍵不變 | 小 |
+| **P6** 前端 | `service/newsApi.js`／`macroApi.js`（`import { apiClient } from '@/service/stockApi'`）；個股新聞卡片仿 `StockAlertsPanel.vue`＋`AlertTimeline.vue`（情緒 Tag 沿用 `marketColors.js` 紅漲綠跌，**不看 `useMarket.js` 死欄位 `up_down_convention`**）；總經儀表板區塊加在 **`HeatmapDashboard.vue`**（見 §15.1-1），Sparkline 抄 `HeatmapDashboard.vue` 既有 `getSparklineOption()` 改中性單色 | P1、P3（不依賴 P4/P5，可先用假資料開發 UI） | AC-P4-08/09，建議用 `/run` 實際跑起來截圖驗證（純視覺回歸容易漏審） | 中 |
+| **P7** 排程串接與資料保留清理 | `scheduler.py` 新增 §9 六個排程項（新聞抓取／情緒評分鏈式觸發／PTT／FRED-DXY／清理）；保留政策比照既有 `purge_old_logs` | P1～P4 全部 | 先手動觸發 `POST /news/trigger` 跑順鏈式流程，再掛 cron（排程本身難重現問題，不建議用排程除錯） | 小 |
+
+**建議執行順序**：Spike-0（越早做越好，與 P0 並行）→ P0 → P1 與 P3 並行 → P2 → P4（收斂整合點，必須排在 P1/P2/P3 之後）→ P5 → P6（可與 P4/P5 部分並行，先用假資料開發 UI 骨架）→ P7（收尾）。
+
+### 15.3 需要人為決策、無法單靠寫程式解決的風險點
+
+1. **§4.2 中文情緒模型選型驗證缺一致率門檻數字**：文件已承認 FinBERT 不適用，但沒給「一致率要達到多少才算通過」的具體門檻——這是需要使用者/架構師在 Spike-0 開工前先拍板的數字（例如「與 LLM 標註結果一致率 ≥ 80%」），否則 Spike-0 沒有明確的 Definition of Done，容易陷入無限調參，且此結果會回頭改變 P2 範圍與部署形態（常駐 API 內 vs 獨立排程批次程序）。
+2. **PTT／Cnyes／Yahoo 爬蟲的 ToS／穩定度風險**：§3.1 僅寫「須遵守目標站點的存取條款」，未給明確驗收標準。PTT 網頁版有 18 歲同意頁與偶發改版，屬營運風險；Cnyes／Yahoo 若無官方開放條款，長期存取有 IP 封鎖或法遵疑慮——這是業務層級的風險接受決策，不是工程師能單方面決定的事，建議在 P1 動工前由你明確拍板「接受此風險上線」或「先確認/改用官方付費 API」。工程上能做的只有把三個來源做成互相獨立、單一來源失效不影響其他（`news_sources.yaml` 的 `enabled` 開關已是這個設計的一部分）。
+3. **三層去重（尤其 L3 SimHash）對中文標題的實際效果未經實測**：文件自己承認「trigram 對中文標題的鑑別度需先實測」，`dedup_hamming_max: 3` 只是預設值。建議 P1 上線後留一週觀察期，用真實跨來源轉載樣本人工抽查「有沒有漏判」與「有沒有誤判」，再回頭調整門檻，不能假設一次寫對。
+
+### 15.4 文件未講清楚、留給實作者自行決定的落差點
+
+- **`macro_flags` 的計算/注入位置未指名檔案**：已在 §15.2 P4 具體標出是 `strategies/scanner.py` 的 `for symbol in all_scan_symbols:` 迴圈之前，文件只講了原則（單次掃描共用一份），沒點名這個位置。
+- **L3 SimHash 工具函式該放哪個檔案未指定**：建議獨立成 `services/news_dedup.py`（而非併入 `news_fetcher.py`），因為去重邏輯未來可能被評分 job 複用來排除 `is_duplicate` 列，放進抓取器檔案會造成不必要耦合。
+- **「策略只掛閘門型 condition 需在啟動日誌警示」的實作位置未指定**（§6.4）：建議併入 `strategies/config_loader.py` 既有 YAML schema 驗證批次，不另立檢查函式。
+- **DXY 的具體資料來源未指定**（§5.1）：只寫「串接美元指數（DXY）」，沒說是哪個 FRED series ID 或替代來源，需在 P3 開工前先確認，否則 `macro_fetcher.py` 無法真的動手寫。
+- **L2 閘門條件二「追蹤清單／持股庫存」對應哪張表未指名**（§4.1）：推測是 `watchlist`／`portfolio` 相關表，但需在 P2 開工前明確指名具體查詢來源，避免評分 job 各自猜測出兩套不一致的清單定義。
+
+### 15.5 Critical Files（供 P0 開工時快速定位）
+
+`backend/services/chip_provider.py`（ScanContext）、`backend/strategies/scanner.py`（掃描迴圈與 macro_flags 注入點）、`backend/strategies/__init__.py`（condition 模組註冊）、`backend/services/news_fetcher.py`（待新增）、`backend/strategy_config/news_sources.yaml`（待新增）、`backend/db/migration/V23__Create_news_and_macro_tables.sql`（待新增）、`backend/industry_chain/extractor.py`（LLM 配額/成本記錄範本）、`frontend/src/views/HeatmapDashboard.vue`（總經儀表板實際掛載處）。

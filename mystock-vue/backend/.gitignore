@@ -19,6 +19,12 @@ data/us/_indices/*.json
 data/tw/_meta/*.json
 data/us/_meta/*.json
 
+# 新聞兩段式落地的第一階段緩衝檔（見 services/news_fetcher.py、
+# docs/16.AI技術分析/Phase4-輕量化新聞輿情與總經監控.md ADR-P4-04）：每次抓取都會新增一個
+# 帶時間戳記的檔案，是本機重跑用的暫存快照，不是像 data/_alerts/ 那樣的應用程式狀態，
+# 不進版控（否則每天抓取都會持續膨脹 repo 體積）。
+data/_news/
+
 # 概念股標籤是人工維護的種子資料（見 services/concept_tag_service.py、
 # docs/17.熱力圖概念股標籤分類/概念股標籤分類_規劃書.md ADR-CT4），不是爬蟲快取，
 # 比照 strategy_config/strategies.yaml（人工維護的設定檔）維持版控，故從上面的忽略規則中排除。

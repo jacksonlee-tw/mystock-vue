@@ -19,6 +19,7 @@ from api.v1.endpoints.industry_chains import router as industry_chains_router
 from api.v1.endpoints.investment_notes import router as investment_notes_router
 from api.v1.endpoints.market import router as market_router
 from api.v1.endpoints.markets import router as markets_router
+from api.v1.endpoints.news import router as news_router
 from api.v1.endpoints.notify_admin import router as notify_admin_router
 from api.v1.endpoints.notify_admin import session_router as notify_session_router
 from api.v1.endpoints.notify_public import router as notify_public_router
@@ -189,6 +190,7 @@ app.include_router(exchange_rates_router)
 app.include_router(fundamentals_router)
 app.include_router(schedule_router)
 app.include_router(strategies_router)
+app.include_router(news_router)
 
 @app.exception_handler(SymbolNotFoundException)
 async def symbol_not_found_handler(request, exc):
