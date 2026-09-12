@@ -11,7 +11,7 @@
       "name": "backend-dev",
       "runtimeExecutable": ".venv/Scripts/python.exe",
       "runtimeArgs": ["backend/main.py"],
-      "port": 8000
+      "port": 18888
     }
   ]
 }

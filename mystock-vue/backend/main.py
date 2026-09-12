@@ -376,9 +376,9 @@ def health_check():
 if __name__ == "__main__":
     print("=" * 60)
     print("MyStock 股市分析 FastAPI 後端服務啟動中...")
-    print("API 文件請開啟: http://localhost:8000/docs")
+    print("API 文件請開啟: http://localhost:18888/docs")
     print("=" * 60)
     # reload 預設關閉：--reload 會多開一個 watcher 子行程，開發過程反覆重啟容易留下卡在
-    # port 8000 的殘留行程（見 stop_servers.bat）。需要熱重載時設 UVICORN_RELOAD=true。
+    # port 18888 的殘留行程（見 stop_servers.bat）。需要熱重載時設 UVICORN_RELOAD=true。
     reload_enabled = os.getenv("UVICORN_RELOAD", "false").lower() in {"1", "true", "yes"}
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=reload_enabled)
+    uvicorn.run("main:app", host="0.0.0.0", port=18888, reload=reload_enabled)

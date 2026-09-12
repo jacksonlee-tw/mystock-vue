@@ -90,8 +90,9 @@ services:
       QUARTERS_RANGE: ${QUARTERS_RANGE:-4}
       ENABLED_MARKETS: ${ENABLED_MARKETS:-tw,us}
       BACKFILL_MAX_DAYS: ${BACKFILL_MAX_DAYS:-90}
+    # 宿主機端對外 port 改為 18888（本機 8000 常被其他服務占用）；容器內部仍固定 8000。
     ports:
-      - "8000:8000"
+      - "18888:8000"
     volumes:
       # 爬蟲落地的 JSON（data/tw、data/us、_alerts）跨容器重啟保留。
       - ./data:/app/data

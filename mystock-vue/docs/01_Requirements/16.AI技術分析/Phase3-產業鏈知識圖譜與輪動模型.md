@@ -7,9 +7,9 @@
 [services/mops_fetcher.py](../../backend/services/mops_fetcher.py)（MOPS 抓取前例與已知限制，見 §2.2）、
 [backend/ai/](../../backend/ai/)（LLM Provider 抽象層／成本閘門／`ai_llm_execution` 成本帳——**本版起升為 P0 主資料來源**，見 §2.5、§4.7）、
 [services/concept_tag_service.py](../../backend/services/concept_tag_service.py)（概念股標籤，第四種產業粒度，見 §2.1）
-**版本**：v2.9
-**日期**：2026-09-01
-**狀態**：**需求規格 — 待審核。本文件只定義需求、資料模型與驗收條件，不含程式開發**
+**版本**：v2.10
+**日期**：2026-09-13
+**狀態**：**大部分已完成**。P0（`industry_chain_edges`／`industry_chain_lead_lag_cache` 表、LLM 萃取管線、CCF／Granger、三個月排程、基礎 API／前端力導向圖）與 P1 多數項目（脫鉤監控、人工核對介面、grounded 萃取、跨 Provider 共識驗證、FR-15/16 AI 報告 Context 注入、FR-21 匯出投資筆記）均已核對現行程式碼確認落地，見 §0 v2.3～v2.9 各筆變更紀錄與 §10、§14。**唯一與此狀態衝突的舊敘述**：本行在 v2.0～v2.9 期間固定寫「需求規格、不含程式開發」，但同一版本的 §0 changelog 早已記載大量實作完成——那才是準確的現況，本行純屬未同步更新，**v2.10 僅修正本行文字，不變更任何 FR／驗收條件**。仍未完成／有意延後的部分：FR-4（MOPS 客戶名單獨立萃取，v2.8 已評估否決先做）、FR-12（估值分位數濾網，待《相對低點》P1 前置資料）、FR-17（圖譜截圖多模態研判，P2／選用），以及 §12 尚未結案的 Q-2／Q-3／Q-7
 
 **參考文件**
 - [AI 技術分析報告 系統開發規格書](AI技術分析規劃.md)（以下簡稱《AI 報告規格》）—— `backend/ai/` package 的 Provider 抽象、成本閘門、`activity_log` 設計前例，本文件多處直接沿用
@@ -52,6 +52,7 @@
 
 | 版本 | 變更摘要 |
 |---|---|
+| **v2.10** | **僅修正頂部「狀態」欄位文字，不變更任何 FR／驗收條件**：該欄位自 v2.0 起固定寫「需求規格 — 待審核…不含程式開發」，但同一份文件的 v2.3～v2.9 changelog 早已逐筆記載大量實作完成（P0 全部、P1 多數），兩者長期矛盾。逐項核對現行程式碼後確認 changelog 記載屬實：`backend/industry_chain/` 套件（config／extractor／validator／graph／spillover／summary／research／decouple_job／lead_lag_job／schema／errors／prompt 共 11 個模組）、`V19`／`V20` 遷移、9 支 API 端點（`api/v1/endpoints/industry_chains.py`，已掛載於 `main.py`）、三個月排程（FR-18/19/20，`services/scheduler.py`）、前端力導向圖／設定對話框／人工核對對話框／匯出投資筆記（`IndustryChainView.vue` 等）均存在且與 changelog 描述一致。因此改寫「狀態」欄位為準確描述，避免重蹈 Phase2 文件 v1.0 的覆轍——照舊欄位字面開工會把已完成的 P0/P1 全部重做一遍 |
 | v1.0 | 初版構想清單：`industry_chain_edges` 上下游關聯表、CCF 領先落後檢定、動能外溢監控三段式描述。方向正確，但未核對本專案現行的資料層（`DATA_SOURCE` 雙軌、`ScanContext`／`MarketPreload`）、既有產業標籤（`symbol_industry`）、既有爬蟲限制（MOPS WAF）與策略引擎的條件函式簽章，直接照抄會出現架構不相容之處（見 §2） |
 | v2.0 | 本次優化：新增 §2 現況盤點（釐清與 `symbol_industry`／`SectorRotationView.vue`／策略引擎的分界）、§9 決議事項（ADR）、資料庫設計改為 Flyway／Postgres-only 慣例並移除與現行 `config.py` 撞名的設定檔路徑、將「動能外溢偵測」拆分為「可沿用既有引擎」與「需要新批次模組」兩部分、標出年報客戶名單解析與跟漲勝率矩陣的資料/工程缺口、補上分階段交付與驗收準則 |
 | v2.1 | 併入一份外部審閱意見（自稱 v3.0）中查證屬實的部分，並修正 v2.0 自身一處誤植：(1) **修正** ADR-IC-01 誤把 `symbol_industry` 引用為「Postgres-only」前例——查證 `services/industry_fetcher.py`／`db/dual_write.py` 後，`symbol_industry` 實際是 **JSON 為主、Postgres best-effort 雙寫**（`dual_write_symbol_industry()`），與 `daily_stock_data` 同一套既有慣例；`industry_chain_edges` 的寫入面因此改採同一套慣例（新增 ADR-IC-09），讀取面（圖查詢／BFS）維持需要 Postgres 的結論不變；(2) **新增** `extra_data JSONB` 欄位（比照 `daily_stock_data.market_specific_data` 既有慣例，ADR-IC-10）；(3) **精煉** ADR-IC-06：明確納入「力導向圖截圖 + 多模態 LLM」的構想（呼應既有 ADR-AI-02「AI 看到的圖＝使用者看到的圖」哲學），但**否決**該外部意見提出的具體實作路徑（新開 `/industry-chains/analyze-ai` 端點、寫死過期模型 ID `Gemini 1.5 Pro`／`Claude 3.5 Sonnet`）；(4) **否決**該外部意見的 `system_activity`（非既有表名，應為 `activity_log`）與 `config/industry_chains.yaml`（重現 v2.0 已修正的撞名問題）兩處，理由與逐項評估見對話紀錄 |

@@ -13,6 +13,57 @@ spec — many modules carry comments like `見設計文件第 X 節` (see design
 doc under `docs/`. When changing behavior in `strategies/`, `services/`, or `db/`, check the referenced doc
 folder first; the numbered `docs/N.主題/` folders roughly track the project's build phases.
 
+## Engineering Protocols & Agent Skills
+
+This project follows the senior engineering skills located in `.agents/skills/`. Strictly adhere to the
+following guidelines:
+
+- **Process discipline**:
+  - For new features, always consult [spec-driven-development](.agents/skills/spec-driven-development/SKILL.md)
+    and [planning-and-task-breakdown](.agents/skills/planning-and-task-breakdown/SKILL.md) before coding.
+  - For coding and refactoring, follow [test-driven-development](.agents/skills/test-driven-development/SKILL.md)
+    and [code-simplification](.agents/skills/code-simplification/SKILL.md).
+  - Deliver non-trivial changes as thin, verifiable slices per
+    [incremental-implementation](.agents/skills/incremental-implementation/SKILL.md).
+  - Follow the anti-rationalization tables: never skip unit tests or leave edge cases for "later".
+- **Design & implementation**:
+  - [api-and-interface-design](.agents/skills/api-and-interface-design/SKILL.md) — designing REST endpoints,
+    module boundaries, or the frontend/backend contract.
+  - [frontend-ui-engineering](.agents/skills/frontend-ui-engineering/SKILL.md) — building/modifying Vue
+    components, layouts, and accessibility.
+  - [source-driven-development](.agents/skills/source-driven-development/SKILL.md) — verify framework/library
+    usage against official docs before implementing.
+  - [constraint-driven-development](.agents/skills/constraint-driven-development/SKILL.md) — recording and
+    enforcing this project's quality bar.
+- **Verification & quality**:
+  - [code-review-and-quality](.agents/skills/code-review-and-quality/SKILL.md) — before merging any change.
+  - [debugging-and-error-recovery](.agents/skills/debugging-and-error-recovery/SKILL.md) — systematic root-cause
+    debugging when something breaks or behaves unexpectedly.
+  - [browser-testing-with-devtools](.agents/skills/browser-testing-with-devtools/SKILL.md) — inspecting DOM,
+    console, network, or verifying visual output for frontend changes.
+  - [security-and-hardening](.agents/skills/security-and-hardening/SKILL.md) — any input handler, auth, data
+    storage, or third-party integration.
+  - [performance-optimization](.agents/skills/performance-optimization/SKILL.md) — suspected regressions,
+    N+1 queries, or Core Web Vitals work.
+  - [doubt-driven-development](.agents/skills/doubt-driven-development/SKILL.md) — adversarial review of
+    high-stakes or unfamiliar-code decisions before they stand.
+- **Process & delivery**:
+  - [git-workflow-and-versioning](.agents/skills/git-workflow-and-versioning/SKILL.md) — committing, branching,
+    PRs, releases.
+  - [ci-cd-and-automation](.agents/skills/ci-cd-and-automation/SKILL.md) — build/deploy pipeline changes.
+  - [deprecation-and-migration](.agents/skills/deprecation-and-migration/SKILL.md) — removing old code/APIs or
+    migrating schemas (e.g. new Flyway migrations).
+  - [shipping-and-launch](.agents/skills/shipping-and-launch/SKILL.md) — pre-production-deploy checklist.
+  - [observability-and-instrumentation](.agents/skills/observability-and-instrumentation/SKILL.md) — adding
+    logging/metrics for the scheduler, crawlers, or scan pipeline.
+  - [documentation-and-adrs](.agents/skills/documentation-and-adrs/SKILL.md) — recording architecture decisions
+    or updating docs under `docs/`.
+- **Requirements clarity**: [interview-me](.agents/skills/interview-me/SKILL.md) and
+  [idea-refine](.agents/skills/idea-refine/SKILL.md) when a request is underspecified or still a vague idea.
+- **Meta**: [using-agent-skills](.agents/skills/using-agent-skills/SKILL.md) governs how these skills are
+  discovered and invoked; [context-engineering](.agents/skills/context-engineering/SKILL.md) covers session/context
+  setup itself.
+
 ## Hard rules (user-mandated, must never regress)
 
 These come directly from the user as standing requirements, not one-off requests — any future change that
@@ -56,7 +107,7 @@ cd backend
 ..\start_backend.bat                              # Windows: uv-managed project .venv, installs missing dependencies, then `uv run main.py`
 # Linux/macOS (after activating the root .venv): python main.py
 ```
-API docs at `http://localhost:8000/docs`. There is no backend test suite — verify changes by hitting the
+API docs at `http://localhost:18888/docs`. There is no backend test suite — verify changes by hitting the
 running API (`/health`, `/docs`) or running the one-off scripts below.
 
 Utility scripts (run from `backend/`, each is documented in its own docstring):
@@ -78,7 +129,7 @@ container). `backend/.env` must exist before `up -d` — Docker will silently cr
 bind-mounting the file if it's missing. Flyway migrations live in `backend/db/migration/V*__*.sql`; add new ones
 there, never edit an already-applied `V*` file.
 
-`stop_servers.bat` (repo root) kills whatever is listening on ports 8000/5173/5175, for local (non-Docker) dev.
+`stop_servers.bat` (repo root) kills whatever is listening on ports 18888/5173/5175, for local (non-Docker) dev.
 
 ### Full-stack Docker deployment (repo root)
 Root-level compose files are a separate, full-stack (db + flyway + backup + backend + frontend) setup layered
@@ -188,7 +239,7 @@ Vue 3 (`<script setup>` Composition API) + PrimeVue (Aura preset, brand color ov
 for backward-compat links. `router.beforeEach` calls `useMarket().setMarket()` whenever a route carries a
 `:market` param, keeping the market singleton in sync with the URL. `service/*.js` are thin axios wrappers
 around the backend (`stockApi.js`, `alertApi.js`) sharing one `apiClient` (`VITE_API_BASE`, defaults to
-`http://localhost:8000/api/v1`).
+`http://localhost:18888/api/v1`).
 
 `vite.config.mjs` has a custom plugin (`fixViteHashPlugin`) working around a third-party tool appending an
 `#ai-agent` fragment to import specifiers — don't remove it without checking why it was added.

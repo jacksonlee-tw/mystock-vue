@@ -498,7 +498,7 @@ async function runScan() {
 async function runRiskScan() {
   scanningRisk.value = true;
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:8000/api/v1'}/alerts/scan/positions?market=${currentMarket.value}`, {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:18888/api/v1'}/alerts/scan/positions?market=${currentMarket.value}`, {
       method: 'POST'
     });
     const res = await response.json();

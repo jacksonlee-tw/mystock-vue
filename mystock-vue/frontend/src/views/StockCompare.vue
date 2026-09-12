@@ -312,7 +312,7 @@ async function fetchCompareData() {
   loading.value = true;
   try {
     const syms = selectedSymbols.value.join(',');
-    const res = await fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:8000/api/v1'}/fundamentals/compare?symbols=${syms}&market=tw`);
+    const res = await fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:18888/api/v1'}/fundamentals/compare?symbols=${syms}&market=tw`);
     const data = await res.json();
     if (data.success && data.data) {
       compareRows.value = data.data.rows || [];

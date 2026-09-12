@@ -782,7 +782,7 @@ async function exportCsv() {
       sort: sortField.value,
       order: sortOrder.value
     });
-    window.open(`${import.meta.env.VITE_API_BASE || 'http://localhost:8000/api/v1'}/market/daily?${params.toString()}`);
+    window.open(`${import.meta.env.VITE_API_BASE || 'http://localhost:18888/api/v1'}/market/daily?${params.toString()}`);
   } catch (e) {
     toast.add({ severity: 'error', summary: '匯出失敗', detail: String(e), life: 3000 });
   } finally {
