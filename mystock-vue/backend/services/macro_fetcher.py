@@ -74,14 +74,29 @@ def fetch_fred_series(indicator_code: str, fred_series_id: str, api_key: str) ->
 
     `value` 是 FRED 缺值標記（官方慣例用 `"."` 表示暫缺/未公布）或其他非數字字串時，
     該筆整筆跳過，不寫入假的 0（比照 fetcher.py 系列「缺值不可補 0」的既有教訓）。
+
+    `realtime_start`／`realtime_end`：FRED 官方文件說這兩個參數「未指定時預設為今天」，
+    但這個預設在搭配 `output_type=4` 時會把即時窗口收窄成「只限今天這一天發布的版本」，
+    99% 情況下當天根本沒有任何數列首次公布，導致 API 直接回 400（`No vintage dates exist
+    for the specified real-time period`）。實測踩過兩個坑，最終解法：
+    - `realtime_start` 設成跟 `observation_start` 同一個日期（而非「開站至今」的 `1776-07-04`）
+      ——後者對日頻數列（`DGS10`／`DXY`）會把即時窗口拉到近 5000+ 個 vintage 日，超過 FRED
+      對 JSON 輸出格式的上限（2000 個），直接 400。
+    - `realtime_end` 固定寫死 `"9999-12-31"`（FRED 文件明列的「即時期間最大值」哨兵值），
+      不能填 `date.today()`——本機時區（UTC+8）比 FRED 伺服器所在時區早換日，午夜後、UTC
+      尚未跨日的這段期間用本機今天的日期送出會被判定「晚於伺服器的今天」而 400。
+    已對全部 5 個數列（月頻 3 個＋日頻 2 個）實測驗證可正常回傳資料。
     """
+    observation_start = (date.today() - timedelta(days=LOOKBACK_DAYS)).isoformat()
     params = {
         "series_id": fred_series_id,
         "api_key": api_key,
         "file_type": "json",
         "output_type": 4,
-        "observation_start": (date.today() - timedelta(days=LOOKBACK_DAYS)).isoformat(),
+        "observation_start": observation_start,
         "sort_order": "asc",
+        "realtime_start": observation_start,
+        "realtime_end": "9999-12-31",
     }
     resp = requests.get(FRED_BASE_URL, params=params, timeout=15)
     resp.raise_for_status()

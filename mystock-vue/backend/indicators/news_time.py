@@ -83,9 +83,14 @@ def _shingles(normalized_title: str, n: int = 2) -> list[str]:
     return [normalized_title[i:i + n] for i in range(len(normalized_title) - n + 1)]
 
 
-def simhash(normalized_title: str, bits: int = 64) -> int:
-    """64-bit SimHash：對每個 shingle 雜湊後依每個 bit 是否為 1 做加權累計，
-    最後對每個維度取正負號決定該 bit 的最終值。"""
+def simhash(normalized_title: str, bits: int = 63) -> int:
+    """SimHash：對每個 shingle 雜湊後依每個 bit 是否為 1 做加權累計，最後對每個維度取正負號
+    決定該 bit 的最終值。**刻意用 63 bit、不是教科書常見的 64 bit**：`stock_news.simhash`
+    欄位是 Postgres 有號 `BIGINT`（範圍 -2^63 ～ 2^63-1），完整 64-bit 雜湊值有一半機率落在
+    2^63 ～ 2^64-1 之間、寫入時直接觸發 `asyncpg.exceptions.DataError`（實測撞過一次真實
+    標題就出現：`9298988751881561404 (value out of int64 range)`）。63 bit 的雜湊空間
+    （約 92 京種取值）對「近似標題比對」這種用途仍綽綽有餘，換掉一個 bit 不影響鑑別度，
+    比起改 schema 或在讀寫兩端另外做二補數轉換簡單得多，不需要新增 migration。"""
     tokens = _shingles(normalized_title)
     if not tokens:
         return 0

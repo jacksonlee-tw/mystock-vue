@@ -122,7 +122,13 @@ class NewsRepository:
         self, *, symbol: str, since: datetime, exclude_id: Optional[int] = None
     ) -> list[dict]:
         """L3 SimHash 比對的候選集合：同一標的、`dedup_window_hours` 回溯範圍內、
-        目前仍是代表列（`is_duplicate = false`）的既有新聞。"""
+        目前仍是代表列（`is_duplicate = false`）的既有新聞。
+
+        `CAST(:exclude_id AS BIGINT)`：asyncpg 對只出現在 `IS NULL` 分支裡的參數無法推斷型別，
+        不轉型會直接拋 `AmbiguousParameterError`（實測撞過，連 `exclude_id` 帶實際整數值時也
+        一樣炸，不是只有 None 的情況）。用 `CAST(... AS ...)` 而非 `:param::bigint` 簡寫語法
+        ——後者在 SQLAlchemy `text()` 底下會被誤判成參數名稱的一部分，導致整個 `:exclude_id`
+        沒被辨識成綁定參數（實測也撞過：`PostgresSyntaxError: syntax error at or near ":"`）。"""
         stmt = text("""
             SELECT id, source, simhash, effective_trade_date
               FROM stock_news
@@ -130,7 +136,7 @@ class NewsRepository:
                AND is_duplicate = FALSE
                AND published_at >= :since
                AND simhash IS NOT NULL
-               AND (:exclude_id IS NULL OR id != :exclude_id)
+               AND (CAST(:exclude_id AS BIGINT) IS NULL OR id != CAST(:exclude_id AS BIGINT))
              ORDER BY published_at DESC
         """)
         result = await self._s.execute(stmt, {"symbol": symbol, "since": since, "exclude_id": exclude_id})
