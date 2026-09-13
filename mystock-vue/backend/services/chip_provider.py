@@ -8,12 +8,16 @@ from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
 from config import MAX_HISTORY_MONTHS
+from db.session import get_async_session
 from indicators.fundamental import latest_visible_month, latest_visible_quarter
 from indicators.macd import macd as compute_macd
 from indicators.moving_average import bias_series, sma
+from indicators.news_time import sentiment_5d_series
 from indicators.rsi import rsi as compute_rsi
 from indicators.stochastic import compute_kd_set
+from repositories.news_repository import NewsRepository
 from services.mops_fetcher import load_stock_revenue
+from services.news_config import load_news_sources_config
 from services.stock_service import aggregate_stock_data, load_stock_data
 
 
@@ -82,6 +86,16 @@ class ScanContext:
     quarterly: Dict[str, dict] = field(default_factory=dict)
     eps_visible_quarter: List[Optional[str]] = field(default_factory=list)
     eps: List[Optional[float]] = field(default_factory=list)
+    # ── 新聞輿情與總經 Point-in-time 平行序列（Phase4-輕量化新聞輿情與總經監控.md §6.2）─
+    # 僅台股、且僅 with_sentiment=True 時才組裝（比照 valuation／revenue_yoy 只在
+    # with_valuation=True 才算的既有分工，避免不需要的呼叫端白付查詢成本）。
+    sentiment_5d: List[Optional[float]] = field(default_factory=list)
+    news_count: List[Optional[int]] = field(default_factory=list)
+    buzz_percentile: List[Optional[float]] = field(default_factory=list)
+    # 該次「掃描」層級的市場旗標（不是逐日序列）：由 strategies/scanner.py 在
+    # `for symbol in all_scan_symbols:` 迴圈之前算一次、原封不動注入每次 get_bars() 呼叫
+    # （AC-P4-06「全市場一次」），get_bars() 本身不重算、也不知道怎麼算。
+    macro_flags: Dict[str, bool] = field(default_factory=dict)
     # 出場風控專用；僅 scan_positions() 入口會填，選股掃描為 None
     position: Optional[PositionContext] = None
 
@@ -112,6 +126,8 @@ class ChipDataProvider:
         macd_params: Optional[List[Tuple[int, int, int]]] = None,
         rsi_periods: Optional[List[int]] = None,
         with_valuation: bool = False,
+        with_sentiment: bool = False,
+        macro_flags: Optional[Dict[str, bool]] = None,
         preloaded: Optional[MarketPreload] = None,
         position: Optional[PositionContext] = None,
     ) -> Optional[ScanContext]:
@@ -218,6 +234,41 @@ class ChipDataProvider:
                     eps_visible_quarters.append(None)
                     eps_series.append(None)
 
+        # 新聞情緒／討論度 Point-in-time 平行序列（Phase4-輕量化新聞輿情與總經監控.md §6.2）：
+        # 只在呼叫端明確要求（with_sentiment=True，比照 with_valuation 的既有分工）且為台股時
+        # 才組裝——一個 symbol 只查一次（不逐日查），跟 revenue_dict 的既有模式一致。
+        sentiment_5d_out: List[Optional[float]] = []
+        news_count_out: List[Optional[int]] = []
+        buzz_percentile_out: List[Optional[float]] = []
+
+        if with_sentiment and market == "tw" and dates:
+            since = date.fromisoformat(dates[0])
+            news_config = load_news_sources_config()
+            source_weights = {s.id: s.weight for s in news_config.sources}
+            date_objs = [date.fromisoformat(d) for d in dates]
+
+            async with get_async_session() as session:
+                news_repo = NewsRepository(session)
+                scored_rows = await news_repo.get_recent_scores(symbol=symbol, market_type=market, since_date=since)
+                buzz_rows = await news_repo.get_buzz_percentile_series(
+                    symbol=symbol, source="ptt_stock", since_date=since,
+                )
+                news_counts = await news_repo.get_news_count_by_dates(
+                    symbol=symbol, market_type=market, dates=date_objs,
+                )
+
+            sentiment_5d_out = sentiment_5d_series(
+                dates, scored_rows, source_weights, window=news_config.sentiment_window_days,
+            )
+            news_count_out = [news_counts.get(d) for d in date_objs]
+            # percentile_rank 是 NUMERIC 欄位，asyncpg 回傳 Decimal，這裡統一轉 float
+            # 以配合 ScanContext 其餘序列一律用 float／None 的既有慣例。
+            buzz_by_date = {
+                row["trade_date"]: (float(row["percentile_rank"]) if row["percentile_rank"] is not None else None)
+                for row in buzz_rows
+            }
+            buzz_percentile_out = [buzz_by_date.get(d) for d in date_objs]
+
         return ScanContext(
             symbol=symbol,
             market=market,
@@ -243,5 +294,9 @@ class ChipDataProvider:
             quarterly=quarterly_dict,
             eps_visible_quarter=eps_visible_quarters,
             eps=eps_series,
+            sentiment_5d=sentiment_5d_out,
+            news_count=news_count_out,
+            buzz_percentile=buzz_percentile_out,
+            macro_flags=macro_flags or {},
             position=position,
         )

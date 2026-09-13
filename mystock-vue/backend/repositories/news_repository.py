@@ -198,12 +198,18 @@ class NewsRepository:
         )
 
     async def get_recent_scores(self, *, symbol: str, market_type: str, since_date: date) -> list[dict]:
-        """近 `since_date`（含）以來、已評分且非重複列的 (source, sentiment_score) 清單，
-        供 §4.3 `sentiment_5d` 加權平均使用——本方法只負責取資料，權重由呼叫端從
-        `news_sources.yaml` 查表後傳入 `indicators/news_time.py` 的純函式計算，
-        保持本 repository 對 YAML 設定零依賴（比照 get_buzz_history() 的既有分工）。"""
+        """近 `since_date`（含）以來、已評分且非重複列的 (source, sentiment_score,
+        effective_trade_date) 清單，供 §4.3 `sentiment_5d` 加權平均使用——本方法只負責取資料，
+        權重由呼叫端從 `news_sources.yaml` 查表後傳入 `indicators/news_time.py` 的純函式計算，
+        保持本 repository 對 YAML 設定零依賴（比照 get_buzz_history() 的既有分工）。
+
+        `effective_trade_date` 一併回傳：`services/news_analytics.get_sentiment_5d()`（單一
+        「as of 今天」數值）不需要這欄，但 P4 `ScanContext` 的逐日序列版
+        （`services/chip_provider.py` 的 `sentiment_5d`）需要知道每筆分數屬於哪個交易日
+        才能分桶進正確的 5 日視窗，一次查詢覆蓋整個回看範圍（`since_date` 傳整段掃描視窗的
+        最早一天），不逐日各查一次。"""
         stmt = text("""
-            SELECT source, sentiment_score FROM stock_news
+            SELECT source, sentiment_score, effective_trade_date FROM stock_news
              WHERE symbol = :symbol AND market_type = :market_type
                AND is_duplicate = FALSE AND sentiment_score IS NOT NULL
                AND effective_trade_date >= :since_date
@@ -271,6 +277,19 @@ class NewsRepository:
              ORDER BY trade_date DESC LIMIT :window
         """)
         result = await self._s.execute(stmt, {"symbol": symbol, "source": source, "window": window})
+        return [_row_to_dict(r) for r in result.fetchall()]
+
+    async def get_buzz_percentile_series(self, *, symbol: str, source: str, since_date: date) -> list[dict]:
+        """近 `since_date`（含）以來的 (trade_date, percentile_rank) 清單，供 P4
+        `ScanContext.buzz_percentile` 逐日序列使用。分位數本身已在 P1 `_write_buzz_async()`
+        寫入時算好存進 `percentile_rank` 欄位（見 `upsert_buzz()`），這裡純粹取資料回填
+        `ScanContext`，不重算——跟 `get_buzz_history()`（只回傳 `post_count`，給抓取階段
+        自己算分位數用）刻意分成兩個方法，各自服務「寫入時算」與「讀取時查」兩種不同用途。"""
+        stmt = text("""
+            SELECT trade_date, percentile_rank FROM stock_discussion_buzz
+             WHERE symbol = :symbol AND source = :source AND trade_date >= :since_date
+        """)
+        result = await self._s.execute(stmt, {"symbol": symbol, "source": source, "since_date": since_date})
         return [_row_to_dict(r) for r in result.fetchall()]
 
     # ── macro_indicators ────────────────────────────────────────────

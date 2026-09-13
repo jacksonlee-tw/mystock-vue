@@ -14,6 +14,12 @@ from config import get_strategy_config_path
 
 logger = logging.getLogger("mystock-backend")
 
+# §6.4（Phase4-輕量化新聞輿情與總經監控.md）：sentiment_filter／macro_filter 屬於「持續性
+# 狀態」（大盤站上月線可能連續成立數十天），不是轉折事件；若某策略只掛閘門型 condition
+# 而無主觸發條件，會每個交易日都成立、天天推播。規格要求載入時檢核並在啟動日誌警示——
+# 併入既有 YAML 載入批次，不另立檢查函式（見規格書 §15.4 對此落差點的說明）。
+_GATE_ONLY_CONDITION_TYPES = {"sentiment_filter", "macro_filter"}
+
 
 @dataclass
 class StrategyDef:
@@ -77,6 +83,16 @@ def load_strategy_config() -> StrategyConfig:
         for s in raw.get("strategies", [])
     ]
 
+    for s in strategies:
+        if not s.enabled:
+            continue
+        condition_types = {c.get("type") for c in s.conditions if isinstance(c, dict)}
+        if condition_types and condition_types.issubset(_GATE_ONLY_CONDITION_TYPES):
+            logger.warning(
+                f"[策略引擎] 策略 {s.id} 只掛了閘門型 condition（{sorted(condition_types)}）、"
+                f"沒有主觸發條件——閘門屬於持續性狀態（例如大盤站上月線可能連續成立數十天），"
+                f"沒有主觸發時每個交易日都會成立、天天推播（規格書 §6.4）"
+            )
 
     return StrategyConfig(
         defaults=raw.get("defaults", {}),

@@ -21,6 +21,7 @@ from config import get_alert_cooldown_days, get_target_stocks
 from repositories.market_repository import MarketRepository
 from services import tracking_service
 from services.chip_provider import ChipDataProvider, MarketPreload, PositionContext
+from services.macro_analytics import get_macro_flags
 from strategies import cooldown as cooldown_mod
 from strategies.config_loader import StrategyDef, load_strategy_config
 from strategies.direction import classify_direction, to_signal_type
@@ -154,6 +155,16 @@ async def scan_market(
     # 選股/籌碼策略需要的估值/營收序列只在有 universe 策略時才組裝，既有純技術面/籌碼面
     # 掃描（scope="watchlist"）維持零額外成本（見 ScanContext.get_bars() 的 with_valuation 說明）。
     needs_valuation = has_universe_strategy
+    # Phase4-輕量化新聞輿情與總經監控.md §6.2／AC-P4-06：sentiment_5d／news_count／
+    # buzz_percentile 只在真的有策略掛 sentiment_filter 時才逐股查詢（比照 needs_valuation
+    # 的既有分工，避免不需要的掃描白付查詢成本）；macro_flags 是「全市場一次」的市場層級
+    # 旗標，只要有策略掛 macro_filter 就在迴圈外算一次、原封不動注入每次 get_bars()。
+    condition_types_in_use = {
+        c.get("type") for s in strategies for c in s.conditions if isinstance(c, dict)
+    }
+    needs_sentiment = "sentiment_filter" in condition_types_in_use
+    needs_macro = "macro_filter" in condition_types_in_use
+    macro_flags: Dict[str, bool] = await get_macro_flags(market) if needs_macro else {}
     # symbols 未帶入時才查詢：await tracking_service（主 event loop 的 db.session 連線池）僅在
     # scan_market() 被直接 await（如 /api/v1/alerts/scan）時安全；scan_market_sync() 會先在呼叫
     # asyncio.run() 前於背景執行緒同步解出 symbols 並帶進來，避免這裡的查詢改在 asyncio.run()
@@ -210,7 +221,8 @@ async def scan_market(
                 symbol, market, ma_periods, volume_ma_period,
                 kd_params=kd_params, kd_warmup_bars=kd_warmup_bars, kd_smoothing=kd_smoothing,
                 macd_params=macd_params, rsi_periods=rsi_periods,
-                with_valuation=needs_valuation, preloaded=preload_src,
+                with_valuation=needs_valuation, with_sentiment=needs_sentiment,
+                macro_flags=macro_flags, preloaded=preload_src,
             )
         except Exception as e:
             logger.warning(f"[策略引擎] 取得 {symbol} 資料失敗，已略過: {e}")

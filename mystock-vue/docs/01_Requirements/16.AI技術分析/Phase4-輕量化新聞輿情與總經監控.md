@@ -9,14 +9,65 @@ Phase 4: 輕量化新聞輿情與總經監控 (Semantic Assist & Macro Monitorin
 | --- | --- |
 | 模組 | 輕量化新聞輿情與總經監控 |
 | 對應既有模組 | `strategies/`（新增條件類型）、`services/`（新增新聞與總經管線）、`notify/`（沿用推播）、`db/migration/`（新增資料表） |
-| 版本 | v2.6（P1／P2／P3 已對真實本機 Postgres 端對端驗證，修正 3 個真實 bug，見 §0.1） |
-| 狀態 | **部分已開發**：P0（骨架與設定）、P1（新聞資料管線）、P2（情緒評分引擎）、P3（總經／大盤環境管線）已實作並 commit，且**已對真實本機 Postgres 完整端對端驗證**（含真實 FRED／cnyes／Gemini 呼叫，見 §0.1）；Spike-0（中文情緒模型選型）已完成並**定案**——LLM 與人工一致率 87.0%，使用者拍板直接採用 LLM、不開發本地模型，`NEWS_SENTIMENT_ENGINE` 預設值已改為 `"llm"`（§15.3-1、ADR-P4-08）。**P4～P7（策略引擎整合、通知、前端、排程）尚未開發**，見 §15.2 現況與計畫。 |
+| 版本 | v2.7（P4 ScanContext 擴充＋兩個新 condition 已實作，見 §0.1） |
+| 狀態 | **部分已開發**：P0～P4（骨架、新聞管線、情緒評分、總經管線、ScanContext 擴充＋condition）已實作並 commit，P1／P2／P3 已對真實本機 Postgres 完整端對端驗證；Spike-0（中文情緒模型選型）已完成並**定案**——LLM 與人工一致率 87.0%，使用者拍板直接採用 LLM、不開發本地模型，`NEWS_SENTIMENT_ENGINE` 預設值已改為 `"llm"`（§15.3-1、ADR-P4-08）。**P4 交付的 `sentiment_filter`／`macro_filter` 目前技術上等同獨立 condition，尚未能真正發揮「閘門」效果**（scanner.py 缺 AND 組合機制，見 §0.1、§15.2 P4 列的重要限制說明）。**P5～P7（通知、前端、排程）尚未開發**，見 §15.2 現況與計畫。 |
 
 ---
 
 ## 0. 修訂紀錄與決策（ADR）
 
-### 0.1 v2.6 變更摘要
+### 0.1 v2.7 變更摘要
+
+依 §15.2 的分階段計畫，實作 **P4（ScanContext 擴充＋兩個新 condition）**：
+
+- `services/chip_provider.py`：`ScanContext` 新增 `sentiment_5d`／`news_count`／`buzz_percentile`
+  （逐日平行序列，比照既有 `revenue_yoy` 寫法：一個 symbol 只查一次歷史，不逐日查詢）與
+  `macro_flags`（`Dict[str, bool]`，掃描層級常數，不是逐日序列）四個欄位；`get_bars()`
+  新增 `with_sentiment`／`macro_flags` 兩個參數（比照既有 `with_valuation` 的按需計算分工，
+  未啟用時三個序列維持空 list、`macro_flags` 維持空 dict，零額外查詢成本）。
+- `strategies/scanner.py`：在 `for symbol in all_scan_symbols:` 迴圈**之前**先掃過所有已載入
+  策略的 `conditions` 型別，判斷是否有策略掛 `sentiment_filter`／`macro_filter`；只有掛了
+  `macro_filter` 才呼叫一次 `get_macro_flags(market)`（AC-P4-06「全市場一次」），結果原封不動
+  注入該次掃描的每一次 `get_bars()` 呼叫。
+- `strategies/conditions_sentiment.py`、`strategies/conditions_macro.py`（新增）：
+  `sentiment_filter`／`macro_filter` 兩個 condition 函式，比照 `conditions_pick.py` 的
+  `_eval_*` 私有函式慣例（判斷邏輯與 `@condition` 註冊薄殼分離，方便未來被複合 condition
+  重用）；`strategies/__init__.py` 補兩行 import 觸發自我註冊。
+- `strategies/config_loader.py`：新增 §6.4「只掛閘門型 condition 需在啟動日誌警示」的檢核，
+  併入既有 YAML 載入批次（不另立檢查函式，比照規格書 §15.4 對此落差點的既有建議）。
+- `services/macro_analytics.py`：新增 `get_macro_flags(market)`，組裝
+  `f"{market}_above_20ma"`／`f"{market}_above_60ma"` 兩個布林旗標（§5.2 提到的「總經指標
+  同向轉緊」原文未給出具體判定門檻，刻意不猜一個數字，留給未來有明確規則時再補）。
+- `repositories/news_repository.py`：`get_recent_scores()` 加回 `effective_trade_date`
+  欄位（原本只給「as of 今天」單一數值用，P4 逐日序列需要知道每筆分數屬於哪一天）；新增
+  `get_buzz_percentile_series()`（讀 P1 寫入時已算好的 `percentile_rank`，不重算）。
+- `indicators/news_time.py`：新增 `sentiment_5d_series()` 純函式，用 `trading_dates` 自身的
+  索引往前數 N 筆當作「近 N 個交易日」視窗（不是額外查交易日曆），對齊 `ScanContext.dates`。
+
+**⚠️ 重要架構限制（開工前已與使用者確認，本次刻意不處理）**：`strategies/scanner.py` 目前
+的 condition 評估迴圈**沒有「多個 condition AND 在一起才算一次訊號」的機制**——`conditions:`
+清單裡每一項各自獨立評估、各自獨立產生候選警示（OR 關係）。核對現有 24 條策略設定檔，
+目前一條都沒有掛超過 1 個 condition，證實這條 AND 語意路徑從未被使用過。這代表 §6.3 YAML
+範例裡「`price_cross` 主觸發 + `sentiment_filter`／`macro_filter` 閘門」這種組合，**掛上去
+不會真的擋掉主觸發訊號**，只會變成兩個獨立發自己警示的條件類型。真正要發揮「閘門」效果，
+需要先擴充 scanner.py（例如新增策略層級的 `gates:` 欄位，或比照 `conditions_pick.py` 的
+`stock_pick_resonance` 用 `_eval_*` 私有函式做 AND 組合、另外設計一個複合 condition）——
+規劃為未來待辦，不在本次 P4 範圍內。本次依使用者指示**只交付 condition 骨架，不在
+`strategy_config/strategies.yaml` 新增任何範例策略**，避免在閘門機制不完整的狀態下讓真實
+策略上線、產生誤導性的警示。
+
+**驗證**：直接呼叫 `get_bars(with_sentiment=True, macro_flags=...)` 對真實本機 Postgres 資料
+（symbol 2330）驗證——`macro_flags` 正確算出 `{"tw_above_20ma": true, "tw_above_60ma": true}`；
+`sentiment_5d`／`news_count`／`buzz_percentile` 皆為 `None`／`0`，**這是正確的 point-in-time
+行為**，不是 bug：本機 OHLCV 資料最新僅到 2026-09-10，而真實已評分新聞的 `effective_trade_date`
+是 2026-09-14（尚未有對應的價格交易日），兩者本來就不該對得上，證明沒有把未來新聞洩漏回過去
+的價格交易日。`with_sentiment=False`（未指定）時三個序列與 `macro_flags` 正確維持空值，
+零查詢。另外**實際觸發一次 `scan_market('tw')`**（經使用者同意，寫入 `data/_alerts/`）——
+掃描 1394 檔、新增 22 筆真實警示（`rsi_overbought_reversal`／`ma_alignment` 等既有策略），
+確認本次改動未影響既有 24 條策略的既有執行路徑（迴歸驗證通過）；§6.4 閘門警示檢核邏輯另以
+三組合成情境（只掛閘門／掛閘門+主觸發／只掛主觸發）驗證判斷正確。
+
+### 0.2 v2.6 變更摘要
 
 補測先前因「本機無可連線 Postgres」標記為未實測的 P1／P2／P3 寫入路徑——使用者提供 FRED API 金鑰後，
 發現本機其實已有一個這個專案自己 `docker-compose.yml` 建的 `mystock_db` 容器在跑，只是卡在 flyway
@@ -53,7 +104,7 @@ V20（比 V23 舊 3 版，V21/V22 是另一並行 session 的季度財報功能�
 `GET /api/v1/news/{symbol}` 三個讀取端點皆對這批真實資料回應正確。至此 P1／P2／P3 的 Postgres
 寫入路徑不再是「未實測」狀態。
 
-### 0.2 v2.5 變更摘要
+### 0.3 v2.5 變更摘要
 
 依 §15.2 的分階段計畫，實作 **P3（總經／大盤環境管線）**：
 
@@ -72,7 +123,7 @@ V20（比 V23 舊 3 版，V21/V22 是另一並行 session 的季度財報功能�
 - `api/v1/endpoints/macro.py`（新增）：`POST /trigger`、`GET /status`、`GET /indicators`、
   `GET /indicators/{indicator_code}`、`GET /market-regime/{market}` 五個端點；`/indicators*`
   一律只回傳 `release_date <= 今天` 的最新值（ADR-P4-05）。
-- **ADR-P4-09**（新增，§0.8 決策表）：解決規格書 §15.4 原本標注「DXY 的具體資料來源未指定」的
+- **ADR-P4-09**（新增，§0.9 決策表）：解決規格書 §15.4 原本標注「DXY 的具體資料來源未指定」的
   落差——官方 ICE DXY 期貨指數不是 FRED 免費數列，改用 FRED 自家發布的 Nominal Broad
   U.S. Dollar Index（series `DTWEXBGS`）作為免費替代，對外仍稱 `indicator_code = "DXY"`。
 - **驗證**：`fetch_fred_series()` 的 JSON 解析邏輯用符合官方文件格式的合成回應驗證（含 FRED
@@ -85,7 +136,7 @@ V20（比 V23 舊 3 版，V21/V22 是另一並行 session 的季度財報功能�
   `POST /macro/trigger` 補測）；Postgres 寫入路徑同樣未實測（`DATA_SOURCE=json`，與 P1／P2
   同一侷限）。
 
-### 0.3 v2.4 變更摘要
+### 0.4 v2.4 變更摘要
 
 依 §15.2 的分階段計畫，實作 **P2（情緒評分引擎）**——ADR-P4-08 定案後範圍已簡化為「全部標題一律走
 LLM 批次評分」，不存在文件原訂的 L1 本地模型／L2 閘門分流：
@@ -118,16 +169,16 @@ LLM 批次評分」，不存在文件原訂的 L1 本地模型／L2 閘門分流
   `buzz_surge_ratio()` 除以近 20 交易日均值、`divergence_flag()` 四種情境）皆通過。
   需之後啟動 `docker compose up -d` 後補測 `POST /sentiment/trigger` 與 `sentiment-summary`。
 
-### 0.4 v2.3 變更摘要
+### 0.5 v2.3 變更摘要
 
 Spike-0 定案：使用者依 v2.2 記錄的 87.0% 一致率結果，拍板「直接定案」採用 LLM 作為情緒評分引擎，
-不再另外測試／開發本地輕量模型。新增 **ADR-P4-08**（§0.8 決策表）記錄此決定；§4.1 分層評分表下方
+不再另外測試／開發本地輕量模型。新增 **ADR-P4-08**（§0.9 決策表）記錄此決定；§4.1 分層評分表下方
 補充說明「L1 本地／L2 LLM 升級」的兩層分工不採用，全部標題一律走 LLM 批次評分；§15.3-1 標記為
 **已結案**。程式碼同步更新：`config.py` 的 `DEFAULT_NEWS_SENTIMENT_ENGINE` 由 `"local"` 改為
 `"llm"`，`.env.example` 的 `NEWS_SENTIMENT_ENGINE` 預設值同步更新（尚未 commit 到 P2 的其餘實作，
 本次只調整預設值常數，P2 情緒評分引擎本身仍未開發）。
 
-### 0.5 v2.2 變更摘要
+### 0.6 v2.2 變更摘要
 
 依 §15.2 的分階段計畫，實際完成並 commit（`3a96bda`）**P0（骨架與設定）與 P1（新聞資料管線）**：
 `db/migration/V23__Create_news_and_macro_tables.sql`（三張新表）、`strategy_config/news_sources.yaml`、
@@ -146,15 +197,15 @@ SHA-256／SimHash／漢明距離／百分位排名）、`repositories/news_repos
 P2（情緒評分引擎）／P3（總經管線）／P4（策略引擎整合）／P5（通知）／P6（前端）／P7（排程串接）
 **維持未開發**，§15.2 WBS 內容不變。
 
-### 0.6 v2.1 變更摘要
+### 0.7 v2.1 變更摘要
 
-新增 §15「現況評估與分階段實作計畫」：逐項核對現行程式碼確認本文件規劃的全部項目（三張新表、`news_fetcher.py`／`macro_fetcher.py`、`news_sources.yaml`、`conditions_sentiment.py`／`conditions_macro.py`、`ScanContext` 新欄位、`api/v1/endpoints/news.py`／`macro.py`、scheduler 排程、notify 樣板、前端元件）**目前零實作**（此結論已於 v2.2 部分推翻，P0／P1 已完成，見 §0.5），並將本文件已定案的技術決策轉譯為可執行的分階段交付計畫（WBS），標出文件本身三處已過期／寫錯的檔案路徑（§15.1）、需要人為先做實驗或拍板的風險點（§15.3），以及文件未講清楚、留給實作者自行決定的落差點（§15.4）。**本次僅新增 §15，不變更 §1～§14 任何 FR／ADR／驗收條件的需求本身。**
+新增 §15「現況評估與分階段實作計畫」：逐項核對現行程式碼確認本文件規劃的全部項目（三張新表、`news_fetcher.py`／`macro_fetcher.py`、`news_sources.yaml`、`conditions_sentiment.py`／`conditions_macro.py`、`ScanContext` 新欄位、`api/v1/endpoints/news.py`／`macro.py`、scheduler 排程、notify 樣板、前端元件）**目前零實作**（此結論已於 v2.2 部分推翻，P0／P1 已完成，見 §0.6），並將本文件已定案的技術決策轉譯為可執行的分階段交付計畫（WBS），標出文件本身三處已過期／寫錯的檔案路徑（§15.1）、需要人為先做實驗或拍板的風險點（§15.3），以及文件未講清楚、留給實作者自行決定的落差點（§15.4）。**本次僅新增 §15，不變更 §1～§14 任何 FR／ADR／驗收條件的需求本身。**
 
-### 0.7 v2.0 優化重點
+### 0.8 v2.0 優化重點
 
 v1.0 僅列出「要做哪些功能」，實作時會撞到三個問題：新聞來源開越多雜訊越大、同一則消息被多家轉載重複計分、LLM 逐則評分的成本無上限。v2.0 針對這三點補上機制，並補齊 v1.0 完全沒有處理的 **Point-in-time 對齊**（新聞與總經數據的「可見時點」與交易日不是同一條時間軸）。
 
-### 0.8 決策紀錄
+### 0.9 決策紀錄
 
 | 編號 | 決策 | 理由 |
 | --- | --- | --- |
@@ -345,7 +396,7 @@ v1.0 直接指名 FinBERT，但 **FinBERT 是以英文財經語料訓練的**，
 > `indicator_date`／`release_date` 分欄的實作方式是呼叫 FRED API 時指定 `output_type=4`
 > （"Initial Release Only"）：依 ALFRED 官方文件，這個輸出格式的 `realtime_start` 欄位就是
 > 「資料第一次對外公布的日期」，直接拿來當 `release_date`，比原訂「查 release-calendar 端點再
-> 比對配對」更簡單也更準確（不受後續修訂版本干擾）。理由與影響見 §0.2、§0.8 ADR-P4-09。
+> 比對配對」更簡單也更準確（不受後續修訂版本干擾）。理由與影響見 §0.3、§0.9 ADR-P4-09。
 
 ### 5.2 大盤環境全域鎖（Global Market Filter）
 
@@ -365,7 +416,23 @@ v1.0 直接指名 FinBERT，但 **FinBERT 是以英文財經語料訓練的**，
 - 以 `@condition(type=...)` 裝飾器自動註冊，並在 `strategies/__init__.py` 補上兩行 import（匯入即註冊，漏掉就找不到條件函式）。
 - 型別名稱沿用 `sentiment_filter`／`macro_filter`（語意上是 condition，與 `filters` 模組無關，此點於文件與程式註解中明示以免誤解）。
 
-### 6.2 `ScanContext` 擴充
+> **v2.7 更新（P4 實作發現的架構限制）**：本節與 §6.3 假設 `sentiment_filter`／`macro_filter`
+> 可以跟主觸發 condition（如 `price_cross`）以 **AND** 關係掛在同一個策略下、互相把關。
+> 實作時對照 `strategies/scanner.py` 的實際評估迴圈才發現：**目前的掃描器完全沒有「多個
+> condition AND 在一起才算一次訊號」的機制**——`conditions:` 清單裡每一項是各自獨立評估、
+> 各自獨立產生候選警示（OR 關係，各自用自己的 `direction` 去重）。核對現有 24 條策略設定檔，
+> 目前一條都沒有掛超過 1 個 condition，證實這條 AND 語意路徑從未被使用過。這代表本節與
+> §6.3 描述的「情緒/大盤不過關就擋掉主觸發」效果**目前技術上尚未成立**——`sentiment_filter`／
+> `macro_filter` 已依本節規格實作（`strategies/conditions_sentiment.py`／
+> `conditions_macro.py`），但掛在任何策略上目前都只會變成獨立發自己警示的條件類型，
+> 不會真的擋掉其他 condition。真正要做到「閘門」效果，需要先擴充 `scanner.py`（例如新增
+> 策略層級的 `gates:` 欄位，或比照 `conditions_pick.py` 的 `stock_pick_resonance` 用
+> `_eval_*` 私有函式做 AND 組合、另外設計一個複合 condition），規劃為後續待辦，本次 P4
+> 刻意不處理（開工前已與使用者確認），也因此本次未在 `strategy_config/strategies.yaml`
+> 新增任何引用這兩個 condition 的範例策略，避免在閘門機制不完整的狀態下讓真實策略上線、
+> 產生誤導性的警示。理由與影響見 §0.1、§15.2 P4 列。
+
+### 6.2 `ScanContext` 擴充（✅ 已實作，見 §0.1）
 
 condition 只能讀 `ctx`，**不得自行發請求或讀檔**（此為專案既有鐵則：條件函式只讀 `ctx.ma`／`ctx.bias`，不重算指標）。因此需在 `services/chip_provider.py` 的 `ScanContext` 新增與 `dates` 等長的平行序列，比照既有 `revenue_yoy`／`revenue_visible_month` 的做法：
 
@@ -542,23 +609,25 @@ MACRO_FETCH_ENABLED=true
 
 ---
 
-## 15. 現況評估與分階段實作計畫（v2.1 新增，v2.6 更新實作進度，2026-09-13）
+## 15. 現況評估與分階段實作計畫（v2.1 新增，v2.7 更新實作進度，2026-09-13）
 
 本節不改變 §1～§14 的任何需求，只回答兩件事：**現在做到哪裡了**、**接下來怎麼分階段做**。方法是逐項核對現行程式碼，不是讀規格猜測。
 
-### 15.0 現況評估結論（v2.6 更新）
+### 15.0 現況評估結論（v2.7 更新）
 
 **v2.1 原文**（僅供歷史對照）：全文對照後確認本文件規劃的每一項產出全部零實作，狀態與文件自報一致。
 
-**v2.2 現況**（僅供歷史對照）：P0（骨架與設定）與 P1（新聞資料管線）已實作並 commit（`3a96bda`）——`V23__Create_news_and_macro_tables.sql`（三張新表）、`services/news_fetcher.py`（cnyes 抓取已對真實 API 端到端驗證、PTT Stock 板討論量抓取已對真實頁面結構驗證）、`services/news_config.py`、`services/news_dedup.py`、`indicators/news_time.py`、`repositories/news_repository.py`、`api/v1/endpoints/news.py`（4 個端點已掛載）均已落地，細節見 §0.5。
+**v2.2 現況**（僅供歷史對照）：P0（骨架與設定）與 P1（新聞資料管線）已實作並 commit（`3a96bda`）——`V23__Create_news_and_macro_tables.sql`（三張新表）、`services/news_fetcher.py`（cnyes 抓取已對真實 API 端到端驗證、PTT Stock 板討論量抓取已對真實頁面結構驗證）、`services/news_config.py`、`services/news_dedup.py`、`indicators/news_time.py`、`repositories/news_repository.py`、`api/v1/endpoints/news.py`（4 個端點已掛載）均已落地，細節見 §0.6。
 
-**v2.4 現況**（僅供歷史對照）：P2（情緒評分引擎）已實作——`services/news_sentiment.py`（LLM 批次評分主流程，ADR-P4-08 定案後不含 L1 本地模型／L2 閘門分流）、`services/news_analytics.py`（`sentiment_5d`／Buzz Surge 查詢）、`indicators/news_time.py` 新增四個純函式、`repositories/news_repository.py` 新增四個查詢/更新方法、`api/v1/endpoints/news.py` 新增三個端點，細節見 §0.3。
+**v2.4 現況**（僅供歷史對照）：P2（情緒評分引擎）已實作，細節見 §0.4。
 
-**v2.5 現況**（僅供歷史對照）：P3（總經／大盤環境管線）已實作——`services/macro_fetcher.py`（FRED 5 個指標＋DXY 免費替代，`output_type=4` 直接取得 `release_date`）、`services/macro_analytics.py`（`get_market_regime()` 20MA/60MA 位階，重用既有指數服務與均線函式）、`api/v1/endpoints/macro.py`（5 個端點），細節見 §0.2。當時 `get_market_regime()` 已對本機真實 TWII／GSPC 資料端對端驗證，但 FRED API 本身與 Postgres 寫入路徑因「本機無 `FRED_API_KEY`、無可連線 Postgres」標記為未實測——此結論已於 v2.6 推翻。
+**v2.5 現況**（僅供歷史對照）：P3（總經／大盤環境管線）已實作，細節見 §0.3。
 
-**v2.6 現況**：使用者提供 FRED API 金鑰後，發現本機其實已有可連線的 `mystock_db`（只是 flyway 落後 3 版），補跑 migration 至 V23 後，**P1／P2／P3 的 Postgres 寫入路徑已全部真實端對端驗證**，過程中發現並修正 3 個真實 bug（`simhash` 位元寬度溢位、asyncpg 參數型別推斷、FRED `realtime_start`/`realtime_end` 預設值），細節見 §0.1。P1／P2／P3 至此皆無已知的未實測缺口。
+**v2.6 現況**（僅供歷史對照）：使用者提供 FRED API 金鑰後，發現本機其實已有可連線的 `mystock_db`，補跑 migration 至 V23 後，**P1／P2／P3 的 Postgres 寫入路徑已全部真實端對端驗證**，過程中發現並修正 3 個真實 bug，細節見 §0.2。
 
-**尚未實作**：`strategies/conditions_sentiment.py`／`conditions_macro.py`、`ScanContext` 的 `sentiment_5d`／`news_count`／`buzz_percentile`／`macro_flags` 欄位（P2／P3 已備妥底層計算函式，掛進 `ScanContext` 屬 P4）、`services/scheduler.py` 的新聞/總經排程、`notify/` 的新聞相關樣板、任何前端新聞或總經 UI——對應 §15.2 的 P4～P7。
+**v2.7 現況**：P4（`ScanContext` 擴充＋`sentiment_filter`／`macro_filter` 兩個新 condition）已實作，細節見 §0.1。**⚠️ 重要限制**：這兩個 condition 目前技術上等同獨立 condition，scanner.py 尚未支援「多個 condition AND 在一起才算一次訊號」的機制，掛在任何策略上都不會真的擋掉主觸發訊號——真正的閘門效果需要先擴充 scanner.py，規劃為後續待辦（見 §0.1 說明、§15.2 P4 列）。依使用者指示本次未在 `strategies.yaml` 新增任何範例策略。
+
+**尚未實作**：`services/scheduler.py` 的新聞/總經排程、`notify/` 的新聞相關樣板、任何前端新聞或總經 UI、scanner.py 的 condition AND 組合機制（上述新限制）——對應 §15.2 的 P5～P7。
 
 Spike-0（中文情緒模型選型驗證）已完成並定案：LLM 與人工一致率 87.0%，詳見 §15.3-1。
 
@@ -579,9 +648,9 @@ Spike-0（中文情緒模型選型驗證）已完成並定案：LLM 與人工一
 | **Spike-0**（可與 P0 並行，建議最早啟動） | 中文情緒模型選型驗證（§4.2）：人工標註 200～300 則台股新聞標題，比較候選模型與 LLM 的一致率，決定 `NEWS_SENTIMENT_ENGINE` 預設值與 L1 部署形態（常駐 vs 排程批次） | 無（可先用臨時腳本抓樣本，不需等 P1 完工） | 與人工標註基準集的一致率（門檻數字待訂，見 §15.3-1） | **需要先做實驗才能繼續，非單純寫程式**；結果回頭決定 P2 範圍 |
 | **P0** 骨架與設定 | `db/migration/V23__Create_news_and_macro_tables.sql`（三表+索引，§7 照抄）、`strategy_config/news_sources.yaml`（§2 照抄）、`.env`/`.env.example` 新增 §12 六個變數、`config.py` 新增對應 getter（比照 `get_alert_cooldown_days()` 模式）、YAML loader（重新解析不需重啟、解析失敗沿用舊設定——需先讀 `strategies/config_loader.py` 確認能否共用同一套快取/重載機制） | 無 | `flyway migrate` 後查表結構；改 `enabled` 值驗證熱重載；刻意寫壞 YAML 驗證 fallback | 小 |
 | **P1** 新聞資料管線 | `services/news_fetcher.py`（cnyes/yahoo_stock/ptt_stock，比照 `fetcher.py` 的 `fetch_status` 單例＋節流）、兩段式落地（`data/_news/raw/{source_id}/{YYYYMMDD}.json` → `stock_news`）、三層去重（L1/L2 為 SQL 唯一索引；L3 SimHash 需新增獨立工具函式，建議 `services/news_dedup.py`）、`effective_trade_date` 計算（比照 `indicators/fundamental.py` 的 `latest_visible_month()` 寫法，建議新增 `indicators/news_time.py`）、`api/v1/endpoints/news.py` 四個端點 | P0 | 情緒評分完全不做也能驗證 AC-P4-01/02/03（`sentiment_score` 允許 NULL） | **主要工程量**（三來源穩定度＋三層去重＋point-in-time 對齊） |
-| **P2** 情緒評分引擎（✅ 已實作，見 §0.3；Postgres 寫入路徑已於 v2.6 端對端驗證，見 §0.1） | ~~依 Spike-0 結論實作 L1／L2~~——ADR-P4-08 定案後簡化為全部標題一律 LLM 批次評分：`services/news_sentiment.py` 沿用 `ai/providers/__init__.py` 的 `PROVIDER_REGISTRY`，配額與成本記錄照抄 `industry_chain/extractor.py`（見 §15.1 附註）；`services/news_analytics.py` 提供 `sentiment_5d`／Buzz Surge 查詢；`indicators/news_time.py` 新增 `divergence_flag()` 判斷邏輯（掛進 `ScanContext` 留給 P4）。~~PTT 過熱分位數直接複用 `indicators/chip.py` 既有的 `rolling_percentile()`~~——**此描述於 P1 階段已修正**：實際採用 `indicators/news_time.py` 新增的 `percentile_rank_of()`，因為 `rolling_percentile()` 算的是相反方向的問題（見該函式 docstring），且 P1 已完成落地，不在 P2 範圍內 | Spike-0 結論、P1 | 對照 Spike-0 基準集算一致率回歸；配額用完驗證 AC-P4-07；已對真實 Gemini 呼叫＋Postgres 寫入端對端驗證（101 則真實新聞全數評分成功，見 §0.1） | **主要工程量，且高度依賴 Spike-0 是否順利**（已完成） |
-| **P3** 總經／大盤環境管線（✅ 已實作，見 §0.2；Postgres 寫入路徑已於 v2.6 端對端驗證，見 §0.1）（可與 P1/P2 並行） | `services/macro_fetcher.py`（FRED 5 指標＋DXY，`indicator_date`/`release_date` 分欄，`output_type=4` 取代「查 release-calendar 再比對」）、`api/v1/endpoints/macro.py`、`services/macro_analytics.py` 的 20MA/60MA 位階讀既有 `index_service.py`／`stock_service.py`（不重建指數管線）。DXY 來源見新增 **ADR-P4-09**（FRED `DTWEXBGS` 免費替代 ICE DXY） | P0 | 查表確認兩欄位分離；用歷史 CPI/非農公布日構造案例驗證 AC-P4-04；已對真實 FRED API＋Postgres 寫入端對端驗證（5 指標共 579 筆，見 §0.1） | 中（FRED API 本身簡單，複雜度在 release_date 對齊與 DXY 來源選定，已解決）（已完成） |
-| **P4** ScanContext 擴充＋兩個新 condition（整合階段） | `chip_provider.py` 的 `ScanContext`（`@dataclass`）新增四欄位，逐日 append 邏輯仿 `revenue_yoy` 寫法；**`macro_flags` 需在 `strategies/scanner.py` 的 `for symbol in all_scan_symbols:` 迴圈之前算一次、注入每次 `get_bars()` 呼叫**（不能塞進逐日迴圈，這是滿足 AC-P4-06「全市場一次」的關鍵，文件沒點名具體檔案/行號，已在此補上）；`conditions_sentiment.py`／`conditions_macro.py`＋`strategies/__init__.py` 補 import；「只掛閘門型 condition 需警示」的檢核（建議併入 `strategies/config_loader.py` 既有 YAML schema 驗證） | P1、P2、P3 全部 | AC-P4-05（對照既有 filter 行為差異）；AC-P4-06（斷言計算次數==掃描次數） | 中，程式量不大但正確性要求高（look-ahead bias、單次計算共用） |
+| **P2** 情緒評分引擎（✅ 已實作，見 §0.4；Postgres 寫入路徑已於 v2.6 端對端驗證，見 §0.2） | ~~依 Spike-0 結論實作 L1／L2~~——ADR-P4-08 定案後簡化為全部標題一律 LLM 批次評分：`services/news_sentiment.py` 沿用 `ai/providers/__init__.py` 的 `PROVIDER_REGISTRY`，配額與成本記錄照抄 `industry_chain/extractor.py`（見 §15.1 附註）；`services/news_analytics.py` 提供 `sentiment_5d`／Buzz Surge 查詢；`indicators/news_time.py` 新增 `divergence_flag()` 判斷邏輯（掛進 `ScanContext` 留給 P4）。~~PTT 過熱分位數直接複用 `indicators/chip.py` 既有的 `rolling_percentile()`~~——**此描述於 P1 階段已修正**：實際採用 `indicators/news_time.py` 新增的 `percentile_rank_of()`，因為 `rolling_percentile()` 算的是相反方向的問題（見該函式 docstring），且 P1 已完成落地，不在 P2 範圍內 | Spike-0 結論、P1 | 對照 Spike-0 基準集算一致率回歸；配額用完驗證 AC-P4-07；已對真實 Gemini 呼叫＋Postgres 寫入端對端驗證（101 則真實新聞全數評分成功，見 §0.2） | **主要工程量，且高度依賴 Spike-0 是否順利**（已完成） |
+| **P3** 總經／大盤環境管線（✅ 已實作，見 §0.3；Postgres 寫入路徑已於 v2.6 端對端驗證，見 §0.2）（可與 P1/P2 並行） | `services/macro_fetcher.py`（FRED 5 指標＋DXY，`indicator_date`/`release_date` 分欄，`output_type=4` 取代「查 release-calendar 再比對」）、`api/v1/endpoints/macro.py`、`services/macro_analytics.py` 的 20MA/60MA 位階讀既有 `index_service.py`／`stock_service.py`（不重建指數管線）。DXY 來源見新增 **ADR-P4-09**（FRED `DTWEXBGS` 免費替代 ICE DXY） | P0 | 查表確認兩欄位分離；用歷史 CPI/非農公布日構造案例驗證 AC-P4-04；已對真實 FRED API＋Postgres 寫入端對端驗證（5 指標共 579 筆，見 §0.2） | 中（FRED API 本身簡單，複雜度在 release_date 對齊與 DXY 來源選定，已解決）（已完成） |
+| **P4** ScanContext 擴充＋兩個新 condition（整合階段）（✅ 已實作，見 §0.1；⚠️ 見下方重要限制） | `chip_provider.py` 的 `ScanContext`（`@dataclass`）新增四欄位，逐日 append 邏輯仿 `revenue_yoy` 寫法；`macro_flags` 已在 `strategies/scanner.py` 的 `for symbol in all_scan_symbols:` 迴圈之前算一次、注入每次 `get_bars()` 呼叫（AC-P4-06「全市場一次」）；`conditions_sentiment.py`／`conditions_macro.py`＋`strategies/__init__.py` 補 import；「只掛閘門型 condition 需警示」的檢核已併入 `strategies/config_loader.py` 既有 YAML 載入批次。**⚠️ 重要限制（P4 開工前已與使用者確認，本次刻意不處理）**：scanner.py 目前沒有「多個 condition AND 在一起才算一次訊號」的機制（`conditions:` 清單各項獨立評估、OR 關係），核對現有 24 條策略皆只掛 1 個 condition，證實這條路徑從未被使用過——`sentiment_filter`／`macro_filter` 目前掛在任何策略上都不會真的擋掉主觸發訊號，只會變成獨立發自己警示的條件類型。真正的閘門效果需要先擴充 scanner.py（新增策略層級 `gates:` 欄位，或比照 `conditions_pick.py` 的 `stock_pick_resonance` 用 `_eval_*` 私有函式做 AND 組合），規劃為後續待辦。依使用者指示本次未在 `strategies.yaml` 新增任何範例策略 | P1、P2、P3 全部 | AC-P4-05（對照既有 filter 行為差異，**尚無法驗證**——閘門機制未完成）；AC-P4-06（斷言計算次數==掃描次數，已驗證：`get_macro_flags()` 於迴圈外呼叫一次，結果原封不動注入）；已對真實 Postgres 資料驗證 point-in-time 對齊正確，並實際觸發一次 `scan_market('tw')` 確認未影響既有 24 條策略（迴歸通過） | 中，程式量不大但正確性要求高（look-ahead bias、單次計算共用）（已完成，但真正的「閘門」效果待 scanner.py 後續擴充） |
 | **P5** 通知整合 | `notify/events.py` 的 `ALERT_SIGNAL` payload 加 `top_news`/`sentiment_5d`（確認不影響 `_key_alert_signal()` 冪等鍵）；三通道樣板加選擇性區塊 | P4 | 手動觸發一次帶新聞資料的訊號，核對三通道渲染與去重鍵不變 | 小 |
 | **P6** 前端 | `service/newsApi.js`／`macroApi.js`（`import { apiClient } from '@/service/stockApi'`）；個股新聞卡片仿 `StockAlertsPanel.vue`＋`AlertTimeline.vue`（情緒 Tag 沿用 `marketColors.js` 紅漲綠跌，**不看 `useMarket.js` 死欄位 `up_down_convention`**）；總經儀表板區塊加在 **`HeatmapDashboard.vue`**（見 §15.1-1），Sparkline 抄 `HeatmapDashboard.vue` 既有 `getSparklineOption()` 改中性單色 | P1、P3（不依賴 P4/P5，可先用假資料開發 UI） | AC-P4-08/09，建議用 `/run` 實際跑起來截圖驗證（純視覺回歸容易漏審） | 中 |
 | **P7** 排程串接與資料保留清理 | `scheduler.py` 新增 §9 六個排程項（新聞抓取／情緒評分鏈式觸發／PTT／FRED-DXY／清理）；保留政策比照既有 `purge_old_logs` | P1～P4 全部 | 先手動觸發 `POST /news/trigger` 跑順鏈式流程，再掛 cron（排程本身難重現問題，不建議用排程除錯） | 小 |
@@ -593,7 +662,7 @@ Spike-0（中文情緒模型選型驗證）已完成並定案：LLM 與人工一
 1. **§4.2 中文情緒模型選型驗證（Spike-0，已於 2026-09-13 完成並定案，✅ 已結案）**：從 cnyes 即時抓取 300 則真實台股新聞標題，由使用者人工逐則標註多空／中立，並用既有 `ai/providers`（Gemini `gemini-3.6-flash`，經 `extract_structured()`）批次產出 LLM 參考標籤做對照。結果：
    - **整體一致率 87.0%（261/300）**，達文件建議的 ≥80% 門檻。
    - 混淆矩陣顯示 LLM 對「看多」（recall 95.6%／precision 92.0%）與「看空」（recall 88.2%）判斷相當準，但**「中立」類別明顯偏弱**（recall 僅 50.9%）：55 則人工判定中立的標題中，LLM 把 27 則誤判成有方向性（18 則誤判看多、9 則誤判看空）。人工複核誤判樣本後歸納出系統性傾向：**LLM 只要看到具體正面數字或字眼（營收年增、訂單、認證）就傾向直接判多，即使人工認為那只是中性的事實揭露**（例如「TPCA：全球載板產值增3成」人工判中立、LLM 判看多；「大立光8月營收年減16%」人工判中立、LLM 判看空）——這不是隨機誤差，是 LLM 對「多空方向性」的判準比人工寬鬆。
-   - **使用者已於 2026-09-13 拍板「用這 87% 直接定案」**：**不再另外測試／開發本地輕量模型**，直接採用 LLM 作為唯一情緒評分引擎（見新增 **ADR-P4-08**、§4.1 更新、§0.4 v2.3 摘要）。§4.1 原訂「L1 本地免費批次＋L2 LLM 限量升級」的兩層分工**不採用**，全部標題一律走 LLM 批次評分；`NEWS_SENTIMENT_ENGINE` 程式預設值已改為 `"llm"`（`config.py`、`.env.example`，2026-09-13 commit）。
+   - **使用者已於 2026-09-13 拍板「用這 87% 直接定案」**：**不再另外測試／開發本地輕量模型**，直接採用 LLM 作為唯一情緒評分引擎（見新增 **ADR-P4-08**、§4.1 更新、§0.5 v2.3 摘要）。§4.1 原訂「L1 本地免費批次＋L2 LLM 限量升級」的兩層分工**不採用**，全部標題一律走 LLM 批次評分；`NEWS_SENTIMENT_ENGINE` 程式預設值已改為 `"llm"`（`config.py`、`.env.example`，2026-09-13 commit）。
    - **設計啟示（仍然適用，未因定案而失效）**：鑑於「中立」類別誤判率高，`sentiment_filter` 的中立判斷應偏保守——寧可漏判也不要把中性新聞誤判成有方向性訊號，避免產生假訊號；P2 實作時應留意這點，必要時可在 Prompt 或後處理補一道「數字增長但無方向性語境詞則傾向中立」的規則。
    - 完整標註結果、混淆矩陣、全部誤判案例見對話紀錄（`spike0_report.txt`，未隨文件留存，如需重新產生可重跑同一套流程：cnyes 抓取 → Artifact 人工標註工具 → `read_db` 拉回比對）。
 2. **PTT／Cnyes／Yahoo 爬蟲的 ToS／穩定度風險**：§3.1 僅寫「須遵守目標站點的存取條款」，未給明確驗收標準。PTT 網頁版有 18 歲同意頁與偶發改版，屬營運風險；Cnyes／Yahoo 若無官方開放條款，長期存取有 IP 封鎖或法遵疑慮——這是業務層級的風險接受決策，不是工程師能單方面決定的事，建議在 P1 動工前由你明確拍板「接受此風險上線」或「先確認/改用官方付費 API」。工程上能做的只有把三個來源做成互相獨立、單一來源失效不影響其他（`news_sources.yaml` 的 `enabled` 開關已是這個設計的一部分）。
@@ -601,9 +670,9 @@ Spike-0（中文情緒模型選型驗證）已完成並定案：LLM 與人工一
 
 ### 15.4 文件未講清楚、留給實作者自行決定的落差點
 
-- **`macro_flags` 的計算/注入位置未指名檔案**：已在 §15.2 P4 具體標出是 `strategies/scanner.py` 的 `for symbol in all_scan_symbols:` 迴圈之前，文件只講了原則（單次掃描共用一份），沒點名這個位置。
-- **L3 SimHash 工具函式該放哪個檔案未指定**：建議獨立成 `services/news_dedup.py`（而非併入 `news_fetcher.py`），因為去重邏輯未來可能被評分 job 複用來排除 `is_duplicate` 列，放進抓取器檔案會造成不必要耦合。
-- **「策略只掛閘門型 condition 需在啟動日誌警示」的實作位置未指定**（§6.4）：建議併入 `strategies/config_loader.py` 既有 YAML schema 驗證批次，不另立檢查函式。
+- ~~**`macro_flags` 的計算/注入位置未指名檔案**~~——**此落差點已解決**：`services/scanner.py` 已在 `for symbol in all_scan_symbols:` 迴圈之前呼叫 `services/macro_analytics.get_macro_flags()` 一次，結果原封不動注入每次 `get_bars()`（見 §0.1 v2.7 摘要）。
+- ~~**L3 SimHash 工具函式該放哪個檔案未指定**~~——**此落差點已解決**：P1 已獨立成 `services/news_dedup.py`（而非併入 `news_fetcher.py`），去重邏輯供評分 job 複用來排除 `is_duplicate` 列，不與抓取器耦合。
+- ~~**「策略只掛閘門型 condition 需在啟動日誌警示」的實作位置未指定**（§6.4）~~——**此落差點已解決**：已併入 `strategies/config_loader.py` 既有 YAML 載入批次，不另立檢查函式（見 §0.1 v2.7 摘要）。
 - ~~**DXY 的具體資料來源未指定**（§5.1）~~——**此落差點已由 ADR-P4-09 解決**：改用 FRED 官方發布的 `DTWEXBGS`（Nominal Broad U.S. Dollar Index）作為免費替代來源，`indicator_code` 對外仍稱 `"DXY"`。
 - ~~**L2 閘門條件二「追蹤清單／持股庫存」對應哪張表未指名**（§4.1）~~——**此落差點因 ADR-P4-08 已不存在**：定案全部標題一律走 LLM 批次評分後，不再有「僅追蹤清單／持股標的才升級 LLM」這道閘門，`services/news_sentiment.py` 的 `list_unscored()` 對全市場候選一視同仁，不需要查 `watchlist`／`portfolio` 表。
 

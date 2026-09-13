@@ -218,3 +218,35 @@ def divergence_flag(
     if sentiment_5d <= -threshold and price_change_pct >= 0:
         return "BEARISH_RESILIENT"
     return None
+
+
+def sentiment_5d_series(
+    trading_dates: list[str], scored_rows: list[dict], source_weights: dict[str, float], window: int = 5,
+) -> list[Optional[float]]:
+    """`ScanContext.sentiment_5d`（P4 §6.2）：對齊 `trading_dates`（`ChipDataProvider.get_bars()`
+    已組好的該股實際交易日清單，由舊到新）的逐日 5 日加權情緒分數序列。
+
+    刻意用「回看視窗＝`trading_dates` 本身往前數 `window` 個索引」而非另外查交易日曆——
+    `trading_dates` 已經是這檔股票真實有交易的日子（沒交易就不會有 K 棒、不會出現在這個清單
+    裡），用它自己的索引往前數就是正確的「近 N 個交易日」定義，不需要再靠
+    `is_weekday_trading_day()` 重建一次交易日曆（那是給「這檔股票完全沒有資料的日子」用的
+    情境，例如新股上市前，此處不適用）。
+
+    `scored_rows`：`NewsRepository.get_recent_scores()` 的回傳形狀
+    `[{"source", "sentiment_score", "effective_trade_date"}, ...]`，一次查詢涵蓋整個
+    `trading_dates` 範圍（呼叫端負責），這裡只在記憶體裡逐日分桶，不再查詢資料庫。"""
+    if not trading_dates:
+        return []
+    # 依 effective_trade_date（ISO 字串）分桶，同一天可能有多筆
+    by_date: dict[str, list[dict]] = {}
+    for row in scored_rows:
+        d = row.get("effective_trade_date")
+        d_str = d.isoformat() if hasattr(d, "isoformat") else str(d)
+        by_date.setdefault(d_str, []).append(row)
+
+    series: list[Optional[float]] = []
+    for i in range(len(trading_dates)):
+        window_dates = trading_dates[max(0, i - window + 1): i + 1]
+        window_rows = [row for d_str in window_dates for row in by_date.get(d_str, [])]
+        series.append(weighted_sentiment_avg(window_rows, source_weights))
+    return series
