@@ -348,3 +348,17 @@ class NewsRepository:
         result = await self._s.execute(stmt, {"code": indicator_code, "as_of": as_of})
         row = result.first()
         return _row_to_dict(row) if row else None
+
+    async def get_visible_indicator_series(self, *, indicator_code: str, as_of: date, limit: int = 30) -> list[dict]:
+        """近 `limit` 筆「已公布」的歷史數值（`release_date <= as_of`，同一套 point-in-time
+        防線），由舊到新排序，供前端 Sparkline 使用
+        （docs/16.AI技術分析/Phase4-輕量化新聞輿情與總經監控.md §11：Sparkline 資料格式
+        比照既有 `indices/overview` 回傳結構）。"""
+        stmt = text("""
+            SELECT indicator_date, release_date, value FROM macro_indicators
+             WHERE indicator_code = :code AND release_date <= :as_of
+             ORDER BY indicator_date DESC LIMIT :limit
+        """)
+        result = await self._s.execute(stmt, {"code": indicator_code, "as_of": as_of, "limit": limit})
+        rows = [_row_to_dict(r) for r in result.fetchall()]
+        return list(reversed(rows))

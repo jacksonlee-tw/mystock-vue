@@ -33,6 +33,11 @@
       </div>
     </div>
 
+    <!-- 總經儀表板（Phase4-輕量化新聞輿情與總經監控.md §11）：獨立於下方熱力圖的載入狀態，
+         自己管自己的 loading／error，不影響熱力圖本體的既有邏輯（CLAUDE.md 硬性規則 #1
+         的精神延伸——新區塊的載入不該拖累或干擾既有頁面的捲動位置）。 -->
+    <MacroDashboardBanner />
+
     <!-- 分類維度切換／概念標籤篩選／個股排序（概念股標籤分類_規劃書 §六）：只影響「一般個股」
          這層，指數／ETF 兩個既有分區的組成不變——概念標籤是人工維護、涵蓋率有限的資料，不該讓
          這兩個既有分區因為缺標籤而意外消失。查無概念標籤資料時（種子檔尚未建立、或該市場沒有
@@ -241,6 +246,7 @@ import { LineChart, TreemapChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 import WatchlistStarButton from '@/components/WatchlistStarButton.vue';
+import MacroDashboardBanner from '@/components/MacroDashboardBanner.vue';
 
 use([CanvasRenderer, LineChart, TreemapChart, GridComponent, TooltipComponent]);
 

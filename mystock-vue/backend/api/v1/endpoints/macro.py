@@ -61,6 +61,17 @@ async def get_macro_indicator(indicator_code: str):
     return {"success": True, "data": value}
 
 
+@router.get("/indicators/{indicator_code}/series", summary="查詢單一總經指標的近期已公布序列（供前端 Sparkline，§11）")
+async def get_macro_indicator_series(indicator_code: str, limit: int = 30):
+    indicator_code = indicator_code.upper()
+    limit = max(1, min(100, limit))
+    async with get_async_session() as session:
+        series = await NewsRepository(session).get_visible_indicator_series(
+            indicator_code=indicator_code, as_of=date.today(), limit=limit,
+        )
+    return {"success": True, "data": {"indicator_code": indicator_code, "series": series}}
+
+
 @router.get("/market-regime/{market}", summary="查詢大盤指數 20MA/60MA 位階（§5.2 全域鎖底層查詢）")
 async def get_market_regime_endpoint(market: str):
     data = await get_market_regime(market)

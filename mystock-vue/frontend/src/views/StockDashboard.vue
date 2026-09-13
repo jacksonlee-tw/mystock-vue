@@ -244,6 +244,10 @@
         <!-- 策略警示：此股票目前符合哪些均線／籌碼策略條件（均線策略警示系統 設計文件第 6.2 節） -->
         <StockAlertsPanel :stock-id="selectedStock" :market="market" :months="selectedMonths" />
 
+        <!-- 新聞輿情：僅台股（Phase4-輕量化新聞輿情與總經監控.md §1.3），元件內部依 market
+             自行判斷是否掛載，此處不另加 v-if 包一層，維持跟 StockAlertsPanel 一致的呼叫方式 -->
+        <StockNewsPanel :stock-id="selectedStock" :market="market" />
+
         <!-- 視圖切換標籤 (圖表 / 表格) -->
         <div class="flex items-center justify-between border-b border-surface-200 dark:border-surface-700 pb-2">
           <div class="flex items-center gap-2">
@@ -397,6 +401,7 @@ import { formatPrice, formatChange, formatLots, formatPercent } from '@/utils/fo
 import StockCharts from '@/components/StockCharts.vue';
 import VsIndexWidget from '@/components/VsIndexWidget.vue';
 import StockAlertsPanel from '@/components/StockAlertsPanel.vue';
+import StockNewsPanel from '@/components/StockNewsPanel.vue';
 import WatchlistStarButton from '@/components/WatchlistStarButton.vue';
 import { useMarket } from '@/composables/useMarket';
 
