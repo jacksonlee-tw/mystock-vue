@@ -115,10 +115,26 @@ def _parse_quarterly_eps_html(html: str) -> Optional[dict]:
     return result
 
 
-def fetch_quarterly_eps_single(stock_id: str, year_ad: int, season: int) -> Optional[dict]:
-    """抓取單一股票、單一季別的 EPS；查無資料（含非個股、尚未公告、WAF 擋下）一律回傳 None。"""
+def _known_typek(existing: dict) -> Optional[str]:
+    """從既有 EPS 紀錄找出上次成功命中的上市櫃別（比照 mops_fetcher.py 月營收爬蟲的做法），
+    知道之後就不必每季都重新從 sii→otc→rotc 試錯一輪。"""
+    for record in existing.values():
+        typek = record.get("typek")
+        if typek in _TYPEK_CANDIDATES:
+            return typek
+    return None
+
+
+def fetch_quarterly_eps_single(
+    stock_id: str, year_ad: int, season: int, preferred_typek: Optional[str] = None
+) -> Optional[dict]:
+    """抓取單一股票、單一季別的 EPS；查無資料（含非個股、尚未公告、WAF 擋下）一律回傳 None。
+    preferred_typek 給定時優先嘗試該別，失敗仍會依序試完其餘候選，避免轉板時被快取卡死。"""
     year_roc = year_ad - 1911
-    for typek in _TYPEK_CANDIDATES:
+    typek_order = _TYPEK_CANDIDATES
+    if preferred_typek in _TYPEK_CANDIDATES:
+        typek_order = [preferred_typek] + [t for t in _TYPEK_CANDIDATES if t != preferred_typek]
+    for typek in typek_order:
         payload = {
             "encodeURIComponent": "1",
             "step": "1",
@@ -222,6 +238,7 @@ def run_fetch_quarterly_eps(
     try:
         for stock_id in target_stocks:
             existing = load_stock_eps(stock_id)
+            preferred_typek = _known_typek(existing)
             q_year, q_season = year, season
             for _ in range(quarters):
                 key = f"{q_year}-Q{q_season}"
@@ -232,7 +249,7 @@ def run_fetch_quarterly_eps(
                     skipped_count += 1
                 else:
                     eps_fetch_status.update(step, total_steps, f"[{stock_id}] 抓取季報 EPS {key}")
-                    record = fetch_quarterly_eps_single(stock_id, q_year, q_season)
+                    record = fetch_quarterly_eps_single(stock_id, q_year, q_season, preferred_typek=preferred_typek)
                     if record is None:
                         eps_fetch_status.update(
                             step, total_steps,
@@ -243,6 +260,8 @@ def run_fetch_quarterly_eps(
                         record["fetched_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         existing[key] = record
                         success_count += 1
+                        if preferred_typek is None:
+                            preferred_typek = record.get("typek")
                     time.sleep(3)
 
                 q_year, q_season = _prev_quarter(q_year, q_season)

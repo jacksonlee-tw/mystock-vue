@@ -109,10 +109,27 @@ def _parse_monthly_revenue_html(html: str) -> Optional[dict]:
     return None
 
 
-def fetch_monthly_revenue_single(stock_id: str, year_ad: int, month: int) -> Optional[dict]:
-    """抓取單一股票、單一月份的月營收；查無資料（含非個股、WAF 擋下）一律回傳 None。"""
+def _known_typek(existing: dict) -> Optional[str]:
+    """從既有月營收紀錄找出上次成功命中的上市櫃別。同一檔股票的上市櫃別不會變，
+    知道之後就不必每個月都重新從 sii→otc→rotc 試錯一輪（省下 1~2 次無效請求）。"""
+    for record in existing.values():
+        typek = record.get("typek")
+        if typek in _TYPEK_CANDIDATES:
+            return typek
+    return None
+
+
+def fetch_monthly_revenue_single(
+    stock_id: str, year_ad: int, month: int, preferred_typek: Optional[str] = None
+) -> Optional[dict]:
+    """抓取單一股票、單一月份的月營收；查無資料（含非個股、WAF 擋下）一律回傳 None。
+    preferred_typek 給定時優先嘗試該別（見 _known_typek），失敗仍會依序試完其餘候選，
+    避免股票中途轉板（上市⇄上櫃）時被快取卡死。"""
     year_roc = year_ad - 1911
-    for typek in _TYPEK_CANDIDATES:
+    typek_order = _TYPEK_CANDIDATES
+    if preferred_typek in _TYPEK_CANDIDATES:
+        typek_order = [preferred_typek] + [t for t in _TYPEK_CANDIDATES if t != preferred_typek]
+    for typek in typek_order:
         payload = {
             "encodeURIComponent": "1",
             "step": "1",
@@ -187,6 +204,7 @@ def run_fetch_monthly_revenue(
     try:
         for stock_id in target_stocks:
             existing = load_stock_revenue(stock_id)
+            preferred_typek = _known_typek(existing)
             month_cursor = cursor
             for _ in range(months):
                 key = month_cursor.strftime("%Y-%m")
@@ -197,7 +215,9 @@ def run_fetch_monthly_revenue(
                     skipped_count += 1
                 else:
                     mops_fetch_status.update(step, total_steps, f"[{stock_id}] 抓取月營收 {key}")
-                    record = fetch_monthly_revenue_single(stock_id, month_cursor.year, month_cursor.month)
+                    record = fetch_monthly_revenue_single(
+                        stock_id, month_cursor.year, month_cursor.month, preferred_typek=preferred_typek
+                    )
                     if record is None:
                         mops_fetch_status.update(
                             step, total_steps,
@@ -208,6 +228,9 @@ def run_fetch_monthly_revenue(
                         record["fetched_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         existing[key] = record
                         success_count += 1
+                        if preferred_typek is None:
+                            # 新股票在本次執行中第一次命中類別，後續月份直接沿用，不必等到下次執行。
+                            preferred_typek = record.get("typek")
                     time.sleep(3)
 
                 month_cursor = month_cursor.replace(day=1) - timedelta(days=1)

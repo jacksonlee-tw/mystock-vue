@@ -213,70 +213,148 @@ def _months_in_range(days: int) -> list:
         cursor = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
     return months
 
-def _roc_date_to_iso(roc_date: str) -> Optional[str]:
-    try:
-        roc_year, month, day = roc_date.split("/")
-        return f"{int(roc_year) + 1911}-{int(month):02d}-{int(day):02d}"
-    except (ValueError, AttributeError):
-        return None
-
-_STOCK_DAY_FIELD_MAP = {
-    "開盤價": (3, float),
-    "最高價": (4, float),
-    "最低價": (5, float),
-    "收盤價": (6, float),
-    "成交股數(股)": (1, int),
-    "成交金額(元)": (2, int),
-    "成交筆數(筆)": (8, int),
-}
-
 def _parse_quote_field(row: list, index: int, cast):
     try:
         return cast(str(row[index]).replace(",", ""))
     except (ValueError, IndexError, TypeError):
         return None
 
+# ── 全市場行情（MI_INDEX，取代逐檔逐月 STOCK_DAY）─────────────────────
+# 舊版逐檔呼叫 STOCK_DAY（單檔單月），請求量 = 追蹤股票數 × 月數，股票追蹤清單一長就
+# 線性變慢。MI_INDEX 是「單日全市場」端點，一次請求就能拿到當天所有股票的 OHLCV，
+# 因此改成比照 fetch_stock_institutional_data() 逐日抓取，請求量從此只跟天數成正比，
+# 與追蹤股票數無關。欄位定位邏輯與 market_fetcher.py（選股功能全市場管線）的
+# fetch_twse_quotes() 一致，該處已實測驗證過（見 docs/05.籌碼選股策略/籌碼選股.md）。
+_MI_INDEX_FIELD_RULES = [
+    ("開盤價", "開盤價", float),
+    ("最高價", "最高價", float),
+    ("最低價", "最低價", float),
+    ("收盤價", "收盤價", float),
+    ("成交股數(股)", "成交股數", int),
+    ("成交金額(元)", "成交金額", int),
+    ("成交筆數(筆)", "成交筆數", int),
+]
+
+def _locate_mi_index_quote_table(res: dict) -> Optional[dict]:
+    """MI_INDEX 一次回應含多張表格，需找出「每日收盤行情」那張。"""
+    for t in res.get("tables", []):
+        title = t.get("title", "")
+        if "每日收盤行情" in title or "價格資訊" in title or len(t.get("data", [])) > 500:
+            return t
+    if "data9" in res:
+        return {"fields": res.get("fields9", []), "data": res.get("data9", [])}
+    return None
+
+def _locate_mi_index_columns(fields: list) -> Optional[dict]:
+    """依 fields 標頭動態定位欄位索引（欄位順序不像 STOCK_DAY 固定）。
+    找不到「證券代號」或「收盤價」代表表格不符預期，回傳 None 由呼叫端整批放棄，
+    絕不用猜的索引落檔（比照 _locate_t86_columns 的原則）。"""
+    if not fields:
+        return None
+    col_map = {}
+    for i, f in enumerate(fields):
+        if "證券代號" in f and "symbol" not in col_map:
+            col_map["symbol"] = i
+    for out_field, keyword, _cast in _MI_INDEX_FIELD_RULES:
+        idx = next((i for i, f in enumerate(fields) if keyword in f), None)
+        if idx is not None:
+            col_map[out_field] = idx
+    if "symbol" not in col_map or "收盤價" not in col_map:
+        return None
+    return col_map
+
+def fetch_mi_index_quotes(date_key: str, target_stocks: set):
+    """抓取單一交易日的全市場行情，僅保留 target_stocks 需要的部分。
+    回傳 (quotes_by_stock, is_holiday)；quotes_by_stock 的 value 與舊版
+    fetch_daily_quotes() 回傳形狀相同（中文 key），供既有呼叫端無痛沿用。"""
+    date_str = date_key.replace("-", "")
+    url = f"https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date={date_str}&type=ALLBUT0999&response=json"
+    try:
+        res = _twse_get_json(url)
+    except Exception as e:
+        logger.warning(f"[MI_INDEX] {date_key} 抓取失敗: {e}")
+        return {}, False
+
+    stat = res.get("stat", "")
+    if stat != "OK":
+        return {}, ("非交易日" in stat or "查無" in stat)
+
+    table = _locate_mi_index_quote_table(res)
+    if not table:
+        return {}, False
+
+    col_map = _locate_mi_index_columns(table.get("fields", []))
+    if col_map is None:
+        logger.error(f"[MI_INDEX] {date_key} 欄位定位失敗，本日不落檔行情（欄位: {table.get('fields')}）")
+        return {}, False
+
+    quotes = {}
+    for row in table.get("data", []):
+        sym_idx = col_map["symbol"]
+        if len(row) <= sym_idx:
+            continue
+        stock_id = str(row[sym_idx]).strip()
+        if stock_id not in target_stocks:
+            continue
+        close = _parse_quote_field(row, col_map["收盤價"], float)
+        if close is None:
+            continue
+        quote = {"收盤價": close}
+        for out_field, _keyword, cast in _MI_INDEX_FIELD_RULES:
+            if out_field == "收盤價":
+                continue
+            idx = col_map.get(out_field)
+            value = _parse_quote_field(row, idx, cast) if idx is not None else None
+            quote[out_field] = value if value is not None else cast(0)
+        quotes[stock_id] = quote
+
+    return quotes, False
+
 def fetch_daily_quotes(target_stocks: list, days_by_stock: dict) -> dict:
+    """抓取每個目標股票所需區間的每日行情。內部逐日呼叫 fetch_mi_index_quotes()——
+    取聯集後最大的天數區間即可涵蓋所有股票，因為 MI_INDEX 一次就是全市場，
+    多算幾天不會多花請求（不像舊版 STOCK_DAY 逐檔逐月，天數要對到每一檔股票才划算）。
+    若某天所有目標股票都已有非零收盤價，代表這天早就補齊過，直接跳過不重打（比照
+    fetch_stock_institutional_data() 的 is_date_complete，同一天不必因為聯集窗口
+    變大而重新抓已經抓過的舊資料）。"""
     quote_lookup = {stock_id: {} for stock_id in target_stocks}
-    
-    months_by_stock = {}
-    total = 0
-    for stock_id in target_stocks:
-        stock_days = days_by_stock.get(stock_id, 90)
-        m = _months_in_range(stock_days)
-        months_by_stock[stock_id] = m
-        total += len(m)
-        
+    target_set = set(target_stocks)
+
+    max_days = max(days_by_stock.values()) if days_by_stock else 0
+    if max_days <= 0:
+        return quote_lookup
+
+    existing_data = {stock_id: load_stock_json(stock_id) for stock_id in target_stocks}
+
+    def quote_complete(stock_id: str, date_key: str) -> bool:
+        record = existing_data[stock_id].get(date_key)
+        return record is not None and bool(_field(record, "close", 0))
+
+    today = datetime.now()
+    valid_days = [today - timedelta(days=i) for i in range(max_days) if (today - timedelta(days=i)).weekday() < 5]
+    no_trading_days = load_no_trading_days()
+
+    total = len(valid_days)
     n = 0
+    for target_date in valid_days:
+        n += 1
+        date_key = target_date.strftime("%Y-%m-%d")
+        if date_key in no_trading_days:
+            fetch_status.update(n, total, f"跳過已知非交易日 {date_key}")
+            continue
+        if all(quote_complete(stock_id, date_key) for stock_id in target_stocks):
+            fetch_status.update(n, total, f"跳過已有完整行情的日期 {date_key}")
+            continue
 
-    for stock_id in target_stocks:
-        for year, month in months_by_stock[stock_id]:
-            n += 1
-            date_param = f"{year}{month:02d}01"
-            url = f"https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY?date={date_param}&stockNo={stock_id}&response=json"
-            fetch_status.update(n, total * 2, f"行情抓取 [{n}/{total}]: {stock_id} {year}-{month:02d} | URL: {url}")
-            try:
-                res = _twse_get_json(url)
-                if res.get("stat") == "OK":
-                    rows = res.get("data", [])
-                    for row in rows:
-                        date_key = _roc_date_to_iso(row[0])
-                        if date_key is None:
-                            continue
-                        close = _parse_quote_field(row, 6, float)
-                        if close is None:
-                            continue
-                        quote = {"收盤價": close}
-                        for field, (index, cast) in _STOCK_DAY_FIELD_MAP.items():
-                            if field == "收盤價":
-                                continue
-                            value = _parse_quote_field(row, index, cast)
-                            quote[field] = value if value is not None else cast(0)
-                        quote_lookup[stock_id][date_key] = quote
-            except Exception as e:
-                fetch_status.update(n, total * 2, f"⚠️ 行情抓取失敗 ({stock_id} {year}-{month:02d}): {e}")
+        fetch_status.update(n, total, f"行情抓取 [{n}/{total}]: {date_key}（全市場 MI_INDEX）")
+        try:
+            quotes, _is_holiday = fetch_mi_index_quotes(date_key, target_set)
+            for stock_id, quote in quotes.items():
+                quote_lookup[stock_id][date_key] = quote
+        except Exception as e:
+            fetch_status.update(n, total, f"⚠️ 行情抓取失敗 ({date_key}): {e}")
 
-            time.sleep(random.uniform(3.5, 5.5))
+        time.sleep(random.uniform(3.5, 5.5))
 
     return quote_lookup
 
