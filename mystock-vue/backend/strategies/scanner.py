@@ -63,6 +63,8 @@ _SUGGESTED_ACTION_TEMPLATES = {
     ("pick_eps_profitability", "bullish"): "最新已公開季報 EPS 符合獲利門檻，可搭配估值與技術面進一步篩選",
     # ── 相對低點承接（股價相對低點 需求規格書 §10.1）────────────────────
     ("pick_relative_low_zone", "bullish"): "已帶量站回 {ma_period}MA，可分批建立第一筆部位（建議 1/3），跌破 {stop_loss} 停損。",
+    # ── Phase4 新聞輿情與總經環境策略（規格書 §6.3，v2.8 AND 閘門機制）────────
+    ("momentum_with_news_confirmation", "bullish"): "站上季線 MA{ma_period} 且情緒面／大盤總經雙閘門皆通過，動能與消息面共振，可留意進場時機",
     # ── 出場風控策略範本（選股功能與爬蟲 規格書 §6、§13）────────────────────
     ("exit_trailing_stop", "bearish"): "自持股最高點回檔超過停利門檻，建議執行移動停利、分批出場鎖定獲利",
     ("exit_fixed_stop_loss", "bearish"): "跌破平均持股成本達停損門檻，建議嚴格執行停損控制下檔風險",

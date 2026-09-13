@@ -409,6 +409,30 @@ strategies:
       - type: "institutional_buy" # 只影響 signal_strength，不擋訊號
         params: { lookback_days: 3 }
 
+  # ══ Phase4 新聞輿情與總經環境策略（docs/16.AI技術分析/
+  # Phase4-輕量化新聞輿情與總經監控.md §6.3，v2.8 AND 閘門機制）══════════════
+  - id: "momentum_with_news_confirmation"
+    name: "動能突破與利多共振"
+    description: "季線突破的技術面主訊號，須同時通過情緒面（近5日新聞情緒不偏空、PTT討論度未過熱）與大盤總經環境（站上月線）兩道閘門才會真的發出警示，任一閘門未過即整筆擋掉（gates 為 AND 關係，見規格書 §6.1）。"
+    category: "trend_sentiment"
+    scope: "watchlist"
+    enabled: true
+    markets: ["tw"] # sentiment_filter／macro_filter 僅支援台股（規格書 §1.3），跨市場需拆成兩個策略
+    conditions:
+      - type: "price_cross" # 主觸發：站上季線，獨立產生警示
+        target: "close"
+        ma_periods: [60]
+        directions: ["cross_above"]
+    gates: # 閘門：全部通過，上面的主觸發才會真的放行（v2.8 新增機制）
+      - type: "sentiment_filter" # 近5日加權情緒分數不偏空，且散戶討論度未過熱
+        min_score: 0.5
+        max_buzz_percentile: 0.85
+      - type: "macro_filter" # 大盤環境保護：站上月線才視為多頭格局
+        market_trend: "above_20ma"
+    filters:
+      - type: "volume_confirm" # 加分：不影響訊號成立
+        params: { multiple: 1.5 }
+
   # ══ 持倉出場風控策略（選股功能與爬蟲 規格書 §6、§13）═══════════════════════
   - id: "exit_trailing_stop"
     name: "移動停利出場風控"
