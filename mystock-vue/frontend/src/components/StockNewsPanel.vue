@@ -10,7 +10,7 @@
           新聞輿情
           <span
             v-if="sentiment5d !== null"
-            class="text-xs font-bold px-1.5 py-0.5 rounded"
+            class="text-xs font-bold px-1.5 py-0.5 rounded tabular-nums"
             :class="sentimentBadgeClass"
           >
             近5日情緒 {{ sentiment5d >= 0 ? '+' : '' }}{{ sentiment5d.toFixed(2) }}
@@ -53,34 +53,39 @@
     </div>
 
     <template v-else>
-      <ul class="px-5 pb-5 pt-1 space-y-3">
+      <ul class="px-3 pb-4 pt-0">
         <li
           v-for="item in visibleNews"
           :key="item.id"
-          class="flex flex-col gap-1 pb-3 border-b border-surface-100 dark:border-surface-800 last:border-0 last:pb-0"
+          class="border-b border-surface-100 dark:border-surface-800 last:border-0"
         >
-          <div class="flex items-start justify-between gap-2">
-            <a
-              :href="item.news_url"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="text-sm font-semibold text-surface-800 dark:text-surface-100 hover:text-primary leading-snug"
-            >
-              {{ item.title }}
-            </a>
-            <span
-              v-if="item.sentiment_label"
-              class="shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded-full"
-              :class="sentimentTagClass(item.sentiment_label)"
-            >
-              {{ sentimentLabelText(item.sentiment_label) }}
-            </span>
-          </div>
-          <div class="text-xs text-surface-400 flex items-center gap-2">
-            <span>{{ item.source }}</span>
-            <span>·</span>
-            <span>{{ formatPublishedAt(item.published_at) }}</span>
-          </div>
+          <!-- 整列可點擊（不只標題文字）：hover 淡底色＋外連箭頭，讓「這是可以點開的新聞」
+               一眼看懂；標題區限制 max-w-3xl，情緒標籤才不會在寬螢幕上被推到天邊，
+               與標題視覺上斷開。 -->
+          <a
+            :href="item.news_url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="group block px-2 py-2.5 rounded-lg hover:bg-surface-50 dark:hover:bg-surface-800/60 transition-colors"
+          >
+            <div class="flex items-start gap-2 max-w-3xl">
+              <span class="text-[15px] font-semibold text-surface-800 dark:text-surface-100 group-hover:text-primary leading-relaxed">
+                {{ item.title }}<i class="pi pi-external-link text-[10px] ml-1 align-baseline opacity-0 group-hover:opacity-60 transition-opacity"></i>
+              </span>
+              <span
+                v-if="item.sentiment_label"
+                class="shrink-0 mt-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full"
+                :class="sentimentTagClass(item.sentiment_label)"
+              >
+                {{ sentimentLabelText(item.sentiment_label) }}
+              </span>
+            </div>
+            <div class="text-[11px] text-surface-400 mt-0.5 flex items-center gap-1.5">
+              <span>{{ sourceName(item.source) }}</span>
+              <span>·</span>
+              <span>{{ formatPublishedAt(item.published_at) }}</span>
+            </div>
+          </a>
         </li>
       </ul>
       <div v-if="newsItems.length > collapsedCount" class="px-5 pb-4 -mt-1">
@@ -120,12 +125,25 @@ const showSources = ref(false);
 const visibleNews = computed(() => (expanded.value ? newsItems.value : newsItems.value.slice(0, collapsedCount)));
 const enabledSourceCount = computed(() => sources.value.filter((s) => s.enabled).length);
 
-// 情緒分數色彩沿用「紅漲綠跌」既有規定：分數為正（偏多）視同看漲取紅，為負（偏空）取綠
-// （見 docs/16.AI技術分析/Phase4-輕量化新聞輿情與總經監控.md §11 的配色說明；`bg-up-soft`／
-// `text-up` 等 class 已在既有 CSS 變數層把「上漲=紅」固定死，跟 marketColors.js 是同一套
-// 語意，這裡直接用 class 而非額外呼叫 colorForValue() 算 hex 色碼）。
+// 來源顯示人看得懂的名稱（news_sources.yaml 的 name，例如「鉅亨網台股新聞」），而不是
+// 資料表存的來源代碼（cnyes）。來源清單本來就為了「目前納入 N 個來源」抓過一次，這裡直接
+// 沿用同一份資料做對照，不多打一次 API；清單還沒載入完成時退回原始代碼，不顯示空白。
+const sourceNameById = computed(() => Object.fromEntries(sources.value.map((s) => [s.id, s.name])));
+function sourceName(id) {
+  return sourceNameById.value[id] || id;
+}
+
+// 中性帶：與後端評分提示詞（§4.1「NEUTRAL 應落在 -0.2～0.2 之間」）用同一條界線。
+// 沒有這條線的話，+0.10 這種實質中性的分數會被塗成紅色（偏多），與同一張卡片裡逐則新聞
+// 標成「中立」的判定互相矛盾，看起來像誤判。
+const SENTIMENT_NEUTRAL_BAND = 0.2;
+
+// 情緒色彩沿用「紅漲綠跌」既有規定：偏多視同看漲取紅、偏空取綠（見 §11 配色說明；
+// `bg-up-soft`／`text-up` 等 class 已在既有 CSS 變數層把「上漲=紅」固定死，跟
+// marketColors.js 是同一套語意，這裡直接用 class 而非另外算 hex 色碼）。
 const sentimentBadgeClass = computed(() => {
   if (sentiment5d.value === null) return '';
+  if (Math.abs(sentiment5d.value) < SENTIMENT_NEUTRAL_BAND) return 'bg-surface-100 dark:bg-surface-800 text-surface-500';
   return sentiment5d.value >= 0 ? 'bg-up-soft text-up' : 'bg-down-soft text-down';
 });
 
@@ -133,17 +151,31 @@ const SENTIMENT_LABEL_TEXT = { BULLISH: '偏多', BEARISH: '偏空', NEUTRAL: '�
 function sentimentLabelText(label) {
   return SENTIMENT_LABEL_TEXT[label] || label;
 }
+// 中立刻意做成「淡框無底色」而非實心灰塊：一則清單裡常常四五則都是中立，全部給實心色塊
+// 會變成視覺噪音，把唯一真正有方向性的偏多／偏空蓋掉。
 function sentimentTagClass(label) {
   if (label === 'BULLISH') return 'bg-up-soft text-up';
   if (label === 'BEARISH') return 'bg-down-soft text-down';
-  return 'bg-surface-100 dark:bg-surface-800 text-surface-500';
+  return 'border border-surface-200 dark:border-surface-700 text-surface-400';
 }
 
+// 24 小時內顯示相對時間（「3 小時前」），其餘顯示 24 小時制的 MM/DD HH:mm。
+// 刻意不用 toLocaleString('zh-TW')：那會輸出「09/13 上午09:11」，中文的上午／下午
+// 跟後面兩位數時間並排時很囉唆，也讓不同列的時間長度參差不齊。
 function formatPublishedAt(isoStr) {
   if (!isoStr) return '';
   const d = new Date(isoStr);
   if (Number.isNaN(d.getTime())) return isoStr;
-  return d.toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs >= 0 && diffMs < 3600_000) {
+    return `${Math.max(1, Math.floor(diffMs / 60_000))} 分鐘前`;
+  }
+  if (diffMs >= 0 && diffMs < 86_400_000) {
+    return `${Math.floor(diffMs / 3600_000)} 小時前`;
+  }
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 async function loadSources() {

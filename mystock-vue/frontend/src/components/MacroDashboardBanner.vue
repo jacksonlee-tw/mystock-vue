@@ -44,14 +44,24 @@
       <div v-else-if="!indicatorValue(ind.code)" class="text-sm text-surface-400 mt-2">尚無資料</div>
       <template v-else>
         <div class="flex items-end justify-between gap-2 mt-1">
-          <div class="text-lg font-black text-surface-900 dark:text-surface-0">
-            {{ formatNumber(indicatorValue(ind.code).value) }}<span class="text-xs font-normal text-surface-400">{{ ind.unit }}</span>
+          <div>
+            <div class="text-lg font-black text-surface-900 dark:text-surface-0 tabular-nums">
+              {{ formatNumber(indicatorValue(ind.code).value) }}<span class="text-xs font-normal text-surface-400">{{ ind.unit }}</span>
+            </div>
+            <!-- 較前一筆的變化：用已抓回來的序列最後兩點自己算，不需要後端另外提供。
+                 刻意維持中性灰、只用箭頭表示方向，不套紅漲綠跌——殖利率或美元指數上漲
+                 對個股是偏多還偏空要看情境，直接上漲跌色會強加一個不成立的語意。 -->
+            <div v-if="changeInfo(ind.code)" class="text-[11px] text-surface-500 tabular-nums mt-0.5">
+              <i class="pi text-[9px]" :class="changeInfo(ind.code).diff >= 0 ? 'pi-arrow-up' : 'pi-arrow-down'"></i>
+              {{ changeInfo(ind.code).diff >= 0 ? '+' : '' }}{{ formatNumber(changeInfo(ind.code).diff) }}
+              （{{ changeInfo(ind.code).pct >= 0 ? '+' : '' }}{{ formatNumber(changeInfo(ind.code).pct) }}%）
+            </div>
           </div>
           <div class="w-20 h-8">
             <v-chart :option="getSparklineOption(sparklines[ind.code])" :update-options="{ notMerge: true }" autoresize />
           </div>
         </div>
-        <div class="text-xs text-surface-400 mt-1">公布日 {{ indicatorValue(ind.code).release_date }}</div>
+        <div class="text-[11px] text-surface-400 mt-1">公布日 {{ indicatorValue(ind.code).release_date }}</div>
       </template>
     </div>
   </div>
@@ -87,6 +97,19 @@ function indicatorValue(code) {
 function formatNumber(v) {
   if (v === null || v === undefined) return '—';
   return Number(v).toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// 較前一筆的變化：直接取 Sparkline 序列（本來就抓回來畫圖用）的最後兩點相減，
+// 不需要後端額外提供欄位。資料不足兩點、前一筆為 0 或非數字時回傳 null（該區塊不顯示），
+// 不硬算出一個會誤導人的百分比。
+function changeInfo(code) {
+  const series = sparklines.value[code] || [];
+  if (series.length < 2) return null;
+  const prev = Number(series[series.length - 2]);
+  const curr = Number(series[series.length - 1]);
+  if (!Number.isFinite(prev) || !Number.isFinite(curr) || prev === 0) return null;
+  const diff = curr - prev;
+  return { diff, pct: (diff / Math.abs(prev)) * 100 };
 }
 
 function getSparklineOption(data) {
