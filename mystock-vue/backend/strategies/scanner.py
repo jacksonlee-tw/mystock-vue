@@ -20,7 +20,7 @@ import repositories.alert_repository as alert_repository
 from config import get_alert_cooldown_days, get_target_stocks
 from repositories.market_repository import MarketRepository
 from services import tracking_service
-from services.chip_provider import ChipDataProvider, MarketPreload, PositionContext
+from services.chip_provider import ChipDataProvider, MarketPreload, PositionContext, ScanContext
 from services.macro_analytics import get_macro_flags
 from strategies import cooldown as cooldown_mod
 from strategies.config_loader import StrategyDef, load_strategy_config
@@ -80,6 +80,46 @@ def _is_chip_excluded(symbol: str, security_type: Optional[str] = None) -> bool:
     if security_type:
         return any(kw in security_type for kw in _CHIP_EXCLUDED_SECURITY_KEYWORDS)
     return bool(_CHIP_EXCLUDED_SYMBOL_PATTERN.match(symbol))
+
+
+def _evaluate_gates(gates: List[dict], ctx: ScanContext, idx: int, symbol: str) -> bool:
+    """§6.1 AND 閘門機制（Phase4-輕量化新聞輿情與總經監控.md v2.8 新增）：策略的 `gates`
+    清單全部通過，主觸發 condition 產生的候選警示才會真的放行；任一 gate 未通過就整筆擋掉。
+
+    gate 只借用既有 `CONDITION_REGISTRY` 的條件函式做判斷（`sentiment_filter`／
+    `macro_filter`，理論上也可以是任何已註冊的 condition type），本身**不獨立產生警示**、
+    不佔用 `direction`／`dedup_key`——這是 gate 跟 `conditions` 清單裡一般 condition 的
+    本質差異：`conditions` 清單裡每一項各自是「觸發」，`gates` 清單裡每一項只是「檢查」。
+
+    **資料不足一律 fail-closed（視為不通過）**：型別未註冊、`min_bars`／`requires`
+    不滿足、評估拋例外，都當作「這個 gate 沒過」而不是「這個 gate 不適用、略過」——
+    寧可漏放行也不要在資料不足時誤放行主觸發訊號（比照本專案「缺值不可補樂觀值」的既有
+    慣例，例如 `services/fetcher.py` 缺值不可補 0 的教訓）。"""
+    for gate_cfg in gates:
+        if not isinstance(gate_cfg, dict):
+            logger.warning(f"[策略引擎] gate 設定格式錯誤（非物件，型別={type(gate_cfg).__name__}），視為不通過: {gate_cfg!r}")
+            return False
+
+        spec = CONDITION_REGISTRY.get(gate_cfg.get("type"))
+        if not spec:
+            logger.warning(f"[策略引擎] gate 型別未註冊: {gate_cfg.get('type')!r}，視為不通過")
+            return False
+
+        if ctx.length < spec.min_bars:
+            return False
+        if any(not getattr(ctx, field_name, None) for field_name in spec.requires):
+            return False
+
+        try:
+            signals = spec.func(ctx, idx, gate_cfg)
+        except Exception as e:
+            logger.warning(f"[策略引擎] gate {spec.type} 評估失敗 ({symbol}): {e}")
+            return False
+
+        if not signals:
+            return False
+
+    return True
 
 
 def _strength(passed_filter_count: int) -> str:
@@ -159,8 +199,13 @@ async def scan_market(
     # buzz_percentile 只在真的有策略掛 sentiment_filter 時才逐股查詢（比照 needs_valuation
     # 的既有分工，避免不需要的掃描白付查詢成本）；macro_flags 是「全市場一次」的市場層級
     # 旗標，只要有策略掛 macro_filter 就在迴圈外算一次、原封不動注入每次 get_bars()。
+    # v2.8：sentiment_filter／macro_filter 正確用法是放進 gates（見 _evaluate_gates()），
+    # 這裡兩邊（conditions 與 gates）都要掃，否則只放在 gates 裡的策略永遠查不到新聞/總經資料。
     condition_types_in_use = {
-        c.get("type") for s in strategies for c in s.conditions if isinstance(c, dict)
+        c.get("type")
+        for s in strategies
+        for c in (s.conditions + s.gates)
+        if isinstance(c, dict)
     }
     needs_sentiment = "sentiment_filter" in condition_types_in_use
     needs_macro = "macro_filter" in condition_types_in_use
@@ -281,6 +326,12 @@ async def scan_market(
                         if cooldown_mod.is_active(cooldown_state, cd_key, trade_date, effective_cooldown):
                             continue
 
+                        # §6.1 AND 閘門機制：gates 全部通過，這筆候選警示才真的放行
+                        # （沒有 gates 的策略——現有 24 條——行為完全不變，_evaluate_gates([])
+                        # 迴圈直接跳過、回傳 True）。
+                        if not _evaluate_gates(strategy.gates, ctx, idx, symbol):
+                            continue
+
                         passed_filters = evaluate_filters(strategy.filters, ctx, idx)
                         details = signal.get("details", {})
 
@@ -297,6 +348,10 @@ async def scan_market(
                             "trade_date": trade_date,
                             "details": details,
                             "filters_passed": passed_filters,
+                            # 走到這裡代表 strategy.gates 全部已通過（_evaluate_gates 已檢查過），
+                            # 記錄型別清單供警示明細／稽核追溯「這筆訊號是被哪些閘門放行的」，
+                            # 沒有 gates 的策略此欄一律是空 list（比照 filters_passed 空清單的既有語意）。
+                            "gates_passed": [g.get("type") for g in strategy.gates if isinstance(g, dict)],
                             "suggested_action": _suggested_action(strategy.id, direction, details),
                             "dedup_key": dedup_key,
                             "cd_key": cd_key,

@@ -14,10 +14,13 @@ from config import get_strategy_config_path
 
 logger = logging.getLogger("mystock-backend")
 
-# §6.4（Phase4-輕量化新聞輿情與總經監控.md）：sentiment_filter／macro_filter 屬於「持續性
-# 狀態」（大盤站上月線可能連續成立數十天），不是轉折事件；若某策略只掛閘門型 condition
-# 而無主觸發條件，會每個交易日都成立、天天推播。規格要求載入時檢核並在啟動日誌警示——
-# 併入既有 YAML 載入批次，不另立檢查函式（見規格書 §15.4 對此落差點的說明）。
+# §6.4（Phase4-輕量化新聞輿情與總經監控.md，v2.8 更新）：sentiment_filter／macro_filter
+# 屬於「持續性狀態」（大盤站上月線可能連續成立數十天），不是轉折事件。v2.8 新增 `gates`
+# 欄位（見 StrategyDef.gates／strategies/scanner.py 的 _evaluate_gates()）後，正確用法是
+# 把這兩型放進 `gates:`，不是放進 `conditions:`——但 YAML 沒有 schema 強制，仍可能誤放，
+# 下面兩條檢核都併入既有 YAML 載入批次，不另立檢查函式（見規格書 §15.4 對此落差點的說明）：
+#   1. `conditions` 只掛閘門型（沒有真正的主觸發，見下方迴圈）
+#   2. `gates` 有設定但 `conditions` 是空的（gates 永遠不會被評估到，整條策略形同沒作用）
 _GATE_ONLY_CONDITION_TYPES = {"sentiment_filter", "macro_filter"}
 
 
@@ -30,6 +33,11 @@ class StrategyDef:
     markets: List[str]
     description: str = ""
     conditions: List[dict] = field(default_factory=list)
+    # §6.1 AND 閘門機制（v2.8 新增）：全部通過，conditions 觸發的候選警示才會真的放行；
+    # 本身不獨立產生警示（與 conditions 的本質差異，見 strategies/scanner.py 的
+    # _evaluate_gates() 說明）。語意上屬於 condition（會決定訊號成立與否），跟只加分不擋的
+    # filters 完全不同角色，型別沿用既有 CONDITION_REGISTRY，不另立一套註冊表。
+    gates: List[dict] = field(default_factory=list)
     filters: List[dict] = field(default_factory=list)
     cooldown_days: Optional[int] = None
     # ── 選股與風控延伸欄位（選股功能與爬蟲 規格書 §7、§13）───────────
@@ -73,6 +81,7 @@ def load_strategy_config() -> StrategyConfig:
             markets=s.get("markets", ["tw", "us"]),
             description=s.get("description", ""),
             conditions=s.get("conditions", []),
+            gates=s.get("gates", []),
             filters=s.get("filters", []),
             cooldown_days=s.get("cooldown_days"),
             scope=s.get("scope", "watchlist"),
@@ -89,9 +98,16 @@ def load_strategy_config() -> StrategyConfig:
         condition_types = {c.get("type") for c in s.conditions if isinstance(c, dict)}
         if condition_types and condition_types.issubset(_GATE_ONLY_CONDITION_TYPES):
             logger.warning(
-                f"[策略引擎] 策略 {s.id} 只掛了閘門型 condition（{sorted(condition_types)}）、"
+                f"[策略引擎] 策略 {s.id} 的 conditions 只掛了閘門型（{sorted(condition_types)}）、"
                 f"沒有主觸發條件——閘門屬於持續性狀態（例如大盤站上月線可能連續成立數十天），"
-                f"沒有主觸發時每個交易日都會成立、天天推播（規格書 §6.4）"
+                f"放在 conditions 裡沒有主觸發時每個交易日都會成立、天天推播（規格書 §6.4）；"
+                f"若本意是當閘門用，應改放進 gates 欄位，不是 conditions"
+            )
+        if s.gates and not s.conditions:
+            logger.warning(
+                f"[策略引擎] 策略 {s.id} 設定了 gates（{sorted({g.get('type') for g in s.gates if isinstance(g, dict)})}）"
+                f"但 conditions 是空的——gates 只在 conditions 觸發時才會被評估到，"
+                f"沒有主觸發條件時這些 gates 永遠不會被檢查，整條策略形同沒作用（規格書 §6.4）"
             )
 
     return StrategyConfig(

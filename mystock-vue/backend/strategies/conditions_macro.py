@@ -1,10 +1,8 @@
 """大盤總經全域鎖閘門條件（docs/16.AI技術分析/Phase4-輕量化新聞輿情與總經監控.md §5.2、§6.1，
 ADR-P4-06）。
 
-**與 `strategies/conditions_sentiment.py` 同一限制**：scanner.py 目前沒有「多個 condition
-AND 在一起才算一次訊號」的機制，本檔的 `macro_filter` 掛在任何策略上都只會變成獨立發自己
-警示的條件類型，不會真的擋掉主觸發訊號。詳細原因與後續待辦見 `conditions_sentiment.py`
-檔頭說明，不重複贅述。
+**與 `strategies/conditions_sentiment.py` 同一用法（v2.8 更新）**：掛進策略設定的 `gates:`
+清單才會真的發揮閘門效果，見該檔頭說明，不重複贅述。
 
 `market_trend` 參數目前支援 `"above_20ma"`／`"above_60ma"`，對應讀取 `ctx.macro_flags`
 裡 `f"{ctx.market}_above_20ma"`／`f"{ctx.market}_above_60ma"` 這兩個鍵（見
@@ -40,8 +38,8 @@ def _eval_macro_filter(ctx: ScanContext, idx: int, params: dict) -> Optional[dic
 
 @condition(type="macro_filter", min_bars=1, requires=("macro_flags",))
 def macro_filter(ctx: ScanContext, idx: int, params: dict) -> List[dict]:
-    """大盤總經環境閘門條件（§5.2／§6.1）。**目前技術上等同獨立 condition**，
-    見檔頭說明——scanner.py 尚未支援 condition 間的 AND 組合。"""
+    """大盤總經環境閘門條件（§5.2／§6.1）。掛進策略的 `gates:` 清單才會真的擋掉主觸發
+    訊號，見檔頭說明。"""
     details = _eval_macro_filter(ctx, idx, params)
     if details is None:
         return []

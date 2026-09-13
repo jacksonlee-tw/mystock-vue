@@ -5,19 +5,14 @@ ADR-P4-06）。
 那種「只加分、不擋」的濾網（ADR-P4-06 明訂兩者分工，型別名稱刻意沿用 `sentiment_filter`
 避免與 filters 模組混淆——見該 ADR 說明）。
 
-**重要限制（P4 開工前已與使用者確認，刻意不動 scanner.py）**：`strategies/scanner.py` 目前
-的 condition 評估迴圈沒有「多個 condition AND 在一起才算一次訊號」的機制——`conditions:`
-清單裡每一項各自獨立評估、各自獨立產生候選警示（OR 關係，各自用自己的 `direction` 去重）。
-核對現有 24 條策略設定檔，目前一條都沒有掛超過 1 個 condition，證實這條 AND 語意路徑從未
-被使用過。也就是說：**把本檔的 `sentiment_filter` 掛在某個策略的 `conditions:` 清單裡，
-目前不會真的擋掉同策略下其他 condition 的訊號**，只會變成一個獨立發自己警示的條件類型。
-要真正達成「情緒不過關就擋掉主訊號」的效果，需要先擴充 scanner.py（例如新增策略層級的
-`gates:` 欄位，或比照 `conditions_pick.py` 的 `stock_pick_resonance` 用 `_eval_*`
-私有函式做 AND 組合、另外設計一個複合 condition），這是後續待辦，不在本次 P4 範圍內
-（見規格書 §15.2 P4 列的補充說明）。
+**用法（v2.8 更新）**：掛進策略設定的 `gates:` 清單（不是 `conditions:`）才會真的發揮閘門
+效果——`strategies/scanner.py` 的 `_evaluate_gates()` 會在主觸發 condition 成立時，
+逐一評估 `gates:` 裡的每個型別，全部通過（回傳非空）才放行該筆候選警示。掛在
+`conditions:` 裡仍然可以動（會變成一個獨立發自己警示的條件類型），但不會有「擋掉別的
+訊號」的效果——`strategies/config_loader.py` 的 YAML 載入批次會在這種誤用情境下記警告。
 
-本檔的 `_eval_sentiment_filter()` 私有函式即是比照 `conditions_pick.py` 的既有慣例——先把
-可重用的判斷邏輯寫好，供未來真的要做 AND 組合時直接呼叫，不必重寫一次。
+本檔的 `_eval_sentiment_filter()` 私有函式比照 `conditions_pick.py` 的既有慣例，把
+可重用的判斷邏輯與 `@condition` 註冊薄殼分離。
 """
 from typing import List, Optional
 
@@ -62,8 +57,8 @@ def _eval_sentiment_filter(ctx: ScanContext, idx: int, params: dict) -> Optional
 
 @condition(type="sentiment_filter", min_bars=1, requires=("sentiment_5d",))
 def sentiment_filter(ctx: ScanContext, idx: int, params: dict) -> List[dict]:
-    """情緒面閘門條件（§4.1／§6.1）。**目前技術上等同獨立 condition**，見檔頭說明——
-    scanner.py 尚未支援 condition 間的 AND 組合，掛在任何策略上都不會真的擋掉其他訊號。"""
+    """情緒面閘門條件（§4.1／§6.1）。掛進策略的 `gates:` 清單才會真的擋掉主觸發訊號，
+    見檔頭說明；回傳值本身跟一般 condition 同一種形狀，方便直接借用既有評估邏輯。"""
     details = _eval_sentiment_filter(ctx, idx, params)
     if details is None:
         return []
