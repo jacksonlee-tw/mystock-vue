@@ -9,22 +9,41 @@ Phase 4: 輕量化新聞輿情與總經監控 (Semantic Assist & Macro Monitorin
 | --- | --- |
 | 模組 | 輕量化新聞輿情與總經監控 |
 | 對應既有模組 | `strategies/`（新增條件類型）、`services/`（新增新聞與總經管線）、`notify/`（沿用推播）、`db/migration/`（新增資料表） |
-| 版本 | v2.1（新增 §15 現況評估與分階段實作計畫） |
-| 狀態 | 需求規格 — 待審核，**尚未開發**（2026-09-13 已逐項核對現行程式碼確認：本文件所有規劃項目在 backend／frontend 皆零實作，見 §15.1） |
+| 版本 | v2.2（P0／P1 已實作完成並通過 Spike-0 第一輪驗證，見 §0.1、§15） |
+| 狀態 | **部分已開發**：P0（骨架與設定）、P1（新聞資料管線）已實作並 commit（`3a96bda`）；Spike-0（中文情緒模型選型）第一輪已完成，LLM 與人工一致率 87.0%（§15.3-1）。**P2～P7（情緒評分引擎、總經管線、策略引擎整合、通知、前端、排程）尚未開發**，見 §15.2 現況與計畫。 |
 
 ---
 
 ## 0. 修訂紀錄與決策（ADR）
 
-### 0.1 v2.1 變更摘要
+### 0.1 v2.2 變更摘要
 
-新增 §15「現況評估與分階段實作計畫」：逐項核對現行程式碼確認本文件規劃的全部項目（三張新表、`news_fetcher.py`／`macro_fetcher.py`、`news_sources.yaml`、`conditions_sentiment.py`／`conditions_macro.py`、`ScanContext` 新欄位、`api/v1/endpoints/news.py`／`macro.py`、scheduler 排程、notify 樣板、前端元件）**目前零實作**，並將本文件已定案的技術決策轉譯為可執行的分階段交付計畫（WBS），標出文件本身三處已過期／寫錯的檔案路徑（§15.1）、需要人為先做實驗或拍板的風險點（§15.3），以及文件未講清楚、留給實作者自行決定的落差點（§15.4）。**本次僅新增 §15，不變更 §1～§14 任何 FR／ADR／驗收條件的需求本身。**
+依 §15.2 的分階段計畫，實際完成並 commit（`3a96bda`）**P0（骨架與設定）與 P1（新聞資料管線）**：
+`db/migration/V23__Create_news_and_macro_tables.sql`（三張新表）、`strategy_config/news_sources.yaml`、
+`services/news_config.py`（熱重載 loader）、`indicators/news_time.py`（point-in-time 對齊／標題正規化／
+SHA-256／SimHash／漢明距離／百分位排名）、`repositories/news_repository.py`、`services/news_dedup.py`、
+`services/news_fetcher.py`（cnyes 抓取已對真實 API 端到端驗證；PTT Stock 板討論量抓取邏輯已對真實頁面
+結構驗證）、`api/v1/endpoints/news.py`（4 個端點，已掛載）、`config.py`／`.env.example` 新增設定項、
+`repositories/stock_repository.py` 新增 `list_symbols_sync()`／`get_no_trading_days_sync()`。
+**Postgres 寫入路徑本次未實測**（本機無可連線的 Postgres，`DATA_SOURCE=json`），需之後啟動
+`docker compose up -d` 後補測 `POST /news/trigger`。
 
-### 0.2 v2.0 優化重點
+同時完成 **Spike-0 第一輪**（中文情緒模型選型驗證）：抓取 300 則真實 cnyes 新聞標題，人工逐則標註多空／
+中立，並用既有 `ai/providers`（Gemini）批次產出 LLM 參考標籤對照，整體一致率 **87.0%**，詳見 §15.3-1。
+本次**只驗證了 LLM vs 人工**，本地輕量模型 vs 人工的比對仍待進行。
+
+P2（情緒評分引擎）／P3（總經管線）／P4（策略引擎整合）／P5（通知）／P6（前端）／P7（排程串接）
+**維持未開發**，§15.2 WBS 內容不變。
+
+### 0.2 v2.1 變更摘要
+
+新增 §15「現況評估與分階段實作計畫」：逐項核對現行程式碼確認本文件規劃的全部項目（三張新表、`news_fetcher.py`／`macro_fetcher.py`、`news_sources.yaml`、`conditions_sentiment.py`／`conditions_macro.py`、`ScanContext` 新欄位、`api/v1/endpoints/news.py`／`macro.py`、scheduler 排程、notify 樣板、前端元件）**目前零實作**（此結論已於 v2.2 部分推翻，P0／P1 已完成，見 §0.1），並將本文件已定案的技術決策轉譯為可執行的分階段交付計畫（WBS），標出文件本身三處已過期／寫錯的檔案路徑（§15.1）、需要人為先做實驗或拍板的風險點（§15.3），以及文件未講清楚、留給實作者自行決定的落差點（§15.4）。**本次僅新增 §15，不變更 §1～§14 任何 FR／ADR／驗收條件的需求本身。**
+
+### 0.3 v2.0 優化重點
 
 v1.0 僅列出「要做哪些功能」，實作時會撞到三個問題：新聞來源開越多雜訊越大、同一則消息被多家轉載重複計分、LLM 逐則評分的成本無上限。v2.0 針對這三點補上機制，並補齊 v1.0 完全沒有處理的 **Point-in-time 對齊**（新聞與總經數據的「可見時點」與交易日不是同一條時間軸）。
 
-### 0.3 決策紀錄
+### 0.4 決策紀錄
 
 | 編號 | 決策 | 理由 |
 | --- | --- | --- |
@@ -400,13 +419,19 @@ MACRO_FETCH_ENABLED=true
 
 ---
 
-## 15. 現況評估與分階段實作計畫（v2.1 新增，2026-09-13）
+## 15. 現況評估與分階段實作計畫（v2.1 新增，v2.2 更新實作進度，2026-09-13）
 
 本節不改變 §1～§14 的任何需求，只回答兩件事：**現在做到哪裡了**、**接下來怎麼分階段做**。方法是逐項核對現行程式碼，不是讀規格猜測。
 
-### 15.0 現況評估結論
+### 15.0 現況評估結論（v2.2 更新）
 
-全文對照 `backend/`／`frontend/` 後確認：本文件規劃的每一項產出——三張新表（`stock_news`／`stock_discussion_buzz`／`macro_indicators`）、`services/news_fetcher.py`、`services/macro_fetcher.py`、`strategy_config/news_sources.yaml`、`strategies/conditions_sentiment.py`／`conditions_macro.py`、`ScanContext` 的 `sentiment_5d`／`news_count`／`buzz_percentile`／`macro_flags` 欄位、`api/v1/endpoints/news.py`／`macro.py`、`services/scheduler.py` 的新聞/總經排程、`notify/` 的新聞相關樣板、任何前端新聞或總經 UI——**全部零實作**。目前最新 Flyway 遷移是 `V22__Create_quarterly_financials.sql`，本文件新增的遷移須從 **V23** 起算（§7 原文寫「例如 V17」已過期）。這與文件頂部自報的「尚未開發」狀態一致，不像 Phase 2／3／5 文件曾出現「狀態欄位過期、程式碼早已超前」的落差。
+**v2.1 原文**（僅供歷史對照）：全文對照後確認本文件規劃的每一項產出全部零實作，狀態與文件自報一致。
+
+**v2.2 現況**：P0（骨架與設定）與 P1（新聞資料管線）已實作並 commit（`3a96bda`）——`V23__Create_news_and_macro_tables.sql`（三張新表）、`services/news_fetcher.py`（cnyes 抓取已對真實 API 端到端驗證、PTT Stock 板討論量抓取已對真實頁面結構驗證）、`services/news_config.py`、`services/news_dedup.py`、`indicators/news_time.py`、`repositories/news_repository.py`、`api/v1/endpoints/news.py`（4 個端點已掛載）均已落地，細節見 §0.1。**Postgres 寫入路徑本次未實測**（本機無可連線 Postgres）。
+
+**尚未實作**：`services/macro_fetcher.py`、`strategies/conditions_sentiment.py`／`conditions_macro.py`、`ScanContext` 的 `sentiment_5d`／`news_count`／`buzz_percentile`／`macro_flags` 欄位、`api/v1/endpoints/macro.py`、`services/scheduler.py` 的新聞/總經排程、`notify/` 的新聞相關樣板、任何前端新聞或總經 UI——對應 §15.2 的 P2～P7。
+
+Spike-0（中文情緒模型選型驗證）第一輪已完成：LLM 與人工一致率 87.0%，詳見 §15.3-1。
 
 ### 15.1 轉譯前必須先修正的文件錯誤（避免施工者照抄文件字面出錯）
 
@@ -436,7 +461,12 @@ MACRO_FETCH_ENABLED=true
 
 ### 15.3 需要人為決策、無法單靠寫程式解決的風險點
 
-1. **§4.2 中文情緒模型選型驗證缺一致率門檻數字**：文件已承認 FinBERT 不適用，但沒給「一致率要達到多少才算通過」的具體門檻——這是需要使用者/架構師在 Spike-0 開工前先拍板的數字（例如「與 LLM 標註結果一致率 ≥ 80%」），否則 Spike-0 沒有明確的 Definition of Done，容易陷入無限調參，且此結果會回頭改變 P2 範圍與部署形態（常駐 API 內 vs 獨立排程批次程序）。
+1. **§4.2 中文情緒模型選型驗證（Spike-0，已於 2026-09-13 完成第一輪）**：從 cnyes 即時抓取 300 則真實台股新聞標題，由使用者人工逐則標註多空／中立，並用既有 `ai/providers`（Gemini `gemini-3.6-flash`，經 `extract_structured()`）批次產出 LLM 參考標籤做對照。結果：
+   - **整體一致率 87.0%（261/300）**，若採用文件建議的 ≥80% 門檻，**LLM（L2）判斷可信度過關**。
+   - 混淆矩陣顯示 LLM 對「看多」（recall 95.6%／precision 92.0%）與「看空」（recall 88.2%）判斷相當準，但**「中立」類別明顯偏弱**（recall 僅 50.9%）：55 則人工判定中立的標題中，LLM 把 27 則誤判成有方向性（18 則誤判看多、9 則誤判看空）。人工複核誤判樣本後歸納出系統性傾向：**LLM 只要看到具體正面數字或字眼（營收年增、訂單、認證）就傾向直接判多，即使人工認為那只是中性的事實揭露**（例如「TPCA：全球載板產值增3成」人工判中立、LLM 判看多；「大立光8月營收年減16%」人工判中立、LLM 判看空）——這不是隨機誤差，是 LLM 對「多空方向性」的判準比人工寬鬆。
+   - **本次只驗證了「LLM vs 人工」，尚未驗證「本地輕量模型 vs 人工」**——後者才是 Spike-0 原本要回答的「L1 本地模型是否夠格當免費預設」，仍待找一個候選本地模型（中文金融領域微調模型／通用中文情感模型）跑同一批 300 則樣本比對後才能決定。
+   - **設計啟示**：鑑於「中立」類別誤判率高，`sentiment_filter` 的中立/閘門判斷應偏保守——寧可漏判也不要把中性新聞誤判成有方向性訊號，避免產生假訊號。
+   - 完整標註結果、混淆矩陣、全部誤判案例見對話紀錄（`spike0_report.txt`，未隨文件留存，如需重新產生可重跑同一套流程：cnyes 抓取 → Artifact 人工標註工具 → `read_db` 拉回比對）。
 2. **PTT／Cnyes／Yahoo 爬蟲的 ToS／穩定度風險**：§3.1 僅寫「須遵守目標站點的存取條款」，未給明確驗收標準。PTT 網頁版有 18 歲同意頁與偶發改版，屬營運風險；Cnyes／Yahoo 若無官方開放條款，長期存取有 IP 封鎖或法遵疑慮——這是業務層級的風險接受決策，不是工程師能單方面決定的事，建議在 P1 動工前由你明確拍板「接受此風險上線」或「先確認/改用官方付費 API」。工程上能做的只有把三個來源做成互相獨立、單一來源失效不影響其他（`news_sources.yaml` 的 `enabled` 開關已是這個設計的一部分）。
 3. **三層去重（尤其 L3 SimHash）對中文標題的實際效果未經實測**：文件自己承認「trigram 對中文標題的鑑別度需先實測」，`dedup_hamming_max: 3` 只是預設值。建議 P1 上線後留一週觀察期，用真實跨來源轉載樣本人工抽查「有沒有漏判」與「有沒有誤判」，再回頭調整門檻，不能假設一次寫對。
 
