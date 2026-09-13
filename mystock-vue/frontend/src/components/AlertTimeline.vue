@@ -142,10 +142,10 @@ function strengthMeta(strength) {
 const categoryByStrategyId = computed(() => Object.fromEntries(props.strategyList.map((s) => [s.id, s.category])));
 function categoryIcon(alert) {
   return categoryMeta(categoryByStrategyId.value[alert.strategy_id]).icon;
+}
 
 // strategy_id -> 完整策略物件，供 StrategyInfoPopover 顯示規則說明用
 const strategyById = computed(() => Object.fromEntries(props.strategyList.map((s) => [s.id, s])));
-}
 
 // 依交易日分組並依日期新到舊排序；最新一組加註「最新」標籤
 const groupedAlerts = computed(() => {

@@ -121,7 +121,7 @@
                 <tr class="border-t border-surface-100 dark:border-surface-800">
                   <td class="p-3 text-surface-500 num">{{ lot.close_date }}</td>
                   <td class="p-3"><span class="px-2 py-0.5 text-xs font-bold rounded bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300">{{ marketMeta[lot.market].label }}</span></td>
-                  <td class="p-3 font-medium text-surface-800 dark:text-surface-100">{{ lot.symbol }} <span class="text-surface-400 font-normal">{{ lot.name }}</span></td>
+                  <td class="p-3 font-medium text-surface-800 dark:text-surface-100"><a :href="stockChartHref(lot)" target="_blank" rel="noopener" title="在新分頁開啟「選股與圖表分析」" class="hover:text-primary hover:underline">{{ lot.symbol }}</a> <span class="text-surface-400 font-normal">{{ lot.name }}</span></td>
                   <td class="p-3 text-right num">{{ fmtNum(lot.shares) }}</td>
                   <td class="p-3 text-right num">{{ marketMeta[lot.market].symbol }} {{ lot.sell_avg.toFixed(2) }}</td>
                   <td class="p-3 text-right num">{{ marketMeta[lot.market].symbol }} {{ lot.cost_avg.toFixed(2) }}</td>
@@ -163,6 +163,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import { useToast } from 'primevue/usetoast';
+import { useRouter } from 'vue-router';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart, LineChart } from 'echarts/charts';
@@ -175,6 +176,13 @@ import { colorForValue } from '@/utils/marketColors';
 use([CanvasRenderer, BarChart, LineChart, GridComponent, TooltipComponent]);
 
 const toast = useToast();
+const router = useRouter();
+
+// 平倉明細的股票代號都用真的 <a target="_blank"> 開新分頁到「選股與圖表分析」（stock-dashboard），
+// 做法與 WatchlistView.vue 的 stockChartHref 一致，見 PortfolioDashboard.vue 的說明。
+function stockChartHref(row) {
+  return router.resolve({ path: `/stock/${row.market}/${row.symbol}` }).href;
+}
 const marketOptions = [{ label: '台股', value: 'tw' }, { label: '美股', value: 'us' }];
 const costMethodOptions = [{ value: 'fifo', label: '先進先出 FIFO' }, { value: 'average', label: '加權平均法' }];
 const periodOptions = [{ value: 'year', label: '年度' }, { value: 'month', label: '月度' }];

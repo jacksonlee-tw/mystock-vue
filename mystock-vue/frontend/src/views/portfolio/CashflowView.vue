@@ -57,7 +57,7 @@
               <tr v-for="d in dividends" :key="d.id" class="border-t border-surface-100 dark:border-surface-800">
                 <td class="p-3 text-surface-500 num">{{ d.pay_date }}</td>
                 <td class="p-3"><span class="px-2 py-0.5 text-xs font-bold rounded bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300">{{ marketMeta[d.market].label }}</span></td>
-                <td class="p-3 font-medium text-surface-800 dark:text-surface-100">{{ d.symbol }} <span class="text-surface-400 font-normal">{{ d.name }}</span></td>
+                <td class="p-3 font-medium text-surface-800 dark:text-surface-100"><a :href="stockChartHref(d)" target="_blank" rel="noopener" title="在新分頁開啟「選股與圖表分析」" class="hover:text-primary hover:underline">{{ d.symbol }}</a> <span class="text-surface-400 font-normal">{{ d.name }}</span></td>
                 <td class="p-3"><span class="px-2 py-0.5 text-xs font-bold rounded bg-primary-50 dark:bg-primary-500/10 text-primary-700 dark:text-primary-300">{{ d.type === 'cash' ? '現金股利' : '股票股利' }}</span></td>
                 <td class="p-3 text-right num font-bold text-emerald-600">{{ d.type === 'cash' ? marketMeta[d.market].symbol + ' ' + fmtAmt(d.amount, d.market) : '+' + fmtNum(d.shares) + ' 股' }}</td>
                 <td class="p-3 text-surface-400 text-xs">{{ d.note }}</td>
@@ -135,11 +135,19 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
+import { useRouter } from 'vue-router';
 import { portfolioApi } from '@/service/portfolioApi';
 import { marketMeta, fmtNum, fmtAmt, fmtPct, toIsoDate, todayDate } from '@/composables/usePortfolioFormat';
 
 const toast = useToast();
 const confirm = useConfirm();
+const router = useRouter();
+
+// 股利紀錄的股票代號都用真的 <a target="_blank"> 開新分頁到「選股與圖表分析」（stock-dashboard），
+// 做法與 WatchlistView.vue 的 stockChartHref 一致，見 PortfolioDashboard.vue 的說明。
+function stockChartHref(row) {
+  return router.resolve({ path: `/stock/${row.market}/${row.symbol}` }).href;
+}
 
 const marketOptions = [{ label: '台股 TWSE', value: 'tw' }, { label: '美股 NASDAQ', value: 'us' }];
 const kindOptions = [

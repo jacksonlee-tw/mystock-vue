@@ -59,7 +59,7 @@
                 </span>
               </td>
               <td class="p-3 font-medium text-surface-800 dark:text-surface-100">
-                {{ tx.symbol }} <span class="text-surface-400 font-normal">{{ tx.name }}</span>
+                <a :href="stockChartHref(tx)" target="_blank" rel="noopener" title="在新分頁開啟「選股與圖表分析」" class="hover:text-primary hover:underline">{{ tx.symbol }}</a> <span class="text-surface-400 font-normal">{{ tx.name }}</span>
                 <span v-if="isTwEtfSymbol(tx.symbol) && tx.market === 'tw'" class="ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-primary-50 dark:bg-primary-500/10 text-primary-700 dark:text-primary-300">ETF</span>
               </td>
               <td class="p-3 text-right num">
@@ -225,6 +225,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
+import { useRouter } from 'vue-router';
 import { portfolioApi } from '@/service/portfolioApi';
 import { stockApi } from '@/service/stockApi';
 import { usePortfolioPrefill } from '@/composables/usePortfolioPrefill';
@@ -232,6 +233,13 @@ import { marketMeta, fmtNum, fmtAmt, lotLabel, isTwEtfSymbol, toIsoDate, fromIso
 
 const toast = useToast();
 const confirm = useConfirm();
+const router = useRouter();
+
+// 交易紀錄的股票代號都用真的 <a target="_blank"> 開新分頁到「選股與圖表分析」（stock-dashboard），
+// 做法與 WatchlistView.vue 的 stockChartHref 一致，見 PortfolioDashboard.vue 的說明。
+function stockChartHref(row) {
+  return router.resolve({ path: `/stock/${row.market}/${row.symbol}` }).href;
+}
 const { consumePendingTransaction } = usePortfolioPrefill();
 
 const marketOptions = [{ label: '台股 TWSE', value: 'tw' }, { label: '美股 NASDAQ', value: 'us' }];

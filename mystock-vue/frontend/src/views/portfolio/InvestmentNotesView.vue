@@ -87,7 +87,7 @@
                         class="px-2 py-0.5 text-[11px] font-bold rounded bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-300 hover:opacity-75"
                       >{{ t.name }}</button>
                       <span v-if="note.market" class="px-2 py-0.5 text-[11px] font-medium rounded border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 num">
-                        {{ note.market?.toUpperCase() }}<template v-if="note.symbol"> · {{ note.symbol }}<span v-if="note.symbol_name">（{{ note.symbol_name }}）</span></template>
+                        {{ note.market?.toUpperCase() }}<template v-if="note.symbol"> · <a :href="stockChartHref(note)" target="_blank" rel="noopener" title="在新分頁開啟「選股與圖表分析」" class="hover:underline">{{ note.symbol }}</a><span v-if="note.symbol_name">（{{ note.symbol_name }}）</span></template>
                       </span>
                     </div>
                   </div>
@@ -138,6 +138,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
+import { useRouter } from 'vue-router';
 import { investmentNoteApi } from '@/service/investmentNoteApi';
 import { toIsoDate } from '@/composables/usePortfolioFormat';
 import InvestmentNoteEditor from '@/components/portfolio/InvestmentNoteEditor.vue';
@@ -145,6 +146,13 @@ import { renderMarkdownWithMermaid } from '@/utils/markdownRenderer';
 
 const toast = useToast();
 const confirm = useConfirm();
+const router = useRouter();
+
+// 筆記關聯股票代號都用真的 <a target="_blank"> 開新分頁到「選股與圖表分析」（stock-dashboard），
+// 做法與 WatchlistView.vue 的 stockChartHref 一致，見 PortfolioDashboard.vue 的說明。
+function stockChartHref(note) {
+  return router.resolve({ path: `/stock/${note.market}/${note.symbol}` }).href;
+}
 
 const marketFilterOptions = [
   { label: '全部市場', value: '' },

@@ -92,7 +92,9 @@
               <tbody>
                 <tr v-for="h in holdings" :key="h.market + h.symbol" class="border-t border-surface-100 dark:border-surface-800">
                   <td class="py-2.5 pr-3">
-                    <div class="font-bold text-surface-800 dark:text-surface-100">{{ h.symbol }}</div>
+                    <div class="font-bold text-surface-800 dark:text-surface-100">
+                      <a :href="stockChartHref(h)" target="_blank" rel="noopener" title="在新分頁開啟「選股與圖表分析」" class="hover:text-primary hover:underline">{{ h.symbol }}</a>
+                    </div>
                     <div class="text-xs text-surface-400">{{ h.name }}</div>
                   </td>
                   <td class="py-2.5 px-3 text-right num">{{ fmtNum(h.shares) }}</td>
@@ -126,7 +128,7 @@
               <span class="px-2 py-0.5 text-xs font-bold rounded shrink-0" :class="tx.side === 'buy' ? 'bg-red-50 dark:bg-red-500/10 text-red-600' : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600'">
                 {{ tx.side === 'buy' ? '買進' : '賣出' }}
               </span>
-              <span class="font-bold text-surface-700 dark:text-surface-200">{{ tx.symbol }}</span>
+              <a :href="stockChartHref(tx)" target="_blank" rel="noopener" title="在新分頁開啟「選股與圖表分析」" class="font-bold text-surface-700 dark:text-surface-200 hover:text-primary hover:underline">{{ tx.symbol }}</a>
               <span class="text-surface-400 text-xs truncate">{{ tx.name }}</span>
               <span class="ml-auto num text-surface-500 text-xs shrink-0">{{ tx.trade_date }}</span>
             </li>
@@ -143,7 +145,7 @@
               <span class="px-2 py-0.5 text-xs font-bold rounded shrink-0" :class="w.is_reached ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600'">
                 {{ w.is_reached ? '已達價' : '接近目標' }}
               </span>
-              <span class="font-bold text-surface-700 dark:text-surface-200">{{ w.symbol }}</span>
+              <a :href="stockChartHref(w)" target="_blank" rel="noopener" title="在新分頁開啟「選股與圖表分析」" class="font-bold text-surface-700 dark:text-surface-200 hover:text-primary hover:underline">{{ w.symbol }}</a>
               <span class="text-surface-400 text-xs truncate">{{ w.name }}</span>
               <span class="ml-auto num text-xs shrink-0" :class="w.gap_pct <= 0 ? 'text-emerald-600 font-bold' : 'text-surface-500'">
                 距目標 {{ fmtPct(w.gap_pct) }}
@@ -158,6 +160,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { PieChart } from 'echarts/charts';
@@ -167,6 +170,8 @@ import { portfolioApi } from '@/service/portfolioApi';
 import { marketMeta, fmtNum, fmtPct, signed } from '@/composables/usePortfolioFormat';
 
 use([CanvasRenderer, PieChart, TooltipComponent, LegendComponent]);
+
+const router = useRouter();
 
 const marketFilterOptions = [
   { value: '', label: '全部' }, { value: 'tw', label: '台股' }, { value: 'us', label: '美股' }
@@ -234,6 +239,14 @@ async function loadAll() {
 }
 
 onMounted(loadAll);
+
+// 持股／交易／觀察名單裡的股票代號都用真的 <a target="_blank"> 開新分頁到「選股與圖表分析」
+// （stock-dashboard），不要用 @click + router.push——那樣只會在目前分頁跳轉，蓋掉使用者正在看的
+// 記帳總覽頁（做法與 WatchlistView.vue 的 stockChartHref 一致）。router.resolve() 才能拿到正確的
+// href（尊重 base path），純字串接容易在部署路徑不同時壞掉。
+function stockChartHref(row) {
+  return router.resolve({ path: `/stock/${row.market}/${row.symbol}` }).href;
+}
 </script>
 
 <style scoped>

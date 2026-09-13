@@ -56,6 +56,17 @@
           <i class="pi pi-calendar mr-1"></i>{{ dateRangeText }}
         </span>
 
+        <!-- 資料非最新提示：偵測到最後資料日落後於預期的最後交易日時顯示，點擊直接開啟重新抓取彈窗 -->
+        <button
+          v-if="dataIsStale"
+          type="button"
+          @click="refetchVisible = true"
+          class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 hover:opacity-80 transition-colors shrink-0"
+          :title="`資料最後更新到 ${latestDataDate}，似乎還沒抓到最新交易日，點擊重新抓取這支股票`"
+        >
+          <i class="pi pi-exclamation-triangle"></i> 資料非最新
+        </button>
+
         <!-- AI 診股提醒徽章：若此股票執行過 AI 診股報告，顯示最近一次的交易日＋研判方向，
              點擊直接開啟該份報告（略過選模型步驟，見 useAiAnalysis.js 的 viewReport()）。
              未執行過則整個徽章不顯示，不佔位也不誤導使用者。 -->
@@ -91,10 +102,11 @@
             <button
               @click="refetchVisible = true"
               :disabled="isRunning"
-              class="p-1.5 text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="重新抓取當前股票的歷史資料"
+              class="relative p-1.5 text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              :title="dataIsStale ? `資料非最新（落後 ${staleDays} 個交易日），點擊重新抓取` : '重新抓取當前股票的歷史資料'"
             >
               <i :class="['pi', isRunning ? 'pi-spin pi-spinner' : 'pi-refresh']"></i>
+              <span v-if="dataIsStale && !isRunning" class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500"></span>
             </button>
             <button
               @click="router.push('/stocks')"
@@ -357,6 +369,7 @@
       :stock-id="selectedStock"
       :stock-name="currentStockName"
       :market="currentMarket"
+      :missing-days="staleDays"
       :busy="isRefetching"
       @confirm="doRefetch"
     />
@@ -397,6 +410,7 @@ import { useCrawlerStatus } from '@/composables/useCrawlerStatus';
 import { useAiAnalysis } from '@/composables/useAiAnalysis';
 import { stockApi } from '@/service/stockApi';
 import { colorForValue as colorForValueRaw } from '@/utils/marketColors';
+import { isDataStale, staleWeekdaysCount } from '@/utils/marketFreshness';
 import { formatPrice, formatChange, formatLots, formatPercent } from '@/utils/format';
 import StockCharts from '@/components/StockCharts.vue';
 import VsIndexWidget from '@/components/VsIndexWidget.vue';
@@ -477,6 +491,20 @@ const latestChange = computed(() => {
 // 目前後端僅支援台股，chart-data 尚未回傳 market 欄位；
 // 這裡預先讀取（若未來 API 補上）以便漲跌配色自動切換，缺省時退回台股慣例。
 const market = computed(() => chartData.value?.market || 'tw');
+
+// 資料新鮮度：判斷目前已有資料的最後日期是否落後於預期的最後交易日（見 utils/marketFreshness.js，
+// 近似估算、未計入國定假日，誤判頂多讓使用者多點一次「重新抓取」）。落後時在日期區間旁顯示提示，
+// 並把落後天數帶進既有的 RefetchStockDialog（重用它「missingDays > 0」的缺漏提示與預設拉長區間邏輯）。
+// 台股／美股的排程時間表不同（見 marketFreshness.js），這裡刻意用 currentMarket（route 驅動、
+// 一定準確）而非上面的 market（依賴後端尚未回傳的 chartData.market，目前恆為 'tw'），
+// 否則美股會被誤套台股的收盤時間去判斷新鮮度。
+const latestDataDate = computed(() => {
+  if (chartData.value?.end_date) return chartData.value.end_date;
+  const dates = chartData.value?.dates;
+  return dates && dates.length > 0 ? dates[dates.length - 1] : null;
+});
+const dataIsStale = computed(() => isDataStale(latestDataDate.value, currentMarket.value));
+const staleDays = computed(() => staleWeekdaysCount(latestDataDate.value, currentMarket.value));
 
 function colorForValue(value) {
   return colorForValueRaw(value, market.value);

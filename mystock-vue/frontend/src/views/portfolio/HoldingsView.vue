@@ -43,7 +43,9 @@
           <tbody>
             <tr v-for="h in holdings" :key="h.market + h.symbol" class="border-t border-surface-100 dark:border-surface-800 hover:bg-surface-50 dark:hover:bg-surface-800/60">
               <td class="p-3">
-                <div class="font-bold text-surface-800 dark:text-surface-100">{{ h.symbol }}</div>
+                <div class="font-bold text-surface-800 dark:text-surface-100">
+                  <a :href="stockChartHref(h)" target="_blank" rel="noopener" title="在新分頁開啟「選股與圖表分析」" class="hover:text-primary hover:underline">{{ h.symbol }}</a>
+                </div>
                 <div class="text-xs text-surface-400">{{ h.name }}</div>
               </td>
               <td class="p-3"><span class="px-2 py-0.5 text-xs font-bold rounded bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300">{{ marketMeta[h.market].label }}</span></td>
@@ -89,10 +91,18 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import { useToast } from 'primevue/usetoast';
+import { useRouter } from 'vue-router';
 import { portfolioApi } from '@/service/portfolioApi';
 import { marketMeta, fmtNum, fmtAmt, fmtPct, signed, lotLabel } from '@/composables/usePortfolioFormat';
 
 const toast = useToast();
+const router = useRouter();
+
+// 股票代號都用真的 <a target="_blank"> 開新分頁到「選股與圖表分析」（stock-dashboard），做法與
+// WatchlistView.vue 的 stockChartHref 一致，見 PortfolioDashboard.vue 的說明。
+function stockChartHref(row) {
+  return router.resolve({ path: `/stock/${row.market}/${row.symbol}` }).href;
+}
 const marketOptions = [{ label: '台股', value: 'tw' }, { label: '美股', value: 'us' }];
 const costMethodOptions = [{ value: 'fifo', label: '先進先出 FIFO' }, { value: 'average', label: '加權平均法' }];
 
