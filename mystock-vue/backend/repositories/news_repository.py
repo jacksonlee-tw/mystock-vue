@@ -259,10 +259,16 @@ class NewsRepository:
 
     async def purge_expired(self, *, retention_months: int) -> int:
         """§13 資料保留：逾 `retention_months` 個月的新聞列刪除，逐日彙總值另存不受影響
-        （彙總落在別的資料結構，不在本表）。"""
+        （彙總落在別的資料結構，不在本表）。
+
+        用 `make_interval(months => :months)` 而非 `:months || ' months'` 字串拼接——
+        asyncpg 對 `||` 運算子兩側的參數型別無法推斷（`:months` 送的是 int，`||`
+        期待文字），會直接拋 `DataError: invalid input for query argument`（P7 排程
+        實測撞過）；`make_interval()` 是 Postgres 內建函式，直接接受整數參數，不需要
+        額外轉型。"""
         stmt = text("""
             DELETE FROM stock_news
-             WHERE effective_trade_date < (CURRENT_DATE - (:months || ' months')::interval)
+             WHERE effective_trade_date < (CURRENT_DATE - make_interval(months => :months))
         """)
         result = await self._s.execute(stmt, {"months": retention_months})
         return result.rowcount or 0

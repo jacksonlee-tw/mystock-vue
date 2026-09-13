@@ -257,6 +257,86 @@ async def _scheduled_industry_chain_decouple() -> None:
         logger.warning(f"[排程] 產業鏈脫鉤監控失敗: {e}")
 
 
+# ── Phase4 輕量化新聞輿情與總經監控（docs/16.AI技術分析/
+# Phase4-輕量化新聞輿情與總經監控.md §9）══════════════════════════════════
+def _scheduled_news_fetch(trigger_type: str = "scheduled") -> None:
+    """§9：新聞抓取（盤後 14:40／夜間 21:00）＋ PTT 討論量（23:30）。
+
+    **與文件字面排程表的落差（刻意，非漏做）**：文件把這三個時段列成三個獨立工作，
+    但 `services/news_fetcher.py` 的 `run_news_fetch()` 從 P1 就是「cnyes／yahoo_stock／
+    ptt_stock 一次抓完」的單一函式——拆成三個各自只抓一部分，需要額外維護一套「只抓
+    新聞不抓 PTT」的參數化介面，效益不成比例。改成三個時段都呼叫同一個函式：三層去重
+    （ADR-P4-02）與 PTT 篇數的 `ON CONFLICT ... DO UPDATE`（見 `upsert_buzz()`）皆為
+    冪等操作，一天呼叫三次不會產生重複新聞，PTT 篇數也只是隨當天累計覆寫更新為最新值，
+    語意上更貼近文件「盤後掛一次、夜間收攏一次、PTT 收整一次」的原意，而非更差。"""
+    try:
+        from config import is_news_fetch_enabled
+        if not is_news_fetch_enabled():
+            return
+        from services.news_fetcher import fetch_status, run_news_fetch
+        if fetch_status.get_snapshot()["is_running"]:
+            logger.info("[排程] 新聞抓取已在執行中，本次排程略過")
+            return
+        result = run_news_fetch(trigger_type=trigger_type)
+        logger.info(f"[排程] 新聞抓取完成: {result}")
+    except Exception as e:
+        logger.warning(f"[排程] 新聞抓取失敗: {e}")
+        return
+
+    # 鏈式觸發情緒評分（§9：不另設固定時間，緊接新聞抓取完成後，避免與抓取搶時序）。
+    # score_pending_news() 是原生 async 函式（ai/providers 與 DB 皆走 async），這裡在
+    # APScheduler 執行緒池的執行緒內開一個新事件迴圈執行，比照 _publish_after_scan() 的
+    # 既有橋接手法，不影響主 event loop。
+    try:
+        from services.news_sentiment import score_pending_news, sentiment_fetch_status
+        if sentiment_fetch_status.get_snapshot()["is_running"]:
+            logger.info("[排程] 新聞情緒評分已在執行中，本次鏈式觸發略過")
+            return
+
+        async def _run_score():
+            return await score_pending_news(trigger_type="scheduled")
+
+        score_result = asyncio.run(_run_score())
+        logger.info(f"[排程] 新聞情緒評分完成: {score_result}")
+    except Exception as e:
+        logger.warning(f"[排程] 新聞情緒評分失敗（不影響新聞抓取結果）: {e}")
+
+
+def _scheduled_macro_fetch() -> None:
+    """§9：FRED／DXY 每日 08:00（美國前一交易日資料已於此時釋出）。"""
+    try:
+        from config import is_macro_fetch_enabled
+        if not is_macro_fetch_enabled():
+            return
+        from services.macro_fetcher import fetch_status, run_macro_fetch
+        if fetch_status.get_snapshot()["is_running"]:
+            logger.info("[排程] 總經指標抓取已在執行中，本次排程略過")
+            return
+        result = run_macro_fetch(trigger_type="scheduled")
+        logger.info(f"[排程] 總經指標抓取完成: {result}")
+    except Exception as e:
+        logger.warning(f"[排程] 總經指標抓取失敗: {e}")
+
+
+async def _scheduled_news_cleanup() -> None:
+    """§9／§13：新聞資料保留清理，每日 04:10（比照既有 `_notify_purge_logs()` 04:00
+    的清理時段，錯開 10 分鐘避免兩個清理工作同時搶連線）。"""
+    try:
+        from config import get_news_retention_months, is_news_fetch_enabled
+        if not is_news_fetch_enabled():
+            return
+        from db.session import get_async_session
+        from repositories.news_repository import NewsRepository
+        async with get_async_session() as session:
+            repo = NewsRepository(session)
+            n = await repo.purge_expired(retention_months=get_news_retention_months())
+            await session.commit()
+            if n:
+                logger.info(f"[排程] 已清理 {n} 筆逾期新聞")
+    except Exception as e:
+        logger.warning(f"[排程] 新聞資料清理失敗（已靜默）: {e}")
+
+
 # ── 整合訊息通知平台的背景工作（原生 async，AsyncIOScheduler 直接排入主 event loop）──
 async def _notify_digest_tick() -> None:
     try:
@@ -428,6 +508,35 @@ def create_scheduler() -> AsyncIOScheduler:
         _scheduled_industry_chain_decouple,
         CronTrigger(day=1, hour=11, minute=0, timezone=TAIPEI_TZ),
         id="industry_chain_decouple",
+    )
+
+    # Phase4 輕量化新聞輿情與總經監控（§9）：NEWS_FETCH_ENABLED／MACRO_FETCH_ENABLED=false
+    # 時各工作自己立即返回，不消耗資源（比照 NOTIFY_ENABLED=false 的既有慣例）。
+    # 三個時段共用同一個 _scheduled_news_fetch()，見該函式 docstring 的落差說明。
+    scheduler.add_job(
+        _scheduled_news_fetch,
+        CronTrigger(hour=14, minute=40, timezone=TAIPEI_TZ),
+        id="news_fetch_afternoon",
+    )
+    scheduler.add_job(
+        _scheduled_news_fetch,
+        CronTrigger(hour=21, minute=0, timezone=TAIPEI_TZ),
+        id="news_fetch_evening",
+    )
+    scheduler.add_job(
+        _scheduled_news_fetch,
+        CronTrigger(hour=23, minute=30, timezone=TAIPEI_TZ),
+        id="news_fetch_ptt",
+    )
+    scheduler.add_job(
+        _scheduled_macro_fetch,
+        CronTrigger(hour=8, minute=0, timezone=TAIPEI_TZ),
+        id="macro_fetch_daily",
+    )
+    scheduler.add_job(
+        _scheduled_news_cleanup,
+        CronTrigger(hour=4, minute=10, timezone=TAIPEI_TZ),
+        id="news_cleanup",
     )
 
     _scheduler = scheduler
