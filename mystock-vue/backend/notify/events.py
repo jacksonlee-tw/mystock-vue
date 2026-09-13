@@ -172,6 +172,8 @@ TEMPLATE_CONTEXT_SPEC: dict[str, list[dict]] = {
         {"var": "signal_label",    "desc": "訊號標籤",       "example": "賣出訊號"},
         {"var": "strength_label",  "desc": "強度標籤",       "example": "中"},
         {"var": "filters_passed",  "desc": "通過濾網清單",   "example": '["volume_confirm"]'},
+        {"var": "sentiment_5d",    "desc": "5日加權情緒分數（僅情緒閘門策略有值，其餘為 null）", "example": "0.62"},
+        {"var": "top_news",        "desc": "促成訊號的新聞標題與來源（僅情緒閘門策略有值，其餘為空陣列）", "example": '[{"title":"...","source":"cnyes","news_url":"https://...","sentiment_label":"BULLISH"}]'},
     ],
     EventType.FETCH_COMPLETED: [
         {"var": "market",         "desc": "市場",   "example": "tw"},
@@ -210,11 +212,18 @@ TEMPLATE_CONTEXT_SPEC: dict[str, list[dict]] = {
 SAMPLE_PAYLOADS: dict[str, dict] = {
     EventType.ALERT_SIGNAL: {
         "stock_id": "2330", "stock_name": "台積電", "market": "tw",
-        "strategy_id": "price_cross_ma", "strategy_name": "收盤價突破關鍵均線",
-        "direction": "cross_under_MA20", "signal_type": "SELL", "signal_strength": "moderate",
+        "strategy_id": "momentum_with_news_confirmation", "strategy_name": "動能突破與利多共振",
+        "direction": "cross_above_MA60", "signal_type": "BUY", "signal_strength": "moderate",
         "trade_date": "2026-08-14",
-        "details": {"close": 1085, "ma_period": 20, "ma_value": 1102.5, "bias_percent": -1.59},
-        "filters_passed": ["volume_confirm"], "suggested_action": "跌破 MA20，建議減碼"
+        "details": {"close": 1085, "ma_period": 60, "ma_value": 1050.2, "bias_percent": 3.32},
+        "filters_passed": ["volume_confirm"], "suggested_action": "站上季線 MA60，動能與消息面共振",
+        # §10：情緒閘門策略才有值，一般技術面策略（如 price_cross_ma）此二欄一律 null／[]
+        "sentiment_5d": 0.62,
+        "top_news": [
+            {"title": "台積電先進封裝訂單能見度看到明年，法人喊價上看新高",
+             "source": "cnyes", "news_url": "https://news.cnyes.com/news/id/0000000",
+             "sentiment_label": "BULLISH"},
+        ],
     },
     EventType.FETCH_COMPLETED: {
         "market": "tw", "trade_date": "2026-08-14", "success_count": 50, "failure_count": 0, "elapsed_sec": 12.3

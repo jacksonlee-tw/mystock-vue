@@ -14,6 +14,11 @@ MA{{ details.ma_period | default('') }} {{ details.ma_value | default('—') }}
 {% if suggested_action %}參考動作：{{ suggested_action }}
 
 {% endif -%}
+{% if top_news -%}
+消息面（近5日加權情緒分數 {{ sentiment_5d }}）：
+{% for news in top_news %}・{{ news.title }}（{{ news.source }}）
+{% endfor %}
+{% endif -%}
 ▸ 查看圖表：{{ chart_url }}
 {% if manage_url %}▸ 管理我的通知：{{ manage_url }}
 {% endif %}

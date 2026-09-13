@@ -7,6 +7,8 @@
 {% endif -%}
 {% if suggested_action %}參考動作：{{ suggested_action }}
 {% endif -%}
+{% if top_news %}📰 情緒分數 {{ sentiment_5d }}：{{ top_news[0].title }}（{{ top_news[0].source }}）{% if top_news | length > 1 %} 等{{ top_news | length }}則{% endif %}{{ "" }}
+{% endif -%}
 ▸ 查看圖表 {{ chart_url }}{% if manage_url %}　▸ 管理我的通知 {{ manage_url }}{% endif %}
 
 {{ disclaimer }}

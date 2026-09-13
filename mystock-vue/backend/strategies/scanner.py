@@ -289,6 +289,12 @@ async def scan_market(
                 continue
 
             effective_cooldown = strategy.cooldown_days if strategy.cooldown_days is not None else cooldown_days
+            # Phase4-輕量化新聞輿情與總經監控.md §10：只有 sentiment_filter 真的是這條策略的
+            # 閘門之一時，才需要在候選警示上附上 sentiment_5d（供 notify/intake.py 判斷要不要
+            # 查 top_news）——不是每筆候選警示都附加，只附給「情緒真的參與放行判斷」的那些。
+            strategy_has_sentiment_gate = any(
+                isinstance(g, dict) and g.get("type") == "sentiment_filter" for g in strategy.gates
+            )
 
             for condition_cfg in strategy.conditions:
                 # 防呆（股價相對低點 需求規格書 §2.3-1／AC-10）：conditions 若被誤寫成 dict
@@ -354,6 +360,14 @@ async def scan_market(
                             # 記錄型別清單供警示明細／稽核追溯「這筆訊號是被哪些閘門放行的」，
                             # 沒有 gates 的策略此欄一律是空 list（比照 filters_passed 空清單的既有語意）。
                             "gates_passed": [g.get("type") for g in strategy.gates if isinstance(g, dict)],
+                            # §10 通知整合：只有情緒真的是這條策略的閘門之一時才附上分數
+                            # （notify/intake.py 依此欄位是否為 None 決定要不要查 top_news，
+                            # 不是每筆候選警示都查一次新聞）。
+                            "sentiment_5d": (
+                                ctx.sentiment_5d[idx]
+                                if strategy_has_sentiment_gate and ctx.sentiment_5d
+                                else None
+                            ),
                             "suggested_action": _suggested_action(strategy.id, direction, details),
                             "dedup_key": dedup_key,
                             "cd_key": cd_key,

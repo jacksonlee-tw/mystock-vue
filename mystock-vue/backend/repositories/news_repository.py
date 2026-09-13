@@ -219,6 +219,25 @@ class NewsRepository:
         )
         return [_row_to_dict(r) for r in result.fetchall()]
 
+    async def get_top_news(self, *, symbol: str, market_type: str, since_date: date, limit: int = 3) -> list[dict]:
+        """近 `since_date`（含）以來、方向性最強（`|sentiment_score|` 最大）的前 `limit` 則
+        非重複已評分新聞，供推播訊息附上「促成訊號的新聞標題與來源」（Phase4-輕量化新聞輿情與
+        總經監控.md §10）——只在 `sentiment_filter` 閘門實際影響了某筆警示是否放行時才查詢
+        （見 `notify/intake.py` 的呼叫端判斷），不是每筆台股警示都查一次。"""
+        stmt = text("""
+            SELECT title, source, news_url, sentiment_score, sentiment_label, effective_trade_date
+              FROM stock_news
+             WHERE symbol = :symbol AND market_type = :market_type
+               AND is_duplicate = FALSE AND sentiment_score IS NOT NULL
+               AND effective_trade_date >= :since_date
+             ORDER BY ABS(sentiment_score) DESC, effective_trade_date DESC
+             LIMIT :limit
+        """)
+        result = await self._s.execute(
+            stmt, {"symbol": symbol, "market_type": market_type, "since_date": since_date, "limit": limit}
+        )
+        return [_row_to_dict(r) for r in result.fetchall()]
+
     async def get_news_count_by_dates(self, *, symbol: str, market_type: str, dates: list[date]) -> dict[date, int]:
         """給定一組交易日，回傳該股非重複新聞則數（缺值一律補 0）——供 §4.3 Buzz Surge
         （新聞曝光倍數）計算「近 20 交易日平均則數」使用。刻意接收明確的交易日清單而非

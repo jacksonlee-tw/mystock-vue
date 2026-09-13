@@ -9,11 +9,20 @@ publish_alert_signals()：scanner 掃描完成後的接縫（AC-15，try/except 
 from __future__ import annotations
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from notify import config as notify_config
 from notify.events import Event, EventType, Severity, idempotency_key, routing_facts
+from repositories.news_repository import NewsRepository
+
+# Phase4-輕量化新聞輿情與總經監控.md §10：情緒真的是某條策略閘門之一時
+# （strategies/scanner.py 的 sentiment_5d 欄位非 None），才查詢近期新聞附上
+# 「促成訊號的新聞標題與來源」。查詢窗口用日曆天數的粗略近似（不重建交易日曆），
+# 展示用途，不是評分計算，稍微寬鬆不影響正確性——真正的 5 日交易日視窗計算在
+# strategies/chip_provider.py 的 sentiment_5d_series()，這裡只是配圖用的輔助資訊。
+_TOP_NEWS_LOOKBACK_DAYS = 7
+_TOP_NEWS_LIMIT = 3
 
 logger = logging.getLogger("mystock-backend")
 
@@ -79,6 +88,35 @@ async def publish(event: Event, db_session: Any) -> dict:
         return {"event_id": None, "messages_created": 0, "messages_skipped": 0}
 
 
+async def _fetch_top_news(db_session: Any, symbol: str, market: str, trade_date_str: str) -> list[dict]:
+    """§10：查該股近 `_TOP_NEWS_LOOKBACK_DAYS` 天內方向性最強的前 `_TOP_NEWS_LIMIT` 則新聞，
+    供推播訊息附上標題與來源。查詢失敗（例如 symbol 缺代碼、日期格式異常）一律回傳空陣列，
+    不讓單一欄位的附加資訊拖垮整封通知（鐵則 R7 的精神延伸）。"""
+    if not symbol:
+        return []
+    try:
+        as_of = date.fromisoformat(trade_date_str) if trade_date_str else date.today()
+    except ValueError:
+        return []
+    since_date = as_of - timedelta(days=_TOP_NEWS_LOOKBACK_DAYS)
+    try:
+        rows = await NewsRepository(db_session).get_top_news(
+            symbol=symbol, market_type=market, since_date=since_date, limit=_TOP_NEWS_LIMIT,
+        )
+    except Exception as exc:
+        logger.warning("[通知] _fetch_top_news 查詢失敗（已靜默，不含新聞附件）：%s", exc)
+        return []
+    return [
+        {
+            "title": r.get("title", ""),
+            "source": r.get("source", ""),
+            "news_url": r.get("news_url", ""),
+            "sentiment_label": r.get("sentiment_label"),
+        }
+        for r in rows
+    ]
+
+
 async def publish_alert_signals(
     market:       str,
     trade_date:   str,
@@ -98,6 +136,13 @@ async def publish_alert_signals(
     occurred_at = datetime.now(timezone.utc)
     for alert in alerts:
         try:
+            sentiment_5d = alert.get("sentiment_5d")
+            top_news: list[dict] = []
+            if sentiment_5d is not None and market == "tw":
+                # 只有 sentiment_5d 非 None（strategies/scanner.py 判斷過這條策略真的掛了
+                # sentiment_filter 閘門）才查一次新聞，不是每筆台股警示都查（§10 效能考量）。
+                top_news = await _fetch_top_news(db_session, alert.get("stock_id", ""), market, trade_date)
+
             payload = {
                 "stock_id":       alert.get("stock_id", ""),
                 "stock_name":     alert.get("stock_name", ""),
@@ -111,6 +156,10 @@ async def publish_alert_signals(
                 "details":        alert.get("details", {}),
                 "filters_passed": alert.get("filters_passed", []),
                 "suggested_action": alert.get("suggested_action", ""),
+                # §10：情緒面共振策略（例如 momentum_with_news_confirmation）附上促成訊號的
+                # 5 日加權情緒分數與新聞標題／來源；非情緒閘門策略一律是 None／空陣列。
+                "sentiment_5d":   sentiment_5d,
+                "top_news":       top_news,
             }
             ev = Event(
                 event_type=EventType.ALERT_SIGNAL,
