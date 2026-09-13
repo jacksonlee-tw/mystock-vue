@@ -25,7 +25,10 @@ DEFAULT_UNIVERSE_TIER = "all_tracked"
 
 # ── Phase 4 新聞輿情與總經監控（docs/16.AI技術分析/Phase4-輕量化新聞輿情與總經監控.md §12）──
 DEFAULT_NEWS_SOURCES_CONFIG_PATH = os.path.join(BASE_DIR, "strategy_config", "news_sources.yaml")
-DEFAULT_NEWS_SENTIMENT_ENGINE = "local"
+# Spike-0（2026-09-13，見該文件 §15.3-1）：300 則真實標題人工標註 vs Gemini 一致率 87.0%，
+# 使用者已拍板直接定案採用 LLM，不再另外測試/開發本地輕量模型（該文件原 L1 本地模型批次評分
+# 的分層設計不採用，全部標題一律走 LLM 批次評分）。
+DEFAULT_NEWS_SENTIMENT_ENGINE = "llm"
 VALID_NEWS_SENTIMENT_ENGINES = ("local", "llm", "hybrid")
 DEFAULT_NEWS_LLM_DAILY_QUOTA = 50
 DEFAULT_NEWS_LLM_PROVIDER = "gemini"
