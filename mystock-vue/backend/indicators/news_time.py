@@ -11,7 +11,7 @@ import hashlib
 import re
 import unicodedata
 from datetime import date, datetime, time as time_cls, timedelta
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Optional
 
 # ── §3.4 Point-in-time 對齊：effective_trade_date（ADR-P4-05）─────────────
 _MARKET_CLOSE_CUTOFF = time_cls(13, 30)
@@ -138,3 +138,78 @@ def percentile_rank_of(history_values: list[float], today_value: float) -> float
     else:
         rank_pos = (lo + hi - 1) / 2
     return max(0.0, min(1.0, rank_pos / (n - 1)))
+
+
+# ── §4.3 個股情緒動能與 Buzz Surge（P2）───────────────────────────────────
+def recent_trading_dates(upto_date: date, window: int, is_trading_day: Callable[[date], bool]) -> list[date]:
+    """回傳「含 `upto_date`」往前數 `window` 個交易日的日期清單（由舊到新）。純函式，
+    交易日判定沿用 `is_weekday_trading_day()` 注入的 callable，不重複實作交易日邏輯。
+    供 `services/news_sentiment.py` 組出明確日期清單，交給
+    `NewsRepository.get_news_count_by_dates()` 補零查詢（見該方法 docstring：純
+    `GROUP BY` 會漏掉零則新聞的交易日，讓平均值虛高）。"""
+    dates: list[date] = []
+    cursor = upto_date
+    while len(dates) < window:
+        if is_trading_day(cursor):
+            dates.append(cursor)
+        cursor -= timedelta(days=1)
+    return list(reversed(dates))
+
+
+def weighted_sentiment_avg(scored_rows: list[dict], source_weights: dict[str, float]) -> Optional[float]:
+    """`sentiment_5d = Σ(weight_source × score_i) / Σ(weight_source)`（§4.3）。
+    `scored_rows` 為 `[{"source": str, "sentiment_score": float}, ...]`
+    （`NewsRepository.get_recent_scores()` 的回傳形狀），找不到權重的來源預設 1.0，
+    避免單一來源設定缺漏就讓整檔股票的 sentiment_5d 直接算不出來。"""
+    if not scored_rows:
+        return None
+    total_weight = 0.0
+    weighted_sum = 0.0
+    for row in scored_rows:
+        weight = source_weights.get(row["source"], 1.0)
+        score = row.get("sentiment_score")
+        if score is None:
+            continue
+        weighted_sum += weight * float(score)
+        total_weight += weight
+    if total_weight <= 0:
+        return None
+    return weighted_sum / total_weight
+
+
+def buzz_surge_ratio(today_count: int, history_counts: list[int]) -> Optional[float]:
+    """`Buzz Surge = 當日新聞則數 / 近 20 交易日平均則數`（§4.3，新聞曝光倍數；
+    與 §4.4 PTT 討論量分位數是兩套不同指標，此處算的是新聞則數本身的暴增倍率）。
+    `history_counts` 不含當日，歷史平均為 0（例如剛上市或近期完全零新聞）時無意義，
+    回傳 None 由呼叫端自行決定顯示方式，不得除以 0 也不得虛報一個假倍數。"""
+    if not history_counts:
+        return None
+    avg = sum(history_counts) / len(history_counts)
+    if avg <= 0:
+        return None
+    return today_count / avg
+
+
+DivergenceFlag = Optional[str]  # "BULLISH_STALL" | "BEARISH_RESILIENT" | None
+
+
+def divergence_flag(
+    sentiment_5d: Optional[float], price_change_pct: Optional[float],
+    *, threshold: float = 0.3,
+) -> DivergenceFlag:
+    """§4.3 背離標記：結合既有 `ScanContext` 的價格序列（由呼叫端傳入 `price_change_pct`，
+    本函式對資料庫／ScanContext 零依賴，保持與 indicators/ 目錄其餘函式一致的純函式風格）。
+
+    - **利多鈍化 BULLISH_STALL**：`sentiment_5d >= threshold` 但股價未漲（`price_change_pct <= 0`）
+    - **利空不跌 BEARISH_RESILIENT**：`sentiment_5d <= -threshold` 但股價未跌（`price_change_pct >= 0`）
+
+    只是訊號的補充註記，不單獨成為訊號（§4.3 明文）——實際掛進 `ScanContext` 並在
+    `strategies/scanner.py` 迴圈中呼叫屬於 P4 範疇（見規格書 §15.2 P4 列），本函式只負責
+    判斷邏輯本身，方便 P4 直接呼叫、也方便獨立單元測試。"""
+    if sentiment_5d is None or price_change_pct is None:
+        return None
+    if sentiment_5d >= threshold and price_change_pct <= 0:
+        return "BULLISH_STALL"
+    if sentiment_5d <= -threshold and price_change_pct >= 0:
+        return "BEARISH_RESILIENT"
+    return None

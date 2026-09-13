@@ -168,6 +168,64 @@ class NewsRepository:
         })
         return [_row_to_dict(r) for r in result.fetchall()], total
 
+    async def list_unscored(self, limit: int) -> list[dict]:
+        """P2 情緒評分引擎的候選佇列：尚未評分（`sentiment_score IS NULL`）且非 L3 重複列。
+        ADR-P4-08 後不存在 L1／L2 分流，這裡回傳的每一筆都會走 LLM 批次評分，
+        不需要再篩「閘門是否成立」。"""
+        stmt = text("""
+            SELECT id, symbol, title FROM stock_news
+             WHERE sentiment_score IS NULL AND is_duplicate = FALSE
+             ORDER BY id
+             LIMIT :limit
+        """)
+        result = await self._s.execute(stmt, {"limit": limit})
+        return [_row_to_dict(r) for r in result.fetchall()]
+
+    async def update_sentiment(self, news_id: int, *, score: float, label: str, engine: str) -> None:
+        await self._s.execute(
+            text("""
+                UPDATE stock_news
+                   SET sentiment_score = :score, sentiment_label = :label, sentiment_engine = :engine
+                 WHERE id = :id
+            """),
+            {"id": news_id, "score": score, "label": label, "engine": engine},
+        )
+
+    async def get_recent_scores(self, *, symbol: str, market_type: str, since_date: date) -> list[dict]:
+        """近 `since_date`（含）以來、已評分且非重複列的 (source, sentiment_score) 清單，
+        供 §4.3 `sentiment_5d` 加權平均使用——本方法只負責取資料，權重由呼叫端從
+        `news_sources.yaml` 查表後傳入 `indicators/news_time.py` 的純函式計算，
+        保持本 repository 對 YAML 設定零依賴（比照 get_buzz_history() 的既有分工）。"""
+        stmt = text("""
+            SELECT source, sentiment_score FROM stock_news
+             WHERE symbol = :symbol AND market_type = :market_type
+               AND is_duplicate = FALSE AND sentiment_score IS NOT NULL
+               AND effective_trade_date >= :since_date
+        """)
+        result = await self._s.execute(
+            stmt, {"symbol": symbol, "market_type": market_type, "since_date": since_date}
+        )
+        return [_row_to_dict(r) for r in result.fetchall()]
+
+    async def get_news_count_by_dates(self, *, symbol: str, market_type: str, dates: list[date]) -> dict[date, int]:
+        """給定一組交易日，回傳該股非重複新聞則數（缺值一律補 0）——供 §4.3 Buzz Surge
+        （新聞曝光倍數）計算「近 20 交易日平均則數」使用。刻意接收明確的交易日清單而非
+        `window` 天數：純用 `GROUP BY effective_trade_date` 會漏掉「當天完全沒有新聞」的
+        交易日，讓平均值虛高、稀釋真正的曝光倍增訊號，所以由呼叫端先算好真正的交易日曆
+        （`indicators/news_time.py` 的 `is_weekday_trading_day()`）再回頭補零。"""
+        if not dates:
+            return {}
+        stmt = text("""
+            SELECT effective_trade_date, COUNT(*) AS cnt FROM stock_news
+             WHERE symbol = :symbol AND market_type = :market_type
+               AND is_duplicate = FALSE
+               AND effective_trade_date = ANY(:dates)
+             GROUP BY effective_trade_date
+        """)
+        result = await self._s.execute(stmt, {"symbol": symbol, "market_type": market_type, "dates": dates})
+        counts = {row.effective_trade_date: row.cnt for row in result.fetchall()}
+        return {d: counts.get(d, 0) for d in dates}
+
     async def purge_expired(self, *, retention_months: int) -> int:
         """§13 資料保留：逾 `retention_months` 個月的新聞列刪除，逐日彙總值另存不受影響
         （彙總落在別的資料結構，不在本表）。"""
@@ -198,7 +256,9 @@ class NewsRepository:
 
     async def get_buzz_history(self, *, symbol: str, source: str, window: int) -> list[dict]:
         """近 `window` 個交易日的討論則數，供 §4.4 分位數計算使用（呼叫端自行套用
-        indicators/chip.py 的 rolling_percentile()，本方法只負責取資料，不算分位數）。"""
+        indicators/news_time.py 的 percentile_rank_of()——刻意不用 indicators/chip.py 的
+        rolling_percentile()，那個函式算的是相反方向的問題，見該函式 docstring 的說明；
+        本方法只負責取資料，不算分位數）。"""
         stmt = text("""
             SELECT trade_date, post_count FROM stock_discussion_buzz
              WHERE symbol = :symbol AND source = :source
