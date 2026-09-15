@@ -1,5 +1,6 @@
 <template>
-  <div v-if="market === 'tw'" class="card !m-0 rounded-2xl border border-surface-200 dark:border-surface-700/80 bg-surface-0 dark:bg-surface-900 shadow-sm overflow-hidden">
+  <!-- compact：側欄窄，蓋掉 legacy `.card { padding: 2rem }`（內層已有 px-5／px-3，比照 StockAlertsPanel） -->
+  <div v-if="market === 'tw'" class="card !m-0 rounded-2xl border border-surface-200 dark:border-surface-700/80 bg-surface-0 dark:bg-surface-900 shadow-sm overflow-hidden" :class="compact ? '!p-0' : ''">
     <!-- 標頭：一律顯示，比照 StockAlertsPanel.vue 的既有慣例 -->
     <div class="flex flex-wrap items-center gap-3 px-5 py-4">
       <div class="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-900/30 text-primary flex items-center justify-center shrink-0">
@@ -108,7 +109,9 @@ import { newsApi } from '@/service/newsApi';
 
 const props = defineProps({
   stockId: { type: String, required: true },
-  market: { type: String, required: true }
+  market: { type: String, required: true },
+  // 放在個股頁右側欄時的窄欄版（目前只拿掉外層多餘的 legacy .card padding）
+  compact: { type: Boolean, default: false }
 });
 
 // §1.3：新聞情緒功能本階段僅支援台股，非台股一律不掛載本面板（見上方 template 的 v-if）。

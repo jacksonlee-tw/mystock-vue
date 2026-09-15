@@ -1,11 +1,11 @@
 <template>
-  <div class="space-y-6">
-    <div v-for="group in groupedAlerts" :key="group.date" class="space-y-3">
+  <div :class="compact ? 'space-y-4' : 'space-y-6'">
+    <div v-for="group in groupedAlerts" :key="group.date" :class="compact ? 'space-y-2' : 'space-y-3'">
       <!-- 日期分隔標頭：把清單依交易日分段，最新一天特別標示，方便一眼掃到最新訊號 -->
       <div class="flex items-center gap-2">
-        <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700">
-          <i class="pi pi-calendar text-primary text-sm"></i>
-          <span class="text-sm font-black text-surface-700 dark:text-surface-200">{{ formatDateHeader(group.date) }}</span>
+        <div class="flex items-center gap-2 rounded-full bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 whitespace-nowrap" :class="compact ? 'px-2.5 py-1' : 'px-3 py-1.5'">
+          <i class="pi pi-calendar text-primary" :class="compact ? 'text-xs' : 'text-sm'"></i>
+          <span class="font-black text-surface-700 dark:text-surface-200" :class="compact ? 'text-xs' : 'text-sm'">{{ formatDateHeader(group.date) }}</span>
           <span v-if="group.isLatest" class="px-1.5 py-0.5 text-[10px] font-black bg-primary text-primary-contrast rounded-full">最新</span>
         </div>
         <span class="text-xs text-surface-400">{{ group.alerts.length }} 筆</span>
@@ -15,11 +15,13 @@
         v-for="alert in group.alerts"
         :key="alert.id"
         class="card rounded-xl border overflow-hidden"
-        :class="cardHighlightClass(alert)"
+        :class="[cardHighlightClass(alert), compact ? '!p-0 !m-0' : '']"
       >
-        <div class="flex items-center gap-3 p-4 cursor-pointer select-none" @click="toggle(alert.id)">
-          <div class="w-11 h-11 rounded-xl bg-surface-100 dark:bg-surface-800 flex items-center justify-center shrink-0 relative">
-            <i class="pi text-lg" :class="[visual(alert.direction).icon, visual(alert.direction).colorClass]"></i>
+        <!-- compact 必須蓋掉 _utils.scss 的 legacy `.card { padding: 2rem; margin-bottom: 2rem }`：
+             右側欄只有 ~22rem 寬，再被吃掉左右各 2rem，中間的策略名稱欄會被擠成一字一行 -->
+        <div class="flex items-center cursor-pointer select-none" :class="compact ? 'gap-2.5 p-3' : 'gap-3 p-4'" @click="toggle(alert.id)">
+          <div class="rounded-xl bg-surface-100 dark:bg-surface-800 flex items-center justify-center shrink-0 relative" :class="compact ? 'w-8 h-8' : 'w-11 h-11'">
+            <i class="pi" :class="[compact ? 'text-sm' : 'text-lg', visual(alert.direction).icon, visual(alert.direction).colorClass]"></i>
             <i
               v-if="alert.signal_strength === 'strong'"
               class="pi pi-star-fill text-[10px] text-amber-500 absolute -top-1.5 -right-1.5 bg-surface-0 dark:bg-surface-900 rounded-full p-0.5"
@@ -29,8 +31,13 @@
 
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="font-black text-lg text-surface-900 dark:text-surface-0">{{ alert.stock_id }}</span>
-              <span class="text-base text-surface-500 truncate">{{ alert.stock_name }}</span>
+              <!-- compact（個股頁右側欄）：已經在這支股票自己的頁面上，代號／名稱重複，
+                   把寬度讓給策略名稱，策略名稱從第二行提到第一行 -->
+              <template v-if="!compact">
+                <span class="font-black text-lg text-surface-900 dark:text-surface-0">{{ alert.stock_id }}</span>
+                <span class="text-base text-surface-500 truncate">{{ alert.stock_name }}</span>
+              </template>
+              <span v-else class="text-sm font-bold text-surface-900 dark:text-surface-0">{{ alert.strategy_name }}</span>
               <Tag :value="strengthMeta(alert.signal_strength).label" :severity="strengthMeta(alert.signal_strength).severity" :class="alert.signal_strength === 'strong' ? 'p-tag-lg' : ''" />
               <span
                 v-if="alert.signal_type"
@@ -40,21 +47,31 @@
                 {{ alert.signal_type }}
               </span>
             </div>
-            <div class="text-base text-surface-600 dark:text-surface-400 mt-0.5 truncate flex items-center gap-1.5">
+            <div class="text-surface-600 dark:text-surface-400 mt-0.5 flex items-center gap-1.5" :class="compact ? 'text-xs flex-wrap' : 'text-base truncate'">
               <i class="pi text-xs text-surface-400" :class="categoryIcon(alert)"></i>
-              {{ alert.strategy_name }} · {{ formatDirection(alert.direction) }}
+              <template v-if="!compact">{{ alert.strategy_name }} · </template>{{ formatDirection(alert.direction) }}
               <StrategyInfoPopover :strategy="strategyById[alert.strategy_id]" />
+              <!-- compact：不另開右側欄（窄欄放不下），收盤價併到這一行尾端；日期已在上方日期分組標頭 -->
+              <span
+                v-if="compact && alert.details?.close !== undefined"
+                class="num font-black text-sm ml-auto"
+                :class="visual(alert.direction).colorClass"
+              >
+                {{ formatDetailValue(alert.details.close) }}
+              </span>
             </div>
           </div>
 
-          <div class="text-right shrink-0">
+          <div v-if="!compact" class="text-right shrink-0">
             <div class="text-xs text-surface-400">{{ alert.trade_date }}</div>
-            <div v-if="alert.details?.close !== undefined" class="num font-black text-lg" :class="visual(alert.direction).colorClass">
+            <div v-if="alert.details?.close !== undefined" class="num font-black" :class="[compact ? 'text-sm' : 'text-lg', visual(alert.direction).colorClass]">
               {{ formatDetailValue(alert.details.close) }}
             </div>
           </div>
 
+          <!-- compact：個股頁頁首已經有同一支股票的追蹤星號，不重複放 -->
           <WatchlistStarButton
+            v-if="!compact"
             :market="alert.market || 'tw'"
             :symbol="alert.stock_id"
             :name="alert.stock_name"
@@ -65,7 +82,7 @@
         </div>
 
         <div v-if="expanded.has(alert.id)" class="px-4 pb-4 border-t border-surface-100 dark:border-surface-800 pt-3 space-y-3">
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+          <div class="grid gap-2 text-sm" :class="compact ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'">
             <div v-for="(val, key) in alert.details" :key="key" class="bg-surface-50 dark:bg-surface-800 rounded-lg px-2 py-1.5">
               <div class="text-surface-400 text-xs">{{ detailLabel(key) }}</div>
               <div class="font-semibold text-surface-800 dark:text-surface-200 num">{{ formatDetailValue(val) }}</div>
@@ -115,7 +132,9 @@ const props = defineProps({
   // highlight 跳去獨立的圖表明細頁並自動開 KD 副圖、標出訊號當天（KD指標 設計規格書 §7.5），
   // 即使 StockAlertsPanel 已經在該股票的頁面，這個跳轉仍有意義，故不再預設關閉；
   // 保留這個 prop 是留給未來若有「摘要卡片」等更精簡的呈現情境時可以關閉。
-  showChartLink: { type: Boolean, default: true }
+  showChartLink: { type: Boolean, default: true },
+  // compact：窄欄精簡版（個股頁右側欄，見 StockAlertsPanel 的 compact），隱藏重複的代號／名稱／追蹤星號、縮小間距
+  compact: { type: Boolean, default: false }
 });
 
 const router = useRouter();

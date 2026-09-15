@@ -8,6 +8,7 @@ import { useToast } from 'primevue/usetoast';
 import { useMarket } from '@/composables/useMarket';
 import { ownerApi } from '@/service/ownerApi';
 import Omnibox from '@/components/Omnibox.vue';
+import AppLogo from '@/components/AppLogo.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -224,9 +225,14 @@ function handleResize() {
             <button class="layout-menu-button layout-topbar-action" @click="toggleMenu">
                 <i class="pi pi-bars"></i>
             </button>
-            <router-link to="/" class="layout-topbar-logo flex items-center gap-2">
-                <span class="w-7 h-7 rounded-md bg-primary text-primary-contrast flex items-center justify-center text-xs font-black">M</span>
-                <span class="hidden md:inline font-bold">MyStock 投資系統</span>
+            <router-link to="/" class="layout-topbar-logo flex items-center gap-2.5" aria-label="MyStock 投資系統 首頁">
+                <!-- 頂列底色就是主題色（_topbar.scss），標誌用 onbrand 反白版才不會跟底色糊在一起；
+                     !w/!h 蓋掉 _topbar.scss 的 `.layout-topbar-logo svg { width: 3rem }` -->
+                <AppLogo variant="onbrand" class="!w-8 !h-8" />
+                <span class="hidden md:flex flex-col leading-none">
+                    <span class="text-[1.05rem] font-extrabold tracking-tight"><span class="opacity-75 font-semibold">My</span>Stock</span>
+                    <span class="text-[0.55rem] font-medium tracking-[0.35em] opacity-80 mt-1">投資系統</span>
+                </span>
             </router-link>
         </div>
 

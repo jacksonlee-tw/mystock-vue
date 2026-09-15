@@ -5,7 +5,7 @@
          使用 backdrop-blur 玻璃效果，不遮擋閱讀體驗
     ═══════════════════════════════════════════════════ -->
     <div class="stock-control-bar sticky top-16 z-30 bg-surface-0/95 dark:bg-surface-900/95 backdrop-blur-md border-b border-surface-200 dark:border-surface-700 shadow-sm">
-      <div class="max-w-7xl mx-auto px-6 py-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div class="max-w-[100rem] mx-auto px-6 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
         <!-- 返回按鈕 -->
         <button
           @click="router.push('/')"
@@ -27,8 +27,8 @@
           >
             <template #value="slotProps">
               <div v-if="slotProps.value" class="flex items-baseline gap-2.5 min-w-0">
-                <span class="num text-3xl font-black text-surface-900 dark:text-surface-0 shrink-0">{{ slotProps.value }}</span>
-                <span class="text-lg text-surface-600 dark:text-surface-300 font-bold truncate">{{ currentStockName }}</span>
+                <span class="num text-2xl font-black text-surface-900 dark:text-surface-0 shrink-0">{{ slotProps.value }}</span>
+                <span class="text-base text-surface-600 dark:text-surface-300 font-bold truncate">{{ currentStockName }}</span>
               </div>
               <span v-else>{{ slotProps.placeholder }}</span>
             </template>
@@ -43,10 +43,10 @@
 
         <!-- 最新收盤價 & 漲跌 -->
         <div v-if="summary.close !== undefined" class="flex items-baseline gap-2.5 shrink-0">
-          <span class="num text-3xl font-black" :style="{ color: latestChange ? colorForValue(latestChange.diff) : undefined }">
+          <span class="num text-2xl font-black" :style="{ color: latestChange ? colorForValue(latestChange.diff) : undefined }">
             {{ formatPrice(summary.close, chartData.meta) }}
           </span>
-          <span v-if="latestChange" class="num text-lg font-extrabold" :style="{ color: colorForValue(latestChange.diff) }">
+          <span v-if="latestChange" class="num text-base font-extrabold" :style="{ color: colorForValue(latestChange.diff) }">
             {{ formatChange(latestChange.diff, latestChange.pct) }}
           </span>
         </div>
@@ -168,7 +168,8 @@
     <!-- ══════════════════════════════════════════════════
          主頁面內容區（在 sticky bar 下方正常捲動）
     ═══════════════════════════════════════════════════ -->
-    <div class="p-6 max-w-7xl mx-auto space-y-6">
+    <!-- 寬度上限從 max-w-7xl 放寬：改成左圖右欄後，寬螢幕多出來的空間要留給左欄圖表，不要讓兩側留白 -->
+    <div class="p-6 max-w-[100rem] mx-auto space-y-6">
 
     <!-- 初次載入中狀態：只有在還沒有任何資料可顯示時才整頁顯示 spinner。
          切換日/週/月線或時間範圍時 chartData 已存在，改用下方 refreshing 覆蓋層，
@@ -196,69 +197,25 @@
         <div v-if="loading" class="absolute inset-0 z-10 flex items-start justify-center pt-24 bg-surface-0/60 dark:bg-surface-900/60 rounded-2xl">
           <i class="pi pi-spin pi-spinner text-primary text-3xl"></i>
         </div>
-        <div :class="{ 'opacity-50 pointer-events-none transition-opacity duration-150': loading }" class="space-y-6">
-        <!-- 指標盤：由後端回傳的 metrics 驅動動態渲染 (4欄卡片矩陣) -->
-        <div v-if="chartData.metrics && chartData.metrics.length > 0" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <!-- 當日區間 (固定顯示) -->
-          <!-- !m-0：蓋掉全域 .card { margin-bottom: 2rem; &:last-child { margin-bottom: 0 } }（_utils.scss，
-               設計給直向堆疊的單欄卡片用）。在這個 grid 版面下它會讓 v-for 卡到「剛好是最後一張」的那張卡
-               少了 2rem 底部留白，害同一列的卡片 stretch 出來高度不一致（有的大有的小）；版面間距一律交給
-               grid 的 gap-4 處理即可。 -->
-          <div
-            @click="setActiveChart('price')"
-            class="card !m-0 bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm hover:shadow-md hover:border-primary/60 hover:-translate-y-0.5 cursor-pointer transition-all duration-200 flex flex-col justify-between"
-          >
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-bold tracking-wide uppercase text-surface-400">當日區間 ({{ summary.date }})</span>
-              <i class="pi pi-arrows-alt text-surface-400"></i>
-            </div>
-            <div class="num text-2xl font-black text-surface-900 dark:text-surface-0 mb-1.5">
-              {{ formatPrice(summary.low, chartData.meta) }} <span class="text-surface-300 dark:text-surface-600 font-normal mx-1">–</span> {{ formatPrice(summary.high, chartData.meta) }}
-            </div>
-            <div class="text-xs font-medium text-surface-500">當日最低 / 最高價</div>
-          </div>
+        <div :class="{ 'opacity-50 pointer-events-none transition-opacity duration-150': loading }" class="dash-body space-y-6">
+        <!-- 盤面摘要帶：由後端 metrics 驅動，依主題分組成一條（取代原本每個指標一張的 4 欄 KPI 卡片矩陣，
+             顯示的指標與數值不變、高度約少掉三分之二）。點任一列切換下方圖表舞台；
+             CLAUDE.md 鐵則 2（同列等高）改由元件內的 CSS Grid 保證，說明見 MetricSummaryStrip.vue。 -->
+        <MetricSummaryStrip
+          v-if="chartData.metrics && chartData.metrics.length > 0"
+          :metrics="chartData.metrics"
+          :summary="summary"
+          :meta="chartData.meta"
+          :market="market"
+          :prev-close="prevClose"
+          :active-chart-id="viewMode === 'charts' ? activeChartId : 'none'"
+          @select="setActiveChart"
+        />
 
-          <!-- 動態指標 (依照 metrics 定義) -->
-          <div
-            v-for="metric in chartData.metrics"
-            :key="metric.key"
-            @click="setActiveChart(metric.key)"
-            class="card !m-0 bg-surface-0 dark:bg-surface-900 p-5 rounded-2xl border border-surface-200 dark:border-surface-700/80 shadow-sm hover:shadow-md hover:border-primary/60 hover:-translate-y-0.5 cursor-pointer transition-all duration-200 flex flex-col justify-between"
-          >
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-bold tracking-wide uppercase text-surface-400">{{ metric.label }}</span>
-              <i class="pi text-surface-400" :class="{
-                'pi-users': metric.key.includes('buy_sell') || metric.key.includes('institutional'),
-                'pi-dollar': metric.key.includes('amount'),
-                'pi-chart-line': metric.key.includes('margin') || metric.key.includes('short')
-              }"></i>
-            </div>
-            <div class="num text-2xl font-black mb-1.5 text-surface-900 dark:text-surface-0" :style="{ color: isSignedMetric(metric) ? colorForValue(summary[metric.key]) : undefined }">
-              {{ formatMetricValue(summary[metric.key], metric) }} <span class="text-xs font-normal text-surface-500 ml-1" v-if="metric.unit">{{ metric.unit }}</span>
-            </div>
-            <div v-if="metric.key === 'short_balance' && summary.short_ratio !== undefined" class="num text-xs text-orange-500 font-bold">
-              券資比 {{ formatPercent(summary.short_ratio) }}
-            </div>
-            <div v-else-if="metric.key === 'institutional_total' && summary.foreign_buy_sell !== undefined" class="num text-xs text-surface-500">
-              外資 {{ formatLots(summary.foreign_buy_sell) }}
-            </div>
-            <div v-else-if="metric.key === 'institutional_amount_est' && summary.trust_buy_sell !== undefined" class="num text-xs text-surface-500">
-              投信 {{ formatLots(summary.trust_buy_sell) }}
-            </div>
-            <!-- 月營收有公布時滯，副標標示實際資料月份，避免使用者誤以為是當月數字（FR-2） -->
-            <div v-else-if="metric.key === 'revenue_yoy' && summary.revenue_visible_month" class="num text-xs text-surface-500">
-              資料月份 {{ summary.revenue_visible_month }}
-            </div>
-            <div v-else class="text-xs font-medium text-surface-500">{{ metric.label }}</div>
-          </div>
-        </div>
-
-        <!-- 策略警示：此股票目前符合哪些均線／籌碼策略條件（均線策略警示系統 設計文件第 6.2 節） -->
-        <StockAlertsPanel :stock-id="selectedStock" :market="market" :months="selectedMonths" />
-
-        <!-- 新聞輿情：僅台股（Phase4-輕量化新聞輿情與總經監控.md §1.3），元件內部依 market
-             自行判斷是否掛載，此處不另加 v-if 包一層，維持跟 StockAlertsPanel 一致的呼叫方式 -->
-        <StockNewsPanel :stock-id="selectedStock" :market="market" />
+        <!-- 主版面：內容區夠寬時左圖右欄（策略警示＋新聞輿情移到右側欄，看圖不必先捲過一整段），
+             不夠寬時自動疊回單欄，斷點見下方 style 的 container query -->
+        <div class="dash-main">
+          <div class="min-w-0 space-y-6">
 
         <!-- 視圖切換標籤 (圖表 / 表格) -->
         <div class="flex items-center justify-between border-b border-surface-200 dark:border-surface-700 pb-2">
@@ -358,6 +315,19 @@
             </table>
           </div>
         </div>
+          </div><!-- /左欄：圖表／表格 -->
+
+          <!-- 右側欄：此股票的輔助資訊 -->
+          <aside class="min-w-0 space-y-6">
+            <!-- 策略警示：此股票目前符合哪些均線／籌碼策略條件（均線策略警示系統 設計文件第 6.2 節）；
+                 側欄較窄，用精簡版時間軸（隱藏重複的代號／名稱／追蹤星號） -->
+            <StockAlertsPanel :stock-id="selectedStock" :market="market" :months="selectedMonths" compact />
+
+            <!-- 新聞輿情：僅台股（Phase4-輕量化新聞輿情與總經監控.md §1.3），元件內部依 market
+                 自行判斷是否掛載，此處不另加 v-if 包一層，維持跟 StockAlertsPanel 一致的呼叫方式 -->
+            <StockNewsPanel :stock-id="selectedStock" :market="market" compact />
+          </aside>
+        </div><!-- /主版面 -->
         </div><!-- /opacity 內容包裹 -->
       </div><!-- /relative 刷新覆蓋層容器 -->
     </template>
@@ -411,11 +381,13 @@ import { useAiAnalysis } from '@/composables/useAiAnalysis';
 import { stockApi } from '@/service/stockApi';
 import { colorForValue as colorForValueRaw } from '@/utils/marketColors';
 import { isDataStale, staleWeekdaysCount } from '@/utils/marketFreshness';
-import { formatPrice, formatChange, formatLots, formatPercent } from '@/utils/format';
+import { formatPrice, formatChange, formatPercent } from '@/utils/format';
+import { widgetIdForMetric } from '@/utils/metricWidget';
 import StockCharts from '@/components/StockCharts.vue';
 import VsIndexWidget from '@/components/VsIndexWidget.vue';
 import StockAlertsPanel from '@/components/StockAlertsPanel.vue';
 import StockNewsPanel from '@/components/StockNewsPanel.vue';
+import MetricSummaryStrip from '@/components/MetricSummaryStrip.vue';
 import WatchlistStarButton from '@/components/WatchlistStarButton.vue';
 import { useMarket } from '@/composables/useMarket';
 
@@ -488,6 +460,13 @@ const latestChange = computed(() => {
   return { diff, pct };
 });
 
+// 盤面摘要帶算當日振幅用的前一筆收盤；0 視為缺值（stock_service 以 0 代表缺漏的價格）
+const prevClose = computed(() => {
+  const records = chartData.value?.records;
+  const prev = records && records.length >= 2 ? records[records.length - 2]?.close : null;
+  return prev > 0 ? prev : null;
+});
+
 // 目前後端僅支援台股，chart-data 尚未回傳 market 欄位；
 // 這裡預先讀取（若未來 API 補上）以便漲跌配色自動切換，缺省時退回台股慣例。
 const market = computed(() => chartData.value?.market || 'tw');
@@ -547,22 +526,11 @@ const recordsReversed = computed(() => {
   return [...chartData.value.records].reverse();
 });
 
-// 點 KPI 卡直接切換圖表舞台顯示的圖表（見 StockCharts.vue 的 v-model），
-// 而不是捲動頁面——現在只有一個圖表舞台，不需要捲動定位了。
+// 點盤面摘要（MetricSummaryStrip）的某一列直接切換圖表舞台顯示的圖表（見 StockCharts.vue 的 v-model），
+// 而不是捲動頁面——現在只有一個圖表舞台，不需要捲動定位了。指標 → 圖表的對照見 utils/metricWidget.js。
 function setActiveChart(metricKey) {
   viewMode.value = 'charts';
-  let widgetId = 'kline';
-  if (['foreign_buy_sell', 'trust_buy_sell', 'dealer_buy_sell', 'institutional_total'].includes(metricKey)) widgetId = 'institutional';
-  else if (metricKey === 'institutional_amount_est') widgetId = 'amount';
-  else if (metricKey === 'margin_balance') widgetId = 'margin-long';
-  else if (metricKey === 'short_balance') widgetId = 'margin-short';
-  else if (metricKey === 'short_ratio') widgetId = 'short-ratio';
-  else if (metricKey === 'short_interest') widgetId = 'short';
-  else if (metricKey === 'institutional_holders') widgetId = 'holders';
-  // 估值／市值排名（FR-1／FR-5）與月營收（FR-2）：導去對應趨勢圖分頁，不落回預設的 K 線圖（G-2）。
-  // market_cap／mcap_rank 目前沒有專屬趨勢線，導去估值分頁至少維持在同一主題頁籤。
-  else if (['pe_ratio', 'pb_ratio', 'dividend_yield', 'market_cap', 'mcap_rank'].includes(metricKey)) widgetId = 'valuation';
-  else if (['revenue_yoy', 'revenue_mom'].includes(metricKey)) widgetId = 'revenue';
+  const widgetId = widgetIdForMetric(metricKey);
   // Q-3：第一次點估值卡、且使用者還沒手動選過區間時，把區間拉到 1 年再顯示估值走勢圖，
   // 3 個月的估值河流圖看不出目前是相對高檔還是低檔。改走 router.replace 而非直接寫
   // selectedMonths，因為「URL query 是週期／範圍狀態的唯一來源」（見下方 watch 註解）——
@@ -677,24 +645,6 @@ async function promptFetchIfSymbolExists() {
   } catch (e) {
     // 代號驗證本身失敗：不打擾使用者，維持既有的整頁錯誤訊息即可。
   }
-}
-
-// 後端 Metric 目前沒有 format 欄位（只有 key/label/unit/frequency/tile/panel/tone），
-// 所以「這是不是可正可負、要不要上色」用 key 的命名模式判斷，而不是不存在的 metric.format。
-// revenue_yoy／revenue_mom（Phase2-籌碼面與基本面量化擴充 設計文件 FR-2）：可正可負，
-// 需顯示正負號並依專案紅漲綠跌慣例上色。
-function isSignedMetric(metric) {
-  return metric.key.includes('buy_sell') || metric.key === 'institutional_total' || metric.key.includes('amount')
-    || metric.key === 'revenue_yoy' || metric.key === 'revenue_mom';
-}
-
-// KPI 卡數值：統一用千分位＋最多 2 位小數，可正可負的指標加上正負號。
-function formatMetricValue(value, metric) {
-  if (value === undefined || value === null) return '—';
-  const v = Number(value);
-  const decimals = Number.isInteger(v) ? 0 : 2;
-  const formatted = v.toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: decimals });
-  return isSignedMetric(metric) && v >= 0 ? `+${formatted}` : formatted;
 }
 
 // 表格欄位：可正可負（張數、金額）加正負號＋千分位。
@@ -835,3 +785,22 @@ function exportCSV() {
   document.body.removeChild(link);
 }
 </script>
+
+<style scoped>
+/* 左圖右欄的斷點依「內容區實際寬度」而非視窗寬度：側選單展開／收合會讓同一個視窗寬度下的內容區差很多，
+   用 container query 才不會在側選單展開時把圖表擠得太窄（72rem ≈ 左欄仍有 ~50rem 給圖表） */
+.dash-body {
+  container-type: inline-size;
+}
+.dash-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+@container (min-width: 72rem) {
+  .dash-main {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+  }
+}
+</style>

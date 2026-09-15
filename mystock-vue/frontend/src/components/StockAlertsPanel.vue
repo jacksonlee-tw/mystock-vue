@@ -1,5 +1,6 @@
 <template>
-  <div class="card !m-0 rounded-2xl border border-surface-200 dark:border-surface-700/80 bg-surface-0 dark:bg-surface-900 shadow-sm overflow-hidden">
+  <!-- compact：側欄窄，蓋掉 legacy `.card { padding: 2rem }`（內層已有 px-5，否則左右被吃掉近 6rem） -->
+  <div class="card !m-0 rounded-2xl border border-surface-200 dark:border-surface-700/80 bg-surface-0 dark:bg-surface-900 shadow-sm overflow-hidden" :class="compact ? '!p-0' : ''">
     <!-- 標頭：一律顯示，讓使用者確定「有沒有警示」本身就是資訊，而不是猜功能是否正常運作 -->
     <div class="flex flex-wrap items-center gap-3 px-5 py-4">
       <div class="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-900/30 text-primary flex items-center justify-center shrink-0">
@@ -44,7 +45,7 @@
              頁面，自我導航連結多餘」而關閉，但「查看圖表」現在會帶 indicator=kd + highlight
              跳去獨立的圖表明細頁（ChartDetailView.vue）並自動開 KD 副圖、標出訊號當天，
              不再是原地打轉的無用連結，兩處（AlertDashboard/StockAlertsPanel）套用同一組 query 契約。 -->
-        <AlertTimeline :alerts="visibleAlerts" :strategy-list="strategyList" />
+        <AlertTimeline :alerts="visibleAlerts" :strategy-list="strategyList" :compact="compact" />
       </div>
       <div v-if="alerts.length > collapsedCount" class="px-5 pb-4 -mt-1">
         <button
@@ -70,7 +71,9 @@ const props = defineProps({
   stockId: { type: String, required: true },
   market: { type: String, required: true },
   // 與股票頁的圖表時間範圍（月）連動，選越長的區間，警示回溯範圍也跟著放大，不用另外多開一組篩選器
-  months: { type: Number, default: 3 }
+  months: { type: Number, default: 3 },
+  // 放在個股頁右側欄時用精簡版時間軸（見 AlertTimeline.vue 的 compact）
+  compact: { type: Boolean, default: false }
 });
 
 const collapsedCount = 3; // 預設只顯示最新幾筆，避免警示一多就把頁面撐得過長
