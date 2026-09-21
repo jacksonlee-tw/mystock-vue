@@ -50,15 +50,16 @@ def dual_write_daily_data(
         logger.warning(f"PostgreSQL 雙寫失敗 ({market_type}/{symbol}): {e}")
 
 
-def dual_write_no_trading_days(market_type: str, dates) -> None:
-    """把爬蟲探測到的非交易日寫入 market_no_trading_days（見 phase3_5 設計文件第 3.5 節）。"""
+def dual_write_no_trading_days(market_type: str, dates, source: str = "probed") -> None:
+    """把非交易日寫入 market_no_trading_days（見 phase3_5 設計文件第 3.5 節）。
+    source 對應該表欄位：probed（爬蟲實際探測到）| manual | calendar（證交所官方休市日曆）。"""
     if not dates:
         return
     try:
         from repositories.stock_repository import StockRepository
 
         parsed = {date_cls.fromisoformat(d) if isinstance(d, str) else d for d in dates}
-        StockRepository().add_no_trading_days_sync(market_type, parsed)
+        StockRepository().add_no_trading_days_sync(market_type, parsed, source)
     except Exception as e:
         logger.warning(f"market_no_trading_days 寫入失敗 ({market_type}): {e}")
 
