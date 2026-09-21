@@ -1,17 +1,16 @@
 import os
 import json
-import time
-import random
 import calendar
 import logging
-import requests
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 import threading
 
-from config import DATA_DIR, BASE_DIR, get_target_stocks, get_months_range
+from config import DATA_DIR, BASE_DIR, get_target_stocks, get_months_range, get_twse_rate_settings
 from db.dual_write import dual_write_daily_data, dual_write_no_trading_days, log_crawler_run
+from services.twse_client import get_twse_limiter, twse_get_json
 
 logger = logging.getLogger("mystock-backend")
 
@@ -89,43 +88,7 @@ class FetchStatusManager:
 
 fetch_status = FetchStatusManager()
 
-# ── TWSE 請求（含重試）──────────────────────────────────────────
-# 證交所對高頻爬蟲會直接 drop 連線或延遲回應，單純拉長 timeout 不夠，
-# 需搭配 Session（重用連線 + 固定 Referer）與指數退避重試。
-
-_TWSE_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Referer": "https://www.twse.com.tw/zh/trading/historical/stock-day.html",
-}
-_TWSE_TIMEOUT = (5, 20)  # (連線 timeout, 讀取 timeout)
-
-_twse_session = requests.Session()
-_twse_session.headers.update(_TWSE_HEADERS)
-
-
-def _twse_get_json(url: str, max_retries: int = 3) -> dict:
-    """對 TWSE API 發送請求，遇到逾時/連線錯誤時以指數退避 + jitter 重試。
-    重試耗盡後拋出例外，由呼叫端既有的 try/except 決定該筆資料視為抓取失敗。"""
-    last_exc: Optional[Exception] = None
-    for attempt in range(max_retries):
-        try:
-            resp = _twse_session.get(url, timeout=_TWSE_TIMEOUT)
-            resp.raise_for_status()
-            return resp.json()
-        except (requests.exceptions.Timeout, requests.exceptions.RequestException) as e:
-            last_exc = e
-            if attempt == max_retries - 1:
-                break
-            backoff = (2 ** attempt) * 5 + random.uniform(1, 3)
-            logger.warning(
-                f"[TWSE] 請求逾時/失敗（第 {attempt + 1}/{max_retries} 次），"
-                f"{backoff:.1f}s 後重試: {url} ({e})"
-            )
-            time.sleep(backoff)
-    raise last_exc
+# TWSE 請求（Session、重試、跨執行緒共用的自適應限流）集中在 services/twse_client.py，見該檔說明。
 
 # ── 輔助函式 ──────────────────────────────────────────────────
 
@@ -270,7 +233,7 @@ def fetch_mi_index_quotes(date_key: str, target_stocks: set):
     date_str = date_key.replace("-", "")
     url = f"https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date={date_str}&type=ALLBUT0999&response=json"
     try:
-        res = _twse_get_json(url)
+        res = twse_get_json(url)
     except Exception as e:
         logger.warning(f"[MI_INDEX] {date_key} 抓取失敗: {e}")
         return {}, False
@@ -309,54 +272,6 @@ def fetch_mi_index_quotes(date_key: str, target_stocks: set):
         quotes[stock_id] = quote
 
     return quotes, False
-
-def fetch_daily_quotes(target_stocks: list, days_by_stock: dict) -> dict:
-    """抓取每個目標股票所需區間的每日行情。內部逐日呼叫 fetch_mi_index_quotes()——
-    取聯集後最大的天數區間即可涵蓋所有股票，因為 MI_INDEX 一次就是全市場，
-    多算幾天不會多花請求（不像舊版 STOCK_DAY 逐檔逐月，天數要對到每一檔股票才划算）。
-    若某天所有目標股票都已有非零收盤價，代表這天早就補齊過，直接跳過不重打（比照
-    fetch_stock_institutional_data() 的 is_date_complete，同一天不必因為聯集窗口
-    變大而重新抓已經抓過的舊資料）。"""
-    quote_lookup = {stock_id: {} for stock_id in target_stocks}
-    target_set = set(target_stocks)
-
-    max_days = max(days_by_stock.values()) if days_by_stock else 0
-    if max_days <= 0:
-        return quote_lookup
-
-    existing_data = {stock_id: load_stock_json(stock_id) for stock_id in target_stocks}
-
-    def quote_complete(stock_id: str, date_key: str) -> bool:
-        record = existing_data[stock_id].get(date_key)
-        return record is not None and bool(_field(record, "close", 0))
-
-    today = datetime.now()
-    valid_days = [today - timedelta(days=i) for i in range(max_days) if (today - timedelta(days=i)).weekday() < 5]
-    no_trading_days = load_no_trading_days()
-
-    total = len(valid_days)
-    n = 0
-    for target_date in valid_days:
-        n += 1
-        date_key = target_date.strftime("%Y-%m-%d")
-        if date_key in no_trading_days:
-            fetch_status.update(n, total, f"跳過已知非交易日 {date_key}")
-            continue
-        if all(quote_complete(stock_id, date_key) for stock_id in target_stocks):
-            fetch_status.update(n, total, f"跳過已有完整行情的日期 {date_key}")
-            continue
-
-        fetch_status.update(n, total, f"行情抓取 [{n}/{total}]: {date_key}（全市場 MI_INDEX）")
-        try:
-            quotes, _is_holiday = fetch_mi_index_quotes(date_key, target_set)
-            for stock_id, quote in quotes.items():
-                quote_lookup[stock_id][date_key] = quote
-        except Exception as e:
-            fetch_status.update(n, total, f"⚠️ 行情抓取失敗 ({date_key}): {e}")
-
-        time.sleep(random.uniform(3.5, 5.5))
-
-    return quote_lookup
 
 def backfill_daily_quotes(target_stocks: list, quote_lookup: dict) -> int:
     patched = 0
@@ -471,141 +386,288 @@ def _lots(shares: int) -> int:
     系統性低估賣超，例如 -188,933 股會變成 -189 張而非正確的 -188 張，見設計文件第 1.2 節）。"""
     return int(shares / 1000)
 
-def fetch_stock_institutional_data(target_stocks: list, days: int, quote_lookup: dict):
-    today = datetime.now()
-    all_records = []
-    existing_data = {stock_id: load_stock_json(stock_id) for stock_id in target_stocks}
-    no_trading_days = load_no_trading_days()
-    newly_confirmed_no_trading = set()
+# ── 逐日全市場抓取：行情(MI_INDEX) + 融資券(MI_MARGN) + 三大法人(T86) 合併成單一日期迴圈 ──
+# 舊版拆成兩趟（先跑完所有日期的行情，再跑一次所有日期的法人／融資券），同一份日期清單走兩遍、
+# 每趟各讀一次全部追蹤股票的 JSON，進度條也因此在 50% 處錯位。三個端點都是「單日全市場」，
+# 請求量只跟天數成正比，合併成一天一個任務後：每個交易日恰好 3 個請求、JSON 只讀一次，
+# 且「日」是天然的併發單位——實際請求速率由 twse_client 的限流器統一控制，併發只吸收網路延遲。
 
-    def is_date_complete(stock_id: str, date_key: str) -> bool:
-        # 注意：load_stock_json 會把 融資餘額(張) 正規化成 margin_balance，
-        # 因此這裡必須用 _field() 同時容忍兩種 key，否則永遠判定為不完整而重爬。
-        # 價格是否為 0 不納入判斷 —— 缺價的日期交由 backfill_daily_quotes 以
-        # STOCK_DAY 修補，不需要重打 T86/MI_MARGN。
-        record = existing_data[stock_id].get(date_key)
-        return record is not None and _field(record, "margin_balance") is not None
+# 只有這幾種回應才代表「這天真的沒資料（休市）」。舉例：被限流或系統忙碌時 stat 也不是 OK，
+# 但那不是休市；誤記進 _no_trading_days 會讓該日之後永遠被略過。
+_NO_DATA_STAT_MARKERS = ("很抱歉", "沒有符合", "查無", "非交易日")
 
-    skipped_count = 0
+# 證交所開休市日曆裡，這兩種名稱是「交易日」而非休市日
+_TRADING_DAY_NAME_MARKERS = ("開始交易", "最後交易")
 
-    valid_days = [today - timedelta(days=i) for i in range(days) if (today - timedelta(days=i)).weekday() < 5]
-    total_valid = len(valid_days)
+_HOLIDAY_SCHEDULE_URL = "https://www.twse.com.tw/rwd/zh/holidaySchedule/holidaySchedule?response=json&date={year}0101"
 
-    months_count = len(_months_in_range(days))
-    base_step = len(target_stocks) * months_count
 
-    for idx, target_date in enumerate(valid_days):
-        current_step = base_step + idx + 1
-        total_steps = base_step + total_valid
+def _is_no_data_stat(stat: str) -> bool:
+    return any(marker in stat for marker in _NO_DATA_STAT_MARKERS)
 
-        date_key = target_date.strftime("%Y-%m-%d")
-        if date_key in no_trading_days or all(is_date_complete(stock_id, date_key) for stock_id in target_stocks):
-            skipped_count += 1
-            fetch_status.update(current_step, total_steps, f"跳過已知日期 {date_key}")
+
+def _valid_weekdays(days: int, today: datetime) -> list:
+    dates = (today - timedelta(days=i) for i in range(days))
+    return [d for d in dates if d.weekday() < 5]
+
+
+def parse_holiday_dates(rows: list, year: int) -> set:
+    """從證交所開休市日曆挑出「休市的平日」。端點對未知年份會回退成今年的資料，
+    所以年份不符的列一律丟掉；週末本來就會被平日過濾排除，不必收。"""
+    holidays = set()
+    for row in rows:
+        try:
+            date_key, name = row[0], row[1]
+            day = datetime.strptime(date_key, "%Y-%m-%d")
+        except (ValueError, IndexError, TypeError):
+            continue
+        if day.year != year or day.weekday() >= 5:
+            continue
+        if any(marker in name for marker in _TRADING_DAY_NAME_MARKERS):
+            continue
+        holidays.add(date_key)
+    return holidays
+
+
+def sync_holiday_calendar(days: int, today: Optional[datetime] = None) -> int:
+    """開跑前把證交所官方休市日曆灌進 _no_trading_days，避免對每個國定假日都去打三個端點
+    才知道休市。純加速用的 best-effort：任何失敗只記警告、回傳 0，退回原本「打了才知道」的行為。
+    回傳新增的休市日數。"""
+    today = today or datetime.now()
+    start = today - timedelta(days=days - 1)
+    try:
+        holidays = set()
+        for year in range(start.year, today.year + 1):
+            res = twse_get_json(_HOLIDAY_SCHEDULE_URL.format(year=year))
+            if str(res.get("stat", "")).lower() != "ok":
+                continue
+            holidays |= parse_holiday_dates(res.get("data", []), year)
+        holidays = {d for d in holidays if d <= today.strftime("%Y-%m-%d")}
+        existing = load_no_trading_days()
+        new_days = holidays - existing
+        if new_days:
+            save_no_trading_days(existing | new_days)
+            dual_write_no_trading_days("tw", new_days, source="calendar")
+        return len(new_days)
+    except Exception as e:
+        logger.warning(f"[TWSE] 休市日曆同步失敗（不影響抓取，僅少了預先略過假日）: {e}")
+        return 0
+
+
+def _fetch_margin_by_stock(date_str: str, target_set: set) -> dict:
+    url = f"https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date_str}&selectType=ALL&response=json"
+    try:
+        res = twse_get_json(url)
+    except Exception as e:
+        logger.warning(f"[MI_MARGN] {date_str} 抓取失敗: {e}")
+        return {}
+    if res.get("stat") != "OK":
+        return {}
+    tables = res.get("tables", [])
+    stock_rows = tables[1].get("data", []) if len(tables) > 1 else []
+    margin_by_stock = {}
+    for row in stock_rows:
+        row_stock_id = row[0].strip()
+        if row_stock_id in target_set:
+            parsed = _parse_margin_row(row)
+            if parsed is not None:
+                margin_by_stock[row_stock_id] = parsed
+    return margin_by_stock
+
+
+def _build_institutional_records(res_t86: dict, date_key: str, target_set: set,
+                                 day_quotes: dict, margin_by_stock: dict) -> list:
+    """把一天的 T86 回應 + 同日行情 + 同日融資券組成寫檔用的記錄（中文 key，供 save_data_to_json 使用）。"""
+    columns = _locate_t86_columns(res_t86.get("fields", []))
+    if columns is None:
+        logger.error(f"[T86] {date_key} 欄位定位失敗，本日不落檔法人數字（欄位: {res_t86.get('fields')}）")
+
+    records = []
+    for row in res_t86.get("data", []):
+        stock_id = row[0].strip()
+        stock_name = row[1].strip()
+        if stock_id not in target_set:
             continue
 
-        date_str = target_date.strftime("%Y%m%d")
-        margn_url = f"https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date_str}&selectType=ALL&response=json"
-        t86_url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={date_str}&selectType=ALL&response=json"
-        fetch_status.update(current_step, total_steps, f"抓取三大法人及融資融券 [{date_key}] | URL: {t86_url}")
+        quote = day_quotes.get(stock_id, {})
+        record = {
+            "日期": date_key,
+            "股票代號": stock_id,
+            "股票名稱": stock_name,
+        }
+        total_lots = None  # 供下方「估算買賣超金額」使用；欄位定位失敗時保持 None
+        if columns is not None:
+            try:
+                foreign_lots = _lots(
+                    int(row[columns["foreign_excl_idx"]].replace(",", ""))
+                    + int(row[columns["foreign_dealer_idx"]].replace(",", ""))
+                )
+                trust_lots = _lots(int(row[columns["trust_idx"]].replace(",", "")))
+                dealer_lots = _lots(int(row[columns["dealer_idx"]].replace(",", "")))
+                total_lots = _lots(int(row[columns["institutional_idx"]].replace(",", "")))
+            except (ValueError, IndexError):
+                foreign_lots = trust_lots = dealer_lots = total_lots = None
 
-        margin_by_stock = {}
-        try:
-            res_margn = _twse_get_json(margn_url)
-            if res_margn.get("stat") == "OK":
-                tables = res_margn.get("tables", [])
-                stock_rows = tables[1].get("data", []) if len(tables) > 1 else []
-                for row in stock_rows:
-                    row_stock_id = row[0].strip()
-                    if row_stock_id in target_stocks:
-                        parsed = _parse_margin_row(row)
-                        if parsed is not None:
-                            margin_by_stock[row_stock_id] = parsed
-        except Exception as e:
-            pass
-
-        time.sleep(random.uniform(3.5, 5.5))
-
-        try:
-            res_t86 = _twse_get_json(t86_url)
-            if res_t86.get("stat") == "OK":
-                columns = _locate_t86_columns(res_t86.get("fields", []))
-                if columns is None:
-                    logger.error(
-                        f"[T86] {date_key} 欄位定位失敗，本日不落檔法人數字（欄位: {res_t86.get('fields')}）"
+            if total_lots is not None:
+                if foreign_lots + trust_lots + dealer_lots != total_lots:
+                    logger.debug(
+                        f"[T86] {date_key} {stock_id} 法人合計對不上（"
+                        f"{foreign_lots}+{trust_lots}+{dealer_lots} != {total_lots}），"
+                        "張數四捨五入誤差，僅記錄不阻斷"
                     )
+                record.update({
+                    "外資買賣超(張)": foreign_lots,
+                    "投信買賣超(張)": trust_lots,
+                    "自營商買賣超(張)": dealer_lots,
+                    "合計買賣超(張)": total_lots,
+                })
+        # 只有真的抓到行情才寫價格欄位。缺漏的欄位會在 DataFrame 中
+        # 變成 NaN，由 save_data_to_json 既有的 pd.isna 過濾略過，
+        # 絕不能填 0.0 —— 那會覆蓋掉檔案裡原本正確的價格。
+        if quote:
+            close_price = quote["收盤價"]
+            record.update({
+                "開盤價": quote["開盤價"],
+                "最高價": quote["最高價"],
+                "最低價": quote["最低價"],
+                "收盤價": close_price,
+                "成交股數(股)": quote["成交股數(股)"],
+                "成交金額(元)": quote["成交金額(元)"],
+                "成交筆數(筆)": quote["成交筆數(筆)"],
+            })
+            if total_lots is not None:
+                record["估算買賣超金額(萬元)"] = round(total_lots * close_price / 10, 2)
+        if stock_id in margin_by_stock:
+            record.update(margin_by_stock[stock_id])
+        records.append(record)
+    return records
 
-                for row in res_t86.get("data", []):
-                    stock_id = row[0].strip()
-                    stock_name = row[1].strip()
 
-                    if stock_id in target_stocks:
-                        quote = quote_lookup.get(stock_id, {}).get(date_key, {})
+def _fetch_one_day(date_key: str, target_set: set, need_quote: bool, need_inst: bool,
+                   today_date) -> dict:
+    """單一交易日的全部抓取工作（在工作執行緒內執行，只做網路請求與解析，不碰共用狀態）。
+    永遠回傳結果 dict、不拋例外：單日失敗只影響該日，由呼叫端記錄並繼續其他日期。"""
+    result = {"date_key": date_key, "quotes": {}, "records": [], "no_trading": False, "error": None}
+    try:
+        if need_quote:
+            result["quotes"], _ = fetch_mi_index_quotes(date_key, target_set)
 
-                        record = {
-                            "日期": date_key,
-                            "股票代號": stock_id,
-                            "股票名稱": stock_name,
-                        }
-                        total_lots = None  # 供下方「估算買賣超金額」使用；欄位定位失敗時保持 None
-                        if columns is not None:
-                            try:
-                                foreign_lots = _lots(
-                                    int(row[columns["foreign_excl_idx"]].replace(",", ""))
-                                    + int(row[columns["foreign_dealer_idx"]].replace(",", ""))
-                                )
-                                trust_lots = _lots(int(row[columns["trust_idx"]].replace(",", "")))
-                                dealer_lots = _lots(int(row[columns["dealer_idx"]].replace(",", "")))
-                                total_lots = _lots(int(row[columns["institutional_idx"]].replace(",", "")))
-                            except (ValueError, IndexError):
-                                foreign_lots = trust_lots = dealer_lots = total_lots = None
-
-                            if total_lots is not None:
-                                if foreign_lots + trust_lots + dealer_lots != total_lots:
-                                    logger.debug(
-                                        f"[T86] {date_key} {stock_id} 法人合計對不上（"
-                                        f"{foreign_lots}+{trust_lots}+{dealer_lots} != {total_lots}），"
-                                        "張數四捨五入誤差，僅記錄不阻斷"
-                                    )
-                                record.update({
-                                    "外資買賣超(張)": foreign_lots,
-                                    "投信買賣超(張)": trust_lots,
-                                    "自營商買賣超(張)": dealer_lots,
-                                    "合計買賣超(張)": total_lots,
-                                })
-                        # 只有真的抓到行情才寫價格欄位。缺漏的欄位會在 DataFrame 中
-                        # 變成 NaN，由 save_data_to_json 既有的 pd.isna 過濾略過，
-                        # 絕不能填 0.0 —— 那會覆蓋掉檔案裡原本正確的價格。
-                        if quote:
-                            close_price = quote["收盤價"]
-                            record.update({
-                                "開盤價": quote["開盤價"],
-                                "最高價": quote["最高價"],
-                                "最低價": quote["最低價"],
-                                "收盤價": close_price,
-                                "成交股數(股)": quote["成交股數(股)"],
-                                "成交金額(元)": quote["成交金額(元)"],
-                                "成交筆數(筆)": quote["成交筆數(筆)"],
-                            })
-                            if total_lots is not None:
-                                record["估算買賣超金額(萬元)"] = round(total_lots * close_price / 10, 2)
-                        if stock_id in margin_by_stock:
-                            record.update(margin_by_stock[stock_id])
-
-                        all_records.append(record)
+        if need_inst:
+            date_str = date_key.replace("-", "")
+            margin_by_stock = _fetch_margin_by_stock(date_str, target_set)
+            res_t86 = twse_get_json(
+                f"https://www.twse.com.tw/rwd/zh/fund/T86?date={date_str}&selectType=ALL&response=json"
+            )
+            stat = res_t86.get("stat", "")
+            if stat == "OK":
+                result["records"] = _build_institutional_records(
+                    res_t86, date_key, target_set, result["quotes"], margin_by_stock
+                )
+            elif (
+                datetime.strptime(date_key, "%Y-%m-%d").date() < today_date
+                and _is_no_data_stat(stat)
+                and not result["quotes"]  # 同日行情有資料就一定是交易日，不能因為法人端沒資料就記成休市
+            ):
+                result["no_trading"] = True
+            elif _is_no_data_stat(stat):
+                # 當天收盤後才會公布，或同日行情有資料——都不是休市，單純這次沒資料
+                logger.info(f"[T86] {date_key} 尚無資料，本日略過")
             else:
-                if target_date.date() < today.date():
-                    newly_confirmed_no_trading.add(date_key)
-        except Exception:
-            pass
+                logger.warning(f"[T86] {date_key} 非預期回應 stat={stat!r}，本日略過")
+    except Exception as e:
+        result["error"] = str(e)
+    return result
 
-        time.sleep(random.uniform(3.5, 5.5))
+
+def fetch_market_data(target_stocks: list, days_by_stock: dict,
+                      today: Optional[datetime] = None, max_workers: Optional[int] = None):
+    """逐日抓取所有需要補的交易日（行情 + 融資券 + 三大法人），回傳
+    (法人／融資券／行情合併後的 DataFrame, quote_lookup, 新確認的休市日集合)。
+
+    日期是併發單位，每天內部的 3 個請求仍是序列。所有請求都經過 twse_client 的共用限流器，
+    所以 max_workers 只影響「網路往返時間能疊多少」，不會把請求速率推過限流上限。
+    某天所有目標股票都已有完整資料（非零收盤價／融資餘額）就直接略過，不重打。"""
+    today = today or datetime.now()
+    quote_lookup = {stock_id: {} for stock_id in target_stocks}
+    max_days = max(days_by_stock.values()) if days_by_stock else 0
+    if max_days <= 0 or not target_stocks:
+        return pd.DataFrame(), quote_lookup, set()
+
+    target_set = set(target_stocks)
+    existing_data = {stock_id: load_stock_json(stock_id) for stock_id in target_stocks}
+    no_trading_days = load_no_trading_days()
+
+    def quote_complete(date_key: str) -> bool:
+        return all(
+            (record := existing_data[stock_id].get(date_key)) is not None and bool(_field(record, "close", 0))
+            for stock_id in target_stocks
+        )
+
+    def institutional_complete(date_key: str) -> bool:
+        # 注意：load_stock_json 會把 融資餘額(張) 正規化成 margin_balance，
+        # 因此必須用 _field() 同時容忍兩種 key，否則永遠判定為不完整而重爬。
+        # 價格是否為 0 不納入此判斷——缺價的日期只需補 MI_INDEX，不需要重打 T86/MI_MARGN。
+        return all(
+            (record := existing_data[stock_id].get(date_key)) is not None
+            and _field(record, "margin_balance") is not None
+            for stock_id in target_stocks
+        )
+
+    tasks = []
+    skipped = 0
+    for day in _valid_weekdays(max_days, today):
+        date_key = day.strftime("%Y-%m-%d")
+        if date_key in no_trading_days:
+            skipped += 1
+            continue
+        need_quote = not quote_complete(date_key)
+        need_inst = not institutional_complete(date_key)
+        if not (need_quote or need_inst):
+            skipped += 1
+            continue
+        tasks.append((date_key, need_quote, need_inst))
+
+    workers = max_workers or get_twse_rate_settings()["max_workers"]
+    total = len(tasks)
+    fetch_status.update(
+        5, 100,
+        f"需抓取 {total} 個交易日（略過 {skipped} 個已完整／休市日），"
+        f"併發 {workers}、目前限流間隔 {get_twse_limiter().interval:.2f}s"
+    )
+
+    results = {}
+    if tasks:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [
+                pool.submit(_fetch_one_day, date_key, target_set, need_quote, need_inst, today.date())
+                for date_key, need_quote, need_inst in tasks
+            ]
+            for done, future in enumerate(as_completed(futures), start=1):
+                res = future.result()
+                results[res["date_key"]] = res
+                if res["error"]:
+                    logger.warning(f"[TWSE] {res['date_key']} 抓取失敗，本日略過: {res['error']}")
+                fetch_status.update(
+                    5 + int(85 * done / total), 100,
+                    f"逐日抓取 [{done}/{total}] {res['date_key']}"
+                    + (f"（⚠️ 失敗: {res['error']}）" if res["error"] else "")
+                )
+
+    all_records = []
+    newly_confirmed_no_trading = set()
+    for date_key, _, _ in tasks:  # 依日期由新到舊的原順序彙整，與併發完成順序無關
+        res = results[date_key]
+        for stock_id, quote in res["quotes"].items():
+            quote_lookup[stock_id][date_key] = quote
+        all_records.extend(res["records"])
+        if res["no_trading"]:
+            newly_confirmed_no_trading.add(date_key)
 
     if newly_confirmed_no_trading:
         save_no_trading_days(no_trading_days | newly_confirmed_no_trading)
         dual_write_no_trading_days("tw", newly_confirmed_no_trading)
 
-    return pd.DataFrame(all_records)
+    return pd.DataFrame(all_records), quote_lookup, newly_confirmed_no_trading
 
 def save_data_to_json(df: pd.DataFrame) -> list:
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -676,15 +738,15 @@ def run_fetch_process(target_stocks: Optional[list] = None, months: Optional[int
 
         max_days = max(days_by_stock.values()) if days_by_stock else global_days
 
-        fetch_status.update(1, 100, f"預先抓取每日行情 (STOCK_DAY)...")
-        quote_lookup = fetch_daily_quotes(stocks, days_by_stock)
+        fetch_status.update(2, 100, "同步證交所休市日曆...")
+        sync_holiday_calendar(max_days)
 
-        fetch_status.update(50, 100, f"抓取三大法人與融資融券 (T86 + MI_MARGN)...")
-        df = fetch_stock_institutional_data(target_stocks=stocks, days=max_days, quote_lookup=quote_lookup)
+        # 行情(MI_INDEX)、融資券(MI_MARGN)、三大法人(T86)合併成單一逐日迴圈，進度 5%~90%
+        df, quote_lookup, _ = fetch_market_data(stocks, days_by_stock)
 
         if not df.empty:
             json_paths = save_data_to_json(df)
-            fetch_status.update(90, 100, f"更新了 {len(json_paths)} 個股票資料庫檔案")
+            fetch_status.update(92, 100, f"更新了 {len(json_paths)} 個股票資料庫檔案")
 
         patched = backfill_daily_quotes(stocks, quote_lookup)
         if patched:

@@ -218,6 +218,12 @@ on demand via `POST /api/v1/alerts/scan`.
   Fetch failures fall back to writing `0.0` for missing OHLC rather than crashing (see the caveat in
   `scripts/restore_price_from_legacy.py` about a historical bug this caused — `stock_service` now treats `0` as
   a missing value everywhere it aggregates/charts).
+- TWSE 逐日抓取（`fetcher.fetch_market_data()`）把行情 MI_INDEX、融資券 MI_MARGN、法人 T86 合併成「一天一個任務」，
+  日期層以 `ThreadPoolExecutor` 併發；**請求速率由 `services/twse_client.py` 的行程級自適應限流器統一決定**
+  （`.env` 的 `TWSE_*_INTERVAL_SECONDS` / `TWSE_MAX_WORKERS`），併發數只吸收網路延遲。**不要在爬蟲迴圈裡再加
+  `time.sleep()` 或繞過 `twse_get_json()` 直接 `requests.get` TWSE**——TWSE 按 IP 限流，繞過限流器等於讓
+  整個出口 IP 被封。開跑前 `sync_holiday_calendar()` 會用官方開休市日曆預填 `_no_trading_days.json`
+  （端點參數是 `date=YYYY0101`，`queryYear` 無效）。
 - `mops_fetcher.py` / `mops_eps_fetcher.py` scrape MOPS for monthly revenue YoY and quarterly EPS — TW only,
   JSON-only (no Postgres table yet), and must be triggered explicitly
   (`POST /api/v1/fundamentals/revenue|eps/trigger`) before `fundamental_revenue_decline` can fire.

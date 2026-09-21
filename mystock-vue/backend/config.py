@@ -19,6 +19,13 @@ DEFAULT_ALERT_COOLDOWN_DAYS = 1
 DEFAULT_INDEX_CONFIG_PATH = os.path.join(BASE_DIR, "index_config", "indices.yaml")
 DEFAULT_INDEX_HISTORY_YEARS = 5
 DEFAULT_MARKET_FETCH_THROTTLE_SECONDS = 3
+# TWSE 逐日爬蟲（services/fetcher.py）的自適應限流：TWSE 沒有公開的官方限流數字，
+# 所以起始值與下限都取保守值，由 services/twse_client.py 的限流器依實際成功／被擋
+# 狀況在 [MIN, MAX] 之間自動升降速；上限降速用來吸收被擋後的退避。
+DEFAULT_TWSE_START_INTERVAL_SECONDS = 3.0
+DEFAULT_TWSE_MIN_INTERVAL_SECONDS = 2.0
+DEFAULT_TWSE_MAX_INTERVAL_SECONDS = 15.0
+DEFAULT_TWSE_MAX_WORKERS = 3
 DEFAULT_MARKET_MANUAL_BACKFILL_MAX_DAYS = 120
 DEFAULT_MARKET_FETCH_ENABLED = True
 DEFAULT_UNIVERSE_TIER = "all_tracked"
@@ -132,6 +139,31 @@ def get_market_fetch_throttle_seconds() -> int:
         return int(os.getenv("MARKET_FETCH_THROTTLE_SECONDS", str(DEFAULT_MARKET_FETCH_THROTTLE_SECONDS)))
     except ValueError:
         return DEFAULT_MARKET_FETCH_THROTTLE_SECONDS
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        value = float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+def get_twse_rate_settings() -> dict:
+    """TWSE 逐日爬蟲的限流與併發設定（見 services/twse_client.py）。
+    限流器是行程內單例、第一次使用時才依此建立，所以改 .env 後要重啟後端才會生效。"""
+    load_dotenv(ENV_PATH, override=True)
+    min_interval = _env_float("TWSE_MIN_INTERVAL_SECONDS", DEFAULT_TWSE_MIN_INTERVAL_SECONDS)
+    max_interval = max(min_interval, _env_float("TWSE_MAX_INTERVAL_SECONDS", DEFAULT_TWSE_MAX_INTERVAL_SECONDS))
+    start_interval = min(max(_env_float("TWSE_START_INTERVAL_SECONDS", DEFAULT_TWSE_START_INTERVAL_SECONDS), min_interval), max_interval)
+    try:
+        workers = max(1, int(os.getenv("TWSE_MAX_WORKERS", str(DEFAULT_TWSE_MAX_WORKERS))))
+    except ValueError:
+        workers = DEFAULT_TWSE_MAX_WORKERS
+    return {
+        "start_interval": start_interval,
+        "min_interval": min_interval,
+        "max_interval": max_interval,
+        "max_workers": workers,
+    }
 
 def get_market_manual_backfill_max_days() -> int:
     """全市場手動回補單次上限天數（選股功能與爬蟲 規格書 §3.9.6）。"""
