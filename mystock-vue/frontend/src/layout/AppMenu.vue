@@ -43,6 +43,7 @@ const model = computed(() => [
     {
         label: 'AI 分析',
         items: [
+            { label: 'AI 戰情室', icon: 'pi pi-fw pi-shield', to: '/war-room' },
             { label: 'AI 診股報告紀錄', icon: 'pi pi-fw pi-android', to: '/ai/reports' },
             { label: 'LLM 執行歷史', icon: 'pi pi-fw pi-history', to: '/ai/executions' }
         ]

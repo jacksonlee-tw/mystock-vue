@@ -20,7 +20,12 @@ from repositories.investment_note_repository import InvestmentNoteRepository
 logger = logging.getLogger("mystock-backend")
 
 TAIPEI_TZ = ZoneInfo("Asia/Taipei")
-MAX_TAGS = 10
+# 30：報紙常見「15 檔股票」的表格，加上主題標籤，舊上限 10 不夠用。
+MAX_TAGS = 30
+MAX_TAG_LEN = 30  # investment_note_tag.name 是 VARCHAR(30)
+# 標籤種類靠 color 區分（不必加欄位）：sky＝個股代號、teal＝主題（預設外觀）、amber＝系統來源；
+# slate 是建立時的預設值，代表「沒有特別指定」。前端未知色一律退回 teal。
+VALID_TAG_COLORS = ("slate", "sky", "teal", "amber")
 MAX_SUBJECT_LEN = 200
 VALID_STATUSES = ("published", "draft", "archived")
 VALID_MARKETS = ("tw", "us")
@@ -36,7 +41,11 @@ def today_taipei() -> date:
 
 
 def _normalize_tag_names(names: Optional[list[str]]) -> list[str]:
-    """去空白、大小寫不分去重（沿用先出現者的大小寫），最多 10 個（設計文件 §5.2）。"""
+    """去空白、大小寫不分去重（沿用先出現者的大小寫）。
+
+    超過上限或單一標籤超長一律丟 ValueError（API 層轉 400），**不再靜默截斷**：舊版遇到超過
+    10 個時默默丟掉多的，使用者完全不會知道少了標籤；超長標籤則會變成 DB VARCHAR(30) 例外（500）。
+    """
     if not names:
         return []
     out: list[str] = []
@@ -45,10 +54,22 @@ def _normalize_tag_names(names: Optional[list[str]]) -> list[str]:
         name = (raw or "").strip()
         if not name or name.lower() in seen:
             continue
+        if len(name) > MAX_TAG_LEN:
+            raise ValueError(f"標籤「{name[:10]}…」超過 {MAX_TAG_LEN} 字上限")
         seen.add(name.lower())
         out.append(name)
-        if len(out) >= MAX_TAGS:
-            break
+    if len(out) > MAX_TAGS:
+        raise ValueError(f"標籤數量 {len(out)} 超過上限 {MAX_TAGS} 個")
+    return out
+
+
+def _normalize_tag_colors(colors: Optional[dict[str, str]]) -> dict[str, str]:
+    """key 轉小寫（標籤名稱大小寫不分），並拒絕不認得的顏色。"""
+    out: dict[str, str] = {}
+    for name, color in (colors or {}).items():
+        if color not in VALID_TAG_COLORS:
+            raise ValueError(f"tag color 必須為 {'、'.join(VALID_TAG_COLORS)} 其中之一")
+        out[(name or "").strip().lower()] = color
     return out
 
 
@@ -130,9 +151,10 @@ async def get_note(note_id: int) -> Optional[dict]:
 
 async def create_note(payload: dict) -> dict:
     """新增筆記：note_date 未提供時預設台北時區今日；sequence_no 由這裡配置並在唯一鍵衝突時
-    重試一次（R1／R2）。`payload` 可含 `tag_names`（list[str]，選填）。"""
+    重試一次（R1／R2）。`payload` 可含 `tag_names`（list[str]，選填）與 `tag_colors`（{標籤名: 顏色}，選填）。"""
     data = dict(payload)
     tag_names = _normalize_tag_names(data.pop("tag_names", None))
+    tag_colors = _normalize_tag_colors(data.pop("tag_colors", None))
     note_date = data.get("note_date") or today_taipei()
     data["note_date"] = note_date
 
@@ -146,7 +168,7 @@ async def create_note(payload: dict) -> dict:
                 row["sequence_no"] = await repo.next_sequence_no(note_date)
                 note = await repo.create_note(row)
                 if tag_names:
-                    tags = await repo.get_or_create_tags(tag_names)
+                    tags = await repo.get_or_create_tags(tag_names, colors=tag_colors)
                     await repo.set_note_tags(note["id"], [t.id for t in tags])
                     note = await repo.get_note(note["id"])
                 await session.commit()
@@ -164,6 +186,7 @@ async def update_note(note_id: int, patch: dict) -> Optional[dict]:
     data = dict(patch)
     tag_names_provided = "tag_names" in data
     tag_names = _normalize_tag_names(data.pop("tag_names", None)) if tag_names_provided else None
+    tag_colors = _normalize_tag_colors(data.pop("tag_colors", None))
 
     async with get_async_session() as session:
         existing = await InvestmentNoteRepository(session).get_note(note_id)
@@ -188,7 +211,7 @@ async def update_note(note_id: int, patch: dict) -> Optional[dict]:
                 if note is None:
                     return None
                 if tag_names_provided:
-                    tags = await repo.get_or_create_tags(tag_names)
+                    tags = await repo.get_or_create_tags(tag_names, colors=tag_colors)
                     await repo.set_note_tags(note_id, [t.id for t in tags])
                     note = await repo.get_note(note_id)
                 await session.commit()

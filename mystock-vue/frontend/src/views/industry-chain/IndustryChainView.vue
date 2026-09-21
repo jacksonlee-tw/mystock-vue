@@ -2,8 +2,12 @@
   <div class="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
     <Toast />
 
-    <!-- 頁面頂部 Header -->
-    <div class="flex items-center flex-col md:flex-row md:items-center justify-between gap-4">
+    <!-- 頁面頂部 Header：標題與工具列固定上下兩排（不像 WarRoomView／AiExecutionHistory 那樣
+         side-by-side），因為本頁工具列有 6 個項目（Select + 5 個按鈕，含「觸發本鏈萃取」
+         「待核對清單（71）」等長標籤），side-by-side 在一般桌面寬度下會把標題擠到只剩幾個
+         字的欄寬，繁體中文在極窄欄寬下會逐字換行裂版（實測截圖），故固定分兩排並讓工具列
+         自行 flex-wrap 換行，寧可工具列多佔一兩排也不擠壓標題 -->
+    <div class="space-y-3">
       <div>
         <h1 class="text-2xl sm:text-3xl font-black text-surface-900 dark:text-surface-0 flex items-center gap-3">
           <i class="pi pi-share-alt text-primary text-2xl"></i>
@@ -14,7 +18,7 @@
         </p>
       </div>
 
-      <div class="flex items-center gap-2 self-start md:self-auto shrink-0 flex-wrap">
+      <div class="flex items-center gap-2 flex-wrap">
         <Select
           v-model="chainId"
           :options="chains"

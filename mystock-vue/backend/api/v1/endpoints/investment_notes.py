@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -31,6 +31,7 @@ class NoteCreate(BaseModel):
     symbol: Optional[str] = None
     status: str = "published"
     tag_names: Optional[List[str]] = None
+    tag_colors: Optional[Dict[str, str]] = None  # {標籤名: sky|teal|amber|slate}，只影響新建或仍為預設色的標籤
 
 
 class NoteUpdate(BaseModel):
@@ -41,6 +42,7 @@ class NoteUpdate(BaseModel):
     symbol: Optional[str] = None
     status: Optional[str] = None
     tag_names: Optional[List[str]] = None
+    tag_colors: Optional[Dict[str, str]] = None
 
 
 def _note_out(n: dict) -> dict:

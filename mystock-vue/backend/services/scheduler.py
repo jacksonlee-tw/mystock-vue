@@ -104,6 +104,28 @@ def _scan_after_fetch(market: str) -> None:
     except Exception as e:
         logger.warning(f"[排程] {market} 策略掃描失敗: {e}")
 
+    _run_ai_batch_after_scan(market)
+
+
+def _run_ai_batch_after_scan(market: str) -> None:
+    """Phase5-三層式 AI 決策引擎與戰情室.md FR-5.3／Q4：AI 批次接在既有 fetch→scan 鏈之後
+    串行執行，比照 _publish_after_scan() 的 asyncio.run() 橋接手法（ThreadPoolExecutor 執行緒
+    沒有現成的 event loop）。批次本身、旗標關閉、資料庫不可用等任何失敗只記警告，絕不影響
+    掃描與通知主流程（NFR-3）。"""
+    try:
+        from ai import config as ai_config
+        if not ai_config.is_enabled() or not ai_config.get_batch_enabled():
+            return
+
+        async def _run():
+            from ai.batch_job import run_watchlist_batch
+            return await run_watchlist_batch(market)
+
+        result = asyncio.run(_run())
+        logger.info(f"[排程] {market} AI 批次診股完成: {result}")
+    except Exception as e:
+        logger.warning(f"[排程] {market} AI 批次診股失敗: {e}")
+
 
 def _run_if_idle(market: str, fetch_fn) -> None:
     """排程與手動觸發共用同一個 fetch_status 單例；有任務進行中就跳過本次，不排隊等待（見設計文件第 3.4 節）。"""

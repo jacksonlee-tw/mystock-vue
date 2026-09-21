@@ -42,12 +42,15 @@ async def resolve_report_slot(
     session: AsyncSession, *, symbol: str, market: str, trade_date: date, provider: str, model: str,
     stock_name: str | None, chart_period: str, chart_months: int,
     chart_start_date: str | None, chart_end_date: str | None,
-    force: bool = False,
+    force: bool = False, trigger_type: Literal["manual", "batch"] = "manual",
 ) -> GuardDecision:
     """閘門 2～5。呼叫前必須先通過 check_enabled() 與端點層的 require_owner。
 
     v3.4／ADR-AI-21：唯一鍵含 provider+model——同一標的同一交易日的「一次」，
     是針對每個 (provider, model) 組合各自算一次，換模型即可再產生一份獨立報告。
+
+    trigger_type（Phase5-三層式 AI 決策引擎與戰情室.md §8）：'manual'（個股頁手動點擊，預設）
+    或 'batch'（監控清單排程批次）——兩者各自獨立計算每日配額，互不排擠（FR-5.3、AC-P5-09）。
 
     - 已有 succeeded 報告（同一 provider+model）→ outcome="cached"（不計費，AC-AI-04）
     - 取得執行權（新列或接手失敗/孤兒列）→ outcome="acquired"，呼叫端接著打 LLM
@@ -68,29 +71,35 @@ async def resolve_report_slot(
     if existing and not forced:
         return GuardDecision(outcome="cached", report=existing)
 
-    # 閘門 4：全站每日新報告總量，跨所有 provider／model 合併計算（回讀既有報告不受此限制，AC-AI-10）
+    # 閘門 4：每日新報告總量，依 trigger_type 各自獨立計算（回讀既有報告不受此限制，AC-AI-10）
+    quota = ai_config.get_batch_daily_quota() if trigger_type == "batch" else ai_config.get_daily_quota()
     if not forced:
-        today_count = await report_repo.count_succeeded_today()
-        if today_count >= ai_config.get_daily_quota():
-            raise AIQuotaExceededException(f"今日新報告數已達上限（{ai_config.get_daily_quota()}）")
+        today_count = await report_repo.count_succeeded_today(trigger_type=trigger_type)
+        if today_count >= quota:
+            raise AIQuotaExceededException(f"今日{trigger_type}新報告數已達上限（{quota}）")
 
     # 閘門 5：佔位取得執行權（ADR-AI-16）
     if forced:
-        slot_id = await report_repo.force_reacquire(symbol, market, trade_date, provider, model)
+        slot_id = await report_repo.force_reacquire(
+            symbol, market, trade_date, provider, model, trigger_type=trigger_type,
+        )
         if slot_id is None:
             slot_id = await report_repo.try_acquire_slot(
                 symbol, market, trade_date, provider, model, stock_name,
                 chart_period, chart_months, chart_start_date, chart_end_date,
+                trigger_type=trigger_type,
             )
     else:
         slot_id = await report_repo.try_acquire_slot(
             symbol, market, trade_date, provider, model, stock_name,
             chart_period, chart_months, chart_start_date, chart_end_date,
+            trigger_type=trigger_type,
         )
 
     if slot_id is None:
         slot_id = await report_repo.try_reclaim_slot(
-            symbol, market, trade_date, provider, model, ai_config.get_stuck_timeout_min()
+            symbol, market, trade_date, provider, model, ai_config.get_stuck_timeout_min(),
+            trigger_type=trigger_type,
         )
 
     if slot_id is None:

@@ -251,7 +251,7 @@ const amplitude = computed(() => {
   flex-direction: column;
   gap: 0.15rem;
   min-width: 0;
-  padding: 0.7rem 0.85rem 0.6rem;
+  padding: 0.7rem 1.1rem 0.6rem;
   box-shadow: -1px 0 0 var(--strip-line), 0 -1px 0 var(--strip-line);
 }
 
@@ -368,12 +368,18 @@ button.kv:focus-visible {
   opacity: 0.85;
 }
 
-/* 當日區間 */
+/* 當日區間
+   align-items 必須明確設回 stretch：.kv 的 `align-items: center` 是給單列 grid 用的，沿用到這個直向 flex
+   會把子元素水平置中、寬度縮成內容寬——區間條沒有內容，寬度會變 0，只剩收盤標記那條線。
+   flex: 1＋垂直置中：讓區間圖吃滿同列其他組撐出來的高度，不在下方留一大塊空白。 */
 .kv--block {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 0.35rem;
-  padding-block: 0.35rem;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.45rem;
+  padding-block: 0.5rem;
 }
 .range-ends,
 .range-labels,

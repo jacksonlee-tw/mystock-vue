@@ -1,0 +1,7 @@
+🤖【{{ digest_date }} {{ market | upper }}AI 戰情摘要】共 {{ total_count }} 檔重大變化
+{% for it in items %}　{{ it.symbol }} {{ it.stock_name }}　{{ it.reason }}{% if it.target_price %}　目標價 {{ it.target_price }}{% endif %}{% if it.stop_loss %}　停損 {{ it.stop_loss }}{% endif %}
+{% endfor %}
+▸ 開啟戰情室 {{ war_room_url }}
+{% if manage_url %}▸ 管理我的通知 {{ manage_url }}{% endif %}
+
+{{ disclaimer }}

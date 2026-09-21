@@ -69,6 +69,22 @@ def _at(series: Optional[list], idx: int):
     return series[idx]
 
 
+def _compute_eps_yoy(rows: list[dict]) -> Optional[dict]:
+    """rows 為 MarketRepository.get_quarterly_financials() 由新到舊排序的結果（Phase5-三層式
+    AI 決策引擎與戰情室.md FR-5.1）。取最新一筆有 eps 值的季度，比對去年同季（year_quarter
+    格式 'YYYY-Qn'，年份減 1、同 Qn）算年增率；任一筆缺值就視為算不出來，不臆測。"""
+    latest = next((r for r in rows if r.get("eps") is not None), None)
+    if latest is None:
+        return None
+    year_str, q_str = latest["year_quarter"].split("-")
+    prior_quarter = f"{int(year_str) - 1}-{q_str}"
+    prior = next((r for r in rows if r["year_quarter"] == prior_quarter and r.get("eps")), None)
+    if prior is None:
+        return None
+    yoy = (latest["eps"] - prior["eps"]) / abs(prior["eps"]) * 100
+    return {"eps_yoy_percent": round(yoy, 2), "quarter": latest["year_quarter"]}
+
+
 async def build_quant_summary(symbol: str, market: str, period: str, months: int) -> Optional[QuantSummary]:
     payload = await get_stock_chart_payload(symbol, period=period, months=months, market=market)
     if payload.get("error"):
@@ -255,6 +271,19 @@ async def build_quant_summary(symbol: str, market: str, period: str, months: int
         if revenue_block:
             summary["revenue"] = revenue_block
 
+        # 最近一季 EPS 年增率（Phase5-三層式 AI 決策引擎與戰情室.md FR-5.1）：唯一真正缺席的
+        # 基本面欄位——本益比／股價淨值比／殖利率／月營收已於 Phase2 接上。讀取失敗只記警告、
+        # 視為無資料，不得讓整份報告中止（比照下方 industry_chain_context 區塊的既有寫法）。
+        try:
+            from repositories.market_repository import MarketRepository
+
+            qf_rows = await MarketRepository().get_quarterly_financials(symbol, limit=8, market="tw")
+            eps_block = _compute_eps_yoy(qf_rows)
+            if eps_block:
+                summary["eps"] = eps_block
+        except Exception as e:
+            logger.warning(f"[AI量化摘要] 讀取 EPS 年增率失敗，視為無資料: {e}")
+
         position_block: dict[str, Any] = {}
         mcap = _clean(latest.get("market_cap"))
         rank = _clean(latest.get("mcap_rank"))
@@ -295,6 +324,9 @@ async def build_quant_summary(symbol: str, market: str, period: str, months: int
                 "direction": a.get("direction"),
                 "trade_date": a.get("trade_date"),
                 "signal_strength": a.get("signal_strength"),
+                # signal_type（BUY/SELL）：Phase5-三層式 AI 決策引擎與戰情室.md FR-5.6 判定
+                # AI 研判與規則引擎「一致／分歧」的比對依據，見 ai/rule_alignment.py
+                "signal_type": a.get("signal_type"),
             }
             for a in alerts[: get_recent_alerts_limit()]
         ]

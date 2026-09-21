@@ -1,4 +1,5 @@
 import { apiClient } from '@/service/stockApi';
+import { privateApiClient } from '@/service/ownerApi';
 
 // AI 呼叫實測耗時常落在 10～40 秒，遠超過共用 apiClient 的預設 15000ms
 // （AI 技術分析報告 系統開發規格書 §7.2）。只在這一支請求上覆寫逾時，不動全域預設，
@@ -94,6 +95,48 @@ export const aiAnalysisApi = {
         if (dateFrom) params.date_from = dateFrom;
         if (dateTo) params.date_to = dateTo;
         const response = await apiClient.get('/ai/usage', { params });
+        return response.data;
+    },
+
+    // 戰情室彙總：監控清單 × 當日最新 AI 報告，一次查完（Phase5-三層式 AI 決策引擎與戰情室.md
+    // FR-5.5，AC-P5-17 不得對每檔標的各發一次請求）。掛 require_owner，未登入會收到 401。
+    // 必須用 privateApiClient（withCredentials）才會帶上 owner session cookie，否則不管有沒有
+    // 登入都會 401——router 的 requiresOwner 守衛用的是 ownerApi.whoami()（同樣走
+    // privateApiClient）先放行進頁面，若這裡誤用不帶憑證的 apiClient 會讓畫面直接卡在錯誤訊息，
+    // 且看起來像「登入了也沒用」。
+    async getWarRoom(market = 'tw') {
+        const response = await privateApiClient.get('/ai/war-room', { params: { market } });
+        return response.data;
+    },
+
+    // 批次設定／預估／手動觸發（監控清單批次，掛 require_owner，同上須用 privateApiClient）。
+    async getBatchSettings() {
+        const response = await privateApiClient.get('/ai/batch/settings');
+        return response.data;
+    },
+    async updateBatchSettings({ enabled, dailyQuota, provider, model } = {}) {
+        const payload = {};
+        if (enabled !== undefined) payload.enabled = enabled;
+        if (dailyQuota !== undefined) payload.daily_quota = dailyQuota;
+        if (provider !== undefined) payload.provider = provider;
+        if (model !== undefined) payload.model = model;
+        const response = await privateApiClient.put('/ai/batch/settings', payload);
+        return response.data;
+    },
+    // 執行前必須先呼叫這支拿到預估費用／token 量，UI 顯示給使用者確認後才可觸發 /batch/trigger。
+    // symbols：戰情室多選標的手動觸發時帶入（陣列），省略則沿用「整份監控清單」既有行為。
+    async getBatchEstimate(market = 'tw', symbols) {
+        const params = { market };
+        if (symbols?.length) params.symbols = symbols.join(',');
+        const response = await privateApiClient.get('/ai/batch/estimate', { params });
+        return response.data;
+    },
+    // 批次同步執行（逐檔呼叫 LLM，視配額大小可能需要數十秒到數分鐘），沿用 ANALYZE_TIMEOUT_MS。
+    // symbols：戰情室多選標的手動觸發時帶入（陣列），省略則沿用「整份監控清單」既有行為。
+    async triggerBatch(market = 'tw', symbols) {
+        const payload = { market };
+        if (symbols?.length) payload.symbols = symbols;
+        const response = await privateApiClient.post('/ai/batch/trigger', payload, { timeout: ANALYZE_TIMEOUT_MS * 3 });
         return response.data;
     }
 };

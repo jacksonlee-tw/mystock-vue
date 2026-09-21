@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from ai.schema import AnalysisReport
+from core.markdown_images import EmbeddedImage
 
 
 @dataclass
@@ -104,6 +105,27 @@ class AIProvider(ABC):
         參數化，讓本方法可服務任何結構化萃取需求，不綁死單一用途。
         """
         raise NotImplementedError(f"{self.code} Provider 尚未實作 extract_structured()")
+
+    async def extract_structured_multimodal(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        response_schema: type,
+        images: list[EmbeddedImage] | None = None,
+        model: str | None = None,
+    ) -> ExtractionResult:
+        """多張圖片＋文字的結構化萃取（投資筆記 AI 解析用，見 note_ai/）。
+
+        補上兩條既有路徑各缺的一半：analyze() 有圖但只吃一張、mime 寫死 image/png、schema 寫死
+        LLMAnalysisReport；extract_structured() schema 可傳入但完全沒有圖片。這裡兩者都參數化。
+
+        **非抽象方法**，預設拋 NotImplementedError，理由同 extract_structured()：不改動既有
+        analyze() 簽章，診股路徑零回歸風險。
+
+        images：每張圖的 mime_type 由呼叫端帶入（貼上的圖多為 WebP，不可假設是 PNG）；每張圖前會
+        各附一段「[圖片 ref]」文字標籤，讓模型能在結構化輸出裡指名是哪一張。
+        """
+        raise NotImplementedError(f"{self.code} Provider 尚未實作 extract_structured_multimodal()")
 
     async def research_grounded(
         self,

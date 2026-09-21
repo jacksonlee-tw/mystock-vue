@@ -16,6 +16,7 @@ Claude（Anthropic）Provider 實作（見規格書 §4.3）。
   顯式指定反而在與結構化輸出併用時徒增不確定性。
 """
 from __future__ import annotations
+import base64
 import logging
 import time
 
@@ -27,8 +28,28 @@ from ai.errors import (
 from ai.providers.base import AIProvider, AnalysisResult, ExtractionResult, ResearchResult
 from ai.providers import ai_provider
 from ai.schema import AnalysisReport, LLMAnalysisReport, from_llm_report
+from core.markdown_images import EmbeddedImage
 
 logger = logging.getLogger("mystock-backend")
+
+
+def build_multimodal_content(images: list[EmbeddedImage], user_prompt: str) -> list[dict]:
+    """多圖 content blocks：每張圖前先放一段「[圖片 ref]」文字標籤，再放該圖（media_type 取自圖片
+    本身，不像 analyze() 寫死 image/png），最後才是 user_prompt。標籤讓模型能在結構化輸出裡
+    指名是哪一張圖。"""
+    blocks: list[dict] = []
+    for img in images:
+        blocks.append({"type": "text", "text": f"[圖片 {img.ref}]"})
+        blocks.append({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": img.mime_type,
+                "data": base64.b64encode(img.data).decode("ascii"),
+            },
+        })
+    blocks.append({"type": "text", "text": user_prompt})
+    return blocks
 
 
 @ai_provider(code="claude", display_name="Claude (Anthropic)")
@@ -184,6 +205,69 @@ class ClaudeProvider(AIProvider):
             model=response.model,
             stop_reason=stop_reason,
             truncated=truncated,
+            input_tokens=getattr(usage, "input_tokens", None),
+            output_tokens=getattr(usage, "output_tokens", None),
+            provider_request_id=getattr(response, "_request_id", None),
+            response_meta={
+                "elapsed_ms": elapsed_ms,
+                "stop_reason": stop_reason,
+            },
+        )
+
+    async def extract_structured_multimodal(
+        self, system_prompt: str, user_prompt: str, response_schema: type,
+        images: list[EmbeddedImage] | None = None, model: str | None = None,
+    ) -> ExtractionResult:
+        """多圖＋文字結構化萃取（見 base.py 說明）：與 extract_structured() 同一套呼叫骨架與例外
+        分類，差異只有 user content 換成 build_multimodal_content() 組出的多圖 blocks。"""
+        api_key = ai_config.get_claude_api_key()
+        if not api_key:
+            raise AIProviderMisconfiguredException("CLAUDE_API_KEY 未設定")
+
+        try:
+            import anthropic
+        except ImportError as exc:
+            raise AIProviderMisconfiguredException("anthropic 套件未安裝") from exc
+
+        model = model or ai_config.get_claude_model()
+        max_tokens = ai_config.get_extraction_max_output_tokens()
+        timeout_sec = ai_config.get_request_timeout_sec()
+
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        started = time.monotonic()
+        try:
+            response = await client.with_options(timeout=timeout_sec).messages.parse(
+                model=model,
+                max_tokens=max_tokens,
+                system=system_prompt,
+                messages=[{"role": "user", "content": build_multimodal_content(images or [], user_prompt)}],
+                output_format=response_schema,
+            )
+        except anthropic.AuthenticationError as exc:
+            raise AIProviderMisconfiguredException("Claude API 金鑰無效") from exc
+        except anthropic.RateLimitError as exc:
+            retry_after = None
+            try:
+                retry_after = int(exc.response.headers.get("retry-after", "0")) or None
+            except Exception:
+                pass
+            raise AIRateLimitedException("Claude API 已達限流上限", retry_after_sec=retry_after) from exc
+        except anthropic.APITimeoutError as exc:
+            raise AITimeoutException("Claude API 呼叫逾時") from exc
+        except anthropic.APIConnectionError as exc:
+            raise AIProviderUnreachableException("無法連線至 Claude API") from exc
+        except anthropic.APIStatusError as exc:
+            raise AIProviderError(f"Claude API 錯誤（{exc.status_code}）：{exc.message}") from exc
+        finally:
+            elapsed_ms = int((time.monotonic() - started) * 1000)
+
+        stop_reason = response.stop_reason
+        usage = response.usage
+        return ExtractionResult(
+            data=getattr(response, "parsed_output", None),
+            model=response.model,
+            stop_reason=stop_reason,
+            truncated=stop_reason == "max_tokens",
             input_tokens=getattr(usage, "input_tokens", None),
             output_tokens=getattr(usage, "output_tokens", None),
             provider_request_id=getattr(response, "_request_id", None),

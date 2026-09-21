@@ -94,6 +94,10 @@ const toast = useToast();
 const EVENT_LABEL = {
   ALERT_SIGNAL: '策略警示訊號',
   ALERT_DIGEST: '每日警示摘要',
+  // Phase5-三層式 AI 決策引擎與戰情室.md FR-5.4／AC-P5-13：新事件類型必須出現在這份對照表，
+  // 訂閱規則與模板矩陣的下拉都是 Object.keys(EVENT_LABEL) 展開的——漏一筆等於使用者無法
+  // 為它建立訂閱規則，也就永遠收不到、更關不掉。
+  AI_VERDICT_DIGEST: 'AI 戰情摘要',
   FETCH_COMPLETED: '每日抓取完成',
   FETCH_FAILED: '抓取失敗',
   SYSTEM_HEALTH: '系統異常'

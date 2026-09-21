@@ -1,0 +1,9 @@
+AI 監控清單批次掃描完成，共 {{ total_count }} 檔標的出現重大變化（翻多／翻空／觸價）。
+
+{% for it in items %}  {{ it.symbol }}　{{ it.stock_name }}　{{ it.reason }}{% if it.target_price %}　目標價 {{ it.target_price }}{% endif %}{% if it.stop_loss %}　停損 {{ it.stop_loss }}{% endif %}
+{% endfor %}
+▸ 開啟戰情室：{{ war_room_url }}
+{% if manage_url %}▸ 管理我的通知：{{ manage_url }}
+{% endif %}
+
+{{ disclaimer }}

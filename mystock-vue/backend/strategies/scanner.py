@@ -75,10 +75,14 @@ _CHIP_EXCLUDED_SYMBOL_PATTERN = re.compile(r"^00\d{2,4}[A-Za-z]?$")
 _CHIP_EXCLUDED_SECURITY_KEYWORDS = ("ETF", "ETN", "TDR", "特別股", "受益證券")
 
 
-def _is_chip_excluded(symbol: str, security_type: Optional[str] = None) -> bool:
+def is_chip_excluded(symbol: str, security_type: Optional[str] = None) -> bool:
     """排除 ETF/ETN/TDR/特別股/受益證券等籌碼語意不同的證券類別（ADR-SP-13）。
     優先依代碼主檔的 security_type 判斷（全市場掃描下能正確識別 TDR、特別股等代號規則抱不到的類別）；
-    查無主檔資料時（例如尚未同步、或非 universe 掃描）退回既有代號正則。"""
+    查無主檔資料時（例如尚未同步、或非 universe 掃描）退回既有代號正則。
+
+    v3.1（Phase5-三層式 AI 決策引擎與戰情室.md FR-5.3）：公開此函式（原 _is_chip_excluded），
+    供 ai/batch_job.py 排除批次診股清單中的 ETF——三層式分析對這些證券同樣退化嚴重，
+    判準理由與規則引擎排除籌碼類策略完全相同，不重寫第二份正則。"""
     if security_type:
         return any(kw in security_type for kw in _CHIP_EXCLUDED_SECURITY_KEYWORDS)
     return bool(_CHIP_EXCLUDED_SYMBOL_PATTERN.match(symbol))
@@ -285,7 +289,7 @@ async def scan_market(
                 continue
 
             # 籌碼與選股類策略排除 ETF/ETN/TDR/特別股/受益證券
-            if strategy.category in {"chip", "stock_picking"} and _is_chip_excluded(symbol, security_type_map.get(symbol)):
+            if strategy.category in {"chip", "stock_picking"} and is_chip_excluded(symbol, security_type_map.get(symbol)):
                 continue
 
             effective_cooldown = strategy.cooldown_days if strategy.cooldown_days is not None else cooldown_days

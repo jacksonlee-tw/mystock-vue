@@ -13,6 +13,7 @@ from typing import Optional
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.markdown_images import strip_embedded_images
 from db.note_models import InvestmentNote, InvestmentNoteTag, InvestmentNoteTagLink
 
 EXCERPT_LENGTH = 240
@@ -31,7 +32,7 @@ def _note_to_dict(row: InvestmentNote, tags: Optional[list[dict]] = None) -> dic
 def _to_excerpt(note: dict) -> dict:
     """列表只回傳內容摘要，不回全文（R7）。"""
     out = dict(note)
-    content = out.pop("content")
+    content = strip_embedded_images(out.pop("content"))
     out["content_excerpt"] = content if len(content) <= EXCERPT_LENGTH else content[:EXCERPT_LENGTH] + "…"
     return out
 
@@ -172,18 +173,28 @@ class InvestmentNoteRepository:
         stmt = select(InvestmentNoteTag).where(func.lower(InvestmentNoteTag.name) == name.strip().lower())
         return (await self._s.execute(stmt)).scalars().first()
 
-    async def get_or_create_tags(self, names: list[str]) -> list[InvestmentNoteTag]:
-        """依名稱找既有 tag（大小寫不分），不存在則自動建立；呼叫端已負責去重與上限 10 個。"""
+    async def get_or_create_tags(
+        self, names: list[str], colors: Optional[dict[str, str]] = None,
+    ) -> list[InvestmentNoteTag]:
+        """依名稱找既有 tag（大小寫不分），不存在則自動建立；呼叫端已負責去重與數量上限。
+
+        colors：{小寫標籤名: 顏色}。新建的標籤直接帶色；既有標籤只有在目前仍是預設的 slate 時才升級，
+        使用者或系統刻意設定過的顏色（例如 amber 的「AI生成報告」）絕不被覆蓋。"""
+        colors = colors or {}
         tags: list[InvestmentNoteTag] = []
         seen_ids: set[int] = set()
         for raw_name in names:
             name = (raw_name or "").strip()
             if not name:
                 continue
+            wanted_color = colors.get(name.lower())
             tag = await self.get_tag_by_name(name)
             if not tag:
-                tag = InvestmentNoteTag(name=name)
+                tag = InvestmentNoteTag(name=name, **({"color": wanted_color} if wanted_color else {}))
                 self._s.add(tag)
+                await self._s.flush()
+            elif wanted_color and tag.color == "slate":
+                tag.color = wanted_color
                 await self._s.flush()
             if tag.id not in seen_ids:
                 tags.append(tag)

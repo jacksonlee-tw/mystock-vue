@@ -61,6 +61,14 @@ const router = createRouter({
                     name: 'industry-chains',
                     component: () => import('@/views/industry-chain/IndustryChainView.vue')
                 },
+                // AI 戰情室（docs/16.AI技術分析/Phase5-三層式 AI 決策引擎與戰情室.md FR-5.5）：內容即
+                // 監控清單本身，比照 /portfolio/* 掛 requiresOwner，見後端 war_room.py 的 require_owner
+                {
+                    path: '/war-room',
+                    name: 'war-room',
+                    component: () => import('@/views/war-room/WarRoomView.vue'),
+                    meta: { requiresOwner: true }
+                },
                 {
                     path: '/stocks',
                     name: 'stock-management',

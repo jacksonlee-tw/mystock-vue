@@ -90,6 +90,92 @@ def allow_force_regenerate() -> bool:
     return _env_bool("AI_ALLOW_FORCE_REGENERATE", False)
 
 
+# ── Phase 5：監控清單批次產生（docs/16.AI技術分析/Phase5-三層式 AI 決策引擎與戰情室.md
+#    §8／FR-5.3）── 批次與手動配額各自獨立計算，互不排擠（Q3 決議）；批次獨立開關（Q4／§4.2），
+#    未開啟時排程完全不觸發、不計費，與 AI_ANALYSIS_ENABLED 分層（後者是全站總開關）。
+def get_batch_enabled() -> bool:
+    return _env_bool("AI_BATCH_ENABLED", False)
+
+
+def get_batch_daily_quota() -> int:
+    return _env_int("AI_BATCH_DAILY_QUOTA", 70)
+
+
+def get_batch_exclude_etf() -> bool:
+    """Q2 決議：預設排除 ETF／ETN／TDR／特別股／受益證券（比照規則引擎既有 ADR-SP-13），
+    三層式分析對這些證券退化最嚴重且籌碼語意不同；使用者仍可在個股頁手動點擊產生。"""
+    return _env_bool("AI_BATCH_EXCLUDE_ETF", True)
+
+
+def get_batch_provider() -> str:
+    """未設定 AI_BATCH_PROVIDER 時跟隨 get_default_provider()（手動點擊的預設 Provider）——
+    使用者部署時往往只設定一組金鑰，批次若寫死另一個 Provider，沒設金鑰時會整輪失敗，
+    設了金鑰也會因為 provider+model 跟手動不同而各自佔一份每日唯一鍵、無法互相回讀快取
+    （AC-P5-10 的精神：同一標的當天已有報告就不該再算一次）。仍可在 .env 明確覆寫成不同
+    Provider（例如金鑰充裕、想讓批次固定用某個較穩定的模型）。"""
+    provider = _env("AI_BATCH_PROVIDER", "").lower()
+    if provider in VALID_PROVIDERS:
+        return provider
+    return get_default_provider()
+
+
+def get_batch_model() -> str:
+    """未設定 AI_BATCH_MODEL 時跟隨批次實際採用的 Provider 之 .env 預設模型（同一條理由見
+    get_batch_provider()）——不得寫死成固定 Provider 的模型 ID，否則跟隨 get_batch_provider()
+    切換後兩者會對不上（例如 provider 已改成 gemini，model 卻仍是 claude-sonnet-5）。"""
+    model = _env("AI_BATCH_MODEL", "")
+    if model:
+        return model
+    return _default_model_for_provider(get_batch_provider())
+
+
+def _default_model_for_provider(provider: str) -> str:
+    if provider == "claude":
+        return get_claude_model()
+    if provider == "gemini":
+        return get_gemini_model()
+    return provider
+
+
+def set_batch_settings(
+    *,
+    enabled: bool | None = None,
+    daily_quota: int | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+) -> None:
+    """寫回 .env（比照 config.py::save_schedule_config() 的既有慣例，同一份 .env、同一支
+    _set_env_values() 寫入邏輯，就地覆寫或附加，只讀寫檔案一次）。存檔後 get_batch_enabled()／
+    get_batch_daily_quota() 下次讀取即生效（load_dotenv(override=True)），不需重啟服務——
+    這是 UI「批次設定」開關能即時生效的唯一原因。
+
+    provider／model 一起寫回：只給其中一個時，用另一個目前生效的值／該 Provider 的預設模型
+    補齊後兩者一起寫——get_batch_model() 只是原樣讀出 AI_BATCH_MODEL、不會反查是否配對得上
+    AI_BATCH_PROVIDER，若只改 Provider 沒同時更新 Model，會留下上一個 Provider 的模型 ID，
+    下次呼叫時 provider/model 對不上（例如 provider 已是 gemini，model 卻仍是
+    claude-sonnet-5）。"""
+    from config import _set_env_values
+
+    pairs: dict[str, str] = {}
+    if enabled is not None:
+        pairs["AI_BATCH_ENABLED"] = "true" if enabled else "false"
+    if daily_quota is not None:
+        if daily_quota < 1:
+            raise ValueError("AI_BATCH_DAILY_QUOTA 必須 >= 1")
+        pairs["AI_BATCH_DAILY_QUOTA"] = str(daily_quota)
+    if provider is not None or model is not None:
+        effective_provider = provider or get_batch_provider()
+        if effective_provider not in VALID_PROVIDERS:
+            raise ValueError(f"不支援的 Provider：{effective_provider}")
+        effective_model = model or _default_model_for_provider(effective_provider)
+        if not is_valid_model(effective_provider, effective_model):
+            raise ValueError(f"{effective_provider} 不支援的模型：{effective_model}")
+        pairs["AI_BATCH_PROVIDER"] = effective_provider
+        pairs["AI_BATCH_MODEL"] = effective_model
+    if pairs:
+        _set_env_values(pairs)
+
+
 # ── 近期策略訊號佐證（Phase2-籌碼面與基本面量化擴充 設計文件 FR-4，比照 ADR-AI-12：可調參數走
 #    .env，不寫死）──────────────────────────────────────────────
 def get_recent_alerts_lookback_days() -> int:
@@ -123,13 +209,34 @@ def get_industry_chain_monthly_call_cap() -> int:
     return _env_int("IC_LLM_MONTHLY_CALL_CAP", 20)
 
 
+# ── 投資筆記 AI 解析（docs/01_Requirements/16.AI技術分析/Phase6-投資筆記 AI 解析.md）──────
+# 獨立開關與配額：筆記解析是「一篇一次含圖呼叫」，成本結構與診股報告不同，不與 AI_DAILY_QUOTA
+# 共用計數（該閘門只數 ai_analysis_report，數不到本功能的呼叫）。仍須先通過全站總開關
+# AI_ANALYSIS_ENABLED，本開關預設關閉，開啟前不會產生任何費用。
+def get_note_ai_enabled() -> bool:
+    return _env_bool("NOTE_AI_ENABLED", False)
+
+
+def get_note_ai_daily_quota() -> int:
+    return _env_int("NOTE_AI_DAILY_QUOTA", 20)
+
+
+def get_note_ai_max_images() -> int:
+    """單次解析最多送幾張圖給 LLM（成本上限）；超過的圖略過並在回應中告知。"""
+    return max(0, _env_int("NOTE_AI_MAX_IMAGES", 4))
+
+
 # ── 提示詞版本（§5.5）───────────────────────────────────────────
 def get_prompt_version() -> str:
     # v4：Phase1-基礎量化與技術面 FR-P1-9，System Prompt 新增第 6 點（MACD／RSI／布林／ATR）。
     # v5：Phase2-籌碼面與基本面量化擴充 FR-4，System Prompt 新增第 7、8 點（基本面與估值檢核、
     #     市場資金定位）＋輸出規範新增一條近期策略訊號僅供佐證的限制。對外結構化輸出七個欄位不變
     #     （ADR-P2-05），僅供 metadata 追溯用。
-    return _env("AI_PROMPT_VERSION", "v5")
+    # v6：Phase5-三層式 AI 決策引擎與戰情室 FR-5.1／FR-5.2，System Prompt 第 7 點新增「最近一季
+    #     EPS 年增率」、輸出規範新增 target_price 一條，User Prompt 新增 EPS 區塊。批次走
+    #     BATCH_SYSTEM_PROMPT（同版號、純數值版），可由 ai_llm_execution.request_meta.mode
+    #     ＝"batch_text_only" 與 ai_analysis_report.trigger_type 區分。
+    return _env("AI_PROMPT_VERSION", "v6")
 
 
 # ── 可選模型清單（§4.3 附加、v3.4 新增）────────────────────────

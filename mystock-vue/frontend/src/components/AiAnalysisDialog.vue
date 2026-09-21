@@ -202,13 +202,28 @@
           <span v-if="report.confidence" class="px-2.5 py-1 rounded-full font-bold bg-surface-100 dark:bg-surface-800 text-surface-500">
             信心度：{{ confidenceLabel }}
           </span>
-          <span v-if="report.cached" class="px-2.5 py-1 rounded-full font-bold bg-primary-50 dark:bg-primary-900/30 text-primary">
-            <i class="pi pi-history text-[10px] mr-1"></i>今日已產生，讀取自紀錄
+          <span
+            v-if="alignmentLabel"
+            class="px-2.5 py-1 rounded-full font-bold inline-flex items-center gap-1 whitespace-nowrap"
+            :style="{ backgroundColor: alignmentColor + '1a', color: alignmentColor }"
+          >
+            <i :class="['pi', 'text-[10px]', report.rule_signal_alignment === 'diverged' ? 'pi-exclamation-circle' : 'pi-check-circle']"></i>
+            {{ alignmentLabel }}
           </span>
-          <span v-if="report.truncated" class="px-2.5 py-1 rounded-full font-bold bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400">
+          <span v-if="report.cached" class="px-2.5 py-1 rounded-full font-bold whitespace-nowrap bg-primary-50 dark:bg-primary-900/30 text-primary">
+            <i class="pi pi-history text-[10px] mr-1"></i>讀取自今日紀錄
+          </span>
+          <span v-if="report.truncated" class="px-2.5 py-1 rounded-full font-bold whitespace-nowrap bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400">
             <i class="pi pi-scissors text-[10px] mr-1"></i>內容可能被截斷
           </span>
-          <span class="ml-auto text-surface-400 font-medium">
+          <!-- 批次報告沒有 K 線圖可判讀（FR-5.3），這件事必須讓使用者看得到，否則會誤以為
+               所有報告都經過視覺判讀。徽章文字取最短的可理解版本，完整說明放 title——
+               這一列最多可能同時出現評等／信心度／一致分歧／快取／截斷／批次六個徽章，
+               每個都用長句會在手機寬度下疊成六行 -->
+          <span v-if="report.trigger_type === 'batch'" class="px-2.5 py-1 rounded-full font-bold whitespace-nowrap bg-surface-100 dark:bg-surface-800 text-surface-500" title="戰情室排程批次產生：僅憑量化數值推理，未包含 K 線圖的型態判讀">
+            <i class="pi pi-server text-[10px] mr-1"></i>批次・未含圖表判讀
+          </span>
+          <span class="ml-auto text-surface-400 font-medium whitespace-nowrap">
             {{ PROVIDER_LABELS[report.provider] || report.provider }}<template v-if="report.model"> ・ {{ report.model }}</template>
           </span>
         </div>
@@ -463,23 +478,36 @@ const priceLevels = computed(() => {
   if (props.report.stop_loss !== null && props.report.stop_loss !== undefined) {
     levels.push({ type: 'stop_loss', price: props.report.stop_loss, label: '風控防守點' });
   }
+  // target_price：Phase5-三層式 AI 決策引擎與戰情室.md FR-5.2，語意與 stop_loss 對稱（上檔滿足點）
+  if (props.report.target_price !== null && props.report.target_price !== undefined) {
+    levels.push({ type: 'target_price', price: props.report.target_price, label: '目標價／滿足點' });
+  }
   return levels;
 });
 
 function levelTypeLabel(type) {
-  return { support: '支撐', resistance: '壓力', stop_loss: '停損' }[type] || type;
+  return { support: '支撐', resistance: '壓力', stop_loss: '停損', target_price: '目標價' }[type] || type;
 }
 
 function levelTypeIcon(type) {
-  return { support: 'pi-arrow-down', resistance: 'pi-arrow-up', stop_loss: 'pi-shield' }[type] || 'pi-flag';
+  return {
+    support: 'pi-arrow-down', resistance: 'pi-arrow-up', stop_loss: 'pi-shield', target_price: 'pi-flag-fill',
+  }[type] || 'pi-flag';
 }
 
 function levelTypeColor(type) {
   const { up, down } = getUpDownColor(props.market);
-  if (type === 'resistance') return up; // 上方壓力比照漲勢色
+  if (type === 'resistance' || type === 'target_price') return up; // 上方壓力／目標價比照漲勢色
   if (type === 'support') return down; // 下方支撐比照跌勢色
   return '#f97316'; // 停損：中性警示色，不與漲跌語意混淆
 }
+
+// FR-5.6：AI 研判與規則引擎當日訊號的比對標記，只標示不仲裁（見規格書「為何只標示、不仲裁」）
+const ALIGNMENT_LABELS = { aligned: '與規則訊號一致', diverged: '與規則訊號分歧' };
+const alignmentLabel = computed(() => ALIGNMENT_LABELS[props.report?.rule_signal_alignment] || '');
+const alignmentColor = computed(() =>
+  props.report?.rule_signal_alignment === 'diverged' ? '#d97706' : '#0891b2'
+);
 </script>
 
 <style scoped>

@@ -16,7 +16,10 @@ from api.v1.endpoints.fetch import router as fetch_router
 from api.v1.endpoints.fundamentals import router as fundamentals_router
 from api.v1.endpoints.indices import router as indices_router
 from api.v1.endpoints.industry_chains import router as industry_chains_router
+from api.v1.endpoints.war_room import router as war_room_router
+from api.v1.endpoints.ai_batch import router as ai_batch_router
 from api.v1.endpoints.investment_notes import router as investment_notes_router
+from api.v1.endpoints.note_ai import router as note_ai_router
 from api.v1.endpoints.macro import router as macro_router
 from api.v1.endpoints.market import router as market_router
 from api.v1.endpoints.markets import router as markets_router
@@ -173,6 +176,8 @@ app.include_router(markets_router)
 app.include_router(market_router)
 app.include_router(indices_router)
 app.include_router(industry_chains_router)
+app.include_router(war_room_router)
+app.include_router(ai_batch_router)
 app.include_router(alerts_router)
 app.include_router(watchlist_router)
 app.include_router(notify_session_router)
@@ -181,6 +186,7 @@ app.include_router(notify_public_router)
 app.include_router(notify_self_router)
 app.include_router(ai_analysis_router)
 app.include_router(investment_notes_router)
+app.include_router(note_ai_router)
 app.include_router(transactions_router)
 app.include_router(portfolio_router)
 app.include_router(portfolio_settings_router)

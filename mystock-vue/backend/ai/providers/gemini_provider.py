@@ -21,6 +21,7 @@ from ai.errors import (
 from ai.providers.base import AIProvider, AnalysisResult, ExtractionResult, ResearchResult
 from ai.providers import ai_provider
 from ai.schema import AnalysisReport, LLMAnalysisReport, from_llm_report
+from core.markdown_images import EmbeddedImage
 
 logger = logging.getLogger("mystock-backend")
 
@@ -31,6 +32,21 @@ _FINISH_REASON_MAP = {
     "SAFETY": "refusal",
     "RECITATION": "refusal",
 }
+
+
+def build_multimodal_contents(images: list[EmbeddedImage], user_prompt: str) -> list:
+    """多圖 contents：每張圖前先放一段「[圖片 ref]」文字標籤，再放該圖（mime_type 取自圖片本身，
+    不像 analyze() 寫死 image/png），最後才是 user_prompt。標籤讓模型能在結構化輸出裡指名是哪一張圖。
+
+    `google.genai` 於函式內才 import（同本檔其他方法：未安裝該套件時不可讓模組匯入失敗）。"""
+    from google.genai import types
+
+    contents: list = []
+    for img in images:
+        contents.append(f"[圖片 {img.ref}]")
+        contents.append(types.Part.from_bytes(data=img.data, mime_type=img.mime_type))
+    contents.append(user_prompt)
+    return contents
 
 
 @ai_provider(code="gemini", display_name="Gemini (Google)")
@@ -162,6 +178,62 @@ class GeminiProvider(AIProvider):
             model=model,
             stop_reason=stop_reason,
             truncated=truncated,
+            input_tokens=getattr(usage, "prompt_token_count", None) if usage else None,
+            output_tokens=getattr(usage, "candidates_token_count", None) if usage else None,
+            provider_request_id=None,
+            response_meta={"elapsed_ms": elapsed_ms, "finish_reason": finish_reason},
+        )
+
+    async def extract_structured_multimodal(
+        self, system_prompt: str, user_prompt: str, response_schema: type,
+        images: list[EmbeddedImage] | None = None, model: str | None = None,
+    ) -> ExtractionResult:
+        """多圖＋文字結構化萃取（見 base.py 說明）：與 extract_structured() 同一套呼叫骨架、
+        錯誤分類與 finish_reason 對照，差異只有 contents 換成 build_multimodal_contents() 組出的多圖內容。"""
+        api_key = ai_config.get_gemini_api_key()
+        if not api_key:
+            raise AIProviderMisconfiguredException("GEMINI_API_KEY 未設定")
+
+        try:
+            from google import genai
+            from google.genai import types
+        except ImportError as exc:
+            raise AIProviderMisconfiguredException("google-genai 套件未安裝") from exc
+
+        model = model or ai_config.get_gemini_model()
+        max_tokens = ai_config.get_extraction_max_output_tokens()
+        timeout_sec = ai_config.get_request_timeout_sec()
+
+        client = genai.Client(api_key=api_key)
+        started = time.monotonic()
+        try:
+            response = await client.aio.models.generate_content(
+                model=model,
+                contents=build_multimodal_contents(images or [], user_prompt),
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    max_output_tokens=max_tokens,
+                    response_mime_type="application/json",
+                    response_schema=response_schema,
+                    http_options=types.HttpOptions(timeout=timeout_sec * 1000),  # ms
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 — 見檔頭註記：Gemini 例外階層待實測覆核
+            raise _classify_gemini_error(exc) from exc
+        finally:
+            elapsed_ms = int((time.monotonic() - started) * 1000)
+
+        candidate = response.candidates[0] if getattr(response, "candidates", None) else None
+        raw_finish_reason = getattr(candidate, "finish_reason", None)
+        finish_reason = getattr(raw_finish_reason, "name", None) or (str(raw_finish_reason) if raw_finish_reason else "")
+        stop_reason = _FINISH_REASON_MAP.get(finish_reason, finish_reason.lower() or None)
+
+        usage = getattr(response, "usage_metadata", None)
+        return ExtractionResult(
+            data=getattr(response, "parsed", None),
+            model=model,
+            stop_reason=stop_reason,
+            truncated=stop_reason == "max_tokens",
             input_tokens=getattr(usage, "prompt_token_count", None) if usage else None,
             output_tokens=getattr(usage, "candidates_token_count", None) if usage else None,
             provider_request_id=None,

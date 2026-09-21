@@ -192,6 +192,7 @@ const toast = useToast();
 const EVENT_LABEL = {
   ALERT_SIGNAL: '策略警示訊號',
   ALERT_DIGEST: '每日警示摘要',
+  AI_VERDICT_DIGEST: 'AI 戰情摘要',
   FETCH_COMPLETED: '每日抓取完成',
   FETCH_FAILED: '抓取失敗',
   SYSTEM_HEALTH: '系統異常'

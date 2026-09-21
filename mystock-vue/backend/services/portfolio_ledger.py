@@ -20,7 +20,7 @@ from datetime import date, time
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
-from strategies.scanner import _is_chip_excluded as is_tw_etf_symbol
+from strategies.scanner import is_chip_excluded as is_tw_etf_symbol
 
 TW_LOT_SIZE = 1000
 ZERO = Decimal("0")

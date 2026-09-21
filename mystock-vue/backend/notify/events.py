@@ -13,11 +13,12 @@ logger = logging.getLogger("mystock-backend")
 
 
 class EventType(str, Enum):
-    ALERT_SIGNAL    = "ALERT_SIGNAL"
-    ALERT_DIGEST    = "ALERT_DIGEST"
-    FETCH_COMPLETED = "FETCH_COMPLETED"
-    FETCH_FAILED    = "FETCH_FAILED"
-    SYSTEM_HEALTH   = "SYSTEM_HEALTH"
+    ALERT_SIGNAL      = "ALERT_SIGNAL"
+    ALERT_DIGEST      = "ALERT_DIGEST"
+    FETCH_COMPLETED   = "FETCH_COMPLETED"
+    FETCH_FAILED      = "FETCH_FAILED"
+    SYSTEM_HEALTH     = "SYSTEM_HEALTH"
+    AI_VERDICT_DIGEST = "AI_VERDICT_DIGEST"  # Phase5-三層式 AI 決策引擎與戰情室.md FR-5.4
 
 
 class Severity(str, Enum):
@@ -81,12 +82,20 @@ def _key_system_health(payload: dict) -> str:
     return f"health:{probe_key}:{cooldown_bucket}"
 
 
+def _key_ai_verdict_digest(payload: dict) -> str:
+    market      = payload.get("market", "")
+    digest_date = payload.get("digest_date", "")
+    seq         = payload.get("seq", 0)
+    return f"ai_digest:{market}:{digest_date}:{seq}"
+
+
 KEY_BUILDERS: dict[str, callable] = {
-    EventType.ALERT_SIGNAL:    _key_alert_signal,
-    EventType.ALERT_DIGEST:    _key_alert_digest,
-    EventType.FETCH_COMPLETED: _key_fetch_completed,
-    EventType.FETCH_FAILED:    _key_fetch_failed,
-    EventType.SYSTEM_HEALTH:   _key_system_health,
+    EventType.ALERT_SIGNAL:      _key_alert_signal,
+    EventType.ALERT_DIGEST:      _key_alert_digest,
+    EventType.FETCH_COMPLETED:   _key_fetch_completed,
+    EventType.FETCH_FAILED:      _key_fetch_failed,
+    EventType.SYSTEM_HEALTH:     _key_system_health,
+    EventType.AI_VERDICT_DIGEST: _key_ai_verdict_digest,
 }
 
 
@@ -124,11 +133,12 @@ def _facts_generic(payload: dict) -> dict:
 
 
 ROUTING_FACTS: dict[str, callable] = {
-    EventType.ALERT_SIGNAL:    _facts_alert_signal,
-    EventType.ALERT_DIGEST:    _facts_generic,
-    EventType.FETCH_COMPLETED: _facts_generic,
-    EventType.FETCH_FAILED:    _facts_generic,
-    EventType.SYSTEM_HEALTH:   _facts_generic,
+    EventType.ALERT_SIGNAL:      _facts_alert_signal,
+    EventType.ALERT_DIGEST:      _facts_generic,
+    EventType.FETCH_COMPLETED:   _facts_generic,
+    EventType.FETCH_FAILED:      _facts_generic,
+    EventType.SYSTEM_HEALTH:     _facts_generic,
+    EventType.AI_VERDICT_DIGEST: _facts_generic,
 }
 
 
@@ -206,6 +216,15 @@ TEMPLATE_CONTEXT_SPEC: dict[str, list[dict]] = {
         {"var": "manage_url",    "desc": "管理連結",       "example": ""},
         {"var": "disclaimer",    "desc": "免責聲明",       "example": ""},
     ],
+    EventType.AI_VERDICT_DIGEST: [
+        {"var": "market",        "desc": "市場",             "example": "tw"},
+        {"var": "digest_date",   "desc": "摘要日期",          "example": "2026-08-14"},
+        {"var": "total_count",   "desc": "重大變化標的數",     "example": "3"},
+        {"var": "items",         "desc": "重大變化清單（dict 陣列）", "example": '[]'},
+        {"var": "war_room_url",  "desc": "戰情室連結",        "example": "https://..."},
+        {"var": "manage_url",    "desc": "管理連結",          "example": ""},
+        {"var": "disclaimer",    "desc": "免責聲明",          "example": ""},
+    ],
 }
 
 # 範例 payload（供 POST /templates/preview）
@@ -239,5 +258,15 @@ SAMPLE_PAYLOADS: dict[str, dict] = {
         "buy_list": [{"stock_id": "0050", "strategy_name": "均線", "strength": "strong"}],
         "sell_list": [{"stock_id": "2330", "strategy_name": "均線", "strength": "moderate"}],
         "warning_list": []
+    },
+    EventType.AI_VERDICT_DIGEST: {
+        "market": "tw", "digest_date": "2026-08-14", "total_count": 2,
+        "items": [
+            {"symbol": "2330", "stock_name": "台積電", "verdict": "bullish",
+             "target_price": 1200, "stop_loss": 1050, "reason": "轉為偏多"},
+            {"symbol": "2317", "stock_name": "鴻海", "verdict": "bearish",
+             "target_price": None, "stop_loss": 190, "reason": "觸及停損價"},
+        ],
+        "war_room_url": "https://example.com/war-room?market=tw",
     },
 }

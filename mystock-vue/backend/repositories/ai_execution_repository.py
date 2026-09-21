@@ -237,6 +237,29 @@ class AIExecutionRepository(object):
             "input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "estimated_cost_usd": 0,
         }
 
+    async def get_avg_cost_for_model(self, provider: str, model: str) -> dict | None:
+        """該 provider+model 組合過去成功呼叫的平均 token 數與成本（供批次執行前的費用預估，
+        見 api/v1/endpoints/ai_batch.py 的 GET /ai/batch/estimate）。查無歷史資料回傳 None，
+        呼叫端需自行退回靜態估算值——不得對「還沒發生過的組合」瞎猜一個歷史平均。"""
+        result = await self._s.execute(
+            text("""
+                SELECT
+                    COUNT(*)                                    AS sample_count,
+                    AVG(input_tokens)::float                    AS avg_input_tokens,
+                    AVG(output_tokens)::float                   AS avg_output_tokens,
+                    AVG(estimated_cost_usd)::float               AS avg_cost_usd
+                  FROM ai_llm_execution
+                 WHERE is_dry_run = FALSE AND status = 'succeeded'
+                   AND provider = :provider AND model = :model
+                   AND estimated_cost_usd IS NOT NULL
+            """),
+            {"provider": provider, "model": model}
+        )
+        row = result.mappings().first()
+        if not row or not row["sample_count"]:
+            return None
+        return dict(row)
+
     async def get_usage_by_group(
         self, group_by: str, date_from: date | None = None, date_to: date | None = None,
     ) -> list[dict]:

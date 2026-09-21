@@ -1,9 +1,9 @@
 # Phase 5：三層式 AI 決策引擎與戰情室 — 功能需求文件
 
 **模組**：AI 技術分析 → AI 決策引擎（AI Decision Engine）與戰情室（War Room）
-**版本**：v3.1
-**日期**：2026-09-01
-**狀態**：規劃中，尚未開發。本文件界定需求範圍（What／Why），不含技術設計（How）
+**版本**：v3.2
+**日期**：2026-09-16
+**狀態**：**FR-5.1～FR-5.6 全部已開發完成**（P0／P1 皆已落地），Q1～Q6 六個待決問題已由使用者裁決並依決議實作，經 Opus 5 兩輪程式碼審查＋瀏覽器實測（桌面／手機、亮／暗色模式）驗證。**唯一未做的是正式環境的第一輪真實驗證**：`AI_BATCH_ENABLED` 目前仍是預設值 `false`，尚未在有真實 Postgres 與監控清單資料的環境跑過一次真正的批次＋推播（見 §10 修正說明）。
 **前置文件**：[AI技術分析規劃.md](AI技術分析規劃.md)（Phase 5 基礎版規格書，**已完成並上線**）
 
 **審閱紀錄**
@@ -11,7 +11,8 @@
 | 版本 | 變更摘要 |
 |---|---|
 | v3.0 | 初版：重新界定 Phase 5 範圍（基礎版已完成項目對照、FR-5.1～FR-5.6、成本評估、Q1～Q6 待決問題） |
-| **v3.1** | **審計修正（本次僅盤點現況與修正文件內事實，未變更任何 FR／驗收條件的需求本身）**：(1) **Phase 3（產業鏈知識圖譜與輪動模型）已於本文件寫成後大幅完工**——`industry_chain_edges` 圖譜、CCF／Granger 領先落後檢定、人工核對介面皆已實作，且 **FR-15／FR-16（產業鏈輪動 Context 注入診股報告）已直接完成並上線**：`ai/summary.py` 的 `build_quant_summary()` 已有選用欄位 `industry_chain_context`（`industry_chain/summary.py` 的 `extract_industry_chain_summary()`），`ai/prompt.py` 的 `SYSTEM_PROMPT` 已有對應研判框架。本文件原本把「產業鏈位階」畫在 §5 架構圖的「Phase 3／4（尚未開發）」虛線框裡、視為 FR-5.1 的預留擴充點——**這個假設已經過期**，見 §2、§5、FR-5.1、§10 的對應修正。Phase 4（新聞輿情與總經監控）現況不變，仍未開發。(2) **監控清單實際規模已從 35 檔成長為 65 檔**（台股 53 檔〔含 10 檔 ETF／ETN，個股 43 檔〕＋美股 12 檔，2026-09-01 查詢 `portfolio_watchlist` 實際內容），§8 的成本試算與 Q2 的 ETF 排除效益需以此重新計算，見 §8 修正。這使得 FR-5.3「現行配額不足以支撐批次」的結論更為嚴重（原估批次會在第 21 檔卡住／完成 57%，實際規模下僅能完成約 31%），且排除 ETF 帶來的成本節省比例從原估 29% 下修為約 15%（ETF 佔比從 29% 降為 15%）。**不改變**任何一題 Q1～Q6 的建議答案本身——這些仍待你裁決。 |
+| v3.1 | **審計修正（本次僅盤點現況與修正文件內事實，未變更任何 FR／驗收條件的需求本身）**：(1) **Phase 3（產業鏈知識圖譜與輪動模型）已於本文件寫成後大幅完工**——`industry_chain_edges` 圖譜、CCF／Granger 領先落後檢定、人工核對介面皆已實作，且 **FR-15／FR-16（產業鏈輪動 Context 注入診股報告）已直接完成並上線**：`ai/summary.py` 的 `build_quant_summary()` 已有選用欄位 `industry_chain_context`（`industry_chain/summary.py` 的 `extract_industry_chain_summary()`），`ai/prompt.py` 的 `SYSTEM_PROMPT` 已有對應研判框架。本文件原本把「產業鏈位階」畫在 §5 架構圖的「Phase 3／4（尚未開發）」虛線框裡、視為 FR-5.1 的預留擴充點——**這個假設已經過期**，見 §2、§5、FR-5.1、§10 的對應修正。Phase 4（新聞輿情與總經監控）現況不變，仍未開發。(2) **監控清單實際規模已從 35 檔成長為 65 檔**（台股 53 檔〔含 10 檔 ETF／ETN，個股 43 檔〕＋美股 12 檔，2026-09-01 查詢 `portfolio_watchlist` 實際內容），§8 的成本試算與 Q2 的 ETF 排除效益需以此重新計算，見 §8 修正。這使得 FR-5.3「現行配額不足以支撐批次」的結論更為嚴重（原估批次會在第 21 檔卡住／完成 57%，實際規模下僅能完成約 31%），且排除 ETF 帶來的成本節省比例從原估 29% 下修為約 15%（ETF 佔比從 29% 降為 15%）。**不改變**任何一題 Q1～Q6 的建議答案本身——這些仍待你裁決。 |
+| **v3.2** | **開發完成**。Q1～Q6 已由使用者裁決（見 §12 逐題更新），並按決議實作：`AI_DAILY_QUOTA`／`AI_BATCH_DAILY_QUOTA` 拆分（FR-5.3、§8）、Q2 批次預設排除 ETF（`AI_BATCH_EXCLUDE_ETF`，預設 `true`）、Q4 批次緊接在既有 fetch→scan 鏈之後串行執行、Q5 新增獨立 `AI_VERDICT_DIGEST` 通知事件類型、Q6 戰情室為獨立路由 `/war-room`。**實作過程中發現並解決一個本文件原始版本未預見的架構缺口**：監控清單批次是伺服器排程觸發，沒有瀏覽器可產生 K 線圖截圖，因此批次報告改採**純文字分析**——沿用 Phase 3 產業鏈萃取已在用的 `AIProvider.extract_structured()`（見 `ai/batch_job.py`、`ai/prompt.py` 的 `BATCH_SYSTEM_PROMPT`），批次報告不含圖表型態判讀，前端以「批次・未含圖表判讀」徽章明確標示（`AiAnalysisDialog.vue`、`WarRoomView.vue`）。批次 Provider／模型預設**跟隨**手動點擊的既有預設（`AI_DEFAULT_PROVIDER`），不寫死特定 Provider，確保 AC-P5-10（同一標的當日批次已有報告時手動點擊直接回讀、不重複計費）成立。新增／異動檔案：`db/migration/V24__Add_phase5_decision_engine_columns.sql`、`ai/summary.py`（FR-5.1 EPS 年增率）、`ai/schema.py`／`ai/prompt.py`（FR-5.2 `target_price`）、`ai/config.py`（批次設定）、`ai/guard.py`／`repositories/ai_report_repository.py`（配額拆分）、`ai/batch_job.py`（新增，FR-5.3 批次主體）、`ai/rule_alignment.py`（新增，FR-5.6）、`api/v1/endpoints/war_room.py`（新增，FR-5.5）、`notify/events.py`＋三份 `ai_verdict_digest.*.j2` 模板（FR-5.4）、`services/scheduler.py`（排程串接）、前端 `views/war-room/WarRoomView.vue`（新增）＋ `AiAnalysisDialog.vue` 徽章擴充。**經兩輪審查**：Opus 5 程式碼審查抓出並修正 8 個正確性問題（配額歸屬在孤兒列接手時外洩、批次提示詞誤導 LLM 讀取不存在的圖表、戰情室日期比對在週末／美股時區下永遠顯示「未產生」、推播比對邏輯永遠不會觸發、新通知事件類型未接入訂閱／範本管理頁面等），隨後以 Playwright 實際啟動前後端、瀏覽器截圖驗證戰情室與診股對話框在桌面／手機、亮／暗色模式下的實際渲染，額外抓到並修正一個審查階段漏掉的問題（戰情室表格在手機寬度下因外層 `overflow-hidden` 與欄位缺少 `min-width` 而被裁切、無法捲動看到右側欄位）。**仍待辦、非本文件範圍**：正式環境開啟 `AI_BATCH_ENABLED=true` 後的第一輪真實批次＋推播驗證（需要真實 Postgres 與監控清單資料，本次僅以 mock 資料驗證前端渲染與程式邏輯）。 |
 
 ---
 
@@ -566,13 +567,15 @@ CLAUDE.md 對 Flyway 的規定）；前端兩個既有視圖需同步顯示與�
 
 ## 12. 待決問題
 
-**需在進入設計階段前決策。** 各題附建議選項與理由，但最終由使用者定案：
+**v3.2：以下六題已全數由使用者裁決並依決議完成開發，逐題結案。**表格保留原始「建議」欄位作為歷史紀錄；**決議**欄位是實際採用並已落地的結果。
 
-| # | 問題 | 建議 | 影響範圍 |
-|---|---|---|---|
-| **Q1** | 評等維持三級（`bullish`／`bearish`／`neutral`），還是改為四級（強力買進／分批佈局／觀望／減碼）？ | **建議維持三級**。四級把「方向判斷」與「部位建議」混在同一個欄位——「分批佈局」講的是進場方式而非看多看空。若需要部位建議，較乾淨的作法是保留三級 `verdict`，另加一個獨立的「建議操作」欄位，兩者正交、歷史資料也不必轉換 | FR-5.2 資料表欄位、歷史資料相容性、前端標籤 |
-| **Q2** | 批次是否納入 ETF？ | **建議預設排除、保留手動點擊**。理由見 FR-5.3：規則引擎已有相同排除先例（ADR-SP-13）、基本面層對 ETF 完全不適用、且可省約 15% 批次成本（**v3.1 修正**：v3.0 原估 29%，因監控清單規模成長、ETF 佔比從 40% 降為 19% 而下修，見 §8） | FR-5.3 批次範圍、§8 成本 |
-| **Q3** | 批次配額如何拆分？ | **建議 `.env` 分設批次與手動兩個獨立配額**，批次配額預設值 ≥ 監控清單張數並保留餘裕。兩者共用一個總量必然互相排擠 | FR-5.3、`ai/config.py` 設定項 |
-| **Q4** | 批次執行時機與現有 14:30／06:00 的 fetch＋scan 共用同一時點，還是錯開？ | **建議接在 scan 之後串行執行**，沿用既有「fetch → scan」鏈的既有慣例；錯開會讓「當日資料已就緒」的前提變得不確定 | FR-5.3 與 [scheduler.py](../../backend/services/scheduler.py) 整合方式 |
-| **Q5** | 推播沿用通知平台既有訂閱設定，還是新增獨立的「AI 摘要」開關？ | **建議新增獨立事件類型**（`AI_VERDICT_DIGEST`），讓使用者可單獨關閉 AI 摘要而不影響策略訊號推播——兩者的重要性與頻率不同 | FR-5.4 通知平台訂閱模型 |
-| **Q6** | 戰情室是獨立路由頁面，還是併入既有 Dashboard 的分頁？ | **建議獨立路由頁面**。戰情室的篩選維度（評等、觸價、分歧）與既有 Dashboard 完全不同，併入會讓兩者的狀態管理互相干擾 | FR-5.5 前端路由與資訊架構 |
+| # | 問題 | 建議（原始） | **決議（v3.2，已實作）** | 影響範圍 |
+|---|---|---|---|---|
+| **Q1** | 評等維持三級還是改四級？ | 建議維持三級 | **採用建議：維持三級**（`bullish`／`bearish`／`neutral`），未新增獨立「建議操作」欄位 | FR-5.2，`ai/schema.py` 未變更 verdict 型別 |
+| **Q2** | 批次是否納入 ETF？ | 建議預設排除、保留手動點擊 | **採用建議**：`AI_BATCH_EXCLUDE_ETF` 預設 `true`，複用規則引擎既有的 `strategies/scanner.py::is_chip_excluded()`（原 `_is_chip_excluded`，v3.2 改為公開函式供 `ai/batch_job.py` 共用） | FR-5.3，`ai/batch_job.py` |
+| **Q3** | 批次配額如何拆分？ | 建議 `.env` 分設兩個獨立配額 | **採用建議**：新增 `AI_BATCH_DAILY_QUOTA`（預設 70），`ai_analysis_report` 新增 `trigger_type` 欄位（`manual`／`batch`），`ai/guard.py::resolve_report_slot()` 依此分流計算配額 | FR-5.3，`ai/config.py`、`ai/guard.py`、`repositories/ai_report_repository.py` |
+| **Q4** | 批次執行時機？ | 建議接在 scan 之後串行執行 | **採用建議**：`services/scheduler.py::_scan_after_fetch()` 掃描完成後緊接呼叫 `_run_ai_batch_after_scan()` | FR-5.3，`services/scheduler.py` |
+| **Q5** | 推播沿用既有訂閱還是新增獨立開關？ | 建議新增獨立事件類型 | **採用建議**：新增 `EventType.AI_VERDICT_DIGEST`，含三個管道模板（`notify/templates/ai_verdict_digest.*.j2`），並補齊訂閱規則與範本管理頁面的下拉選單 | FR-5.4，`notify/events.py`、前端 `SubscriptionRules.vue`／`MessageTemplates.vue` |
+| **Q6** | 戰情室獨立頁面還是併入 Dashboard？ | 建議獨立路由頁面 | **採用建議**：新路由 `/war-room`（`meta.requiresOwner: true`，比照 `/portfolio/*`），獨立導覽選單項目 | FR-5.5，`frontend/src/router/index.js`、`AppMenu.vue` |
+
+**額外決議（原始 Q1～Q6 未涵蓋、開發過程中新出現的問題）**：批次沒有瀏覽器可產生 K 線圖截圖 → 決議採**純文字分析**（`extract_structured()`，不用 `analyze()`），批次模型預設**跟隨**手動點擊的 `AI_DEFAULT_PROVIDER`（不寫死特定 Provider），理由與細節見版本 v3.2 changelog。

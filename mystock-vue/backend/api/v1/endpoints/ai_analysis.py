@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 
 from ai import config as ai_config
+from ai.cost import estimate_cost
 from ai.errors import (
     AIDisabledException, AIStorageUnavailableException, AIQuotaExceededException,
     AIAnalysisInProgressException, AIProviderMisconfiguredException, AIRateLimitedException,
@@ -27,6 +28,7 @@ from ai.errors import (
 )
 from ai import guard
 from ai.prompt import SYSTEM_PROMPT, build_user_prompt
+from ai.rule_alignment import compute_alignment
 from ai.providers import get_provider, PROVIDER_REGISTRY
 from ai.recorder import AIRecorder
 from ai.summary import build_quant_summary
@@ -86,13 +88,6 @@ def _resolve_model(provider_code: str, requested_model: Optional[str]) -> str:
     return requested_model
 
 
-def _estimate_cost(model: str, input_tokens: int | None, output_tokens: int | None) -> float | None:
-    pricing = ai_config.get_model_pricing(model)
-    if not pricing or input_tokens is None or output_tokens is None:
-        return None
-    return round(input_tokens / 1_000_000 * pricing["input"] + output_tokens / 1_000_000 * pricing["output"], 6)
-
-
 _ERROR_CODE_MAP = {
     AIProviderMisconfiguredException: "AI_PROVIDER_MISCONFIGURED",
     AIRateLimitedException: "AI_RATE_LIMITED",
@@ -122,6 +117,9 @@ def _report_envelope(row: dict, cached: bool | None = None) -> dict:
         "support_levels": row.get("support_levels") or [],
         "resistance_levels": row.get("resistance_levels") or [],
         "stop_loss": row.get("stop_loss"),
+        "target_price": row.get("target_price"),
+        "rule_signal_alignment": row.get("rule_signal_alignment"),
+        "trigger_type": row.get("trigger_type"),
         "confidence": row.get("confidence"),
         "truncated": row.get("truncated", False),
         "provider": row.get("provider"),
@@ -178,7 +176,7 @@ async def analyze_stock(req: AnalyzeStockRequest):
                 provider=provider_code, model=model, stock_name=qs.stock_name,
                 chart_period=req.period, chart_months=req.months,
                 chart_start_date=qs.chart_start_date, chart_end_date=qs.chart_end_date,
-                force=req.force,
+                force=req.force, trigger_type="manual",
             )
             recorder = AIRecorder(session)
 
@@ -228,7 +226,10 @@ async def analyze_stock(req: AnalyzeStockRequest):
         raise
 
     # 第二階段交易：成功收尾，執行紀錄與報告內容在同一交易內更新（§5.7）
-    est_cost = _estimate_cost(result.model, result.input_tokens, result.output_tokens)
+    est_cost = estimate_cost(result.model, result.input_tokens, result.output_tokens)
+    rule_signal_alignment = compute_alignment(
+        result.report.verdict, qs.summary.get("recent_alerts"), qs.trade_date,
+    )
     report_data = {
         "provider": provider_code,
         "model": result.model,
@@ -237,6 +238,8 @@ async def analyze_stock(req: AnalyzeStockRequest):
         "support_levels": [lvl.model_dump() for lvl in result.report.support_levels],
         "resistance_levels": [lvl.model_dump() for lvl in result.report.resistance_levels],
         "stop_loss": result.report.stop_loss,
+        "target_price": result.report.target_price,
+        "rule_signal_alignment": rule_signal_alignment,
         "report_markdown": result.report.report_markdown,
         "confidence": result.report.confidence,
         "quant_summary": qs.summary,
@@ -284,6 +287,11 @@ async def ai_status(db=Depends(get_db)):
     today = date.today()
     totals = await exec_repo.get_usage_totals(date_from=today, date_to=today)
     today_report_count = await report_repo.count_succeeded_today()
+    # Phase5 §8／AC-P5-09：配額拆成手動與批次兩份獨立計算後，只回一個混合總數會讓「今日已用」
+    # 對不上任何一個上限（批次跑完 55 檔會顯示 55／20）。既有的 daily_quota／today_report_count
+    # 保留原語意不動（相容既有呼叫端），另外補上兩份各自的配額與用量供實際判讀。
+    manual_count = await report_repo.count_succeeded_today(trigger_type="manual")
+    batch_count = await report_repo.count_succeeded_today(trigger_type="batch")
     return {
         "success": True,
         "data": {
@@ -292,6 +300,18 @@ async def ai_status(db=Depends(get_db)):
             "providers": list(PROVIDER_REGISTRY.keys()),
             "daily_quota": ai_config.get_daily_quota(),
             "today_report_count": today_report_count,
+            "manual": {
+                "daily_quota": ai_config.get_daily_quota(),
+                "today_report_count": manual_count,
+            },
+            "batch": {
+                "enabled": ai_config.get_batch_enabled(),
+                "daily_quota": ai_config.get_batch_daily_quota(),
+                "today_report_count": batch_count,
+                "provider": ai_config.get_batch_provider(),
+                "model": ai_config.get_batch_model(),
+                "exclude_etf": ai_config.get_batch_exclude_etf(),
+            },
             "today_usage": totals,
         },
     }

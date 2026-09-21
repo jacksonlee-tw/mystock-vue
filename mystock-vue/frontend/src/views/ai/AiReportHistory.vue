@@ -61,35 +61,51 @@
         <div class="ml-auto text-sm text-surface-400">共 {{ reports.length }} 筆</div>
       </div>
 
-      <DataTable :value="reports" :loading="loading" paginator :rows="20" size="small">
-        <Column field="trade_date" header="交易日" style="white-space:nowrap" />
-        <Column header="標的">
+      <DataTable :value="reports" :loading="loading" paginator :rows="20" size="small" sortMode="single" removableSort>
+        <template #empty>
+          <div class="flex flex-col items-center justify-center py-16 text-surface-400">
+            <i class="pi pi-inbox text-5xl mb-3 opacity-40"></i>
+            <p class="text-lg">尚無查詢結果</p>
+            <p class="text-sm">請調整篩選條件後重新查詢</p>
+          </div>
+        </template>
+
+        <Column header="操作" style="width:72px;white-space:nowrap">
           <template #body="{ data }">
-            <span class="font-bold">{{ data.symbol }}</span>
+            <Button icon="pi pi-eye" size="small" text v-tooltip.top="'檢視完整報告'" @click="showDetail(data)" />
+            <Button icon="pi pi-trash" size="small" text severity="danger" v-tooltip.top="'刪除'" @click="confirmDelete(data)" />
+          </template>
+        </Column>
+        <Column field="trade_date" header="交易日" sortable style="white-space:nowrap" />
+        <Column field="symbol" header="標的" sortable>
+          <template #body="{ data }">
+            <router-link :to="`/stock/${data.market_type || 'tw'}/${data.symbol}`" class="font-bold text-primary hover:underline">{{ data.symbol }}</router-link>
             <span v-if="data.stock_name" class="text-surface-400 ml-1">{{ data.stock_name }}</span>
           </template>
         </Column>
-        <Column header="研判">
+        <Column field="verdict" header="研判" sortable>
           <template #body="{ data }">
             <span
-              class="px-2 py-0.5 rounded-full text-[11px] font-black"
+              class="px-2 py-0.5 rounded-full text-[11px] font-black whitespace-nowrap"
               :style="{ backgroundColor: verdictColor(data.verdict, data.market_type) + '1a', color: verdictColor(data.verdict, data.market_type) }"
             >
               {{ VERDICT_LABEL[data.verdict] || '—' }}
             </span>
           </template>
         </Column>
-        <Column header="結論">
-          <template #body="{ data }"><span class="text-xs">{{ (data.headline || '').slice(0, 40) }}</span></template>
+        <Column field="headline" header="結論" sortable>
+          <template #body="{ data }"><span class="text-xs" :title="data.headline">{{ (data.headline || '').slice(0, 40) }}</span></template>
         </Column>
-        <Column field="provider" header="Provider" style="white-space:nowrap" />
-        <Column header="信心">
-          <template #body="{ data }">{{ CONFIDENCE_LABEL[data.confidence] || data.confidence || '—' }}</template>
-        </Column>
-        <Column header="">
+        <Column field="provider" header="Provider" sortable style="white-space:nowrap">
           <template #body="{ data }">
-            <Button icon="pi pi-eye" size="small" text @click="showDetail(data)" title="檢視完整報告" />
-            <Button icon="pi pi-trash" size="small" text severity="danger" @click="confirmDelete(data)" title="刪除" />
+            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300">
+              {{ PROVIDER_LABEL[data.provider] || data.provider }}
+            </span>
+          </template>
+        </Column>
+        <Column field="confidence" header="信心" sortable>
+          <template #body="{ data }">
+            <Tag :value="CONFIDENCE_LABEL[data.confidence] || data.confidence || '—'" :severity="CONFIDENCE_SEVERITY[data.confidence] || 'secondary'" />
           </template>
         </Column>
       </DataTable>
@@ -103,6 +119,7 @@
       :error="detailError"
       :report="detailReport"
       :market="detailReport?.market || 'tw'"
+      :allow-reselect="false"
     />
   </div>
 </template>
@@ -133,6 +150,8 @@ const VERDICT_OPTIONS = [
 ];
 const VERDICT_LABEL = { bullish: '偏多', bearish: '偏空', neutral: '中性' };
 const CONFIDENCE_LABEL = { high: '高', medium: '中', low: '低' };
+const CONFIDENCE_SEVERITY = { high: 'success', medium: 'warn', low: 'secondary' };
+const PROVIDER_LABEL = { claude: 'Claude', gemini: 'Gemini' };
 
 // 從個股頁「AI 診股報告」對話框的「查看完整紀錄」連結帶 ?symbol= 進來時，預先帶入篩選條件
 // （見 components/AiAnalysisDialog.vue 的歷史報告紀錄區塊）。

@@ -32,26 +32,14 @@
 
         <div class="space-y-6">
           <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
-            <div class="p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm flex items-center gap-3">
-              <div class="w-12 h-12 rounded-xl bg-primary-50 dark:bg-primary-500/10 text-primary flex items-center justify-center text-xl shrink-0"><i class="pi pi-eye"></i></div>
-              <div><div class="text-xs font-bold text-surface-400 uppercase tracking-wide">追蹤中</div><div class="text-2xl font-black text-surface-900 dark:text-surface-0 num">{{ watchlist.length }}</div></div>
-            </div>
-            <div class="p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm flex items-center gap-3">
-              <div class="w-12 h-12 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-600 flex items-center justify-center text-xl shrink-0"><i class="pi pi-flag"></i></div>
-              <div><div class="text-xs font-bold text-surface-400 uppercase tracking-wide">已設目標價</div><div class="text-2xl font-black text-sky-600 num">{{ withTargetCount }}</div></div>
-            </div>
-            <div class="p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm flex items-center gap-3">
-              <div class="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 flex items-center justify-center text-xl shrink-0"><i class="pi pi-bell"></i></div>
-              <div><div class="text-xs font-bold text-surface-400 uppercase tracking-wide">接近目標價</div><div class="text-2xl font-black text-amber-600 num">{{ nearTargetCount }}</div></div>
-            </div>
-            <div class="p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm flex items-center gap-3">
-              <div class="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-xl shrink-0"><i class="pi pi-check-circle"></i></div>
-              <div><div class="text-xs font-bold text-surface-400 uppercase tracking-wide">已達價</div><div class="text-2xl font-black text-emerald-600 num">{{ reachedCount }}</div></div>
-            </div>
-            <div class="p-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-900 shadow-sm flex items-center gap-3">
-              <div class="w-12 h-12 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 flex items-center justify-center text-xl shrink-0"><i class="pi pi-exclamation-triangle"></i></div>
-              <div><div class="text-xs font-bold text-surface-400 uppercase tracking-wide">資料缺漏</div><div class="text-2xl font-black text-rose-600 num">{{ missingCount }}</div></div>
-            </div>
+            <button
+              v-for="c in summaryCards" :key="c.key" type="button" @click="toggleCardFilter(c.key)"
+              :aria-pressed="cardFilter === c.key" :title="cardFilter === c.key ? '再點一次取消篩選' : `只顯示：${c.label}`"
+              class="!m-0 p-4 rounded-xl border bg-surface-0 dark:bg-surface-900 shadow-sm flex items-center gap-3 text-left cursor-pointer transition hover:shadow-md hover:-translate-y-0.5"
+              :class="cardFilter === c.key ? 'border-primary ring-2 ring-primary/40' : 'border-surface-200 dark:border-surface-700'">
+              <div class="w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0" :class="c.iconClass"><i :class="c.icon"></i></div>
+              <div><div class="text-xs font-bold text-surface-400 uppercase tracking-wide">{{ c.label }}</div><div class="text-2xl font-black num" :class="c.valueClass">{{ c.count }}</div></div>
+            </button>
           </div>
 
           <div class="flex flex-wrap items-center gap-2.5">
@@ -68,13 +56,20 @@
               <table class="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr class="bg-surface-50 dark:bg-surface-800 text-surface-400 text-xs uppercase tracking-wide">
-                    <th class="p-3">股票</th><th class="p-3">市場</th><th class="p-3">標籤</th><th class="p-3">追蹤原因</th>
+                    <th class="p-3 text-center">操作</th><th class="p-3">股票</th><th class="p-3">市場</th><th class="p-3">標籤</th><th class="p-3">追蹤原因</th>
                     <th class="p-3">加入日期</th><th class="p-3 text-right">股價</th><th class="p-3 text-right">目標價</th>
-                    <th class="p-3 text-right">距目標</th><th class="p-3">資料</th><th class="p-3 text-center">操作</th>
+                    <th class="p-3 text-right">距目標</th><th class="p-3">資料</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="w in watchlist" :key="w.id" class="border-t border-surface-100 dark:border-surface-800" :class="[w.is_near_target ? 'bg-amber-50/50 dark:bg-amber-500/5' : '', !w.is_crawl_enabled ? 'opacity-60' : '']">
+                  <tr v-for="w in displayList" :key="w.id" class="border-t border-surface-100 dark:border-surface-800" :class="[w.is_near_target ? 'bg-amber-50/50 dark:bg-amber-500/5' : '', !w.is_crawl_enabled ? 'opacity-60' : '']">
+                    <td class="p-3 text-center whitespace-nowrap">
+                      <a :href="stockChartHref(w)" target="_blank" rel="noopener" title="在新分頁開啟「選股與圖表分析」" class="text-surface-400 hover:text-primary mx-1 inline-block align-middle"><i class="pi pi-chart-bar"></i></a>
+                      <button @click="convertToTransaction(w)" title="登錄買進" class="text-primary hover:text-primary-700 mx-1"><i class="pi pi-shopping-cart"></i></button>
+                      <button @click="openRefetch(w)" :disabled="fetchStatus?.is_running" title="重新抓取歷史資料" class="text-surface-400 hover:text-primary mx-1 disabled:opacity-40 disabled:cursor-not-allowed"><i class="pi pi-refresh"></i></button>
+                      <button @click="openEditModal(w)" title="編輯" class="text-surface-400 hover:text-primary mx-1"><i class="pi pi-pencil"></i></button>
+                      <button @click="confirmRemove(w)" title="移除" class="text-surface-400 hover:text-red-500 mx-1"><i class="pi pi-trash"></i></button>
+                    </td>
                     <td class="p-3">
                       <div class="font-bold text-surface-800 dark:text-surface-100 flex items-center gap-1.5">
                         <a :href="stockChartHref(w)" target="_blank" rel="noopener" title="在新分頁開啟「選股與圖表分析」" class="hover:text-primary hover:underline">{{ w.symbol }}</a>
@@ -107,15 +102,8 @@
                       <span v-else-if="w.coverage.missing_price_days > 0" :title="`缺漏 ${w.coverage.missing_price_days} 天`" class="text-amber-600 font-bold flex items-center gap-1"><i class="pi pi-exclamation-triangle"></i> 缺漏</span>
                       <span v-else class="text-emerald-600 flex items-center gap-1"><i class="pi pi-check"></i> 完整</span>
                     </td>
-                    <td class="p-3 text-center whitespace-nowrap">
-                      <a :href="stockChartHref(w)" target="_blank" rel="noopener" title="在新分頁開啟「選股與圖表分析」" class="text-surface-400 hover:text-primary mx-1 inline-block align-middle"><i class="pi pi-chart-bar"></i></a>
-                      <button @click="convertToTransaction(w)" title="登錄買進" class="text-primary hover:text-primary-700 mx-1"><i class="pi pi-shopping-cart"></i></button>
-                      <button @click="openRefetch(w)" :disabled="fetchStatus?.is_running" title="重新抓取歷史資料" class="text-surface-400 hover:text-primary mx-1 disabled:opacity-40 disabled:cursor-not-allowed"><i class="pi pi-refresh"></i></button>
-                      <button @click="openEditModal(w)" title="編輯" class="text-surface-400 hover:text-primary mx-1"><i class="pi pi-pencil"></i></button>
-                      <button @click="confirmRemove(w)" title="移除" class="text-surface-400 hover:text-red-500 mx-1"><i class="pi pi-trash"></i></button>
-                    </td>
                   </tr>
-                  <tr v-if="!watchlist.length"><td colspan="10" class="p-8 text-center text-surface-400 text-sm">{{ hasActiveFilters ? '沒有符合篩選條件的項目' : '清單目前是空的' }}</td></tr>
+                  <tr v-if="!displayList.length"><td colspan="10" class="p-8 text-center text-surface-400 text-sm">{{ hasActiveFilters ? '沒有符合篩選條件的項目' : '清單目前是空的' }}</td></tr>
                 </tbody>
               </table>
             </div>
@@ -213,12 +201,28 @@ const marketFilter = ref('');
 const tagFilter = ref([]);
 const keyword = ref('');
 const hasTargetOnly = ref(false);
-const hasActiveFilters = computed(() => !!(marketFilter.value || tagFilter.value.length || keyword.value || hasTargetOnly.value));
+const cardFilter = ref('all'); // 上方統計卡片的即時篩選（前端過濾 watchlist，卡片數字不隨之變動）
+const hasActiveFilters = computed(() => !!(marketFilter.value || tagFilter.value.length || keyword.value || hasTargetOnly.value || cardFilter.value !== 'all'));
 
-const withTargetCount = computed(() => watchlist.value.filter((w) => w.target_price != null).length);
-const nearTargetCount = computed(() => watchlist.value.filter((w) => w.is_near_target).length);
-const reachedCount = computed(() => watchlist.value.filter((w) => w.is_reached).length);
-const missingCount = computed(() => watchlist.value.filter((w) => w.coverage && w.coverage.count && w.coverage.missing_price_days > 0).length);
+const cardPredicates = {
+  all: () => true,
+  target: (w) => w.target_price != null,
+  near: (w) => w.is_near_target,
+  reached: (w) => w.is_reached,
+  missing: (w) => !!(w.coverage && w.coverage.count && w.coverage.missing_price_days > 0)
+};
+const summaryCards = computed(() => {
+  const n = (key) => watchlist.value.filter(cardPredicates[key]).length;
+  return [
+    { key: 'all', label: '追蹤中', icon: 'pi pi-eye', count: n('all'), iconClass: 'bg-primary-50 dark:bg-primary-500/10 text-primary', valueClass: 'text-surface-900 dark:text-surface-0' },
+    { key: 'target', label: '已設目標價', icon: 'pi pi-flag', count: n('target'), iconClass: 'bg-sky-50 dark:bg-sky-500/10 text-sky-600', valueClass: 'text-sky-600' },
+    { key: 'near', label: '接近目標價', icon: 'pi pi-bell', count: n('near'), iconClass: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600', valueClass: 'text-amber-600' },
+    { key: 'reached', label: '已達價', icon: 'pi pi-check-circle', count: n('reached'), iconClass: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600', valueClass: 'text-emerald-600' },
+    { key: 'missing', label: '資料缺漏', icon: 'pi pi-exclamation-triangle', count: n('missing'), iconClass: 'bg-rose-50 dark:bg-rose-500/10 text-rose-600', valueClass: 'text-rose-600' }
+  ];
+});
+const displayList = computed(() => watchlist.value.filter(cardPredicates[cardFilter.value]));
+function toggleCardFilter(key) { cardFilter.value = cardFilter.value === key ? 'all' : key; }
 
 async function load() {
   loading.value = true;

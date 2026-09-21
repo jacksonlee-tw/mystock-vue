@@ -35,6 +35,7 @@ class LLMAnalysisReport(BaseModel):
     support_levels: list[PriceLevel] = Field(default_factory=list)
     resistance_levels: list[PriceLevel] = Field(default_factory=list)
     stop_loss: Optional[float] = None
+    target_price: Optional[float] = None  # Phase5-三層式 AI 決策引擎與戰情室.md FR-5.2
     sections: list[ReportSection] = Field(default_factory=list)
     confidence: Literal["high", "medium", "low"]
 
@@ -47,6 +48,7 @@ class AnalysisReport(BaseModel):
     support_levels: list[PriceLevel] = Field(default_factory=list)
     resistance_levels: list[PriceLevel] = Field(default_factory=list)
     stop_loss: Optional[float] = None
+    target_price: Optional[float] = None
     report_markdown: str
     confidence: Literal["high", "medium", "low"]
 
@@ -70,6 +72,7 @@ def from_llm_report(llm_report: LLMAnalysisReport) -> AnalysisReport:
         support_levels=llm_report.support_levels,
         resistance_levels=llm_report.resistance_levels,
         stop_loss=llm_report.stop_loss,
+        target_price=llm_report.target_price,
         report_markdown=sections_to_markdown(llm_report.sections),
         confidence=llm_report.confidence,
     )

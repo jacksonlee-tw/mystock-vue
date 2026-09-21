@@ -26,7 +26,7 @@
       <div :class="isMaximized ? 'flex-1 min-h-0 flex flex-col' : ''">
         <div class="flex items-center justify-between gap-3 mb-1.5 shrink-0">
           <label class="text-xs font-bold text-surface-500">內容</label>
-          <span class="text-[11px] text-surface-400"><i class="pi pi-file mr-1"></i>Markdown (.md) ・ 支援 Mermaid 圖表</span>
+          <span class="text-[11px] text-surface-400"><i class="pi pi-file mr-1"></i>Markdown (.md) ・ 支援 Mermaid 圖表 ・ 可直接貼上圖片（Ctrl+V）</span>
         </div>
         <div class="markdown-editor rounded-lg border border-surface-200 dark:border-surface-700 overflow-hidden" :class="isMaximized ? 'flex-1 min-h-0 flex flex-col' : ''">
           <div class="flex items-center gap-1 p-1.5 border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800">
@@ -58,6 +58,7 @@
             :class="isMaximized ? 'flex-1 editor-maximized-textarea' : ''"
             spellcheck="false"
             aria-label="原始 Markdown 內容"
+            @paste="onPaste"
             placeholder="# 今日觀察&#10;&#10;記下你的觀察、判斷依據與下一步..."
           />
           <div v-else class="markdown-preview" :class="isMaximized ? 'flex-1 editor-maximized-preview' : ''" aria-live="polite">
@@ -102,11 +103,12 @@
 </template>
 
 <script setup>
-import { reactive, computed, watch, ref } from 'vue';
+import { reactive, computed, watch, ref, nextTick } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { investmentNoteApi } from '@/service/investmentNoteApi';
 import { toIsoDate, fromIsoDate, todayDate } from '@/composables/usePortfolioFormat';
 import MarkdownPreview from '@/components/portfolio/MarkdownPreview.vue';
+import { getClipboardImage, compressImageToDataUrl, insertImageMarkdown } from '@/utils/pastedImage';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -135,6 +137,7 @@ const saving = ref(false);
 const tagSuggestions = ref([]);
 const editorMode = ref('source');
 const isMaximized = ref(false);
+const pastingImage = ref(false);
 
 // 每次開啟（新增或切換編輯目標）都重新灌值，避免殘留上一次的表單內容
 watch(
@@ -154,6 +157,34 @@ watch(
   },
   { immediate: true }
 );
+
+// 剪貼簿含圖片時攔截貼上，壓縮後以 Markdown 圖片語法插入游標處；純文字貼上維持瀏覽器預設行為。
+async function onPaste(event) {
+  const file = getClipboardImage(event);
+  if (!file) return;
+  event.preventDefault();
+  if (pastingImage.value) return;
+
+  const textarea = event.target;
+  const { selectionStart, selectionEnd } = textarea;
+  pastingImage.value = true;
+  try {
+    const dataUrl = await compressImageToDataUrl(file);
+    // 壓縮期間使用者可能已繼續輸入；以最新內容為準，游標位置若越界則落在文末
+    const start = Math.min(selectionStart, form.content.length);
+    const end = Math.min(selectionEnd, form.content.length);
+    const { content, cursor } = insertImageMarkdown(form.content, start, end, dataUrl);
+    form.content = content;
+    await nextTick();
+    textarea.focus();
+    textarea.setSelectionRange(cursor, cursor);
+    toast.add({ severity: 'success', summary: '已插入圖片', life: 1800 });
+  } catch (err) {
+    toast.add({ severity: 'error', summary: '貼上圖片失敗', detail: err.message, life: 4000 });
+  } finally {
+    pastingImage.value = false;
+  }
+}
 
 function onTagComplete(event) {
   const q = (event.query || '').trim();
@@ -322,6 +353,7 @@ async function save() {
   background: var(--p-surface-100);
 }
 .markdown-content :deep(pre code) { padding: 0; background: transparent; }
+.markdown-content :deep(img) { display: block; max-width: 100%; height: auto; margin: 0.9rem 0; border-radius: 0.4rem; }
 .markdown-content :deep(a) { color: var(--p-primary-color); text-decoration: underline; }
 .markdown-content :deep(hr) { margin: 1.25rem 0; border: 0; border-top: 1px solid var(--p-content-border-color); }
 .markdown-content :deep(table) { width: 100%; margin: 1rem 0; border-collapse: collapse; }

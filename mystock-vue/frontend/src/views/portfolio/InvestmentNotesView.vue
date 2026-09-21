@@ -84,7 +84,7 @@
                     <div class="flex flex-wrap items-center gap-1.5">
                       <button
                         v-for="t in note.tags" :key="t.id" type="button" @click="tagFilter = tagFilter === t.name ? '' : t.name"
-                        class="px-2 py-0.5 text-[11px] font-bold rounded bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-300 hover:opacity-75"
+                        :class="tagClass(t.color)" class="px-2 py-0.5 text-[11px] font-bold rounded hover:opacity-75"
                       >{{ t.name }}</button>
                       <span v-if="note.market" class="px-2 py-0.5 text-[11px] font-medium rounded border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 num">
                         {{ note.market?.toUpperCase() }}<template v-if="note.symbol"> · <a :href="stockChartHref(note)" target="_blank" rel="noopener" title="在新分頁開啟「選股與圖表分析」" class="hover:underline">{{ note.symbol }}</a><span v-if="note.symbol_name">（{{ note.symbol_name }}）</span></template>
@@ -93,6 +93,7 @@
                   </div>
 
                   <div class="shrink-0 flex items-start gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    <button @click="openAiAnalysis(note)" title="AI 解析（主旨／標籤／個股／圖片轉錄）" aria-label="AI 解析" class="w-8 h-8 grid place-items-center rounded-lg text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800"><i class="pi pi-android"></i></button>
                     <button @click="openPreview(note)" title="檢視 Markdown" aria-label="檢視 Markdown" class="w-8 h-8 grid place-items-center rounded-lg text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800"><i class="pi pi-eye"></i></button>
                     <button @click="openEdit(note)" title="編輯" class="w-8 h-8 grid place-items-center rounded-lg text-surface-400 hover:text-primary hover:bg-surface-100 dark:hover:bg-surface-800"><i class="pi pi-pencil"></i></button>
                     <button @click="confirmDelete(note)" title="刪除" class="w-8 h-8 grid place-items-center rounded-lg text-surface-400 hover:text-red-500 hover:bg-surface-100 dark:hover:bg-surface-800"><i class="pi pi-trash"></i></button>
@@ -130,6 +131,7 @@
     </template>
 
     <InvestmentNoteEditor v-model:visible="editorVisible" :note="editingNote" :tag-options="tags" @saved="onSaved" />
+    <NoteAiAnalysisDialog v-model:visible="aiVisible" :note="aiNote" @applied="onSaved" />
 
   </div>
 </template>
@@ -142,6 +144,7 @@ import { useRouter } from 'vue-router';
 import { investmentNoteApi } from '@/service/investmentNoteApi';
 import { toIsoDate } from '@/composables/usePortfolioFormat';
 import InvestmentNoteEditor from '@/components/portfolio/InvestmentNoteEditor.vue';
+import NoteAiAnalysisDialog from '@/components/portfolio/NoteAiAnalysisDialog.vue';
 import { renderMarkdownWithMermaid } from '@/utils/markdownRenderer';
 
 const toast = useToast();
@@ -152,6 +155,22 @@ const router = useRouter();
 // 做法與 WatchlistView.vue 的 stockChartHref 一致，見 PortfolioDashboard.vue 的說明。
 function stockChartHref(note) {
   return router.resolve({ path: `/stock/${note.market}/${note.symbol}` }).href;
+}
+
+// 標籤種類靠 investment_note_tag.color 區分：sky＝個股代號、amber＝系統來源、其餘（含預設 slate）
+// 一律維持既有的 teal 外觀，所以舊標籤看起來完全不變。
+const TAG_CLASSES = {
+  sky: 'bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300',
+  amber: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  teal: 'bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-300'
+};
+const tagClass = (color) => TAG_CLASSES[color] || TAG_CLASSES.teal;
+
+const aiVisible = ref(false);
+const aiNote = ref(null);
+function openAiAnalysis(note) {
+  aiNote.value = note;
+  aiVisible.value = true;
 }
 
 const marketFilterOptions = [
@@ -304,7 +323,7 @@ async function renderPreviewTab(previewWindow, note) {
   const html = `<!doctype html>
 <html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} | 投資筆記</title>
 <style>
-:root { font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif; background: #f4f6f5; color: #17211f; } * { box-sizing: border-box; } html { min-height: 100%; } body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, #f4f6f5, #edf3f0); } main { width: min(980px, 100%); min-height: 100vh; margin: 0 auto; padding: 48px clamp(20px, 5vw, 72px) 72px; background: #fff; box-shadow: 0 0 32px rgba(35, 62, 54, .08); } .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 40px; } .eyebrow { margin: 0 0 8px; color: #b45f2b; font: 700 11px ui-monospace, monospace; letter-spacing: .14em; } h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.2rem); line-height: 1.3; } .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; } button { border: 1px solid #d7e1dc; border-radius: 8px; padding: 9px 14px; color: #33534a; background: #fff; cursor: pointer; font: inherit; } button:hover { border-color: #b45f2b; color: #974b1f; } .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; color: #71807b; font-size: .85rem; } .meta-pill, .tag { padding: 4px 9px; border-radius: 5px; background: #e6f4f1; color: #1f6e65; font-size: .78rem; } .markdown { font-size: 1rem; line-height: 1.85; overflow-wrap: anywhere; } .markdown h1, .markdown h2, .markdown h3 { margin: 1.35em 0 .55em; line-height: 1.35; } .markdown h1:first-child, .markdown h2:first-child, .markdown h3:first-child { margin-top: 0; } .markdown p { margin: .8em 0; } .markdown ul, .markdown ol { padding-left: 1.6rem; } .markdown blockquote { margin: 1rem 0; padding: .2rem 1rem; border-left: 3px solid #c36c32; background: #fff5ed; color: #596963; } .markdown code { padding: .12rem .32rem; border-radius: 4px; background: #edf1ef; font: .9em ui-monospace, monospace; } .markdown pre { padding: 1rem; overflow-x: auto; border-radius: 6px; background: #edf1ef; } .markdown pre code { padding: 0; background: transparent; } .markdown a { color: #1f7a70; } .markdown table { width: 100%; border-collapse: collapse; } .markdown th, .markdown td { padding: 8px 10px; border: 1px solid #dfe7e3; text-align: left; } @media (max-width: 600px) { main { padding-top: 28px; } .toolbar { align-items: flex-start; flex-direction: column; } .actions { justify-content: flex-start; } }
+:root { font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif; background: #f4f6f5; color: #17211f; } * { box-sizing: border-box; } html { min-height: 100%; } body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, #f4f6f5, #edf3f0); } main { width: min(980px, 100%); min-height: 100vh; margin: 0 auto; padding: 48px clamp(20px, 5vw, 72px) 72px; background: #fff; box-shadow: 0 0 32px rgba(35, 62, 54, .08); } .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 40px; } .eyebrow { margin: 0 0 8px; color: #b45f2b; font: 700 11px ui-monospace, monospace; letter-spacing: .14em; } h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.2rem); line-height: 1.3; } .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; } button { border: 1px solid #d7e1dc; border-radius: 8px; padding: 9px 14px; color: #33534a; background: #fff; cursor: pointer; font: inherit; } button:hover { border-color: #b45f2b; color: #974b1f; } .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; color: #71807b; font-size: .85rem; } .meta-pill, .tag { padding: 4px 9px; border-radius: 5px; background: #e6f4f1; color: #1f6e65; font-size: .78rem; } .markdown { font-size: 1rem; line-height: 1.85; overflow-wrap: anywhere; } .markdown h1, .markdown h2, .markdown h3 { margin: 1.35em 0 .55em; line-height: 1.35; } .markdown h1:first-child, .markdown h2:first-child, .markdown h3:first-child { margin-top: 0; } .markdown p { margin: .8em 0; } .markdown ul, .markdown ol { padding-left: 1.6rem; } .markdown blockquote { margin: 1rem 0; padding: .2rem 1rem; border-left: 3px solid #c36c32; background: #fff5ed; color: #596963; } .markdown code { padding: .12rem .32rem; border-radius: 4px; background: #edf1ef; font: .9em ui-monospace, monospace; } .markdown pre { padding: 1rem; overflow-x: auto; border-radius: 6px; background: #edf1ef; } .markdown pre code { padding: 0; background: transparent; } .markdown a { color: #1f7a70; } .markdown img { display: block; max-width: 100%; height: auto; margin: 1rem 0; border-radius: 6px; } .markdown table { width: 100%; border-collapse: collapse; } .markdown th, .markdown td { padding: 8px 10px; border: 1px solid #dfe7e3; text-align: left; } @media (max-width: 600px) { main { padding-top: 28px; } .toolbar { align-items: flex-start; flex-direction: column; } .actions { justify-content: flex-start; } }
 </style></head><body><main><div class="toolbar"><div><p class="eyebrow">INVESTMENT NOTE</p><h1>${title}</h1></div><div class="actions"><button id="copy">複製 Markdown</button><button id="back">返回筆記列表</button></div></div><div class="meta"><span>📅 ${escapeHtml(note.note_date)}</span><span>#${escapeHtml(note.sequence_no)}</span><span>${escapeHtml(statusLabel(note.status))}</span>${symbol}${tags}</div><article class="markdown">${renderedContent}</article></main><script>const content = ${JSON.stringify(note.content || '')}; document.getElementById('copy').addEventListener('click', async () => { await navigator.clipboard.writeText(content); document.getElementById('copy').textContent = '已複製'; }); document.getElementById('back').addEventListener('click', () => window.close());</scr${'ipt'}></body></html>`;
   previewWindow.document.open();
   previewWindow.document.write(html);
