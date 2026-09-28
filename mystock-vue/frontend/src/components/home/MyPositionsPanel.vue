@@ -184,7 +184,9 @@ import { portfolioApi } from '@/service/portfolioApi';
 import { alertApi } from '@/service/alertApi';
 
 const props = defineProps({
-  ownerAuthenticated: { type: Boolean, default: false }
+  ownerAuthenticated: { type: Boolean, default: false },
+  // 登入首頁自動補抓完成後由 HomeView 遞增（docs/19.登入自動補抓資料/登入自動補抓資料_規劃書.md §3.6）。
+  refreshKey: { type: Number, default: 0 }
 });
 
 const { isEnabled } = useHomeWidgets();
@@ -280,6 +282,17 @@ watch([riskActive, currentMarket], () => (riskActive.value ? risk.refresh() : ri
 // 登入／登出完全交給 ownerAuthenticated 的 watch 處理，這裡刻意不監聽 owner-auth-changed：
 // ownerApi.logout() 是「同步」派送該事件，此時 HomeView 的 whoami() 還沒回來、prop 仍是 true，
 // 在事件裡直接重抓會對已登出的 session 送出一串註定 401 的請求。
+
+// 補抓完成後的原地刷新（§3.6）：只重抓目前有啟用（active）的 widget，沿用既有 refresh()。
+watch(
+  () => props.refreshKey,
+  () => {
+    if (kpiActive.value) kpi.refresh();
+    if (holdingsActive.value) holdings.refresh();
+    if (watchlistActive.value) watchlist.refresh();
+    if (riskActive.value) risk.refresh();
+  }
+);
 
 // ── 顯示用轉換 ───────────────────────────────────────────────────────────
 // 紅漲綠跌（全站一律，見 assets/project-style.css）；0 或空值不著色

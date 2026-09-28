@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from api.v1.endpoints.ai_analysis import router as ai_analysis_router
 from api.v1.endpoints.alerts import router as alerts_router
 from api.v1.endpoints.cashflow import cashflow_router, dividend_router
+from api.v1.endpoints.data_freshness import router as data_freshness_router
 from api.v1.endpoints.exchange_rates import router as exchange_rates_router
 from api.v1.endpoints.fetch import router as fetch_router
 from api.v1.endpoints.fundamentals import router as fundamentals_router
@@ -199,6 +200,7 @@ app.include_router(schedule_router)
 app.include_router(strategies_router)
 app.include_router(news_router)
 app.include_router(macro_router)
+app.include_router(data_freshness_router)
 
 @app.exception_handler(SymbolNotFoundException)
 async def symbol_not_found_handler(request, exc):

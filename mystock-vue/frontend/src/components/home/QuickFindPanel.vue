@@ -161,7 +161,9 @@ import { fmtPct } from '@/composables/usePortfolioFormat';
 import { portfolioApi } from '@/service/portfolioApi';
 
 const props = defineProps({
-  ownerAuthenticated: { type: Boolean, default: false }
+  ownerAuthenticated: { type: Boolean, default: false },
+  // 登入首頁自動補抓完成後由 HomeView 遞增（docs/19.登入自動補抓資料/登入自動補抓資料_規劃書.md §3.6）。
+  refreshKey: { type: Number, default: 0 }
 });
 
 const TRACKING_LIMIT = 12; // 追蹤清單可能很長，首頁只放前 12 檔，其餘導向完整頁
@@ -273,6 +275,17 @@ watch(
     loadTracking();
   },
   { immediate: true }
+);
+
+// 補抓完成後的原地刷新（§3.6）：只有「我的持股與追蹤」這張卡依賴會被補抓影響的價格／涵蓋範圍資料，
+// 「最近瀏覽」是本機瀏覽紀錄，不受影響，不需重抓。
+watch(
+  () => props.refreshKey,
+  () => {
+    if (!shortcutsActive.value) return;
+    loadHoldings();
+    loadTracking();
+  }
 );
 
 // 追蹤清單為全站單例快取（reactive Map）：星號按鈕加入／移除後這裡會即時反映

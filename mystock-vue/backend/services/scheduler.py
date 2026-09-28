@@ -93,9 +93,13 @@ def _publish_fetch_result(market: str) -> None:
         logger.warning(f"[通知] {market} 抓取結果事件發佈失敗（已靜默）: {e}")
 
 
-def _scan_after_fetch(market: str) -> None:
+def _scan_after_fetch(market: str, run_ai_batch: bool = True) -> None:
     """盤後掃描（均線策略警示系統 設計文件 Phase 4a-7）：串接在每日抓取排程之後執行。
-    比照 db/dual_write.py 的容錯慣例 —— 掃描失敗只記警告，絕不讓爬蟲流程被拖垮。"""
+    比照 db/dual_write.py 的容錯慣例 —— 掃描失敗只記警告，絕不讓爬蟲流程被拖垮。
+
+    `run_ai_batch=False`（見 docs/19.登入自動補抓資料/登入自動補抓資料_規劃書.md ADR-05）：
+    登入首頁觸發的自動補抓只補資料＋掃描警示，不跑會實際花費 LLM 費用的 AI 批次診股，
+    留到下一次每日排程再跑；預設值維持既有排程行為不變。"""
     try:
         from strategies.scanner import scan_market_sync
         result = scan_market_sync(market)
@@ -104,7 +108,8 @@ def _scan_after_fetch(market: str) -> None:
     except Exception as e:
         logger.warning(f"[排程] {market} 策略掃描失敗: {e}")
 
-    _run_ai_batch_after_scan(market)
+    if run_ai_batch:
+        _run_ai_batch_after_scan(market)
 
 
 def _run_ai_batch_after_scan(market: str) -> None:

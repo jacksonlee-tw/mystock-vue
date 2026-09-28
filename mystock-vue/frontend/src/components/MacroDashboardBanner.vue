@@ -83,6 +83,13 @@ import { hexToRgba } from '@/utils/marketColors';
 // 都各自 use() 一次自己需要的 echarts 元件，不依賴其他檔案先執行過的全域註冊）。
 use([CanvasRenderer, LineChart, GridComponent]);
 
+// refreshKey：登入首頁自動補抓完成後由 HomeView 遞增，觸發原地重抓（見
+// docs/19.登入自動補抓資料/登入自動補抓資料_規劃書.md §3.6）。沿用既有 loadRegime／loadIndicators，
+// 不改資料流程，保留舊內容直到新資料回來（硬性規則 #1）。
+const props = defineProps({
+  refreshKey: { type: Number, default: 0 }
+});
+
 // 中性單色：不套用紅漲綠跌，總經指標本身漲跌不直接對應個股多空方向（見上方模板註解）。
 const NEUTRAL_COLOR = '#64748b';
 
@@ -189,4 +196,11 @@ onMounted(() => {
   loadIndicators();
 });
 watch(currentMarket, loadRegime);
+watch(
+  () => props.refreshKey,
+  () => {
+    loadRegime();
+    loadIndicators();
+  }
+);
 </script>

@@ -13,21 +13,30 @@
       <HomeWidgetSettings :owner-authenticated="ownerAuthenticated" />
     </div>
 
-    <QuickFindPanel v-if="hasEnabledIn('快速查找', ownerAuthenticated)" :owner-authenticated="ownerAuthenticated" />
+    <!-- 資料新鮮度狀態列（docs/19.登入自動補抓資料/）：只有擁有者登入時才掛載、才會發請求（AC-02）。
+         v-if 本身即涵蓋「頁面載入時已登入」與「首頁完成登入後掛載」兩種觸發時機（AC-01/03），
+         不需要另外監聽 owner-auth-changed。 -->
+    <DataFreshnessBar v-if="ownerAuthenticated" @completed="onDataRefreshed" />
+
+    <QuickFindPanel
+      v-if="hasEnabledIn('快速查找', ownerAuthenticated)"
+      :owner-authenticated="ownerAuthenticated"
+      :refresh-key="refreshKey"
+    />
 
     <section v-if="hasEnabledIn('今日盤勢', ownerAuthenticated)" aria-labelledby="home-market-pulse" class="space-y-3">
       <h2 id="home-market-pulse" class="text-sm font-bold text-surface-500 m-0">今日盤勢</h2>
-      <MarketPulsePanel />
+      <MarketPulsePanel :refresh-key="refreshKey" />
     </section>
 
     <section v-if="hasEnabledIn('訊號與推薦', ownerAuthenticated)" aria-labelledby="home-signals" class="space-y-3">
       <h2 id="home-signals" class="text-sm font-bold text-surface-500 m-0">訊號與推薦</h2>
-      <SignalsPanel :owner-authenticated="ownerAuthenticated" />
+      <SignalsPanel :owner-authenticated="ownerAuthenticated" :refresh-key="refreshKey" />
     </section>
 
     <section v-if="showPositionsSection" aria-labelledby="home-positions" class="space-y-3">
       <h2 id="home-positions" class="text-sm font-bold text-surface-500 m-0">我的部位</h2>
-      <MyPositionsPanel v-if="ownerAuthenticated" :owner-authenticated="ownerAuthenticated" />
+      <MyPositionsPanel v-if="ownerAuthenticated" :owner-authenticated="ownerAuthenticated" :refresh-key="refreshKey" />
       <!-- 未登入：不發任何持股／觀察名單請求（避免一次打出一串註定 401 的呼叫），改顯示一張提示卡。
            authChecked 之前不顯示，避免「先閃一下登入提示、隨即被真實內容取代」。 -->
       <div
@@ -57,14 +66,18 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { useToast } from 'primevue/usetoast';
 import { useMarket } from '@/composables/useMarket';
 import { useHomeWidgets } from '@/composables/useHomeWidgets';
 import { ownerApi } from '@/service/ownerApi';
 import HomeWidgetSettings from '@/components/home/HomeWidgetSettings.vue';
+import DataFreshnessBar from '@/components/home/DataFreshnessBar.vue';
 import QuickFindPanel from '@/components/home/QuickFindPanel.vue';
 import MarketPulsePanel from '@/components/home/MarketPulsePanel.vue';
 import SignalsPanel from '@/components/home/SignalsPanel.vue';
 import MyPositionsPanel from '@/components/home/MyPositionsPanel.vue';
+
+const toast = useToast();
 
 const { currentMarket, enabledMarkets } = useMarket();
 const { hasEnabledIn, visibleCount, hasEnabledOwnerWidget } = useHomeWidgets();
@@ -89,6 +102,15 @@ const showEmpty = computed(
 async function checkAuth() {
   ownerAuthenticated.value = await ownerApi.whoami();
   authChecked.value = true;
+}
+
+// 自動補抓完成（docs/19.登入自動補抓資料/登入自動補抓資料_規劃書.md §3.6）：只遞增 refreshKey
+// 讓各 panel 用既有的 fetch 流程原地重抓（硬性規則 #1：不整頁 refresh、不用 :key 重掛元件、
+// scrollY 不歸零），再跳 toast 告知使用者。
+const refreshKey = ref(0);
+function onDataRefreshed() {
+  refreshKey.value++;
+  toast.add({ severity: 'success', summary: '資料更新完成', detail: '已補上最新交易日資料', life: 3000 });
 }
 
 // 登入／登出時 ownerApi 會廣播此事件（見 service/ownerApi.js），首頁即時切換個人化區塊

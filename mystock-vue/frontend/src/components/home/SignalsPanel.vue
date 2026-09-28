@@ -165,7 +165,9 @@ import { alertApi } from '@/service/alertApi';
 import { aiAnalysisApi } from '@/service/aiAnalysisApi';
 
 const props = defineProps({
-  ownerAuthenticated: { type: Boolean, default: false }
+  ownerAuthenticated: { type: Boolean, default: false },
+  // 登入首頁自動補抓完成後由 HomeView 遞增（docs/19.登入自動補抓資料/登入自動補抓資料_規劃書.md §3.6）。
+  refreshKey: { type: Number, default: 0 }
 });
 
 const { isEnabled } = useHomeWidgets();
@@ -378,4 +380,15 @@ const hitRows = computed(() => hitAll.value.slice(0, 5));
 
 // 登入／登出完全交給 ownerAuthenticated 的 watch 處理，刻意不監聽 owner-auth-changed：
 // ownerApi.logout() 同步派送該事件時 prop 仍是 true，直接重抓會對已登出的 session 送出註定 401 的請求。
+
+// 補抓完成後的原地刷新（§3.6）：只重抓目前有掛載（isActive）的 widget，沿用各自既有的 refresh()，
+// HomeSectionCard 的遮罩／保留舊內容邏輯不受影響（硬性規則 #1）。
+watch(
+  () => props.refreshKey,
+  () => {
+    if (alertsVisible.value) alerts.refresh();
+    if (pickingVisible.value) picking.refresh();
+    if (warVisible.value) war.refresh();
+  }
+);
 </script>

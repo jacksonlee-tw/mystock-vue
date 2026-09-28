@@ -3,7 +3,7 @@
        三個 widget 全關時整個根節點不渲染（v-if 讓 Vue 只留一個註解節點），不會在首頁留下多餘的間距。 -->
   <div v-if="anyEnabled" class="flex flex-col gap-4 min-w-0">
     <!-- 總經燈號：元件自己管 loading／error，位階跟著目前市場走（台股加權／美股 S&P 500）。被關掉就不掛載，因為掛載即會發請求。 -->
-    <MacroDashboardBanner v-if="isEnabled('macro-banner')" />
+    <MacroDashboardBanner v-if="isEnabled('macro-banner')" :refresh-key="refreshKey" />
 
     <!-- 大盤指數：每個指數一張等高小卡。
          硬性規則 #2：grid 卡片一律 !m-0，間距交給 gap；auto-fit 讓手機寬度自動折成 1～2 欄，不會橫向捲動。 -->
@@ -110,6 +110,12 @@ import { indexApi } from '@/service/indexApi';
 import { stockApi } from '@/service/stockApi';
 import { useMarket } from '@/composables/useMarket';
 import { useHomeWidgets } from '@/composables/useHomeWidgets';
+
+const props = defineProps({
+  // 登入首頁自動補抓完成後由 HomeView 遞增（docs/19.登入自動補抓資料/登入自動補抓資料_規劃書.md §3.6）。
+  // 沿用既有 loadIndexOverview／loadHeatmap，保留舊內容原地刷新（硬性規則 #1），不得用 :key 重掛本元件。
+  refreshKey: { type: Number, default: 0 }
+});
 
 const { currentMarket } = useMarket();
 const { isEnabled } = useHomeWidgets();
@@ -259,5 +265,15 @@ watch(
     }
   },
   { immediate: true }
+);
+
+// 補抓完成後的原地刷新（§3.6）：只重抓目前啟用的 widget，MacroDashboardBanner 自己也收到
+// 同一個 refreshKey（見上方 template）各自重抓，不互相耦合。
+watch(
+  () => props.refreshKey,
+  () => {
+    if (isEnabled('index-overview')) loadIndexOverview();
+    if (isEnabled('watchlist-heatmap')) loadHeatmap();
+  }
 );
 </script>
