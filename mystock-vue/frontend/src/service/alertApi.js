@@ -2,12 +2,14 @@ import { apiClient } from '@/service/stockApi';
 
 export const alertApi = {
     // 查詢警示清單（均線策略警示系統 設計文件第 6.2 節）
-    async getAlerts({ market, days = 7, strategy, symbol, strength } = {}) {
+    // category: technical / chip / fundamental / stock_picking / risk / trend_sentiment
+    async getAlerts({ market, days = 7, strategy, symbol, strength, category } = {}) {
         const params = { days };
         if (market) params.market = market;
         if (strategy) params.strategy = strategy;
         if (symbol) params.symbol = symbol;
         if (strength) params.strength = strength;
+        if (category) params.category = category;
         const response = await apiClient.get('/alerts', { params });
         return response.data;
     },

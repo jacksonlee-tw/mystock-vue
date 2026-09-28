@@ -9,7 +9,7 @@
         <!-- 返回按鈕群 -->
         <div class="flex items-center gap-2 shrink-0">
           <button
-            @click="router.push('/')"
+            @click="router.push('/heatmap')"
             class="px-2.5 py-1 text-xs font-bold bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg flex items-center gap-1 transition-colors"
           >
             <i class="pi pi-home"></i>

@@ -9,6 +9,10 @@ const { currentMarket } = useMarket();
 
 const model = computed(() => [
     {
+        label: '首頁',
+        items: [{ label: '我的首頁', icon: 'pi pi-fw pi-home', to: '/' }]
+    },
+    {
         label: '個人投資管理',
         items: [
             { label: '投資筆記', icon: 'pi pi-fw pi-book', to: '/portfolio/notes' },
@@ -24,7 +28,7 @@ const model = computed(() => [
     {
         label: '市場觀察',
         items: [
-            { label: '動態熱力圖', icon: 'pi pi-fw pi-th-large', to: '/' },
+            { label: '動態熱力圖', icon: 'pi pi-fw pi-th-large', to: '/heatmap' },
             { label: '大盤指數分析', icon: 'pi pi-fw pi-globe', to: currentMarket.value === 'us' ? '/index/us/GSPC' : '/index/tw/TWII' },
             { label: '類股輪動監控', icon: 'pi pi-fw pi-sync', to: '/indices/sectors' },
             { label: '產業鏈知識圖譜', icon: 'pi pi-fw pi-share-alt', to: '/industry-chains' },

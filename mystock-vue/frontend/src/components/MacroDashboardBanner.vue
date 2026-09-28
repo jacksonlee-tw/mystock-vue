@@ -6,10 +6,11 @@
          legacy margin-bottom，比照 StockDashboard.vue KPI 卡片的既有作法。 -->
     <div class="card !m-0 rounded-2xl border border-surface-200 dark:border-surface-700/80 bg-surface-0 dark:bg-surface-900 shadow-sm p-4 flex flex-col justify-between">
       <div class="flex items-center justify-between">
-        <span class="text-xs font-bold text-surface-500">大盤位階（台股月線）</span>
+        <span class="text-xs font-bold text-surface-500">大盤位階（{{ regimeLabel }}）</span>
         <i class="pi pi-compass text-primary"></i>
       </div>
-      <div v-if="loadingRegime" class="text-sm text-surface-400 mt-2 flex items-center gap-1.5">
+      <!-- 切換市場重抓時保留上一個市場的內容（只在第一次載入、尚無資料時才顯示載入中），避免卡片高度跳動 -->
+      <div v-if="loadingRegime && !regime" class="text-sm text-surface-400 mt-2 flex items-center gap-1.5">
         <i class="pi pi-spin pi-spinner"></i>載入中...
       </div>
       <div v-else-if="!regime || !regime.has_data" class="text-sm text-surface-400 mt-2">尚無資料</div>
@@ -68,7 +69,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useMarket } from '@/composables/useMarket';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { LineChart } from 'echarts/charts';
@@ -84,7 +86,15 @@ use([CanvasRenderer, LineChart, GridComponent]);
 // 中性單色：不套用紅漲綠跌，總經指標本身漲跌不直接對應個股多空方向（見上方模板註解）。
 const NEUTRAL_COLOR = '#64748b';
 
+const { currentMarket } = useMarket();
+
 const regime = ref(null);
+let regimeReqId = 0;
+
+// 大盤位階跟著目前市場走（台股看加權指數、美股看 S&P 500）；後端 /macro/market-regime/{market} 兩個市場都支援。
+// US10Y／DXY 是全球指標，與市場無關，不隨切換重抓。
+const REGIME_LABELS = { tw: '台股月線', us: '美股 S&P 500 月線' };
+const regimeLabel = computed(() => REGIME_LABELS[regime.value?.market ?? currentMarket.value] || '大盤月線');
 const indicators = ref({});
 const sparklines = ref({ US10Y: [], DXY: [] });
 const loadingRegime = ref(true);
@@ -141,14 +151,16 @@ function getSparklineOption(data) {
 }
 
 async function loadRegime() {
+  // 快速切換市場時，較晚才回來的舊請求不可蓋掉新市場的結果
+  const id = ++regimeReqId;
   loadingRegime.value = true;
   try {
-    const res = await macroApi.getMarketRegime('tw');
-    if (res.success) regime.value = res.data;
+    const res = await macroApi.getMarketRegime(currentMarket.value);
+    if (id === regimeReqId && res.success) regime.value = res.data;
   } catch {
-    regime.value = null;
+    if (id === regimeReqId) regime.value = null;
   } finally {
-    loadingRegime.value = false;
+    if (id === regimeReqId) loadingRegime.value = false;
   }
 }
 
@@ -176,4 +188,5 @@ onMounted(() => {
   loadRegime();
   loadIndicators();
 });
+watch(currentMarket, loadRegime);
 </script>

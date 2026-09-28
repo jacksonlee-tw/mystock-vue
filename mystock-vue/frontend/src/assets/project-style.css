@@ -600,3 +600,11 @@ select + .p-button,
 button:focus {
   outline: none !important;
 }
+/* 首頁（docs/18.個人化首頁/）新增的 <button> 鍵盤焦點指示：上面全域的 button:focus { outline: none !important }
+   會讓 chip、重試、自訂版面等按鈕失去焦點框，鍵盤使用者看不出目前在哪。只補 :focus-visible（滑鼠點擊不出框）。
+   .home-widget-settings 是 Popover 的 class——Popover 內容 teleport 到 body，不在 .home-page 底下。 */
+.home-page button:focus-visible,
+.home-widget-settings button:focus-visible {
+  outline: 2px solid var(--p-primary-color) !important;
+  outline-offset: 2px;
+}

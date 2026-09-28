@@ -38,6 +38,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { useOmnibox } from '@/composables/useOmnibox';
 
 const props = defineProps({
   /** error 物件：{ code, message, details? } */
@@ -50,6 +51,7 @@ const props = defineProps({
 });
 
 const router = useRouter();
+const { openOmnibox } = useOmnibox();
 
 // 每個錯誤碼對應的顯示設定
 const ERROR_CONFIG = {
@@ -128,7 +130,8 @@ function resolveAction(actionDef) {
     back:   () => router.back(),
     reload: () => window.location.reload(),
     retry:  () => props.onRetry?.(),
-    search: () => document.dispatchEvent(new CustomEvent('mystock:open-search')),
+    // 原本派送的 mystock:open-search 全專案沒有任何監聽者（按鈕點了沒反應）；改走 useOmnibox 單例
+    search: () => openOmnibox(),
     manage: () => router.push('/stocks')
   };
   return {

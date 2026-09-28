@@ -50,7 +50,7 @@
         </button>
 
         <button
-          @click="router.push('/')"
+          @click="router.push('/heatmap')"
           class="px-3 py-2 text-xs font-bold bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-xl flex items-center gap-1.5 transition-colors border border-surface-200 dark:border-surface-700 shadow-sm"
         >
           <i class="pi pi-home"></i> 回熱力圖

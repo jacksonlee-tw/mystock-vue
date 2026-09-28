@@ -8,7 +8,7 @@
       <div class="max-w-[100rem] mx-auto px-6 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
         <!-- 返回按鈕 -->
         <button
-          @click="router.push('/')"
+          @click="router.push('/heatmap')"
           class="px-3 py-1.5 text-xs font-bold bg-surface-100 hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg flex items-center gap-1.5 transition-colors shrink-0"
         >
           <i class="pi pi-home"></i> 熱力圖
@@ -390,6 +390,7 @@ import StockNewsPanel from '@/components/StockNewsPanel.vue';
 import MetricSummaryStrip from '@/components/MetricSummaryStrip.vue';
 import WatchlistStarButton from '@/components/WatchlistStarButton.vue';
 import { useMarket } from '@/composables/useMarket';
+import { useRecentStocks } from '@/composables/useRecentStocks';
 
 const route = useRoute();
 const router = useRouter();
@@ -397,6 +398,7 @@ const toast = useToast();
 const confirm = useConfirm();
 const { currentMarket } = useMarket();
 const { isRunning, checkStatus } = useCrawlerStatus();
+const { record: recordRecentStock } = useRecentStocks();
 
 const refetchVisible = ref(false);
 const isRefetching = ref(false);
@@ -598,6 +600,9 @@ async function loadStockData() {
     const res = await stockApi.getChartData(selectedStock.value, selectedPeriod.value, selectedMonths.value, currentMarket.value);
     if (res.success) {
       chartData.value = res.data;
+      // 首頁「最近瀏覽」的唯一寫入點。刻意放在載入成功之後而非 route 變更當下——
+      // 否則使用者打錯的代號也會被記進清單。名稱取回傳值，讓 chip 顯示得出中文名。
+      recordRecentStock({ market: currentMarket.value, symbol: selectedStock.value, name: res.data?.stock_name });
     } else {
       error.value = '載入資料時發生未知錯誤';
     }
@@ -694,7 +699,7 @@ function removeCurrentStock() {
       try {
         await stockApi.removeTrackedStock(id, currentMarket.value);
         toast.add({ severity: 'success', summary: '已取消追蹤', detail: `${id} 已從追蹤清單移除`, life: 3000 });
-        router.push('/');
+        router.push('/heatmap');
       } catch (err) {
         toast.add({
           severity: 'error',

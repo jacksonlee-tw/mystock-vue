@@ -5,6 +5,7 @@
 // 後即時反映，不必整頁重新整理。比照 useWatchlistQuickAdd.js 的模組層級單例寫法。
 import { reactive } from 'vue';
 import { portfolioApi } from '@/service/portfolioApi';
+import { shareRequest } from '@/composables/useSharedRequest';
 
 // key: "market:SYMBOL" -> watchlist item
 const itemsBySymbol = reactive(new Map());
@@ -26,7 +27,8 @@ async function refresh(market) {
 
     const promise = (async () => {
         try {
-            const res = await portfolioApi.getWatchlist({ market });
+            // 與首頁「我的部位」共用同一次請求（shareRequest），避免同時掛載時重複打 /watchlist
+            const res = await shareRequest(`watchlist:${market}`, () => portfolioApi.getWatchlist({ market }));
             if (!res.success) return;
             // 只替換該市場既有的快取項目，不影響其他市場已載入的資料
             for (const k of [...itemsBySymbol.keys()]) {

@@ -11,7 +11,16 @@ const router = createRouter({
             component: AppLayout,
             children: [
                 {
+                    // 個人化首頁（docs/18.個人化首頁/）：系統唯一的導航入口，把散在 6 大選單分類底下的
+                    // 追蹤／訊號／推薦／持股收攏成一頁。刻意不掛 requiresOwner——掛了等於一開 App 就被
+                    // 踢去 /login；個人化區塊改為在 HomeView 內依 whoami() 結果決定要不要發請求。
                     path: '/',
+                    name: 'home',
+                    component: () => import('@/views/HomeView.vue')
+                },
+                {
+                    // 原本掛在 '/' 的熱力圖。route name 維持 heatmap-dashboard 不變，只換 path。
+                    path: '/heatmap',
                     name: 'heatmap-dashboard',
                     component: () => import('@/views/HeatmapDashboard.vue')
                 },

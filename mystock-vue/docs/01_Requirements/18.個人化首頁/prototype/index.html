@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>個人化首頁雛形 - MyStock</title>
+<style>
+/* =====================================================
+   個人化首頁 Prototype（單檔，假資料）
+   對應規劃書：docs/01_Requirements/18.個人化首頁/個人化首頁_規劃書.md
+   沿用 brass 色系（對齊 frontend/src/assets/layout/variables/_common-brass.scss）
+   紅漲綠跌：tw / us 相同（見 CLAUDE.md memory 規則）
+   ===================================================== */
+:root {
+  --brass: #8f6413;
+  --brass-hover: #7a5510;
+  --brass-light: rgba(143,100,19,.08);
+  --brass-border: rgba(143,100,19,.28);
+  --bg: #f8f7f5;
+  --card: #ffffff;
+  --hover: #f5f4f2;
+  --border: #e6e3de;
+  --input: #f5f4f2;
+  --text: #1a1614;
+  --text-2: #444240;
+  --muted: #78716c;
+  --up: #dc2626;      /* 紅漲 */
+  --up-soft: rgba(220,38,38,.10);
+  --down: #16a34a;    /* 綠跌 */
+  --down-soft: rgba(22,163,74,.10);
+  --amber: #b45309;
+  --amber-soft: rgba(217,119,6,.12);
+  --shadow: 0 1px 3px rgba(0,0,0,.08);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,.14);
+  --topbar-h: 56px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brass: #c8922a;
+    --brass-hover: #d9a33b;
+    --brass-light: rgba(200,146,42,.10);
+    --brass-border: rgba(200,146,42,.30);
+    --bg: #111110;
+    --card: #1c1b19;
+    --hover: #242320;
+    --border: #323027;
+    --input: #242320;
+    --text: #f5f4f2;
+    --text-2: #c5c2bc;
+    --muted: #a09a93;
+    --up: #ef4444;
+    --up-soft: rgba(239,68,68,.14);
+    --down: #22c55e;
+    --down-soft: rgba(34,197,94,.14);
+    --amber: #f59e0b;
+    --amber-soft: rgba(245,158,11,.14);
+    --shadow: 0 1px 3px rgba(0,0,0,.35);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,.55);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  font-family: 'Noto Sans TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.55;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+input { font-family: inherit; color: inherit; }
+.up { color: var(--up); }
+.down { color: var(--down); }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+
+/* ── 雛形提示條 ───────────────────────────── */
+.proto-banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  height: 26px; display: flex; align-items: center; justify-content: center; gap: .5rem;
+  background: var(--amber-soft); color: var(--amber);
+  border-bottom: 1px solid var(--brass-border);
+  font-size: .78rem; font-weight: 600; padding: 0 .75rem; white-space: nowrap; overflow: hidden;
+}
+.proto-banner label { display: inline-flex; align-items: center; gap: .3rem; font-weight: 500; cursor: pointer; }
+
+/* ── 頂列 ─────────────────────────────────── */
+.topbar {
+  position: fixed; top: 26px; left: 0; right: 0; z-index: 100;
+  height: var(--topbar-h);
+  background: var(--card); border-bottom: 1px solid var(--border); box-shadow: var(--shadow);
+  display: flex; align-items: center; gap: .75rem; padding: 0 1rem;
+}
+.brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; flex: none; }
+.brand-icon {
+  width: 32px; height: 32px; border-radius: 8px; flex: none;
+  background: var(--brass-light); border: 1px solid var(--brass-border); color: var(--brass);
+  display: flex; align-items: center; justify-content: center; font-size: .9rem;
+}
+.omni-btn {
+  flex: 1 1 auto; min-width: 0; max-width: 420px; margin: 0 auto 0 .5rem;
+  display: flex; align-items: center; gap: .5rem; padding: .4rem .75rem;
+  background: var(--input); border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: .85rem;
+}
+.omni-btn span:first-of-type { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kbd { font-size: .7rem; border: 1px solid var(--border); border-radius: 4px; padding: 0 .35rem; flex: none; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; flex: none; }
+.seg button { padding: .35rem .8rem; font-size: .85rem; font-weight: 600; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--brass); color: #fff; }
+
+/* ── 版面容器 ─────────────────────────────── */
+main { max-width: 1240px; margin: 0 auto; padding: calc(26px + var(--topbar-h) + 1rem) 1rem 3rem; }
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; margin-bottom: .75rem; position: relative; }
+.page-head h1 { font-size: 1.35rem; }
+.page-head p { font-size: .82rem; color: var(--muted); }
+.btn {
+  display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .9rem; border-radius: 8px;
+  border: 1px solid var(--brass-border); background: var(--brass-light); color: var(--brass); font-size: .85rem; font-weight: 600;
+}
+.btn:hover { background: var(--brass); color: #fff; }
+.btn.solid { background: var(--brass); color: #fff; border-color: var(--brass); }
+.btn.solid:hover { background: var(--brass-hover); }
+.btn.ghost { background: transparent; border-color: var(--border); color: var(--text-2); }
+
+section.block { margin-top: 1.5rem; }
+section.block > h2 {
+  font-size: .8rem; letter-spacing: .08em; color: var(--muted); font-weight: 700; text-transform: none;
+  display: flex; align-items: center; gap: .5rem; margin-bottom: .6rem;
+}
+section.block > h2::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+section.block > h2 .badge { order: 2; }
+.badge { font-size: .68rem; font-weight: 600; padding: .05rem .45rem; border-radius: 999px; background: var(--amber-soft); color: var(--amber); }
+.stack { display: flex; flex-direction: column; gap: .75rem; }
+
+/* ── 卡片（grid 卡片一律 margin:0，間距交給 gap；對應硬性規則 #2）── */
+.card {
+  position: relative; margin: 0; min-width: 0;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow);
+  padding: 1rem;
+}
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .6rem; }
+.card-title { font-size: .92rem; font-weight: 700; display: flex; align-items: center; gap: .4rem; min-width: 0; }
+.card-title i { font-style: normal; color: var(--brass); }
+.card-link { font-size: .78rem; color: var(--brass); white-space: nowrap; }
+.card-link:hover { text-decoration: underline; }
+.empty { color: var(--muted); font-size: .85rem; padding: 1rem .25rem; text-align: center; }
+
+/* 硬性規則 #1：重抓時保留舊內容，只疊半透明遮罩＋spinner */
+.card.refreshing::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: color-mix(in srgb, var(--card) 65%, transparent);
+  z-index: 2;
+}
+.card.refreshing::before {
+  content: ""; position: absolute; top: 50%; left: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; z-index: 3;
+  border: 3px solid var(--brass-border); border-top-color: var(--brass); border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.grid { display: grid; gap: .75rem; align-items: stretch; }
+.grid.g3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+.grid.g4 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
+.grid.g2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.grid > .card { height: 100%; }
+
+/* ── Hero ─────────────────────────────────── */
+.hero { background: linear-gradient(135deg, var(--brass-light), transparent 70%), var(--card); }
+.hero-search { position: relative; }
+.hero-search input {
+  width: 100%; font-size: 1.05rem; padding: .8rem 1rem .8rem 2.6rem; border-radius: 12px;
+  background: var(--input); border: 1px solid var(--border); outline: none;
+}
+.hero-search input:focus { border-color: var(--brass); box-shadow: 0 0 0 3px var(--brass-light); }
+.hero-search .ico { position: absolute; left: .9rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.suggest {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20; display: none;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-lg); overflow: hidden;
+}
+.suggest.open { display: block; }
+.suggest .note { font-size: .72rem; color: var(--muted); padding: .35rem .8rem; border-bottom: 1px solid var(--border); background: var(--hover); }
+.suggest a { display: flex; justify-content: space-between; gap: .5rem; padding: .5rem .8rem; font-size: .9rem; }
+.suggest a:hover { background: var(--hover); }
+.chip-row { display: flex; align-items: center; gap: .5rem; margin-top: .7rem; flex-wrap: wrap; }
+.chip-label { font-size: .75rem; color: var(--muted); font-weight: 600; min-width: 4.5em; flex: none; }
+.chip {
+  display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .65rem; border-radius: 999px; font-size: .82rem;
+  border: 1px solid var(--border); background: var(--card); max-width: 100%;
+}
+.chip:hover { border-color: var(--brass); background: var(--brass-light); }
+.chip .star { color: var(--brass); font-size: .8rem; }
+
+/* ── 總經燈號條 ───────────────────────────── */
+.macro { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; align-items: center; }
+.macro-item { display: flex; flex-direction: column; min-width: 0; }
+.macro-item small { color: var(--muted); font-size: .72rem; }
+.pill { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .55rem; border-radius: 999px; font-size: .8rem; font-weight: 700; }
+.pill.up { background: var(--up-soft); } .pill.down { background: var(--down-soft); }
+.spark { width: 88px; height: 26px; flex: none; }
+
+/* ── 指數卡 ───────────────────────────────── */
+.idx-name { font-size: .82rem; color: var(--muted); }
+.idx-val { font-size: 1.5rem; font-weight: 700; line-height: 1.25; }
+.idx-chg { font-size: .88rem; font-weight: 600; }
+.idx-card { display: flex; flex-direction: column; gap: .15rem; }
+.idx-card .spark { width: 100%; height: 34px; margin-top: auto; }
+
+/* ── 列表 ─────────────────────────────────── */
+.list { list-style: none; }
+.list li {
+  display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+  padding: .42rem 0; border-bottom: 1px dashed var(--border); font-size: .86rem; min-width: 0;
+}
+.list li:last-child { border-bottom: none; }
+.list .l { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list .r { flex: none; font-weight: 600; text-align: right; }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.split h4 { font-size: .76rem; color: var(--muted); margin-bottom: .2rem; }
+@media (max-width: 560px) { .split { grid-template-columns: 1fr; } }
+
+.bar { height: 6px; border-radius: 3px; background: var(--hover); overflow: hidden; margin-top: 3px; }
+.bar > i { display: block; height: 100%; background: var(--brass); border-radius: 3px; }
+.stat-row { display: flex; gap: 1rem; margin-bottom: .6rem; flex-wrap: wrap; }
+.stat b { font-size: 1.4rem; display: block; line-height: 1.2; }
+.stat small { color: var(--muted); font-size: .72rem; }
+.tag { font-size: .68rem; padding: .02rem .4rem; border-radius: 4px; background: var(--brass-light); color: var(--brass); margin-right: .3rem; }
+.tag.warn { background: var(--amber-soft); color: var(--amber); }
+
+/* ── KPI ──────────────────────────────────── */
+.kpi { display: flex; flex-direction: column; justify-content: center; gap: .1rem; }
+.kpi small { color: var(--muted); font-size: .76rem; }
+.kpi b { font-size: 1.35rem; line-height: 1.3; }
+.kpi .sub { font-size: .8rem; font-weight: 600; min-height: 1.3em; }
+
+/* ── 登入提示卡 ───────────────────────────── */
+.login-card { text-align: center; padding: 1.5rem 1rem; border-style: dashed; border-color: var(--brass-border); background: var(--brass-light); }
+.login-card p { margin-bottom: .75rem; color: var(--text-2); font-size: .9rem; }
+
+/* ── 自訂版面面板 ─────────────────────────── */
+.settings {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; display: none;
+  width: min(340px, calc(100vw - 2rem)); max-height: 70vh; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg); padding: .9rem 1rem;
+}
+.settings.open { display: block; }
+.settings h3 { font-size: .95rem; margin-bottom: .4rem; }
+.settings fieldset { border: none; margin-top: .6rem; }
+.settings legend { font-size: .72rem; font-weight: 700; color: var(--muted); letter-spacing: .06em; margin-bottom: .2rem; }
+.settings label.opt { display: flex; align-items: center; gap: .5rem; padding: .28rem 0; font-size: .88rem; cursor: pointer; }
+.settings label.opt.locked { opacity: .5; cursor: not-allowed; }
+.settings input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--brass); flex: none; }
+.settings .foot { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .8rem; padding-top: .7rem; border-top: 1px solid var(--border); }
+.store-view { display: block; margin-top: .6rem; font-size: .7rem; color: var(--muted); word-break: break-all; background: var(--hover); border-radius: 6px; padding: .3rem .5rem; }
+
+.hidden { display: none !important; }
+.foot-note { margin-top: 2rem; font-size: .76rem; color: var(--muted); text-align: center; }
+
+@media (max-width: 560px) {
+  html { font-size: 14px; }
+  .topbar { padding: 0 .6rem; gap: .5rem; }
+  .brand span.name { display: none; }
+  .omni-btn .kbd { display: none; }
+  .proto-banner { font-size: .68rem; }
+  .chip-label { min-width: 0; width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<div class="proto-banner">
+  雛形：假資料
+  <label><input type="checkbox" id="loginToggle" checked> 模擬已登入</label>
+</div>
+
+<header class="topbar">
+  <a class="brand" href="#"><span class="brand-icon">M</span><span class="name">MyStock</span></a>
+  <button class="omni-btn" type="button" aria-label="開啟搜尋（Omnibox）">
+    <span>搜尋股票代號或名稱…</span><span class="kbd">Ctrl K</span>
+  </button>
+  <div class="seg" role="group" aria-label="市場切換">
+    <button type="button" data-market="tw" aria-pressed="true">台股</button>
+    <button type="button" data-market="us" aria-pressed="false">美股</button>
+  </div>
+</header>
+
+<main>
+  <div class="page-head">
+    <div>
+      <h1>我的首頁</h1>
+      <p id="dateLine">資料日期 2026-09-22（假資料）</p>
+    </div>
+    <div>
+      <button class="btn" id="settingsBtn" type="button" aria-haspopup="true" aria-expanded="false">自訂版面</button>
+      <div class="settings" id="settingsPanel" role="dialog" aria-label="自訂版面">
+        <h3>自訂版面</h3>
+        <p class="muted" style="font-size:.78rem">勾選要顯示的功能；取消勾選的卡片不會發出資料請求。</p>
+        <div id="settingsGroups"></div>
+        <code class="store-view" id="storeView"></code>
+        <div class="foot">
+          <span class="muted" style="font-size:.72rem">存於 localStorage</span>
+          <button class="btn ghost" id="resetBtn" type="button">全部重設</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ① 快速查找 -->
+  <section class="block" data-section="quick">
+    <h2>快速查找</h2>
+    <div class="card hero stack" style="gap:0">
+      <div class="hero-search" data-widget="quick-search">
+        <span class="ico">&#128269;</span>
+        <input id="heroInput" type="text" autocomplete="off" placeholder="輸入代號或名稱，例如 2330、台積電、AAPL" aria-label="快速搜尋股票">
+        <div class="suggest" id="suggest"></div>
+      </div>
+      <div class="chip-row" data-widget="recent-stocks">
+        <span class="chip-label">最近瀏覽</span><span id="chipsRecent" class="chip-row" style="margin:0"></span>
+      </div>
+      <div data-widget="my-shortcuts">
+        <div class="chip-row"><span class="chip-label">我的持股</span><span id="chipsHold" class="chip-row" style="margin:0"></span></div>
+        <div class="chip-row"><span class="chip-label">我的追蹤</span><span id="chipsTrack" class="chip-row" style="margin:0"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② 今日盤勢 -->
+  <section class="block" data-section="market">
+    <h2>今日盤勢</h2>
+    <div class="stack">
+      <div class="card" data-widget="macro-banner">
+        <div class="card-head"><span class="card-title"><i>&#9673;</i>總經燈號</span><a class="card-link" href="#">詳細 &rarr;</a></div>
+        <div class="macro" id="macro"></div>
+      </div>
+
+      <div class="grid g3" id="indexGrid" data-widget="index-overview"></div>
+
+      <div class="card" data-widget="watchlist-heatmap">
+        <div class="card-head">
+          <span class="card-title"><i>&#9650;</i>我的追蹤清單今日表現</span>
+          <a class="card-link" href="#">查看完整熱力圖 &rarr;</a>
+        </div>
+        <div class="split" id="movers"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ③ 訊號與推薦 -->
+  <section class="block" data-section="signals">
+    <h2>訊號與推薦</h2>
+    <div class="grid g3">
+      <div class="card" data-widget="alerts-summary" id="cardAlerts"></div>
+      <div class="card" data-widget="stock-picking" id="cardPicking"></div>
+      <div class="card" data-widget="war-room" id="cardWar"></div>
+    </div>
+  </section>
+
+  <!-- ④ 我的部位 -->
+  <section class="block" data-section="positions">
+    <h2>我的部位 <span class="badge">需登入</span></h2>
+    <div class="stack">
+      <div class="card login-card hidden" id="loginCard">
+        <p>登入後可顯示持股損益、到價提醒與 AI 評等</p>
+        <a class="btn solid" href="#">前往登入</a>
+      </div>
+
+      <div class="grid g4" id="kpiGrid" data-widget="portfolio-kpi"></div>
+
+      <div class="grid g3">
+        <div class="card" data-widget="holdings-top" id="cardHold"></div>
+        <div class="card" data-widget="watchlist-target" id="cardTarget"></div>
+        <div class="card" data-widget="risk-alerts" id="cardRisk"></div>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot-note">雛形：假資料，僅示意版面與「自訂版面」行為；正式版由既有 API 併發組出（規劃書 §3）。</p>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Widget registry（與 useHomeWidgets.js 一致：13 個）──────────── */
+  var SECTIONS = [
+    { id: 'quick', label: '快速查找' },
+    { id: 'market', label: '今日盤勢' },
+    { id: 'signals', label: '訊號與推薦' },
+    { id: 'positions', label: '我的部位' }
+  ];
+  var REGISTRY = [
+    { id: 'quick-search',      label: '快速搜尋框',       section: 'quick',     owner: false },
+    { id: 'recent-stocks',     label: '最近瀏覽',         section: 'quick',     owner: false },
+    { id: 'my-shortcuts',      label: '我的持股／追蹤捷徑', section: 'quick',     owner: true  },
+    { id: 'macro-banner',      label: '總經燈號條',       section: 'market',    owner: false },
+    { id: 'index-overview',    label: '大盤指數',         section: 'market',    owner: false },
+    { id: 'watchlist-heatmap', label: '追蹤清單今日表現', section: 'market',    owner: false },
+    { id: 'alerts-summary',    label: '今日警示摘要',     section: 'signals',   owner: false },
+    { id: 'stock-picking',     label: '選股／強勢訊號推薦',     section: 'signals',   owner: false },
+    { id: 'war-room',          label: 'AI 戰情室評等',    section: 'signals',   owner: true  },
+    { id: 'portfolio-kpi',     label: '帳戶 KPI',         section: 'positions', owner: true  },
+    { id: 'holdings-top',      label: '持股前五',         section: 'positions', owner: true  },
+    { id: 'watchlist-target',  label: '到價提醒',         section: 'positions', owner: true  },
+    { id: 'risk-alerts',       label: '出場風控警示',     section: 'positions', owner: true  }
+  ];
+  var STORE_KEY = 'mystock.homeWidgets';   // 存「停用 id 陣列」，新增 widget 時舊使用者自動看到
+
+  /* ── 停用清單讀寫（每次都 try/catch；失敗退回記憶體）──────────── */
+  var memoryDisabled = [];
+  var disabled = loadDisabled();
+  function loadDisabled() {
+    try {
+      var raw = window.localStorage.getItem(STORE_KEY);
+      if (!raw) return [];
+      var arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr.filter(function (x) { return typeof x === 'string'; }) : [];
+    } catch (e) { return memoryDisabled.slice(); }
+  }
+  function saveDisabled() {
+    memoryDisabled = disabled.slice();
+    try { window.localStorage.setItem(STORE_KEY, JSON.stringify(disabled)); } catch (e) { /* 無痕視窗等：退回記憶體 */ }
+  }
+  function isEnabled(id) { return disabled.indexOf(id) === -1; }
+  function toggle(id) {
+    var i = disabled.indexOf(id);
+    if (i === -1) disabled.push(id); else disabled.splice(i, 1);
+    saveDisabled(); apply();
+  }
+  function resetAll() {
+    disabled = []; saveDisabled();
+    try { window.localStorage.removeItem(STORE_KEY); } catch (e) {}
+    apply();
+  }
+  function enabledIn(section) { return REGISTRY.filter(function (w) { return w.section === section && isEnabled(w.id); }); }
+
+  /* ── 假資料 ────────────────────────────────────────────────── */
+  var state = { market: 'tw', loggedIn: true };
+  var DATA = {
+    tw: {
+      cur: 'NT$',
+      regime: { above: true, label: '站上月線', detail: '加權 22,845（MA20 22,410）' },
+      macro: [ { k: 'US10Y', v: '4.18%', s: [4.3,4.28,4.25,4.22,4.2,4.19,4.18], up: false }, { k: 'DXY', v: '103.9', s: [105,104.6,104.4,104.1,104.0,103.9,103.9], up: false } ],
+      indices: [
+        { name: '加權指數', val: '22,845.31', chg: 1.24, s: [22400,22450,22380,22550,22640,22700,22845] },
+        { name: '櫃買指數', val: '268.42', chg: -0.35, s: [271,270.5,270,269.2,269.8,269.1,268.4] },
+        { name: '電子類指數', val: '1,092.66', chg: 1.87, s: [1060,1065,1058,1072,1080,1085,1092] }
+      ],
+      gainers: [ ['2330', '台積電', 3.21], ['2454', '聯發科', 2.84], ['3711', '日月光投控', 2.31], ['2382', '廣達', 1.96], ['2317', '鴻海', 1.42] ],
+      losers:  [ ['2603', '長榮', -2.91], ['2609', '陽明', -2.24], ['1301', '台塑', -1.63], ['2412', '中華電', -0.88], ['2891', '中信金', -0.52] ],
+      alerts: { date: '2026-09-22', total: 37, bull: 24, bear: 13, top: [ ['均線黃金交叉', 9], ['法人連續買超', 7], ['價格突破均線', 6], ['KD 超賣黃金交叉', 4] ] },
+      picking: [
+        { rank: 1, sym: '2330', name: '台積電', strat: '多因子共振精選' },
+        { rank: 2, sym: '2454', name: '聯發科', strat: '營收成長動能' },
+        { rank: 3, sym: '2886', name: '兆豐金', strat: '低本益比高殖利率' },
+        { rank: 4, sym: '2317', name: '鴻海', strat: '法人籌碼共振' },
+        { rank: 5, sym: '3034', name: '聯詠', strat: 'EPS 獲利能力' },
+        { rank: 6, sym: '1216', name: '統一', strat: '相對低檔區' }
+      ],
+      war: { bull: 9, bear: 3, neu: 7, hits: [ ['2603 長榮', '觸及停損', true], ['2330 台積電', '觸及目標價', false] ] },
+      holdings: [ ['2330 台積電', 32.4, 18.6], ['0050 元大台灣50', 21.1, 9.3], ['2317 鴻海', 14.8, -2.4], ['2454 聯發科', 11.2, 12.7], ['2886 兆豐金', 8.9, 4.1] ],
+      target: [ ['1909 榮成', '已達價', -1.8], ['2439 美律', '接近目標', 0.6], ['3037 欣興', '接近目標', 2.4] ],
+      risk: [ ['2603 長榮', '移動停損觸發', '09-22'], ['2317 鴻海', '固定停損逼近', '09-21'] ]
+    },
+    us: {
+      cur: 'US$',
+      regime: { above: true, label: '站上月線', detail: 'S&P 500 5,812（MA20 5,730）' },
+      macro: [ { k: 'US10Y', v: '4.18%', s: [4.3,4.28,4.25,4.22,4.2,4.19,4.18], up: false }, { k: 'DXY', v: '103.9', s: [105,104.6,104.4,104.1,104.0,103.9,103.9], up: false } ],
+      indices: [
+        { name: 'S&P 500', val: '5,812.40', chg: 0.62, s: [5700,5720,5710,5760,5780,5790,5812] },
+        { name: 'NASDAQ', val: '18,402.11', chg: 0.95, s: [17900,18000,17950,18120,18240,18300,18402] },
+        { name: '道瓊工業', val: '42,103.88', chg: -0.18, s: [42300,42250,42200,42150,42180,42140,42103] }
+      ],
+      gainers: [ ['NVDA', 'NVIDIA', 3.85], ['AAPL', 'Apple', 1.72], ['MSFT', 'Microsoft', 1.31], ['AMZN', 'Amazon', 0.94], ['GOOGL', 'Alphabet', 0.71] ],
+      losers:  [ ['TSLA', 'Tesla', -2.42], ['META', 'Meta', -1.18], ['NFLX', 'Netflix', -0.86], ['AMD', 'AMD', -0.61], ['INTC', 'Intel', -0.33] ],
+      alerts: { date: '2026-09-22', total: 12, bull: 8, bear: 4, top: [ ['價格突破均線', 4], ['MACD 黃金交叉', 3], ['RSI 超賣反彈', 2] ] },
+      pickingTitle: '強勢技術訊號',
+      picking: [
+        { rank: 1, sym: 'NET', name: 'Cloudflare', strat: '均線黃金交叉・MACD 黃金交叉' },
+        { rank: 2, sym: 'TSLA', name: 'Tesla', strat: 'KD 超賣區黃金交叉' },
+        { rank: 3, sym: 'NVDA', name: 'NVIDIA', strat: '均線多頭排列' },
+        { rank: 4, sym: 'LITE', name: 'Lumentum', strat: '均線黃金交叉' }
+      ],
+      war: { bull: 4, bear: 1, neu: 3, hits: [ ['TSLA', '觸及停損', true] ] },
+      holdings: [ ['AAPL', 41.2, 8.8], ['NVDA', 33.6, 22.4], ['MSFT', 25.2, 5.1] ],
+      target: [ ['AMD', '接近目標', 1.9] ],
+      risk: [ ['TSLA', '移動停損觸發', '09-22'] ]
+    },
+    recent: [ ['tw', '2330', '台積電'], ['us', 'NVDA', 'NVIDIA'], ['tw', '2454', '聯發科'], ['tw', '0050', '元大台灣50'] ],
+    kpi: [
+      { label: '帳戶總值', val: 'NT$1,286,400', sub: '含現金 NT$212,000', cls: '' },
+      { label: '未實現損益', val: '+NT$86,240', sub: '+7.19%', cls: 'up' },
+      { label: '已實現損益', val: '+NT$32,150', sub: '今年累計', cls: 'up' },
+      { label: '勝率', val: '62%', sub: '13 勝 / 8 負', cls: '' }
+    ],
+    symbols: [ ['2330','台積電'], ['2317','鴻海'], ['2454','聯發科'], ['2603','長榮'], ['2886','兆豐金'], ['0050','元大台灣50'], ['AAPL','Apple'], ['NVDA','NVIDIA'], ['MSFT','Microsoft'], ['TSLA','Tesla'] ]
+  };
+
+  /* ── 小工具 ────────────────────────────────────────────────── */
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function pct(n) { return (n > 0 ? '+' : '') + n.toFixed(2) + '%'; }
+  function cls(n) { return n > 0 ? 'up' : (n < 0 ? 'down' : ''); }   // 紅漲綠跌
+  function spark(arr, colorCls) {
+    var min = Math.min.apply(null, arr), max = Math.max.apply(null, arr), rng = (max - min) || 1;
+    var pts = arr.map(function (v, i) { return (i / (arr.length - 1) * 100).toFixed(1) + ',' + (28 - (v - min) / rng * 26).toFixed(1); }).join(' ');
+    return '<svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><polyline points="' + pts +
+      '" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" class="' + colorCls + '"/></svg>';
+  }
+  function cardHead(title, icon, link) {
+    return '<div class="card-head"><span class="card-title"><i>' + icon + '</i>' + title + '</span><a class="card-link" href="#">' + link + ' &rarr;</a></div>';
+  }
+  function $(id) { return document.getElementById(id); }
+
+  /* ── 渲染各 widget 內容 ────────────────────────────────────── */
+  function renderContent() {
+    var d = DATA[state.market];
+
+    // 快速查找 chips
+    $('chipsRecent').innerHTML = DATA.recent.map(function (r) {
+      return '<a class="chip" href="#"><span class="muted" style="font-size:.7rem">' + r[0].toUpperCase() + '</span>' + esc(r[1]) + ' ' + esc(r[2]) + '<span class="star">&#9734;</span></a>';
+    }).join('');
+    $('chipsHold').innerHTML = d.holdings.slice(0, 4).map(function (h) { return '<a class="chip" href="#">' + esc(h[0]) + '<span class="star">&#9733;</span></a>'; }).join('');
+    $('chipsTrack').innerHTML = d.gainers.concat(d.losers).slice(0, 6).map(function (m) { return '<a class="chip" href="#">' + esc(m[0]) + ' ' + esc(m[1]) + '<span class="star">&#9733;</span></a>'; }).join('');
+
+    // 總經
+    var mac = '<div class="macro-item"><small>大盤位階</small><span class="pill ' + (d.regime.above ? 'up' : 'down') + '">' +
+      (d.regime.above ? '&#9650; ' : '&#9660; ') + d.regime.label + '</span></div>' +
+      '<div class="macro-item"><small>&nbsp;</small><span class="muted" style="font-size:.82rem">' + esc(d.regime.detail) + '</span></div>';
+    d.macro.forEach(function (m) {
+      mac += '<div class="macro-item"><small>' + m.k + '</small><b class="num">' + m.v + '</b></div>' + spark(m.s, 'muted');
+    });
+    $('macro').innerHTML = mac;
+
+    // 指數卡（3 張，grid 等高；.card 已 margin:0）
+    $('indexGrid').innerHTML = d.indices.map(function (ix) {
+      return '<a class="card idx-card" href="#"><span class="idx-name">' + esc(ix.name) + '</span>' +
+        '<span class="idx-val num">' + ix.val + '</span>' +
+        '<span class="idx-chg num ' + cls(ix.chg) + '">' + (ix.chg > 0 ? '&#9650; ' : '&#9660; ') + pct(ix.chg) + '</span>' +
+        spark(ix.s, cls(ix.chg)) + '</a>';
+    }).join('');
+
+    // 追蹤清單今日表現
+    function moverList(title, rows) {
+      return '<div><h4>' + title + '</h4><ul class="list">' + rows.map(function (r) {
+        return '<li><span class="l">' + esc(r[0]) + ' ' + esc(r[1]) + '</span><span class="r num ' + cls(r[2]) + '">' + pct(r[2]) + '</span></li>';
+      }).join('') + '</ul></div>';
+    }
+    $('movers').innerHTML = moverList('漲幅前 5', d.gainers) + moverList('跌幅前 5', d.losers);
+
+    // 警示摘要
+    var a = d.alerts, tot = (a.bull + a.bear) || 1, mx = Math.max.apply(null, a.top.map(function (t) { return t[1]; }));
+    $('cardAlerts').innerHTML = cardHead('今日警示摘要', '&#9888;', '全部警示') +
+      '<div class="muted" style="font-size:.72rem;margin-bottom:.4rem">掃描日 ' + a.date + '</div>' +
+      '<div class="stat-row"><div class="stat"><b class="num">' + a.total + '</b><small>總警示</small></div>' +
+      '<div class="stat"><b class="num up">' + a.bull + '</b><small>偏多</small></div>' +
+      '<div class="stat"><b class="num down">' + a.bear + '</b><small>偏空</small></div></div>' +
+      '<ul class="list">' + a.top.map(function (t) {
+        return '<li style="display:block"><div style="display:flex;justify-content:space-between;gap:.5rem"><span class="l">' + esc(t[0]) + '</span><span class="r num">' + t[1] + '</span></div><div class="bar"><i style="width:' + (t[1] / mx * 100) + '%"></i></div></li>';
+      }).join('') + '</ul>';
+
+    // 推薦：台股用選股策略；美股沒有選股策略，改用技術面偏多（BUY）訊號
+    $('cardPicking').innerHTML = cardHead(d.pickingTitle || '策略選股推薦', '&#9733;', d.pickingTitle ? '警示看板' : '前往選股') + (d.picking.length
+      ? '<ul class="list">' + d.picking.map(function (p) {
+          return '<li><span class="l"><span class="tag">#' + p.rank + '</span>' + esc(p.sym) + ' ' + esc(p.name) + '</span><span class="r muted" style="font-size:.72rem;font-weight:500">' + esc(p.strat) + '</span></li>';
+        }).join('') + '</ul>'
+      : '<div class="empty">近 5 日沒有推薦標的</div>');
+
+    // 戰情室
+    var w = d.war;
+    $('cardWar').innerHTML = cardHead('AI 戰情室評等', '&#9670;', '戰情室') +
+      '<div class="stat-row"><div class="stat"><b class="num up">' + w.bull + '</b><small>看多</small></div>' +
+      '<div class="stat"><b class="num down">' + w.bear + '</b><small>看空</small></div>' +
+      '<div class="stat"><b class="num">' + w.neu + '</b><small>中立</small></div></div>' +
+      '<h4 class="muted" style="font-size:.74rem;margin-bottom:.15rem">已觸及目標價／停損</h4><ul class="list">' + w.hits.map(function (h) {
+        return '<li><span class="l">' + esc(h[0]) + '</span><span class="r"><span class="tag warn">' + h[1] + '</span></span></li>';
+      }).join('') + '</ul>';
+
+    // KPI（4 張等高）
+    $('kpiGrid').innerHTML = DATA.kpi.map(function (k) {
+      return '<div class="card kpi"><small>' + k.label + '</small><b class="num ' + k.cls + '">' + k.val + '</b><span class="sub num ' + k.cls + '">' + k.sub + '</span></div>';
+    }).join('');
+
+    // 持股前五
+    $('cardHold').innerHTML = cardHead('持股前五', '&#9632;', '全部持股') + '<ul class="list">' + d.holdings.map(function (h) {
+      return '<li style="display:block"><div style="display:flex;justify-content:space-between;gap:.5rem"><span class="l">' + esc(h[0]) + '</span><span class="r num ' + cls(h[2]) + '">' + pct(h[2]) + '</span></div>' +
+        '<div class="bar"><i style="width:' + h[1] + '%"></i></div><div class="muted num" style="font-size:.7rem">權重 ' + h[1].toFixed(1) + '%</div></li>';
+    }).join('') + '</ul>';
+
+    // 到價提醒
+    $('cardTarget').innerHTML = cardHead('觀察名單到價提醒', '&#9873;', '觀察名單') + (d.target.length
+      ? '<ul class="list">' + d.target.map(function (t) {
+          return '<li><span class="l">' + esc(t[0]) + '</span><span class="r num"><span class="tag ' + (t[1] === '已達價' ? 'warn' : '') + '">' + t[1] + '</span>距目標 ' + pct(t[2]) + '</span></li>';
+        }).join('') + '</ul>'
+      : '<div class="empty">目前沒有接近目標價的標的</div>');
+
+    // 出場風控
+    $('cardRisk').innerHTML = cardHead('出場風控警示', '&#9940;', '全部警示') + (d.risk.length
+      ? '<ul class="list">' + d.risk.map(function (r) {
+          return '<li><span class="l">' + esc(r[0]) + '</span><span class="r"><span class="tag warn">' + r[1] + '</span><span class="muted" style="font-size:.72rem;font-weight:500">' + r[2] + '</span></span></li>';
+        }).join('') + '</ul>'
+      : '<div class="empty">近 5 日沒有出場警示</div>');
+  }
+
+  /* ── 依勾選／登入狀態顯示隱藏；區塊全空 → 標題一併隱藏 ─────────── */
+  function apply() {
+    var byId = {};
+    REGISTRY.forEach(function (w) { byId[w.id] = w; });
+
+    document.querySelectorAll('[data-widget]').forEach(function (el) {
+      var w = byId[el.getAttribute('data-widget')];
+      var show = isEnabled(w.id) && (!w.owner || state.loggedIn);
+      el.classList.toggle('hidden', !show);
+    });
+
+    SECTIONS.forEach(function (s) {
+      var sec = document.querySelector('[data-section="' + s.id + '"]');
+      var enabled = enabledIn(s.id);
+      var visible = enabled.filter(function (w) { return !w.owner || state.loggedIn; }).length;
+      var loginPrompt = s.id === 'positions' && !state.loggedIn && enabled.length > 0;
+      $('loginCard').classList.toggle('hidden', !loginPrompt);
+      if (s.id === 'positions') sec.classList.toggle('hidden', !(visible > 0 || loginPrompt));
+      else sec.classList.toggle('hidden', visible === 0);
+    });
+
+    renderSettings();
+  }
+
+  function renderSettings() {
+    $('settingsGroups').innerHTML = SECTIONS.map(function (s) {
+      return '<fieldset><legend>' + s.label + '</legend>' + REGISTRY.filter(function (w) { return w.section === s.id; }).map(function (w) {
+        var locked = w.owner && !state.loggedIn;
+        return '<label class="opt' + (locked ? ' locked' : '') + '"><input type="checkbox" data-id="' + w.id + '"' + (isEnabled(w.id) ? ' checked' : '') + (locked ? ' disabled' : '') + '>' +
+          esc(w.label) + (w.owner ? ' <span class="badge">需登入</span>' : '') + '</label>';
+      }).join('') + '</fieldset>';
+    }).join('');
+    $('storeView').textContent = STORE_KEY + ' = ' + JSON.stringify(disabled);
+  }
+
+  /* ── 互動：設定面板 ────────────────────────────────────────── */
+  var panel = $('settingsPanel'), btn = $('settingsBtn');
+  function setPanel(open) { panel.classList.toggle('open', open); btn.setAttribute('aria-expanded', String(open)); }
+  btn.addEventListener('click', function (e) { e.stopPropagation(); setPanel(!panel.classList.contains('open')); });
+  panel.addEventListener('click', function (e) { e.stopPropagation(); });
+  panel.addEventListener('change', function (e) {
+    var id = e.target && e.target.getAttribute && e.target.getAttribute('data-id');
+    if (id) toggle(id);
+  });
+  $('resetBtn').addEventListener('click', resetAll);
+  document.addEventListener('click', function () { setPanel(false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setPanel(false); });
+
+  /* ── 互動：市場切換（重抓期間保留舊內容＋遮罩，不重置捲動位置）──── */
+  document.querySelectorAll('.seg button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var m = b.getAttribute('data-market');
+      if (m === state.market) return;
+      document.querySelectorAll('.seg button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      var cards = document.querySelectorAll('.card:not(.hero):not(.login-card)');
+      cards.forEach(function (c) { c.classList.add('refreshing'); });
+      setTimeout(function () {
+        state.market = m; renderContent();
+        document.querySelectorAll('.card.refreshing').forEach(function (c) { c.classList.remove('refreshing'); });
+      }, 500);
+    });
+  });
+
+  /* ── 互動：模擬登入／登出 ─────────────────────────────────── */
+  $('loginToggle').addEventListener('change', function (e) { state.loggedIn = e.target.checked; apply(); });
+
+  /* ── 互動：Hero 搜尋（正式版第一個按鍵即交棒 Omnibox，這裡以下拉示意）── */
+  var input = $('heroInput'), sug = $('suggest');
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase();
+    if (!q) { sug.classList.remove('open'); return; }
+    var hits = DATA.symbols.filter(function (s) { return s[0].toLowerCase().indexOf(q) !== -1 || s[1].toLowerCase().indexOf(q) !== -1; }).slice(0, 5);
+    sug.innerHTML = '<div class="note">示意：正式版此時會開啟 Omnibox 並帶入「' + esc(input.value) + '」</div>' +
+      (hits.length ? hits.map(function (s) { return '<a href="#"><span>' + esc(s[0]) + ' ' + esc(s[1]) + '</span><span class="muted">&rarr;</span></a>'; }).join('') : '<a href="#"><span class="muted">沒有符合的標的</span></a>');
+    sug.classList.add('open');
+  });
+  document.addEventListener('click', function (e) { if (!sug.contains(e.target) && e.target !== input) sug.classList.remove('open'); });
+
+  /* ── 初始化 ──────────────────────────────────────────────── */
+  renderContent();
+  apply();
+})();
+</script>
+</body>
+</html>

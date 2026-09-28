@@ -1,6 +1,6 @@
 <template>
-  <Dialog 
-    v-model:visible="visible" 
+  <Dialog
+    v-model:visible="state.visible"
     modal 
     :showHeader="false" 
     :dismissableMask="true"
@@ -20,13 +20,13 @@
           @keydown.down.prevent="moveSelection(1)"
           @keydown.up.prevent="moveSelection(-1)"
           @keydown.enter.prevent="selectCurrent"
-          @keydown.esc.prevent="visible = false"
+          @keydown.esc.prevent="state.visible = false"
           type="text" 
           class="w-full bg-transparent border-none outline-none pl-10 pr-4 py-2 text-lg text-surface-900 dark:text-surface-0 placeholder-surface-400 font-semibold"
           placeholder="搜尋股票代號或名稱..."
         />
         <div class="flex items-center gap-2">
-          <button @click="visible = false" class="text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 px-2">
+          <button @click="state.visible = false" class="text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 px-2">
             <i class="pi pi-times"></i>
           </button>
         </div>
@@ -119,10 +119,14 @@
 import { ref, watch, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMarket } from '@/composables/useMarket';
+import { useOmnibox } from '@/composables/useOmnibox';
 import { stockApi } from '@/service/stockApi';
 import debounce from 'lodash/debounce';
 
-const visible = ref(false);
+// 開關狀態移到 useOmnibox 單例，讓首頁的大搜尋框也能開啟同一個面板
+// （並把使用者已輸入的字串一起交棒過來），不必重做一套搜尋 UI。
+const { state, openOmnibox } = useOmnibox();
+
 const searchQuery = ref('');
 const searchMarket = ref('all');
 const loading = ref(false);
@@ -138,7 +142,7 @@ const { enabledMarkets, setMarket } = useMarket();
 function handleGlobalKeydown(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault();
-    visible.value = true;
+    openOmnibox();
   }
 }
 
@@ -151,10 +155,11 @@ onUnmounted(() => {
 });
 
 function focusInput() {
-  // 自動將 searchMarket 設為 'all' 或當前 active market
-  searchQuery.value = '';
+  // 帶入呼叫端交棒過來的字串（首頁大搜尋框打的第一個字），一般開啟時為空字串。
+  searchQuery.value = state.initialQuery || '';
   results.value = [];
   selectedIndex.value = 0;
+  if (searchQuery.value) performSearch();
   nextTick(() => {
     if (searchInput.value) {
       searchInput.value.focus();
@@ -165,6 +170,8 @@ function focusInput() {
 function onHide() {
   searchQuery.value = '';
   results.value = [];
+  // 清掉交棒字串，否則下次用 Ctrl+K 開啟會殘留上一次首頁打的關鍵字
+  state.initialQuery = '';
 }
 
 const performSearch = debounce(async () => {
@@ -237,7 +244,7 @@ function selectCurrent() {
 }
 
 function selectItem(item) {
-  visible.value = false;
+  state.visible = false;
   // 更新當前市場
   setMarket(item.market);
   // 導向個股頁
@@ -256,8 +263,9 @@ function highlight(text) {
 }
 
 // 供外部父元件主動開啟
+// 保留給 AppTopbar 既有的 omniboxRef?.open() 呼叫；內部改走單例，行為不變。
 defineExpose({
-  open: () => { visible.value = true; }
+  open: (initialQuery = '') => openOmnibox(initialQuery)
 });
 </script>
 

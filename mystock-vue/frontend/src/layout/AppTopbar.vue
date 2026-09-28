@@ -169,10 +169,12 @@ async function handleMarketSwitch(newMarket) {
                 currentStockId.value = res.data[0].stock_id;
                 router.push(`/stock/${newMarket}/${res.data[0].stock_id}`);
             } else {
-                router.push('/');
+                // 切換市場後這個市場沒有任何已抓資料的個股：退回熱力圖而不是首頁，
+                // 保留使用者「繼續看市場」的意圖（首頁在 topbar logo 一直都點得到）。
+                router.push('/heatmap');
             }
         } catch (e) {
-            router.push('/');
+            router.push('/heatmap');
         }
     } else if (route.path.startsWith('/index/')) {
         const defaultCode = newMarket === 'us' ? 'GSPC' : 'TWII';
