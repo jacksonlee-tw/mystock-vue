@@ -40,6 +40,12 @@ VALID_NEWS_SENTIMENT_ENGINES = ("local", "llm", "hybrid")
 DEFAULT_NEWS_LLM_DAILY_QUOTA = 50
 DEFAULT_NEWS_LLM_PROVIDER = "gemini"
 DEFAULT_NEWS_RETENTION_MONTHS = 12
+
+# ── Phase 7 PTT 論壇情緒分析 P2（docs/01_Requirements/16.AI技術分析/Phase7-PTT論壇情緒分析.md §6）──
+# 配額獨立於 NEWS_LLM_DAILY_QUOTA（ADR-P7-03：兩者資料特性與評分管線完全隔離，不共用計數器）。
+# PTT 股板每日僅 20~40 篇（§2.2 實測），預設值遠小於新聞情緒的 50，避免配額形同虛設。
+DEFAULT_FORUM_LLM_DAILY_QUOTA = 40
+DEFAULT_FORUM_LLM_PROVIDER = "gemini"
 # 抓歷史資料的上限（月）。目前系統實際累積的資料量遠低於此，等同於「抓全部歷史」；
 # 之所以不用 None／不限制，是沿用 aggregate_stock_data() 既有的 months 參數介面。
 # 集中放在這裡（而非各自散在 services/chip_provider.py、services/stock_service.py）是因為
@@ -222,6 +228,21 @@ def get_news_retention_months() -> int:
         return int(os.getenv("NEWS_RETENTION_MONTHS", str(DEFAULT_NEWS_RETENTION_MONTHS)))
     except ValueError:
         return DEFAULT_NEWS_RETENTION_MONTHS
+
+
+def get_forum_llm_daily_quota() -> int:
+    """獨立於 NEWS_LLM_DAILY_QUOTA（ADR-P7-03）：論壇情緒與新聞情緒是兩條完全隔離的評分管線，
+    共用計數器會讓其中一邊的呼叫量排擠另一邊的配額，比照 get_news_llm_daily_quota() 的既有手法。"""
+    load_dotenv(ENV_PATH, override=True)
+    try:
+        return int(os.getenv("FORUM_LLM_DAILY_QUOTA", str(DEFAULT_FORUM_LLM_DAILY_QUOTA)))
+    except ValueError:
+        return DEFAULT_FORUM_LLM_DAILY_QUOTA
+
+
+def get_forum_llm_provider() -> str:
+    load_dotenv(ENV_PATH, override=True)
+    return os.getenv("FORUM_LLM_PROVIDER", DEFAULT_FORUM_LLM_PROVIDER).strip()
 
 
 def get_fred_api_key() -> str:
